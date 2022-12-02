@@ -55,6 +55,8 @@ Inductive Lift_e
   Lift_e (w `W n) (Expr.Var (Expr.TBit w) "" 0) [w `W n]
 | Lift_int w z :
   Lift_e (w `S z) (Expr.Var (Expr.TInt w) "" 0) [w `S z]
+| Lift_varbit w n :
+  Lift_e (Expr.VarBit w n) (Expr.Var (Expr.TVarBit w) "" 0) [Expr.VarBit w n]
 | Lift_member t x e e' es :
   Lift_e e e' es ->
   Lift_e (Expr.Member t x e) (Expr.Member t x e') es
@@ -116,6 +118,9 @@ Section LifteInduction.
   Hypothesis HLift_int : forall w z,
       P (w `S z) (Expr.Var (Expr.TInt w) "" 0) [w `S z].
   
+  Hypothesis HLift_varbit : forall w n,
+      P (Expr.VarBit w n) (Expr.Var (Expr.TVarBit w) "" 0) [Expr.VarBit w n].
+
   Hypothesis HLift_member : forall t x e e' es,
       Lift_e e e' es ->
       P e e' es ->
@@ -192,6 +197,7 @@ Section LifteInduction.
       | Lift_error e => HLift_error e
       | Lift_bit x y => HLift_bit x y
       | Lift_int x y => HLift_int x y
+      | Lift_varbit x y => HLift_varbit x y
       | Lift_member t x _ _ _ h => HLift_member t x _ _ _ h (F _ _ _ h)
       | Lift_uop t o _ _ _ h => HLift_uop t o _ _ _ h (F _ _ _ h)
       | Lift_slice hi lo _ _ _ h => HLift_slice hi lo _ _ _ h (F _ _ _ h)

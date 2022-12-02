@@ -19,6 +19,8 @@ Section TypeInduction.
   Hypothesis HTBit : forall w, P (TBit w).
   
   Hypothesis HTInt : forall w, P (TInt w).
+
+  Hypothesis HTVarBit : forall w, P (TVarBit w).
   
   Hypothesis HTError : P TError.
 
@@ -42,6 +44,7 @@ Section TypeInduction.
       | TBool        => HTBool
       | TBit w       => HTBit w
       | TInt w       => HTInt w
+      | TVarBit w    => HTVarBit w
       | TError       => HTError
       | TArray n typ => HTArray n _ (custom_t_ind typ)
       | TStruct b ts => HTStruct b ts (list_ind ts)
@@ -62,6 +65,8 @@ Section ExprInduction.
   Hypothesis HBit : forall w n, P (w `W n).
   
   Hypothesis HInt : forall w n, P (w `S n).
+
+  Hypothesis HVarBit : forall w n, P (VarBit w n).
   
   Hypothesis HVar : forall ty og x, P (Var ty og x).
   
@@ -98,7 +103,8 @@ Section ExprInduction.
       | Bool b       => HBool b
       | w `W n       => HBit w n
       | w `S n       => HInt w n
-      | Var ty og x     => HVar ty og x
+      | VarBit w n   => HVarBit w n
+      | Var ty og x  => HVar ty og x
       | Slice h l n  => HSlice h l n (eind n)
       | Cast τ exp   => HCast τ exp (eind exp)
       | Uop τ op exp => HUop τ op exp (eind exp)

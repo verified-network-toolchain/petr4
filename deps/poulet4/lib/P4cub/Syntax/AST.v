@@ -75,6 +75,7 @@ Module Expr.
   (** Expression types. *)
   Inductive t : Set :=
   | TBool                       (** bools *)
+  | TVarBit (max_width: N)      (** variable-length bitstrings *)
   | TBit (width : N)            (** unsigned integers *)
   | TInt (width : positive)     (** signed integers *)
   | TError                      (** the error type *)
@@ -133,6 +134,7 @@ Module Expr.
       unless the type is obvious. *)  
   Inductive e : Set :=
   | Bool (b : bool)                     (** booleans *)
+  | VarBit (max_width : N) (val : Z)    (** variable-width integers *)
   | Bit (width : N) (val : Z)        (** unsigned integers *)
   | Int (width : positive) (val : Z) (** signed integers *)
   | Var (type : t) (original_name : string) (x : nat)  (** variables *)

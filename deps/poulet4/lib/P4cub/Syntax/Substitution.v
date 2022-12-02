@@ -10,6 +10,7 @@ Fixpoint tshift_t (n : nat) (τ : Expr.t) : Expr.t :=
   | Expr.TBool
   | Expr.TBit _
   | Expr.TInt _
+  | Expr.TVarBit _
   | Expr.TError       => τ
   | Expr.TVar X       => n + X
   | Expr.TArray s t   => Expr.TArray s (tshift_t n t)
@@ -30,6 +31,7 @@ Section Sub.
     | Expr.TBool
     | Expr.TBit _
     | Expr.TInt _
+    | Expr.TVarBit _
     | Expr.TError       => t
     | Expr.TArray n t   => Expr.TArray n $ tsub_t t
     | Expr.TStruct b ts => Expr.TStruct b $ List.map tsub_t ts
@@ -48,6 +50,7 @@ Section Sub.
     | Expr.Bool _
     | Expr.Bit _ _
     | Expr.Int _ _
+    | Expr.VarBit _ _
     | Expr.Error _ => e
     | Expr.Var t og x       => Expr.Var (tsub_t t) og x
     | Expr.Slice hi lo e => Expr.Slice hi lo $ tsub_e e

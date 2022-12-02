@@ -35,6 +35,7 @@ Section Shift.
     | Expr.Bool _
     | _ `W _
     | _ `S _
+    | Expr.VarBit _ _
     | Expr.Error _ => e
     | Expr.Var t og x =>
         Expr.Var t og $ shift_var x
@@ -276,8 +277,9 @@ Section Rename.
     | Expr.Bool _
     | _ `W _
     | _ `S _
+    | Expr.VarBit _ _
     | Expr.Error _     => e
-    | Expr.Var t og x     => Expr.Var t og $ ρ x
+    | Expr.Var t og x  => Expr.Var t og $ ρ x
     | Expr.Slice h l e => Expr.Slice h l $ rename_e e
     | Expr.Cast t e    => Expr.Cast t $ rename_e e
     | Expr.Uop t op e  => Expr.Uop t op $ rename_e e
@@ -360,6 +362,7 @@ Section TermSub.
     | Expr.Bool _
     | _ `W _
     | _ `S _
+    | Expr.VarBit _ _
     | Expr.Error _ => e
     | Expr.Var t og x => σ x t og
     | Expr.Slice hi lo e => Expr.Slice hi lo $ esub_e e

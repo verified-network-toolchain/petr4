@@ -163,6 +163,7 @@ Section ToGCL.
       | E.Bool _ => e
       | E.Bit _ _ => e
       | E.Int _ _ => e
+      | E.VarBit _ _ => e
       | E.Var typ x n =>
         let x' := relabel_for_scope ctx x in
         E.Var typ x' n
@@ -212,6 +213,7 @@ Section ToGCL.
       match e with
       | E.Bool _ => error "Boolean Literals are not lvalues"
       | E.Bit _ _ => error "BitVector Literals are not lvalues"
+      | E.VarBit _ _ => error "Varbit Literals are not lvalues"
       | E.Int _ _ => error "Integer literals are not lvalues"
       | E.Var t x _ => ok x
       | E.Slice hi lo e =>
@@ -239,6 +241,7 @@ Section ToGCL.
       | E.TBool => ok 1
       | E.TBit w => ok (BinNat.N.to_nat w)
       | E.TInt w => ok (BinPos.Pos.to_nat w)
+      | E.TVarBit w => ok (BinNat.N.to_nat w)
       | E.TVar tx => error ("Cannot get the width of a typ variable " @@ string_of_nat tx @@ " for var " @@ x)
       | E.TError => ok 3 (* FIXME:: core.p4 has only 7 error codes, but this should come from a static analysis*)
       (* | E.TMatchKind => error ("Cannot get the width of a Match Kind Type for var" @@ x) *)
@@ -252,6 +255,7 @@ Section ToGCL.
       | E.Bool _ => error "A Boolean is not a header"
       | E.Bit _ _ => error "A bitvector literal is not a header"
       | E.Int _ _ => error "An integer literal is not a header"
+      | E.VarBit _ _ => error "A varbit literal is not a header"
       | E.Var t x _ =>
         match t with
         | E.TStruct _ _ => ok x
@@ -304,6 +308,8 @@ Section ToGCL.
       | E.Int _ _ =>
         (** TODO Figure out how to handle ints *)
         error "[FIXME] Cannot translate signed ints to bivectors"
+      | E.VarBit w v =>
+        ok (BV.bit (Some (BinNat.N.to_nat w)) (BinInt.Z.to_nat v))
       | E.Var t x _ =>
         let* w := width_of_type x t (*over ("couldn't get type-width of " @@ x @@ " while converting to rvalue")*) in
         ok (BV.BVVar x w)
@@ -449,6 +455,7 @@ Section ToGCL.
        match typ with
        | E.TBit _ => ok false
        | E.TInt _ => ok true
+       | E.TVarBit _ => ok false
        | E.TBool => error "Typerror:: expected (signed?) bitvector; got boolean"
        | E.TError => error "Typerror:: expected (signed?) bitvector; got error type"
        | E.TStruct false _ => error "Typerror:: expected (signed?) bitvector; got struct type"
@@ -465,6 +472,8 @@ Section ToGCL.
         error "Typeerror: Bitvector literals are not booleans (perhaps you want to insert a cast?)"
       | E.Int _ _ =>
         error "Typeerror: Signed Ints are not booleans (perhaps you want to insert a cast?)"
+      | E.VarBit _ _ =>
+        error "Typeerror: VarBit literals are not booleans (perhaps you want to insert a cast?)"
       | E.Var t x _  =>
         match t with
         | E.TBool => ok (Form.LVar x)

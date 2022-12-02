@@ -242,7 +242,7 @@ Section Properties.
           | h: Util.type_lists_ok _ _ _ |- _ => inv h
           end.
       assert (⊢ᵥ V ∈ τ) as hVt by eauto.
-      destruct V as [ | q z | q z | |]; unravel in *; try discriminate; some_inv;
+      destruct V as [ | q z | q z | q z | |]; unravel in *; try discriminate; some_inv;
         inv hVt; inv H0;
         autorewrite with core in *;
         autorewrite with core in |-*; try lia;

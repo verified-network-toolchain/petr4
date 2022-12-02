@@ -102,6 +102,7 @@ Section Embed.
     | Expr.TBool => TypBool       
     | Expr.TBit (width) => TypBit width
     | Expr.TInt (width) => TypInt (Npos width)
+    | Expr.TVarBit (width) => TypVarBit width
     | Expr.TError => TypError
     | Expr.TArray n t =>
         TypArray (P4Cub_to_P4Light_fun t) n
@@ -163,6 +164,8 @@ Section Embed.
       Embed (Val.Bit w n) (ValBaseBit (to_lbool w n))
   | Embed_int w z :
       Embed (Val.Int w z) (ValBaseInt (to_lbool (Npos w) z))
+  | Embed_varbit w n :
+      Embed (Val.VarBit w n) (ValBaseVarbit w (to_lbool w n))
   | Embed_tuple vs vs' :
       Forall2 Embed vs vs' ->
       Embed
@@ -186,6 +189,7 @@ Section Embed.
     | Val.Bool b => ValBaseBool b
     | Val.Bit w n => ValBaseBit $ to_lbool w n
     | Val.Int w z  => ValBaseInt $ to_lbool (Npos w) z
+    | Val.VarBit w n => ValBaseVarbit w $ to_lbool w n
     | Val.Lists (Expr.lists_header b) vs =>
         ValBaseHeader (make_assoc_list 0 (List.map embed vs)) b
     | Val.Lists Expr.lists_struct vs =>
@@ -250,6 +254,11 @@ Section Embed.
     | ValBaseBit lb =>
         let (w, n) := BitArith.from_lbool lb in 
         Result.ok(Val.Bit w n) 
+    | ValBaseVarbit w lb =>
+        let (w', n) := BitArith.from_lbool lb in 
+        if N.leb w' w
+        then Result.ok(Val.VarBit w n) 
+        else Result.error("varbit too wide")
     | ValBaseStruct s =>
         sequence
           (map (fun '(_,v) => proj v) s)
@@ -267,7 +276,6 @@ Section Embed.
         Val.Lists (Expr.lists_array t) vs
     | ValBaseError e => Result.ok (Val.Error e)
     | ValBaseInteger _ => Result.error("No mapping for ValBaseInteger exists")
-    | ValBaseVarbit _ _ => Result.error("No mapping for ValBaseVarbit exists")
     | ValBaseString _ => Result.error("No mapping for ValBaseString exists")
     | ValBaseTuple _ => Result.error("No mapping for ValBaseTuple exists")
     | ValBaseMatchKind _ => Result.error("No mapping for ValBaseMatchKind exists")
@@ -393,6 +401,7 @@ Section Embed.
               ** lia.
               ** admit.
           -- admit. *) admit.   
+    - admit. (* varbit case *)
     - apply Forall2_only_l_Forall in H1.
       pose proof Forall_map_Forall2
            _ _ (fun v v' => proj v' = Result.ok v) embed _ H1 as h.

@@ -22,6 +22,9 @@ Inductive type_expr (Δ : nat) (Γ : list Expr.t)
 | type_int w n :
   IntArith.bound w n ->
   `⟨ Δ, Γ ⟩ ⊢ w `S n ∈ Expr.TInt w
+| type_varbit w n :
+  BitArith.bound w n ->
+  `⟨ Δ, Γ ⟩ ⊢ Expr.VarBit w n ∈ Expr.TVarBit w
 | type_var τ og x :
   nth_error Γ x = Some τ ->
   t_ok Δ τ ->

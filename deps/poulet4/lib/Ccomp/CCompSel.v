@@ -30,6 +30,7 @@ Section CCompSel.
     (p4t : Expr.t) : State ClightEnv Ctypes.type :=
     match p4t with
     | Expr.TBool => mret Ctypes.type_bool
+    | Expr.TVarBit _
     | Expr.TBit _
     | Expr.TInt _ => mret bit_vec
     | Expr.TVar _ => mret tvoid
@@ -420,6 +421,7 @@ Section CCompSel.
         let is_signed := Ctrue in
         let width := Cint_of_Z (Zpos w) in
         Scall None extract_bitvec_function [packet;arg';is_signed; width]
+    | Expr.TVarBit w => state_lift (Result.error "Varbit case in CTranslateExtract unimplemented")
     | Expr.TError => state_lift (Result.error "Can't extract to error")
     | Expr.TArray n t =>
         state_list_map
@@ -461,6 +463,7 @@ Section CCompSel.
            let is_signed := Cfalse in
            let width := Cint_of_Z (Z.of_N w) in *)
         Scall None emit_bitvec_function [packet;arg']
+    | Expr.TVarBit w => state_lift (Result.error "Varbit case in CTranslateEmit unimplemented")
     | Expr.TInt w =>
         let^ arg' := CTranslateExpr arg in
         let arg' := Eaddrof arg' TpointerBitVec in

@@ -95,6 +95,8 @@ Inductive t_ok (Δ : nat) : Expr.t -> Prop :=
   t_ok Δ (Expr.TBit w)
 | int_ok w :
   t_ok Δ (Expr.TInt w)
+| varbit_ok w :
+  t_ok Δ (Expr.TVarBit w)
 | error_ok :
   t_ok Δ Expr.TError
 | array_ok n t :

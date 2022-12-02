@@ -15,6 +15,7 @@ Section OkBoomerInduction.
   Hypothesis HBool : forall Δ, P Δ Expr.TBool.
   Hypothesis HBit : forall Δ w, P Δ (Expr.TBit w).
   Hypothesis HInt : forall Δ w, P Δ (Expr.TInt w).
+  Hypothesis HVarBit : forall Δ w, P Δ (Expr.TVarBit w).
   Hypothesis HError : forall Δ, P Δ Expr.TError.
   Hypothesis HArray : forall Δ n t,
       t_ok Δ t -> P Δ t -> P Δ (Expr.TArray n t).
@@ -40,6 +41,7 @@ Section OkBoomerInduction.
       | bool_ok _     => HBool _
       | bit_ok _ w    => HBit _ w
       | int_ok _ w    => HInt _ w
+      | varbit_ok _ w => HVarBit _ w
       | error_ok _    => HError _
       | var_ok _ T HT => HVar _ _ HT
       | array_ok _ n T HT => HArray _ n T HT (toind _ _ HT)
@@ -63,6 +65,10 @@ Section TypeExprInduction.
   Hypothesis HInt : forall Δ Γ w z,
       IntArith.bound w z ->
       P Δ Γ (w `S z) (Expr.TInt w).
+  
+  Hypothesis HVarBit : forall Δ Γ w n,
+      BitArith.bound w n ->
+      P Δ Γ (Expr.VarBit w n) (Expr.TVarBit w).
   
   Hypothesis HVar : forall Δ Γ τ og x,
       nth_error Γ x = Some τ ->
@@ -143,6 +149,7 @@ Section TypeExprInduction.
       | type_bool _ _ b     => HBool _ _ b
       | type_bit _ _ _ _ H => HBit _ _ _ _ H
       | type_int _ _ _ _ H => HInt _ _ _ _ H
+      | type_varbit _ _ _ _ H => HVarBit _ _ _ _ H
       | type_var _ _ _ _ _ Hnth H => HVar _ _ _ _ _ Hnth H
       | type_slice _ _ _ _ _ _ _ Hlohiw Ht He
         => HSlice _ _ _ _ _ _ _ Hlohiw Ht He (teind _ _ _ _ He)

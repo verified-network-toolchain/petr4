@@ -9,6 +9,8 @@ Import AllCubNotations RecordSetNotations.
 
 (** Typing specification for lifting in [Statementize.v] *)
 
+Section TypDeclList
+
 Inductive type_decl_list (Δ : nat) (Γ : list Expr.t)
   : list Expr.e -> list Expr.t -> Prop :=
 | type_decl_nil :

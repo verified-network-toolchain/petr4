@@ -154,7 +154,7 @@ Section EvalExpr.
       ⟨ ϵ, e ⟩ ⇓ v -> forall e' es,
         Lift_e e e' es -> exists vs,
           eval_decl_list ϵ es vs /\ ⟨ vs ++ ϵ, e' ⟩ ⇓ v.
-  Proof.
+  Proof using.
     intros e v hev;
       induction hev using custom_expr_big_step_ind;
       intros E Es hn; inv hn; eauto.
@@ -213,8 +213,22 @@ Section EvalExpr.
         assumption.
   Qed.
 
-  Local Hint Constructors lexpr_big_step : core.
   Local Hint Resolve Lift_e_good : core.
+  Local Hint Constructors parser_expr_big_step : core.
+
+  Lemma Lift_trans_good : forall pe lbl,
+      p⟨ ϵ, pe ⟩ ⇓ lbl -> forall pe' es,
+        Lift_trans pe pe' es -> exists vs,
+          eval_decl_list ϵ es vs /\ p⟨ vs ++ ϵ, pe' ⟩ ⇓ lbl.
+  Proof using.
+    intros pe lbl he pe' es hl.
+    inv he; inv hl; eauto.
+    pose proof Lift_e_good _ _ H _ _ H5 as (vs & hvs & hv).
+    eauto.
+  Qed.
+
+  Local Hint Resolve Lift_trans_good : core.
+  Local Hint Constructors lexpr_big_step : core.
 
   Lemma Lift_e_good_lv : forall e lv,
       l⟨ ϵ, e ⟩ ⇓ lv -> forall e' es,

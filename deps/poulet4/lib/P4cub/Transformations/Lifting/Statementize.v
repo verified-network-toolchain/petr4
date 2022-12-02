@@ -10,10 +10,11 @@ Open Scope string_scope.
 Open Scope list_scope.
 
 Section ShiftPairs.
-  Context {A : Set}.
-  Variable f : shifter -> A -> A.
+  Polymorphic Universe a.
+  Polymorphic Context {A : Type@{a}}.
+  Polymorphic Variable f : shifter -> A -> A.
 
-  Fixpoint shift_pairs (l : list (A * list Expr.e)) : list (A * list Expr.e) :=
+  Polymorphic Fixpoint shift_pairs (l : list (A * list Expr.e)) : list (A * list Expr.e) :=
     match l with
     | [] => []
     | (a, es) :: l
@@ -23,7 +24,7 @@ Section ShiftPairs.
           map (fun '(a, es') => (f (Shifter 0 $ length es) a, es')) (shift_pairs l)
     end.
   
-  Lemma shift_pairs_length : forall l,
+  Polymorphic Lemma shift_pairs_length : forall l,
       length (shift_pairs l) = length l.
   Proof using.
     intro l; induction l as [| [a es] l ih];
@@ -31,7 +32,7 @@ Section ShiftPairs.
     rewrite map_length. assumption.                     
   Qed.
 
-  Lemma shift_pairs_inner_length : forall l,
+  Polymorphic Lemma shift_pairs_inner_length : forall l,
       map (length (A:=Expr.e)) (map snd (shift_pairs l))
       = map (length (A:=Expr.e)) (map snd l).
   Proof using.

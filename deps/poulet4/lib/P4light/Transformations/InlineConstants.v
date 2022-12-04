@@ -420,8 +420,7 @@ Section InlineConstants.
   Definition inline_constants (prog : @program tags_t) : @program tags_t :=
     let 'Program decls := prog in
     let state := subst_decls_state subst_decl decls in
-    let decls' := eval_state state [] in
-    Program decls'.
+    Program (eval_state state []).
 
 End InlineConstants.
 
@@ -435,24 +434,25 @@ Section InlineProof.
     (p : list string) 
     (st : state).
 
-  Hypothesis read_one_bit_func :
-    forall b b1 b2, 
-      read_one_bit b b1 -> 
-      read_one_bit b b2 ->
-      b1 = b2.
-
   Definition exec_expr := exec_expr g read_one_bit p st.
 
   Definition Sval := @ValueBase (option bool).
 
+  Definition Val := @ValueBase bool.
+
+  Definition exec_val := exec_val read_one_bit.
+
+  (* Hypothesis read_one_bit_def : forall (b b' : bool), read_one_bit (Some b) b' <-> b = b'. *)
+
   Lemma expr_inline_correct :
-    forall 
-      (e : Expression) 
-      (v v' : Sval) 
+    forall
+      (e : Expression)
+      (sv sv' : Sval)
+      (v : Val)
       (env : Env),
-      exec_expr e v -> 
-      exec_expr (subst_expr env e) v' -> 
-      v = v'.
+      exec_expr e sv ->
+      exec_expr (subst_expr env e) sv' ->
+      exec_val sv v <-> exec_val sv' v.
   Proof.
     induction e using expr_ind.
     - intros. inv H. inv H0. reflexivity.
@@ -463,6 +463,14 @@ Section InlineProof.
       (* We know there exists v1, v1', v2, v2' 
         for which e1 ==> v1, [[ e1 ]] ==> v1', *)
       intros. inv H. inv H0.
+      eapply IHe1 in H12 as [? ?]; eauto.
+      eapply IHe2 in H6  as [? ?]; eauto.
+      apply H in H7.
+      apply H6 in H8.
+      apply H
+      intuition.
+      + inv H3 econstructor. 
+      + inv H. constructor.
       assert (ValBaseStack headers next = ValBaseStack headers0 next0) by eauto.
       assert (idxsv = idxsv0) by eauto.
       clear H5 H6 H12 H17 IHe1 IHe2.

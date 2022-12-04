@@ -2,63 +2,64 @@ Require Export Coq.micromega.Lia
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.Utils.ForallMap.
 From Poulet4.P4cub Require Export Semantics.Static.Static
-     Semantics.Static.Auxiliary
-     Transformations.Lifting.Statementize.
+  Syntax.Shift
+  Semantics.Static.Auxiliary
+  Transformations.Lifting.Statementize
+  Transformations.Lifting.LiftSpec.
 From RecordUpdate Require Import RecordSet.
 Import AllCubNotations RecordSetNotations.
 
 (** Typing specification for lifting in [Statementize.v] *)
 
-Section TypDeclList
+Section TypDeclList.
+  Variable Δ : nat.
 
-Inductive type_decl_list (Δ : nat) (Γ : list Expr.t)
-  : list Expr.e -> list Expr.t -> Prop :=
-| type_decl_nil :
-  type_decl_list Δ Γ [] []
-| type_decl_cons h hτ t tτ :
-  `⟨ Δ, tτ ++ Γ ⟩ ⊢ h ∈ hτ ->
-  type_decl_list Δ Γ t tτ ->
-  type_decl_list Δ Γ (h :: t) (hτ :: tτ).
+  Local Hint Resolve shift_type_expr : core.
+  
+  Section TypeDeclList.
+    Variable Γ : list Expr.t.
+    
+    Definition type_decl_list : list Expr.e -> list Expr.t -> Prop :=
+      relate_decl_list (type_expr Δ) Γ.
 
-Local Hint Constructors type_decl_list : core.
+    Local Hint Resolve relate_decl_list_app : core.
+    
+    Lemma type_decl_list_app : forall τs1 τs2 es1 es2,
+        type_decl_list es1 τs1 ->
+        type_decl_list es2 τs2 ->
+        type_decl_list (shift_list shift_e (Shifter 0 (length es1)) es2 ++ es1) (τs2 ++ τs1).
+    Proof using.
+      unfold type_decl_list. eauto.
+    Qed.
 
-Lemma type_decl_list_length : forall Δ Γ l τs,
-    type_decl_list Δ Γ l τs -> length l = length τs.
-Proof.
-  intros Δ Γ l τs h; induction h; cbn; auto.
-Qed.
+    Local Hint Resolve shift_pairs_relate_snd : core.
+    
+    Lemma shift_pairs_type_snd : forall ess tss,
+        Forall2 type_decl_list (map snd ess) tss ->
+        type_decl_list
+          (concat (map snd (shift_pairs shift_e ess)))
+          (concat tss).
+    Proof using.
+      unfold type_decl_list. eauto.
+    Qed.
+  End TypeDeclList.
 
-Local Hint Resolve type_decl_list_length : core.
+  Local Hint Resolve shift_pairs_relate_fst : core.
+  
+  Lemma shift_pairs_relate_fst : forall Γ es ess ts tss,
+      length es = length ess ->
+      Forall3 (fun ts e t => `⟨ Δ, ts ++ Γ ⟩ ⊢ e ∈ t) tss es ts ->
+      Forall2 (type_decl_list Γ) ess tss ->
+      Forall2
+        (type_expr Δ (concat tss ++ Γ))
+        (map fst (shift_pairs shift_e (combine es ess))) ts.
+  Proof using.
+    unfold type_decl_list. eauto.
+  Qed.
+End TypDeclList.
 
-Lemma type_decl_list_append : forall Δ Γ τs1 τs2 l1 l2,
-    type_decl_list Δ Γ l1 τs1 ->
-    type_decl_list Δ (τs1 ++ Γ) l2 τs2 ->
-    type_decl_list Δ Γ (l2 ++ l1) (τs2 ++ τs1).
-Proof.
-  intros Δ Γ ts1 ts2.
-  generalize dependent ts1.
-  induction ts2 as [| t2 ts2 ih];
-    intros ts1 l1 [| e2 l2] h1 h2; inv h2; cbn; auto.
-  constructor; eauto.
-  rewrite <- app_assoc; assumption.
-Qed.
-
-Local Hint Resolve type_decl_list_append : core.
+(*Local Hint Resolve type_decl_list_append : core.
 Local Hint Constructors type_expr : core.
-
-Lemma shift_type : forall τs Δ Γ e τ,
-    `⟨ Δ, Γ ⟩ ⊢ e ∈ τ ->
-    `⟨ Δ, τs ++ Γ ⟩
-      ⊢ Shift.rename_e (Nat.add (length τs)) e ∈ τ.
-Proof.
-  intros ts Δ Γ e t het.
-  induction het using custom_type_expr_ind; unravel in *; eauto.
-  - constructor; auto; unravel.
-    rewrite nth_error_app3; assumption.
-  - econstructor; eauto.
-  - econstructor; eauto.
-    rewrite <- Forall2_map_l; unravel; assumption.
-Qed.
 
 Local Hint Resolve shift_type : core.
 Local Hint Constructors relop : core.
@@ -69,7 +70,7 @@ Local Hint Resolve type_header : core.
 Local Hint Constructors type_lists_ok : core.
 Local Hint Constructors t_ok_lists : core.
 
-(*Theorem lift_e_type_expr : forall Δ Γ e τ,
+Theorem lift_e_type_expr : forall Δ Γ e τ,
     Forall (t_ok Δ) Γ ->
     `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> forall us l e',
       lift_e (length us) e = (l, e') -> exists τs,

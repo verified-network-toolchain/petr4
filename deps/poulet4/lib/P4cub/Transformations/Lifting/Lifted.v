@@ -356,15 +356,20 @@ Proof.
 Qed.
 
 Local Hint Resolve lift_e_list_lifted_expr : core.
+Local Hint Constructors pred_paramarg : core.
 
 Lemma lift_arg_lifted_arg : forall arg arg' le,
     lift_arg arg = (arg', le) ->
     Forall lifted_rexpr le /\ lifted_arg arg'.
 Proof.
+  unfold lifted_arg,pred_paramarg_same.
   intros arg arg' le h;
     destruct arg as [e | e | e]; unravel in *;
     lift_e_destr_hyp; pair_destr;
-    eapply lift_e_lifted_expr; eauto.
+    match goal with
+    | h: lift_e _ = (_, _)
+      |- _ => apply lift_e_lifted_expr in h as [? ?]; eauto
+    end.
 Qed.
   
 Local Hint Resolve lift_arg_lifted_arg : core.
@@ -372,7 +377,8 @@ Local Hint Resolve lift_arg_lifted_arg : core.
 Lemma rename_arg_lifted_arg : forall ρ arg,
     lifted_arg arg -> lifted_arg (rename_arg ρ arg).
 Proof.
-  intros ρ [e | e | e] h; unravel in *; auto.
+  unfold lifted_arg,pred_paramarg_same.
+  intros ρ e h; inv h; unravel in *; auto.
 Qed.
 
 Local Hint Resolve rename_arg_lifted_arg : core.
@@ -380,7 +386,8 @@ Local Hint Resolve rename_arg_lifted_arg : core.
 Lemma shift_lifted_arg : forall sh arg,
     lifted_arg arg -> lifted_arg (shift_arg sh arg).
 Proof.
-  intros sh [e | e | e] h; unravel in *; auto.
+  unfold lifted_arg,pred_paramarg_same.
+  intros sh e h; inv h; unravel in *; auto.
 Qed.
 
 Local Hint Resolve shift_lifted_arg : core.

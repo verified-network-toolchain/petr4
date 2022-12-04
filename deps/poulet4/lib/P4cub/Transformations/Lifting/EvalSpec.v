@@ -1,7 +1,7 @@
 Require Export Coq.micromega.Lia Poulet4.P4cub.Syntax.Syntax Coq.Arith.PeanoNat.
 From Poulet4.P4cub Require Export Syntax.Shift Semantics.Dynamic.BigStep.BigStep
   Transformations.Lifting.Lift Semantics.Dynamic.BigStep.Properties
-  Transformations.Lifting.Statementize.
+  Transformations.Lifting.Statementize Transformations.Lifting.LiftSpec.
 Import Nat AllCubNotations (*Clmt.Notations*) Val.ValueNotations.
 
 (** Big-step evaluation specification for lifting in [Statementize.v] *)
@@ -10,142 +10,62 @@ Open Scope list_scope.
 
 Section EvalDeclList.
   Variable ϵ : list Val.v.
+    
+  Definition eval_decl_list : list Expr.e -> list Val.v -> Prop :=
+    relate_decl_list expr_big_step ϵ.
 
-  Inductive eval_decl_list
-    : list Expr.e -> list Val.v -> Prop :=
-  | eval_decl_nil :
-    eval_decl_list [] []
-  | eval_decl_cons h hv t tv :
-    ⟨ tv ++ ϵ, h ⟩ ⇓ hv ->
-    eval_decl_list t tv ->
-    eval_decl_list (h :: t) (hv :: tv).
-
-  Local Hint Constructors eval_decl_list : core.
-
-  Lemma eval_decl_list_length : forall l vs,
-      eval_decl_list l vs -> length l = length vs.
+  Local Hint Resolve relate_decl_list_length : core.
+  
+  Lemma eval_decl_list_length : forall es vs,
+      eval_decl_list es vs -> length es = length vs.
   Proof using.
-    intros l vs h; induction h; cbn; auto.
+    unfold eval_decl_list. eauto.
   Qed.
-
+  
   Local Hint Resolve shift_e_eval : core.
-
-  Lemma eval_decl_list_app : forall es1 es2 vs1 vs2,
+  Local Hint Resolve relate_decl_list_app : core.
+    
+  Lemma eval_decl_list_app : forall vs1 vs2 es1 es2,
       eval_decl_list es1 vs1 ->
       eval_decl_list es2 vs2 ->
       eval_decl_list (shift_list shift_e (Shifter 0 (length es1)) es2 ++ es1) (vs2 ++ vs1).
   Proof using.
-    intros es1 es2 vs1 vs2 h1 h2.
-    generalize dependent vs1.
-    generalize dependent es1.
-    induction h2; intros es1 vs1 h1; cbn; auto.
-    unfold smother, RecordSet.set; cbn.
-    rewrite add_0_r.
-    constructor; auto. rewrite <- app_assoc.
-    rewrite (eval_decl_list_length _ _ h1).
-    rewrite (eval_decl_list_length _ _ h2).
-    eauto.
+    unfold eval_decl_list. eauto.
   Qed.
-
-  Local Hint Resolve eval_decl_list_app : core.
   
-  Lemma shift_pairs_eval_snd : forall ess vss,
+  Local Hint Resolve shift_pairs_relate_snd : core.
+  
+  Lemma shift_pairs_type_snd : forall ess vss,
       Forall2 eval_decl_list (map snd ess) vss ->
       eval_decl_list
         (concat (map snd (shift_pairs shift_e ess)))
         (concat vss).
   Proof using.
-    intros ess vss h.
-    remember (map snd ess) as sess eqn:hess.
-    generalize dependent ess.
-    induction h; intros [| [e es] ess] hess; inv hess;
-      unravel in *; auto.
-    pose proof IHh ess ltac:(auto) as ih; clear IHh.
-    rewrite map_snd_map, map_id.
-    assert (list_sum (map (length (A:=Expr.e)) (map snd ess))
-            = length (concat (map snd (shift_pairs shift_e ess)))) as hlen.
-    { unfold list_sum.
-      rewrite sublist.length_concat.
-      rewrite shift_pairs_inner_length.
-      reflexivity. }
-    rewrite hlen. auto.
+    unfold eval_decl_list. eauto.
   Qed.
 
-  Lemma shift_pairs_eval_fst : forall es ess vs vss,
+  Lemma shift_pairs_relate_fst : forall es ess vs vss,
       length es = length ess ->
-      Forall3 (fun vs e' v => ⟨ vs ++ ϵ, e' ⟩ ⇓ v) vss es vs ->
+      Forall3 (fun vs e v => ⟨ vs ++ ϵ, e ⟩ ⇓ v) vss es vs ->
       Forall2 eval_decl_list ess vss ->
       Forall2
         (expr_big_step (concat vss ++ ϵ))
         (map fst (shift_pairs shift_e (combine es ess))) vs.
   Proof using.
-    intros es ess vs vss hl hF3.
-    generalize dependent ess.
-    induction hF3; intros [| E ess] hl hF2;
-      inv hF2; unravel in *; auto; try discriminate.
-    inv hl.
-    rewrite <- app_assoc.
-    rewrite map_snd_combine by assumption.
-    rewrite map_fst_map.
-    unfold list_sum.
-    rewrite <- sublist.length_concat.
-    assert (hlen : length (concat ess) = length (concat ts)).
-    { rewrite <- map_snd_combine with (us := us) (vs := ess)
-        in H5 by assumption.
-      apply shift_pairs_eval_snd in H5.
-      apply eval_decl_list_length in H5.
-      rewrite sublist.length_concat in H5 at 1.
-      rewrite shift_pairs_inner_length in H5.
-      rewrite <- sublist.length_concat in H5.
-      rewrite <- H5.
-      rewrite map_snd_combine by eauto.
-      reflexivity. }
-    rewrite hlen.
-    rewrite (eval_decl_list_length _ _ H3).
-    constructor; auto using shift_e_eval.
-    pose proof IHhF3 _ H1 H5 as ih; clear IHhF3.
-    clear dependent v.
-    clear dependent E.
-    clear dependent u.
-    clear hlen H5 hF3.
-    rewrite Forall2_forall_nth_error in *.
-    destruct ih as [hlen ih].
-    split.
-    - repeat rewrite map_length in *.
-      assumption.
-    - intros n e v he hv.
-      rewrite nth_error_map in he.
-      destruct (nth_error (map fst (shift_pairs shift_e (combine us ess))) n)
-        as [se |] eqn:hse;
-        cbn in *;
-        try discriminate.
-      inv he.
-      pose proof ih _ _ _ hse hv as h.
-      pose proof shift_e_eval [] t0 _ _ _ h as H;
-        cbn in H.
-      assumption.
+    Local Hint Resolve shift_pairs_relate_fst : core.
+    Local Hint Resolve shift_e_eval : core.
+    unfold eval_decl_list. eauto.
   Qed.
 End EvalDeclList.
-
-Lemma eval_decl_list_append : forall ϵ vs1 vs2 l1 l2,
-    eval_decl_list ϵ l1 vs1 ->
-    eval_decl_list (vs1 ++ ϵ) l2 vs2 ->
-    eval_decl_list ϵ (l2 ++ l1) (vs2 ++ vs1).
-Proof.
-  intros ϵ vs1 vs2.
-  generalize dependent vs1.
-  induction vs2 as [| v2 vs2 ih];
-    intros vs1 l1 [| e2 l2] h1 h2; inv h2; cbn; auto.
-  constructor; eauto.
-  rewrite <- app_assoc; assumption.
-Qed.
 
 Section EvalExpr.
   Variable ϵ : list Val.v.
 
   Local Hint Resolve eval_decl_list_length : core.
   Local Hint Resolve eval_decl_list_app : core.
-  Local Hint Constructors eval_decl_list : core.
+  Local Hint Constructors relate_decl_list : core.
+  Local Hint Resolve relate_decl_list_length : core.
+  Local Hint Resolve relate_decl_list_app : core.
   Local Hint Constructors expr_big_step : core.
   Local Hint Resolve shift_e_eval : core.
   Local Hint Constructors Forall3 : core.
@@ -155,6 +75,7 @@ Section EvalExpr.
         Lift_e e e' es -> exists vs,
           eval_decl_list ϵ es vs /\ ⟨ vs ++ ϵ, e' ⟩ ⇓ v.
   Proof using.
+    unfold eval_decl_list;
     intros e v hev;
       induction hev using custom_expr_big_step_ind;
       intros E Es hn; inv hn; eauto.
@@ -205,9 +126,9 @@ Section EvalExpr.
       split; auto.
       constructor.
       + constructor.
-        apply shift_pairs_eval_fst;
+        apply shift_pairs_relate_fst;
           eauto using Forall3_length23.
-      + apply shift_pairs_eval_snd.
+      + apply shift_pairs_relate_snd; eauto.
         rewrite sublist.combine_snd
           by eauto using Forall3_length23.
         assumption.
@@ -222,7 +143,7 @@ Section EvalExpr.
           eval_decl_list ϵ es vs /\ p⟨ vs ++ ϵ, pe' ⟩ ⇓ lbl.
   Proof using.
     intros pe lbl he pe' es hl.
-    inv he; inv hl; eauto.
+    inv he; inv hl; unfold eval_decl_list; eauto.
     pose proof Lift_e_good _ _ H _ _ H5 as (vs & hvs & hv).
     eauto.
   Qed.
@@ -235,6 +156,7 @@ Section EvalExpr.
         Lift_e e e' es -> exists vs,
           eval_decl_list ϵ es vs /\ l⟨ vs ++ ϵ, e' ⟩ ⇓ shift_lv (Shifter 0 (length vs)) lv.
   Proof.
+    unfold eval_decl_list.
     intros e lv H; induction H;
       intros e' es h; inv h; unravel.
     - unfold shift_var; cbn. eexists; eauto.
@@ -283,6 +205,8 @@ Section StatementLifting.
   Local Hint Resolve eval_decl_list_Unwind : core.
   Local Hint Resolve eval_decl_list_length : core.
   Local Hint Resolve eval_decl_list_app : core.
+  Local Hint Resolve relate_decl_list_length : core.
+  Local Hint Resolve relate_decl_list_app : core.
   Local Hint Resolve shift_s_eval : core.
   Local Hint Constructors relop : core.
   Local Hint Constructors ctx_cuttoff : core.

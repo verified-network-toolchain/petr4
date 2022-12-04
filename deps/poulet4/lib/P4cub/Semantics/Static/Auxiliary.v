@@ -27,6 +27,15 @@ Ltac invert_type_lists_ok :=
   end.
 
 Section Lemmas.
+  Local Hint Constructors lvalue_ok : core.
+  
+  Lemma shift_lvalue_ok : forall sh e,
+      lvalue_ok e -> lvalue_ok (shift_e sh e).
+  Proof.
+    intros sh e h; induction h; unravel; auto.
+  Qed.
+      
+  Local Hint Resolve shift_lvalue_ok : core.
   Local Hint Constructors t_ok : core.
   
   Lemma t_ok_le : forall Δ₁ Δ₂ τ,
@@ -63,6 +72,49 @@ Section Lemmas.
     inv H; inv H0; auto.
   Qed.
   
+  Lemma t_of_e_correct : forall e τ,
+      `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> t_of_e e = τ.
+  Proof using.
+    intros e τ H.
+    induction H using custom_type_expr_ind;
+      unravel in *; try reflexivity.
+    rewrite <- sublist.Forall2_map1,
+      Forall2_eq in H2; inv H0; f_equal.
+    apply f_equal with (f := @List.length Expr.t) in H5.
+    rewrite map_length, repeat_length in H5.
+    rewrite <- H5; lia.
+  Qed.
+
+  Lemma map_t_of_e_correct : forall ts es,
+      Forall2 (type_expr Δ Γ) es ts ->
+      map t_of_e es = ts.
+  Proof using.
+    intros ts es h.
+    rewrite Forall2_forall_nth_error in h.
+    destruct h as [hlen h].
+    pose proof
+      (fun n e t he ht =>
+         t_of_e_correct _ _ (h n e t he ht)) as H; clear h.
+    pose proof (conj hlen H) as h.
+    rewrite <- Forall2_forall_nth_error,
+      Forall2_map_l, Forall2_eq in h.
+    assumption.
+  Qed.
+
+  Local Hint Resolve map_t_of_e_correct : core.
+  
+  Lemma t_of_lists_correct : forall ls t ts es,
+      type_lists_ok ls t ts ->
+      Forall2 (type_expr Δ Γ) es ts ->
+      t_of_lists ls es = t.
+  Proof using.
+    intros ls t ts es hok h.
+    inv hok; unravel; f_equal; auto.
+    apply Forall2_length in h.
+    rewrite h, repeat_length.
+    lia.
+  Qed.
+  
   Lemma type_array : forall τ es,
       t_ok Δ τ ->
       Forall (fun e => `⟨ Δ, Γ ⟩ ⊢ e ∈ τ) es ->
@@ -83,7 +135,7 @@ Section Lemmas.
       Forall2 (type_expr Δ Γ) es τs ->
       `⟨ Δ, Γ ⟩ ⊢ Expr.Lists (Expr.lists_header b) es ∈ Expr.TStruct true τs.
   Proof using. eauto. Qed.
-
+  
   Local Hint Constructors type_expr : core.
   
   Lemma rename_type_expr : forall τs e τ,
@@ -126,5 +178,17 @@ Section Lemmas.
     - econstructor; eauto.
       rewrite <- Forall2_map_l; unravel.
       apply Forall2_dumb in H2; assumption || reflexivity.
+  Qed.
+
+  Local Hint Resolve shift_type_expr : core.
+  Local Hint Constructors rel_paramarg : core.
+  
+  Lemma shift_type_arg : forall ts1 ts2 arg param,
+      type_arg Δ (ts1 ++ Γ) arg param ->
+      type_arg Δ (ts1 ++ ts2 ++ Γ)
+        (shift_arg (Shifter (length ts1) (length ts2)) arg) param.
+  Proof using.
+    unfold type_arg.
+    intros ts1 ts2 arg param h; inv h; cbn; firstorder auto.
   Qed.
 End Lemmas.

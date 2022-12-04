@@ -31,27 +31,25 @@ Definition paramarg_map_same
   paramarg_map f f.
 
 (** A predicate on a [paramarg]. *)
-Definition pred_paramarg {A B : Set}
-           (PA : A -> Prop) (PB : B -> Prop) (pa : paramarg A B) : Prop :=
-  match pa with
-  | PAIn  a             => PA a
-  | PAOut b | PAInOut b => PB b
-  end.
+Variant pred_paramarg {A B : Set}
+  (P : A -> Prop) (Q : B -> Prop) : paramarg A B -> Prop :=
+  | pred_PAIn a : P a -> pred_paramarg P Q (PAIn a)
+  | pred_PAOut b : Q b -> pred_paramarg P Q (PAOut b)
+  | pred_PAInOut b : Q b -> pred_paramarg P Q (PAInOut b).
 
 Definition pred_paramarg_same {A : Set} (P : A -> Prop)
   : paramarg A A -> Prop := pred_paramarg P P.
 
 (** Relating [paramarg]s. *)
-Definition rel_paramarg {A1 A2 B1 B2 : Set}
-           (RA : A1 -> A2 -> Prop) (RB : B1 -> B2 -> Prop)
-           (pa1 : paramarg A1 B1)
-           (pa2 : paramarg A2 B2) : Prop :=
-  match pa1, pa2 with
-  | PAIn      a1, PAIn      a2 => RA a1 a2
-  | PAOut     b1, PAOut     b2
-  | PAInOut   b1, PAInOut   b2 => RB b1 b2
-  | _           , _            => False
-  end.
+Variant rel_paramarg {A1 A2 B1 B2 : Set}
+  (R : A1 -> A2 -> Prop) (Q : B1 -> B2 -> Prop)
+  : paramarg A1 B1 -> paramarg A2 B2 -> Prop :=
+  | rel_paramarg_PAIn a1 a2 :
+    R a1 a2 -> rel_paramarg R Q (PAIn a1) (PAIn a2)
+  | rel_paramarg_PAOut b1 b2 :
+    Q b1 b2 -> rel_paramarg R Q (PAOut b1) (PAOut b2)
+  | rel_paramarg_PAInOut b1 b2 :
+    Q b1 b2 -> rel_paramarg R Q (PAInOut b1) (PAInOut b2).
 
 Definition rel_paramarg_same {A B : Set} (R : A -> B -> Prop) :
   paramarg A A -> paramarg B B -> Prop :=

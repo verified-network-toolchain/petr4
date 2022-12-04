@@ -4,171 +4,213 @@ Require Export Coq.micromega.Lia
 From Poulet4.P4cub Require Export Semantics.Static.Static
   Syntax.Shift
   Semantics.Static.Auxiliary
-  Transformations.Lifting.Statementize
+  Transformations.Lifting.Lift
   Transformations.Lifting.LiftSpec.
 From RecordUpdate Require Import RecordSet.
 Import AllCubNotations RecordSetNotations.
 
 (** Typing specification for lifting in [Statementize.v] *)
 
-Section TypDeclList.
+Section TypeDeclList.
   Variable Δ : nat.
+  Variable Γ : list Expr.t.
 
-  Local Hint Resolve shift_type_expr : core.
+  Definition type_decl_list : list Expr.e -> list Expr.t -> Prop :=
+    relate_decl_list (type_expr Δ) Γ.
+
+  Local Hint Resolve relate_decl_list_length : core.
   
-  Section TypeDeclList.
-    Variable Γ : list Expr.t.
+  Lemma type_decl_list_length : forall es ts,
+      type_decl_list es ts -> length es = length ts.
+  Proof using.
+    unfold type_decl_list; eauto.
+  Qed.
+  
+  Local Hint Resolve shift_type_expr : core.
+  Local Hint Resolve relate_decl_list_app : core.
     
-    Definition type_decl_list : list Expr.e -> list Expr.t -> Prop :=
-      relate_decl_list (type_expr Δ) Γ.
+  Lemma type_decl_list_app : forall τs1 τs2 es1 es2,
+      type_decl_list es1 τs1 ->
+      type_decl_list es2 τs2 ->
+      type_decl_list (shift_list shift_e (Shifter 0 (length es1)) es2 ++ es1) (τs2 ++ τs1).
+  Proof using.
+    unfold type_decl_list. eauto.
+  Qed.
 
-    Local Hint Resolve relate_decl_list_app : core.
+  Local Hint Resolve shift_pairs_relate_snd : core.
     
-    Lemma type_decl_list_app : forall τs1 τs2 es1 es2,
-        type_decl_list es1 τs1 ->
-        type_decl_list es2 τs2 ->
-        type_decl_list (shift_list shift_e (Shifter 0 (length es1)) es2 ++ es1) (τs2 ++ τs1).
-    Proof using.
-      unfold type_decl_list. eauto.
-    Qed.
-
-    Local Hint Resolve shift_pairs_relate_snd : core.
-    
-    Lemma shift_pairs_type_snd : forall ess tss,
-        Forall2 type_decl_list (map snd ess) tss ->
-        type_decl_list
-          (concat (map snd (shift_pairs shift_e ess)))
-          (concat tss).
-    Proof using.
-      unfold type_decl_list. eauto.
-    Qed.
-  End TypeDeclList.
-
+  Lemma shift_pairs_type_snd : forall ess tss,
+      Forall2 type_decl_list (map snd ess) tss ->
+      type_decl_list
+        (concat (map snd (shift_pairs shift_e ess)))
+        (concat tss).
+  Proof using.
+    unfold type_decl_list. eauto.
+  Qed.
+  
   Local Hint Resolve shift_pairs_relate_fst : core.
   
-  Lemma shift_pairs_relate_fst : forall Γ es ess ts tss,
+  Lemma shift_pairs_relate_fst : forall es ess ts tss,
       length es = length ess ->
       Forall3 (fun ts e t => `⟨ Δ, ts ++ Γ ⟩ ⊢ e ∈ t) tss es ts ->
-      Forall2 (type_decl_list Γ) ess tss ->
+      Forall2 type_decl_list ess tss ->
       Forall2
         (type_expr Δ (concat tss ++ Γ))
         (map fst (shift_pairs shift_e (combine es ess))) ts.
   Proof using.
     unfold type_decl_list. eauto.
   Qed.
-End TypDeclList.
+End TypeDeclList.
 
-(*Local Hint Resolve type_decl_list_append : core.
-Local Hint Constructors type_expr : core.
+Section TypeExpr.
+  Variable Δ : nat.
+  Variable Γ : list Expr.t.
 
-Local Hint Resolve shift_type : core.
-Local Hint Constructors relop : core.
-Local Hint Constructors t_ok : core.
-Local Hint Resolve type_array : core.
-Local Hint Resolve type_struct : core.
-Local Hint Resolve type_header : core.
-Local Hint Constructors type_lists_ok : core.
-Local Hint Constructors t_ok_lists : core.
+  Local Hint Constructors relate_decl_list : core.
+  Local Hint Resolve relate_decl_list_app : core.
+  Local Hint Constructors type_expr : core.
+  Local Hint Resolve shift_type_expr : core.
+  Local Hint Constructors relop : core.
+  Local Hint Constructors t_ok : core.
+  Local Hint Resolve type_array : core.
+  Local Hint Resolve type_struct : core.
+  Local Hint Resolve type_header : core.
+  Local Hint Constructors type_lists_ok : core.
+  Local Hint Constructors t_ok_lists : core.
+  Local Hint Constructors Forall3 : core.
+  Local Hint Resolve type_expr_t_ok : core.
 
-Theorem lift_e_type_expr : forall Δ Γ e τ,
-    Forall (t_ok Δ) Γ ->
-    `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> forall us l e',
-      lift_e (length us) e = (l, e') -> exists τs,
-          type_decl_list Δ (us ++ Γ) l τs
-          /\ `⟨ Δ, τs ++ us ++ Γ ⟩ ⊢ e' ∈ τ.
-Proof.
-  intros Δ Γ e t hΓ het;
-    induction het using custom_type_expr_ind;
-    intros us l e' h; unravel in *.
-  - inv h; eauto.
-  - inv h; unravel; eauto 6.
-  - inv h; unravel; eauto 6.
-  - inv h; unravel.
-    eexists; split; eauto; unravel.
-    constructor; unravel; auto.
-    rewrite nth_error_app3; assumption.
-  - destruct (lift_e (length us) e) as [le eₛ] eqn:eqle; inv h.
-    apply IHhet in eqle as (ts & hts & ih); auto; clear IHhet.
-    eexists; split; eauto.
-  - destruct (lift_e (length us) e) as [le eₛ] eqn:eqle; inv h.
-    apply IHhet in eqle as (ts & hts & ih); auto; clear IHhet.
-    eexists; split; eauto.
-  - destruct (lift_e (length us) e) as [le eₛ] eqn:eqle; inv h.
-    apply IHhet in eqle as (ts & hts & ih); auto; clear IHhet.
-    eexists; split; eauto.
-  - destruct (lift_e (length us) e₁) as [l1 e1] eqn:eql1.
-    destruct (lift_e (length l1 + length us) e₂) as [l2 e2] eqn:eql2; inv h.
-    apply IHhet1 in eql1 as (ts1 & hts1 & ih1); auto; clear IHhet1.
-    assert (hl1ts1 : length l1 = length ts1) by eauto.
-    rewrite hl1ts1, <- app_length in eql2.
-    apply IHhet2 in eql2 as (ts2 & hts2 & ih2); auto; clear IHhet2.
-    rewrite <- app_assoc in *.
-    assert (hl2ts2 : length l2 = length ts2) by eauto.
-    rewrite hl2ts2.
-    exists (τ :: ts2 ++ ts1); split; auto.
-    constructor; eauto; rewrite <- app_assoc; eauto.
-  - destruct (lift_e (length us) e₁) as [l1 e1] eqn:eql1.
-    destruct (lift_e (length l1 + length us) e₂) as [l2 e2] eqn:eql2; inv h.
-    apply IHhet1 in eql1 as (ts1 & hts1 & ih1); auto; clear IHhet1.
-    assert (hl1ts1 : length l1 = length ts1) by eauto.
-    rewrite hl1ts1, <- app_length in eql2.
-    apply IHhet2 in eql2 as (ts2 & hts2 & ih2); auto; clear IHhet2.
-    rewrite <- app_assoc in *.
-    assert (hl2ts2 : length l2 = length ts2) by eauto.
-    rewrite hl2ts2.
-    exists (ts2 ++ ts1); split; auto.
-    econstructor; eauto; rewrite <- app_assoc; eauto.
-  - destruct (lift_e (length us) e) as [le eₛ] eqn:eqle; inv h.
-    apply IHhet in eqle as (ts & hts & ih); auto; clear IHhet.
-    eexists; split; eauto.
-  - destruct
-      (lift_list lift_e Shift.rename_e (length us) es)
-      as [les es'] eqn:eqles; inv h.
-    assert (bruh : exists τs',
-               type_decl_list Δ (us ++ Γ) les τs'
-               /\ Forall2
-                   (type_expr Δ (τs' ++ us ++ Γ))
-                      es' τs).
-    { clear dependent ls.
-      generalize dependent es';
-        generalize dependent les;
-        generalize dependent us.
-      induction H1 as [| e t es τs heτ hesτs ihesτs];
-        inv H2; intros us les es' h; unravel in *.
-      - inv h; eauto.
-      - destruct (lift_e (length us) e) as [le e'] eqn:eqle.
-        destruct
-          (lift_list lift_e Shift.rename_e (length le + length us) es)
-          as [les' es''] eqn:eqles; inv h.
-        rename les' into les. rename es'' into es'.
-        apply H3 in eqle as (ets & hets & ihets); auto; clear H3.
-        assert (hleets : length le = length ets) by eauto.
-        rewrite hleets, <- app_length in eqles.
-        eapply ihesτs in eqles as (ts' & hts' & ih); eauto; clear ihesτs.
-        rewrite <- app_assoc in *.
-        exists (ts' ++ ets); split; eauto.
-        assert (hlests' : length les = length ts') by eauto.
-        rewrite hlests'.
-        constructor; rewrite <- app_assoc; eauto. }
-    destruct bruh as (τs' & htτs' & ih).
-    eexists; split; eauto; unravel.
-    assert (hok: t_ok Δ (Expr.TStruct false τs))
-      by eauto using type_expr_t_ok; inv hok.
-    assert (bruh : map t_of_e es = τs).
-    { rewrite Forall2_forall in H1.
-      pose proof conj
-           (proj1 H1)
-           (fun e τ hin => t_of_e_correct Δ Γ e τ (proj2 H1 e τ hin)) as duh.
-      rewrite <- Forall2_forall in duh; clear H1.
-      rewrite ForallMap.Forall2_map_l,Forall2_eq in duh; assumption. }
-    rewrite bruh.
-    inv H; inv H0; unravel in *; try contradiction; eauto.
-    apply f_equal with (f := @List.length _) in H.
-    rewrite map_length, repeat_length in H.
-    rewrite <- H, Nnat.N2Nat.id; eauto.
-  - inv h; eauto.
-Qed.
+  Ltac esolve_lift := eexists; esplit; eauto; assumption.
 
+  Local Hint Extern 5 => esolve_lift : core.
+
+  Hypothesis hG : Forall (t_ok Δ) Γ.
+  
+  Theorem Lift_e_type_expr : forall e τ,
+      `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> forall e' es,
+          Lift_e e e' es -> exists τs,
+            type_decl_list Δ Γ es τs
+            /\ `⟨ Δ, τs ++ Γ ⟩ ⊢ e' ∈ τ.
+  Proof using hG Γ Δ.
+    unfold type_decl_list.
+    intros e t het;
+      induction het using custom_type_expr_ind;
+      intros E Es h; inv h; eauto.
+    - pose proof IHhet hG _ _ H6 as (ts & hts & ht); eauto.
+    - pose proof IHhet hG _ _ H5 as (ts & hts & ht); eauto.
+    - pose proof IHhet hG _ _ H6 as (ts & hts & ht); eauto.
+    - pose proof IHhet1 hG _ _ H7
+        as (ts1 & hts1 & ht1); clear IHhet1; eauto.
+      pose proof IHhet2 hG _ _ H8
+        as (ts2 & hts2 & ht2); clear IHhet2; eauto.
+      exists (τ :: ts2 ++ ts1).
+      split; eauto.
+      constructor; eauto.
+      rewrite <- app_assoc.
+      erewrite relate_decl_list_length
+        with (lb := es1) (la := ts1) by eassumption.
+      erewrite relate_decl_list_length
+        with (lb := es2) (la := ts2) by eassumption.
+      econstructor; eauto.
+      eapply shift_type_expr with
+        (ts1 := []) (ts2 := ts2); cbn; eauto.
+    - pose proof IHhet1 hG _ _ H5
+        as (ts1 & hts1 & ht1); clear IHhet1; eauto.
+      pose proof IHhet2 hG _ _ H6
+        as (ts2 & hts2 & ht2); clear IHhet2; eauto.
+      exists (ts2 ++ ts1).
+      split; eauto.
+      rewrite <- app_assoc.
+      erewrite relate_decl_list_length
+        with (lb := es1) (la := ts1) by eassumption.
+      erewrite relate_decl_list_length
+        with (lb := es2) (la := ts2) by eassumption.
+      econstructor; eauto.
+      eapply shift_type_expr with
+        (ts1 := []) (ts2 := ts2); cbn; eauto.
+    - pose proof IHhet hG _ _ H6 as (ts & hts & ht); eauto.
+    - pose proof Forall2_dumb _ _ _ _ _ _ hG H2 as H'; clear H2.
+      pose proof Forall2_specialize_Forall3
+        _ _ _ _ _ _ H' as h; clear H'.
+      assert (hlenests : length es = length τs)
+        by eauto using Forall2_length.
+      assert (hlentses' : length τs = length es').
+      { rewrite <- hlenests.
+        eauto using Forall3_length12. }
+      pose proof h _ hlentses' as h'; clear h; rename h' into h.
+      clear hlenests hlentses'.
+      assert
+        (exists tss,
+            Forall2 (type_decl_list Δ Γ) ess tss
+            /\ Forall3 (fun ts e' t => `⟨ Δ, ts ++ Γ ⟩ ⊢ e' ∈ t) tss es' τs)
+        as (tss & htss & hes').
+      { clear dependent ls.
+        generalize dependent ess.
+        generalize dependent es'.
+        induction H1; intros es' ih ess IH; inv ih; inv IH; firstorder eauto. }
+      clear h.
+      pose proof t_of_lists_correct _ _ _ _ _ _ H0 H1; subst.
+      exists (t_of_lists ls es :: concat tss).
+      split; eauto.
+      constructor.
+      + econstructor; eauto.
+        apply shift_pairs_relate_fst;
+          eauto using Forall3_length23.
+      + apply shift_pairs_relate_snd; eauto.
+        rewrite sublist.combine_snd
+          by eauto using Forall3_length23.
+        assumption.
+  Qed.
+
+  Local Hint Resolve Lift_e_type_expr : core.
+  Local Hint Constructors type_prsrexpr : core.
+
+  Lemma Lift_trans_type_prsrexpr : forall total_states pe,
+      type_prsrexpr total_states Δ Γ pe -> forall pe' es,
+        Lift_trans pe pe' es -> exists ts,
+          type_decl_list Δ Γ es ts
+          /\ type_prsrexpr total_states Δ (ts ++ Γ) pe'.
+    Proof using hG Γ Δ.
+      unfold type_decl_list.
+      intros n pe hpe pe' es ht.
+      inv hpe; inv ht; eauto.
+      pose proof Lift_e_type_expr _ _ H0 _ _ H7 as (ts & hts & ht).
+      eauto.
+    Qed.
+
+    Local Hint Constructors lvalue_ok : core.
+    Local Hint Resolve shift_lvalue_ok : core.
+
+    Lemma Lift_e_lvalue_ok : forall e,
+        lvalue_ok e -> forall e' es,
+          Lift_e e e' es -> lvalue_ok e'.
+    Proof using.
+      intros e h; induction h;
+        intros e' es H; inv H; eauto.
+    Qed.
+
+    Local Hint Resolve Lift_e_lvalue_ok : core.
+    Local Hint Constructors rel_paramarg : core.
+
+    Lemma Lift_arg_type_arg : forall arg param,
+        type_arg Δ Γ arg param -> forall arg' es,
+          Lift_arg arg arg' es -> exists ts,
+            type_decl_list Δ Γ es ts
+            /\ type_arg Δ (ts ++ Γ) arg' param.
+    Proof using hG Γ Δ.
+      unfold type_arg.
+      intros arg param ht arg' es h.
+      inv ht; inv h;
+        try match goal with
+          | h: _ /\ _ |- _ => destruct h as [? ?]
+          end;
+        try match goal with
+          | h: `⟨ _, _ ⟩ ⊢ ?e ∈ _, H: Lift_e ?e _ _
+            |- _ => pose proof Lift_e_type_expr _ _ h _ _ H as (ts & hts & ht)
+          end; eauto.
+    Qed.
+End TypeExpr.
+(*          
 Lemma lift_e_list_type_expr : forall Δ Γ es τs,
     Forall (t_ok Δ) Γ ->
     Forall2 (type_expr Δ Γ) es τs -> forall us les es',

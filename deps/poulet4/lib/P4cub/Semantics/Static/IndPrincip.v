@@ -2,9 +2,8 @@ Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Semantics.Static.Util
         Poulet4.P4cub.Semantics.Static.Typing
-        Poulet4.P4cub.Syntax.CubNotations
-        Poulet4.Utils.ForallMap.
-Import String AllCubNotations.
+        Poulet4.P4cub.Syntax.CubNotations.
+Import AllCubNotations.
 
 (** Custom induction principle for ok types. *)
 Section OkBoomerInduction.
@@ -173,20 +172,6 @@ Section TypeExprInduction.
         => HLists _ _ _ _ _ _ Hok lok Hes (lind Hes)
       end.
 End TypeExprInduction.
-
-(** Test of induction principle. *)
-Lemma t_of_e_correct : forall Δ Γ e τ,
-    `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> t_of_e e = τ.
-Proof.
-  intros Δ Γ e τ H.
-  induction H using custom_type_expr_ind;
-    unravel in *; try reflexivity.
-  rewrite <- sublist.Forall2_map1,
-    Forall2_eq in H2; inv H0; f_equal.
-  apply f_equal with (f := @List.length Expr.t) in H5.
-  rewrite map_length, repeat_length in H5.
-  rewrite <- H5; lia.
-Qed.
 
 Section TypePatternInduction.
   Local Open Scope pat_scope.

@@ -5,7 +5,6 @@ Require Import Coq.ZArith.BinInt.
 Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
-Require Import Coq.Init.Hexadecimal.
 Require Import Poulet4.P4light.Syntax.Value.
 Require Import Poulet4.P4light.Syntax.Syntax.
 Require Poulet4.P4light.Semantics.Extract.
@@ -253,20 +252,24 @@ Definition packet_out_emit : extern_func := {|
   ef_interp := packet_out_emit_interp;
 |}.
 
-Definition get_hash_algorithm (algo : string) : option (nat * uint * uint * uint * bool * bool ) :=
+Local Open Scope hex_N_scope.
+
+Definition get_hash_algorithm (algo : string) : option (nat * N * N * N * bool * bool ) :=
   if String.eqb algo "crc32" then
       Some (32%nat,
-            (D0(D4(Dc(D1(D1(Dd(Db(D7 Nil)))))))),
-            (Df(Df(Df(Df(Df(Df(Df(Df Nil)))))))),
-            (Df(Df(Df(Df(Df(Df(Df(Df Nil)))))))),
+            0x04C11DB7,
+            0xFFFFFFFF,
+            0xFFFFFFFF,
             true, true)
   else if String.eqb algo "crc16" then
       Some (16%nat,
-            (D8(D0(D0(D5 Nil)))),
-            (D0 Nil),
-            (D0 Nil),
+            0x8005,
+            0,
+            0,
             true, true)
-  else None.
+       else None.
+
+Local Close Scope hex_N_scope.
 
 Definition val_to_bits (v : Val) : option (list bool) :=
   match v with
@@ -589,7 +592,7 @@ Definition find_func (funcs: list extern_func) (class func: ident) : option exte
   List.find (fun ef => ((class =? ef.(ef_class))%string &&
                         (func =? ef.(ef_func))%string))
             funcs.
-  
+
 Definition interp_extern
            (env: extern_env)
            (st: extern_state)

@@ -23,7 +23,6 @@
   V1ModelTarget
   CoqLib
   Compare_dec
-  Hexadecimal
   BinNat
   Datatypes
   GCL

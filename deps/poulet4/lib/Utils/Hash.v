@@ -1,7 +1,5 @@
 Require Import Coq.Bool.Bool.
-Require Import Coq.Init.Nat.
 Require Import Coq.ZArith.ZArith.
-Require Import Coq.Init.Hexadecimal.
 Require Import Coq.Lists.List.
 
 Import ListNotations.
@@ -22,9 +20,9 @@ Require Import Poulet4.P4light.Semantics.Bitwise.
 Section CRC.
   (* CRC algorithm configurations *)
   Variable (out_width : nat).
-  Variable (poly : uint).
-  Variable (init : uint).
-  Variable (xor_out : uint).
+  Variable (poly : N).
+  Variable (init : N).
+  Variable (xor_out : N).
   Variable (refin : bool).
   Variable (refout : bool).
 
@@ -34,13 +32,13 @@ Section CRC.
   Definition in_width : nat := List.length input.
 
   Definition poly_bits : Bits :=
-    Bitwise.little_to_big (Bitwise.of_N (N.of_hex_uint poly) out_width).
+    Bitwise.little_to_big (Bitwise.of_N poly out_width).
 
   Definition init_bits : Bits :=
-    Bitwise.little_to_big (Bitwise.of_N (N.of_hex_uint init) out_width).
+    Bitwise.little_to_big (Bitwise.of_N init out_width).
 
   Definition xor_out_bits : Bits :=
-    Bitwise.little_to_big (Bitwise.of_N (N.of_hex_uint xor_out) out_width).
+    Bitwise.little_to_big (Bitwise.of_N xor_out out_width).
 
   Definition in_width_round : nat := (in_width + 7) / 8 * 8.
 
@@ -125,7 +123,7 @@ Section CRC.
           destruct bits.
           + simpl in H. inversion H.
           + simpl in H. apply Nat.succ_inj in H. rewrite Nat.leb_gt in H0.
-            apply lt_n_Sm_le in H0. apply Nat.lt_eq_cases in H0. destruct H0.
+            rewrite Nat.lt_succ_r in H0. apply Nat.lt_eq_cases in H0. destruct H0.
             * rewrite <- Nat.leb_gt in H0.
               destruct b; rewrite IHi; auto; try (now rewrite H0).
               unfold xor. rewrite map2_length. rewrite length_poly_bits.
@@ -142,9 +140,21 @@ Section CRC.
 
 End CRC.
 
+Module CRC_Test.
+
+  Local Open Scope hex_N_scope.
+
+  Goal Bitwise.to_N (compute_crc 16 0x8005 0x0 0x0 true true
+                       (Bitwise.of_N 0x12345678 32)) = 0x347B.
+  Proof. reflexivity. Qed.
+
+  Goal Bitwise.to_N (compute_crc 32 0x04C11DB7 0xFFFFFFFF 0xFFFFFFFF true true
+                       (Bitwise.of_N 0x12345678 32)) = 0x4A090E98.
+  Proof. reflexivity. Qed.
+
+End CRC_Test.
+
 (* Z.of_N (Bitwise.to_N Bits *)
-(* Compute (compute_crc 16 (D8 (D0 (D0 (D5 Nil)))) (D0 Nil) (D0 Nil)
-         true true 12 3911). *)
 (* Example:
     last 15 bits of 0x0501 is 1281, rounded into 0x0A02 => output 24967 = 0x6187
     first 12 bits of 0xF470 is 3911, rounded into 0xF470 => output 9287 = 0x2447 *)

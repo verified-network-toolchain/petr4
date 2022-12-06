@@ -50,7 +50,7 @@ Section Sub.
     | Expr.Bool _
     | Expr.Bit _ _
     | Expr.Int _ _
-    | Expr.VarBit _ _
+    | Expr.VarBit _ _ _
     | Expr.Error _ => e
     | Expr.Var t og x       => Expr.Var (tsub_t t) og x
     | Expr.Slice hi lo e => Expr.Slice hi lo $ tsub_e e

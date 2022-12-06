@@ -15,7 +15,7 @@ Fixpoint eqbv (v1 v2 : v) : bool :=
   | Bool b1, Bool b2 => eqb b1 b2
   | Int w1 n1, Int w2 n2 => (w1 =? w2)%positive && (n1 =? n2)%Z
   | Bit w1 n1, Bit w2 n2 => (w1 =? w2)%N && (n1 =? n2)%Z
-  | VarBit w1 n1, VarBit w2 n2 => (w1 =? w2)%N && (n1 =? n2)%Z
+  | VarBit m1 w1 n1, VarBit m2 w2 n2 => (m1 =? m2)%N && (w1 =? w2)%N && (n1 =? n2)%Z
   | Error err1, Error err2
     => if equiv_dec err1 err2 then true else false
   | Lists ls1 vs1, Lists ls2 vs2

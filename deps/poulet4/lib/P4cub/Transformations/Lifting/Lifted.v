@@ -55,8 +55,8 @@ Variant lifted_rexpr : Expr.e -> Prop :=
     lifted_rexpr (Expr.Bit w n)
   | lifted_int w z :
     lifted_rexpr (Expr.Int w z)
-  | lifted_varbit w n :
-    lifted_rexpr (Expr.VarBit w n)
+  | lifted_varbit m w n :
+    lifted_rexpr (Expr.VarBit m w n)
   | lifted_slice hi lo e :
     lifted_expr e ->
     lifted_rexpr (Expr.Slice hi lo e)

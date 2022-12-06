@@ -55,7 +55,7 @@ Fixpoint lift_e (e : Expr.e) {struct e}
   | Expr.Error _
   | Expr.Var _ _ _ => (e, [])
   | Expr.Bit _ _
-  | Expr.VarBit _ _
+  | Expr.VarBit _ _ _
   | Expr.Int _ _ => (Expr.Var (t_of_e e) "" 0, [e])
   | Expr.Member t x e
     => let '(e, inits) := lift_e e in

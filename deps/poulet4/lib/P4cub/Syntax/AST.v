@@ -132,7 +132,7 @@ Module Expr.
       unless the type is obvious. *)  
   Inductive e : Set :=
   | Bool (b : bool)                     (** booleans *)
-  | VarBit (max_width : N) (val : Z)    (** variable-width integers *)
+  | VarBit (max_width : N) (width : N) (val : Z)    (** variable-width integers *)
   | Bit (width : N) (val : Z)        (** unsigned integers *)
   | Int (width : positive) (val : Z) (** signed integers *)
   | Var (type : t) (original_name : string) (x : nat)  (** variables *)

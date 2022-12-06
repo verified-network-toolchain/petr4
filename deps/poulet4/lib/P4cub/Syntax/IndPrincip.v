@@ -66,7 +66,7 @@ Section ExprInduction.
   
   Hypothesis HInt : forall w n, P (w `S n).
 
-  Hypothesis HVarBit : forall w n, P (VarBit w n).
+  Hypothesis HVarBit : forall m w n, P (VarBit m w n).
   
   Hypothesis HVar : forall ty og x, P (Var ty og x).
   
@@ -103,7 +103,7 @@ Section ExprInduction.
       | Bool b       => HBool b
       | w `W n       => HBit w n
       | w `S n       => HInt w n
-      | VarBit w n   => HVarBit w n
+      | VarBit m w n => HVarBit m w n
       | Var ty og x  => HVar ty og x
       | Slice h l n  => HSlice h l n (eind n)
       | Cast τ exp   => HCast τ exp (eind exp)

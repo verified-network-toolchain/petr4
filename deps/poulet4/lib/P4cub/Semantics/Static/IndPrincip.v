@@ -65,10 +65,11 @@ Section TypeExprInduction.
       IntArith.bound w z ->
       P Δ Γ (w `S z) (Expr.TInt w).
   
-  Hypothesis HVarBit : forall Δ Γ w n,
+  Hypothesis HVarBit : forall Δ Γ m w n,
+      (w <= m)%N ->
       BitArith.bound w n ->
-      P Δ Γ (Expr.VarBit w n) (Expr.TVarBit w).
-  
+      P Δ Γ (Expr.VarBit m w n) (Expr.TVarBit m).
+
   Hypothesis HVar : forall Δ Γ τ og x,
       nth_error Γ x = Some τ ->
       t_ok Δ τ ->
@@ -148,7 +149,7 @@ Section TypeExprInduction.
       | type_bool _ _ b     => HBool _ _ b
       | type_bit _ _ _ _ H => HBit _ _ _ _ H
       | type_int _ _ _ _ H => HInt _ _ _ _ H
-      | type_varbit _ _ _ _ H => HVarBit _ _ _ _ H
+      | type_varbit _ _ _ _ _ Hwm H => HVarBit _ _ _ _ _ Hwm H
       | type_var _ _ _ _ _ Hnth H => HVar _ _ _ _ _ Hnth H
       | type_slice _ _ _ _ _ _ _ Hlohiw Ht He
         => HSlice _ _ _ _ _ _ _ Hlohiw Ht He (teind _ _ _ _ He)

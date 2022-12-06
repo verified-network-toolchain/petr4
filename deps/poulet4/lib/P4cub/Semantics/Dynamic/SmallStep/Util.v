@@ -47,7 +47,7 @@ Section StepDefs.
     | Expr.TBool => Some $ Expr.Bool false
     | Expr.TBit w => Some $ Expr.Bit w 0%Z
     | Expr.TInt w => Some $ Expr.Int w 0%Z
-    | Expr.TVarBit w => Some $ Expr.VarBit w 0%Z
+    | Expr.TVarBit w => Some $ Expr.VarBit w w 0%Z
     | Expr.TError => Some $ Expr.Error "no error"%string
     | Expr.TArray n t =>
         let^ v := e_of_t t in

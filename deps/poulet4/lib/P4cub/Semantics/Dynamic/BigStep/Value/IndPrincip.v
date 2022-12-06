@@ -15,7 +15,7 @@ Section ValueInduction.
 
   Hypothesis HVInt : forall w n, P (w VS n).
 
-  Hypothesis HVVarBit : forall w n, P (VarBit w n).
+  Hypothesis HVVarBit : forall m w n, P (VarBit m w n).
   
   Hypothesis HVLists : forall ls vs,
       Forall P vs -> P (Lists ls vs).
@@ -33,7 +33,7 @@ Section ValueInduction.
       | Bool b      => HVBool b
       | w VS n      => HVInt w n
       | w VW n      => HVBit w n
-      | VarBit w n  => HVVarBit w n
+      | VarBit m w n  => HVVarBit m w n
       | Lists ls vs => HVLists ls vs (lind vs)
       | Error err   => HVError err
       end.

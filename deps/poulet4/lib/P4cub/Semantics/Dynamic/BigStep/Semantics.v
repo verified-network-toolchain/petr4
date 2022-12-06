@@ -27,8 +27,8 @@ Inductive expr_big_step (ϵ : list Val.v)
   ⟨ ϵ, w `W n ⟩ ⇓ w VW n
 | ebs_int w z :
   ⟨ ϵ, w `S z ⟩ ⇓ w VS z
-| ebs_varbit w n :
-  ⟨ ϵ, Expr.VarBit w n ⟩ ⇓ Val.VarBit w n
+| ebs_varbit m w n :
+  ⟨ ϵ, Expr.VarBit m w n ⟩ ⇓ Val.VarBit m w n
 | ebs_var τ og x v :
   nth_error ϵ x = Some v ->
   ⟨ ϵ, Expr.Var τ og x ⟩ ⇓ v

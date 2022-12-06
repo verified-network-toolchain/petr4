@@ -185,8 +185,8 @@ Fixpoint eqbe (e1 e2 : e) {struct e1} : bool :=
     => (w1 =? w2)%N && (n1 =? n2)%Z
   | w1 `S z1, w2 `S z2
     => (w1 =? w2)%positive && (z1 =? z2)%Z
-  | VarBit w1 n1, VarBit w2 n2
-    => (w1 =? w2)%N && (n1 =? n2)%Z
+  | VarBit m1 w1 n1, VarBit m2 w2 n2
+    => (m1 =? m2)%N && (w1 =? w2)%N && (n1 =? n2)%Z
   | Var τ1 og1 x1, Var τ2 og2 x2
     => PeanoNat.Nat.eqb x1 x2 && (og1 =? og2)%string && (τ1 =? τ2)%ty
   | Slice h1 l1 e1, Slice h2 l2 e2

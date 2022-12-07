@@ -4,7 +4,7 @@ From Poulet4 Require Import P4cub.Syntax.Syntax
   P4cub.Syntax.Shift.
 From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.Value.Syntax BigStep.Semantics BigStep.IndPrincip
-     BigStep.Value.Typing.
+     BigStep.Value.Typing BigStep.Determinism.
 Import AllCubNotations Val.ValueNotations
   Val.LValueNotations Nat.
 
@@ -179,9 +179,7 @@ Section Properties.
     - destruct v; auto.
       destruct (lv_lookup (rs ++ eps) lv) as [[] |]; auto.
     - destruct (lv_lookup (rs ++ eps) lv) as [[] |]; auto.
-      destruct ls; eauto.
     - destruct (lv_lookup (rs ++ eps) lv) as [[] |]; auto.
-      destruct ls; eauto.
   Qed.
 
   Local Hint Resolve lv_update_length : core.
@@ -208,6 +206,19 @@ Section Properties.
   Local Hint Rewrite copy_out_length : core.
   Local Hint Resolve copy_out_from_args_length : core.
   Local Hint Rewrite copy_out_from_args_length : core.
+
+  Lemma lexpr_expr_big_step : forall ϵ e lv v,
+      l⟨ ϵ, e ⟩ ⇓ lv -> ⟨ ϵ, e ⟩ ⇓ v -> lv_lookup ϵ lv = Some v.
+  Proof.
+    intros eps e lv v helv; generalize dependent v.
+    induction helv; intros V hv; inv hv; unravel; auto.
+    - rewrite (IHhelv _ H4).
+      destruct v; unravel in *; inv H3; do 2 f_equal.
+    - rewrite (IHhelv _ H4). assumption.
+    - rewrite (IHhelv _ H5).
+      rewrite <- H3. f_equal.
+      pose proof expr_deterministic _ _ _ _ H H6 as h; inv h. lia.
+  Qed.
   
   Context `{ext_sem : Extern_Sem}.
 

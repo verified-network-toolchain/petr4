@@ -210,6 +210,34 @@ Section TypeExpr.
           end; eauto.
     Qed.
 End TypeExpr.
+
+Section TypeStmt.
+  Variable Δ : nat.
+  
+  Local Hint Constructors type_stmt : core.
+
+  (** Specification of [unwind_vars]. *)
+  Lemma type_decl_list_Unwind : forall Γ es ts,
+      type_decl_list Δ Γ es ts ->
+      forall fs c s sig,
+        `⧼ Δ , ts ++ Γ , fs , c ⧽ ⊢ s ⊣ sig ->
+        `⧼ Δ, Γ, fs, c ⧽ ⊢ Unwind es s ⊣ sig.
+  Proof using.
+    intros G es ts H; induction H;
+      intros fs c s sig h; unravel in *; eauto.
+  Qed.
+
+  Local Hint Resolve type_decl_list_Unwind : core.
+  Local Hint Resolve type_decl_list_length : core.
+  Local Hint Resolve type_decl_list_app : core.
+  Local Hint Resolve relate_decl_list_length : core.
+  Local Hint Resolve relate_decl_list_app : core.
+  Fail Local Hint Resolve shift_type_stmt : core.
+  Local Hint Constructors relop : core.
+  Fail Local Hint Constructors ctx_cuttoff : core.
+  Fail Local Hint Resolve ctx_cuttoff_le : core.
+  
+End TypeStmt.
 (*          
 Lemma lift_e_list_type_expr : forall Δ Γ es τs,
     Forall (t_ok Δ) Γ ->

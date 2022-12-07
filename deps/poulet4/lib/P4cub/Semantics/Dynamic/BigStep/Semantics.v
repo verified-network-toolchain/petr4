@@ -33,7 +33,7 @@ Inductive expr_big_step (ϵ : list Val.v)
   nth_error ϵ x = Some v ->
   ⟨ ϵ, Expr.Var τ og x ⟩ ⇓ v
 | ebs_slice e hi lo v v' :
-  eval_slice hi lo v = Some v' ->
+  slice_val hi lo v = Some v' ->
   ⟨ ϵ, e ⟩ ⇓ v ->
   ⟨ ϵ, Expr.Slice hi lo e ⟩ ⇓ v'
 | ebs_cast τ e v v' :

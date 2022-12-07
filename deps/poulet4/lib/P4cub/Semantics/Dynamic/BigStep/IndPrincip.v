@@ -25,7 +25,7 @@ Section ExprEvalInduction.
       P ϵ (Expr.Var τ og x) v.
   
   Hypothesis HSlice : forall ϵ e hi lo v v',
-      eval_slice hi lo v = Some v' ->
+      slice_val hi lo v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
       P ϵ e v ->
       P ϵ (Expr.Slice hi lo e) v'.

@@ -7,6 +7,7 @@ Import Val.ValueNotations Val.LValueNotations.
 
 Local Open Scope value_scope.
 Local Open Scope lvalue_scope.
+  
 
 (** Environments for
     evaluation are De Bruijn lists of values [Val.v].
@@ -34,15 +35,13 @@ Fixpoint lv_lookup (ϵ : list Val.v) (lv : Val.lv) : option Val.v :=
   | lv DOT x =>
       let* v := lv_lookup ϵ lv in
       match v with
-      | Val.Lists
-          (Expr.lists_struct
-          | Expr.lists_header _) vs => nth_error vs x
+      | Val.Lists _ vs => nth_error vs x
       | _ => None
       end
   | Val.Index n lv =>
       let* v := lv_lookup ϵ lv in
       match v with
-      | Val.Lists (Expr.lists_array _) vs => nth_error vs $ N.to_nat n
+      | Val.Lists _ vs => nth_error vs $ N.to_nat n
       | _ => None
       end
   end.
@@ -70,17 +69,14 @@ Fixpoint lv_update
   | lv DOT x =>
     match lv_lookup ϵ lv with
     | Some
-        (Val.Lists
-           ((Expr.lists_struct
-            | Expr.lists_header _) as ls) vs)
+        (Val.Lists ls vs)
       => lv_update lv (Val.Lists ls $ nth_update x v vs) ϵ
     | _ => ϵ
     end
   | Val.Index n lv =>
       match lv_lookup ϵ lv with
       | Some
-          (Val.Lists
-             (Expr.lists_array _ as ls) vs)
+          (Val.Lists ls vs)
         => lv_update lv (Val.Lists ls $ nth_update (N.to_nat n) v vs) ϵ
       | _ => ϵ
       end
@@ -134,9 +130,9 @@ Section Properties.
         destruct (lv_lookup eps lv) eqn:hlook; auto;
         destruct v; auto.
     - destruct (lv_lookup eps lv) eqn:hlook; auto.
-      destruct v0; auto. destruct ls; auto.
+      destruct v0; auto.
     - destruct (lv_lookup eps lv) eqn:hlook; auto.
-      destruct v0; auto. destruct ls; auto.
+      destruct v0; auto.
   Qed.
 
   Local Hint Rewrite lv_update_length : core.

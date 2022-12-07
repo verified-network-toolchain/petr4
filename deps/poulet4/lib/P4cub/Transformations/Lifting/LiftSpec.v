@@ -26,6 +26,17 @@ Section RelateDeclList.
   Proof using.
     intros lb la h; induction h; cbn; auto.
   Qed.
+
+  Polymorphic Hypothesis Rdet : forall la b a a',
+      R la b a -> R la b a' -> a = a'.
+
+  Polymorphic Lemma relate_decl_list_det : forall bs as1 as2,
+      relate_decl_list bs as1 -> relate_decl_list bs as2 -> as1 = as2.
+  Proof using A B R Rdet l.
+    intros bs as1 as2 h1; generalize dependent as2;
+      induction h1; intros as2 h2; inv h2; f_equal; eauto.
+    pose proof IHh1 _ H4 as ?; subst. eauto.
+  Qed.
 End RelateDeclList.
 
 Section RelateExprDeclList.

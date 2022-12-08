@@ -254,6 +254,119 @@ Section Properties.
     inversion H; subst; constructor; eauto.
   Qed.
 
+  Lemma shift_copy_in :
+    forall c us vs vargs eps eps',
+      cutoff c = length us ->
+      amt c = length vs ->
+      copy_in vargs (us ++ eps) = Some eps' ->
+      copy_in
+        (map (paramarg_map id (shift_lv c)) vargs)
+        (us ++ vs ++ eps) = Some eps'.
+  Proof.
+    intros.
+    revert H1.
+    unfold copy_in, pipeline.
+    destruct c; cbn in *; subst.
+    rewrite !map_map.
+    intro.
+    apply Forall2_sequence_iff.
+    apply Forall2_map_l with (lc := vargs).
+    apply Forall2_sequence_iff in H1.
+    apply Forall2_map_l with (lc := vargs) in H1.
+    eapply sublist.Forall2_impl; try eassumption.
+    intros.
+    destruct a; simpl in *; auto;
+      now rewrite shift_lv_lookup.
+  Qed.
+
+  (* This and the following lemma (shift_lv_update_signal) are wrong
+because they use the same eps'' for the unshifted and shifted
+executions.  Eps'' needs to be decomposed into the unshifted prefix,
+new stuff, and shifted suffix as the result of the copy_out already
+is. But the lengths will be different. *)
+  Lemma shift_copy_out :
+    forall vargs c us vs eps eps'' eps' us',
+      cutoff c = Datatypes.length us ->
+      amt c = Datatypes.length vs ->
+      length us = length us' ->
+      copy_out vargs eps'' (us ++ eps) = us' ++ eps' ->
+      copy_out (map (paramarg_map id (shift_lv c)) vargs)
+               eps''
+               (us ++ vs ++ eps) = us' ++ vs ++ eps'.
+  Proof.
+    induction vargs; intros.
+    - simpl in *.
+      apply sublist.app_eq_len_eq in H2; eauto.
+      intuition congruence.
+    - simpl in *.
+      destruct a; simpl in *.
+      + apply IHvargs; eauto.
+      + destruct c.
+        simpl in H, H0.
+        rewrite H, H0.
+  Admitted.
+
+  Lemma shift_lv_update_signal :
+    forall olv sig vargs c us vs eps eps'' eps' us',
+      cutoff c = length us ->
+      amt c = length vs ->
+      length us = length us' ->
+      lv_update_signal olv sig (copy_out vargs eps'' (us ++ eps))
+      = us' ++ eps' ->
+      lv_update_signal
+        (option_map (shift_lv c) olv)
+        sig
+        (copy_out (map (paramarg_map id (shift_lv c)) vargs)
+                  eps'' (us ++ vs ++ eps))
+      = us' ++ vs ++ eps'.
+  Proof.
+    unfold lv_update_signal.
+    intros.
+    destruct olv; simpl in *.
+    - destruct sig; eauto using shift_copy_out.
+      destruct v; simpl in *; eauto using shift_copy_out.
+      remember (copy_out _ _ _) as es in *.
+      set (vargs' := (map _ _)).
+      remember (copy_out vargs' _ _) as es'.
+      symmetry in Heqes, Heqes'.
+      pose proof (copy_out_length vargs eps'' (us ++ eps)).
+      pose proof (copy_out_length vargs eps'' (us ++ eps)).
+      assert (length es = length (us ++ eps))
+        by (subst es; apply copy_out_length).
+      pose proof (firstn_skipn (length us) es).
+      set (us0 := firstn _ es) in *.
+      set (es0 := skipn _ es) in *.
+      destruct c.
+      rewrite !app_length in *.
+      assert (cutoff = length us0).
+      {
+        cbn in *.
+        unfold us0.
+        rewrite firstn_length.
+        subst es.
+        erewrite copy_out_length.
+        rewrite app_length.
+        lia.
+      }
+      subst cutoff.
+      replace amt with (length vs).
+      rewrite <- H6 in Heqes.
+      eapply shift_copy_out with (vs := vs) in Heqes;
+        eauto.
+      subst vargs'.
+      rewrite Heqes in Heqes'.
+      subst es'.
+      rewrite <- H6 in *.
+      unfold us0.
+      cbn in *.
+      eapply shift_lv_update; eauto.
+      rewrite firstn_length.
+      rewrite <- H6.
+      rewrite app_length.
+      lia.
+    - eauto using shift_copy_out.
+  Qed.
+
   Lemma shift_s_eval : forall Ψ us us' ϵ ϵ' c s sig ψ,
       length us = length us' ->
       ctx_cuttoff (length ϵ) c ->
@@ -332,30 +445,19 @@ Section Properties.
                                        cutoff := Datatypes.length us;
                                        amt := Datatypes.length vs
                                      |})) vargs) in *.
+      set (olv' :=
+             option_map (shift_lv
+             {|
+               cutoff := Datatypes.length us; amt := Datatypes.length vs
+             |}) olv) in *.
       replace (us' ++ vs ++ eps')
-        with (lv_update_signal olv sig (copy_out vargs' ϵ'' (us ++ vs ++ eps))).
+        with (lv_update_signal olv' sig (copy_out vargs' ϵ'' (us ++ vs ++ eps))).
       eapply sbs_funct_call; eauto.
-      + admit.
+      + inversion H0; subst; cbn in *; constructor.
+        eauto using shift_lv_eval.
       + eauto using shift_args_eval.
-      + (* TODO: pull this out into a lemma about copy_in *)
-        revert H2.
-        unfold copy_in, vargs', pipeline.
-        rewrite !map_map.
-        intro H2.
-        apply Forall2_sequence_iff.
-        apply Forall2_map_l with (lc := vargs).
-        apply Forall2_sequence_iff in H2.
-        apply Forall2_map_l with (lc := vargs) in H2.
-        eapply sublist.Forall2_impl; try eassumption.
-        intros.
-        destruct a; simpl in *; auto;
-          now rewrite shift_lv_lookup.
-      + unfold lv_update_signal.
-        destruct olv; simpl in *.
-        (* need lemma about copy_out
-           and lv_update_signal *)
-        admit.
-        admit.
+      + eauto using shift_copy_in.
+      + eauto using shift_lv_update_signal.
     - replace (us' ++ vs ++ eps')
         with (lv_update_signal olv sig
                                (copy_out vdata_args ϵ''

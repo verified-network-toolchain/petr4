@@ -233,7 +233,22 @@ Section Properties.
 
   Local Hint Constructors relop : core.
   Local Hint Constructors stmt_big_step : core.
-  
+
+  Lemma shift_args_eval : forall us eps data_args vdata_args vs,
+      args_big_step (us ++ eps) data_args vdata_args ->
+      args_big_step (us ++ vs ++ eps)
+                    (map
+                       (shift_arg
+                          {| cutoff := Datatypes.length us; amt := Datatypes.length vs |})
+                       data_args) vdata_args.
+  Proof.
+    unfold args_big_step, arg_big_step.
+    intros.
+    eapply Forall2_map_l with (lc := data_args).
+    eapply sublist.Forall2_impl; try eassumption.
+    (* not right--the vdata_args lvalues need to be shifted *)
+  Abort.
+
   Lemma shift_s_eval : forall Ψ us us' ϵ ϵ' c s sig ψ,
       length us = length us' ->
       ctx_cuttoff (length ϵ) c ->
@@ -306,27 +321,48 @@ Section Properties.
     - pose proof shift_lv_update _ _ _ _ _ _ hus huseps' vs as hvs.
       rewrite <- hvs.
       constructor; auto.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - destruct te as [t | e]; unravel; unfold shext,smother,RecordSet.set; cbn.
-      + apply sbs_var with (v := v) (v' := v'); auto.
-        replace (v :: us ++ vs ++ eps)
-          with ((v :: us) ++ vs ++ eps) by reflexivity.
-        replace (v' :: us' ++ vs ++ eps')
-          with ((v' :: us') ++ vs ++ eps') by reflexivity.
-        replace (S (length us)) with (length (v :: us)) by reflexivity.
-        apply IHhs; cbn; auto.
-      + apply sbs_var with (v := v) (v' := v'); auto.
-        replace (v :: us ++ vs ++ eps)
-          with ((v :: us) ++ vs ++ eps) by reflexivity.
-        replace (v' :: us' ++ vs ++ eps')
-          with ((v' :: us') ++ vs ++ eps') by reflexivity.
-        replace (S (length us)) with (length (v :: us)) by reflexivity.
-        apply IHhs; cbn; auto.
+    - replace (us' ++ vs ++ eps')
+        with (lv_update_signal olv sig
+                               (copy_out
+                                  vargs
+                                  ϵ'' (us ++ vs ++ eps))).
+      (* this ^ is wrong, the vargs need to be shifted. *)
+      eapply sbs_funct_call; eauto.
+      + admit.
+      + unfold args_big_step.
+        admit.
+      + admit.
+      + unfold lv_update_signal.
+        admit.
+    - replace (us' ++ vs ++ eps')
+        with (lv_update_signal olv sig
+                               (copy_out vdata_args ϵ''
+                                         (us ++ vs ++ eps))).
+      eapply sbs_action_call; try eassumption.
+      + eapply Forall2_map_l with (lc := ctrl_args).
+        eauto using sublist.Forall2_impl, shift_e_eval.
+      + admit.
+      + admit.
+    - (* method call case, will be a repeat of the other call cases *)
+      admit.
+    - (* invoke case, will be a repeat of the other call cases *)
+      admit.
+    - (* another invoke case, will be a repeat *)
+      admit. 
+    - (* parser case... *)
+      admit.
+    - econstructor; eauto.
+      + destruct te; simpl in *.
+        * apply H.
+        * auto.
+      + instantiate (1:=v').
+        replace (v :: us ++ vs ++ eps) with
+          ((v :: us) ++ vs ++ eps)
+          by eauto.
+        replace (v' :: us' ++ vs ++ eps') with
+          ((v' :: us') ++ vs ++ eps')
+          by eauto.
+        eapply IHhs; simpl; eauto.
     - assert (hϵ' : length (us ++ eps) = length ϵ') by
         eauto using sbs_length.
       rewrite app_length in hϵ'.

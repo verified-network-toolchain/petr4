@@ -234,20 +234,25 @@ Section Properties.
   Local Hint Constructors relop : core.
   Local Hint Constructors stmt_big_step : core.
 
-  Lemma shift_args_eval : forall us eps data_args vdata_args vs,
+  Lemma shift_args_eval : forall us eps c data_args vdata_args vs,
+      cutoff c = length us ->
+      amt c = length vs ->
       args_big_step (us ++ eps) data_args vdata_args ->
       args_big_step (us ++ vs ++ eps)
-                    (map
-                       (shift_arg
-                          {| cutoff := Datatypes.length us; amt := Datatypes.length vs |})
-                       data_args) vdata_args.
+                    (map (shift_arg c)
+                         data_args)
+                    (map (paramarg_map id (shift_lv c))
+                       vdata_args).
   Proof.
     unfold args_big_step, arg_big_step.
     intros.
+    destruct c; simpl in *; subst.
     eapply Forall2_map_l with (lc := data_args).
+    eapply Forall2_map_r with (lc := vdata_args).
     eapply sublist.Forall2_impl; try eassumption.
-    (* not right--the vdata_args lvalues need to be shifted *)
-  Abort.
+    intros.
+    inversion H; subst; constructor; eauto.
+  Qed.
 
   Lemma shift_s_eval : forall Ψ us us' ϵ ϵ' c s sig ψ,
       length us = length us' ->
@@ -321,18 +326,35 @@ Section Properties.
     - pose proof shift_lv_update _ _ _ _ _ _ hus huseps' vs as hvs.
       rewrite <- hvs.
       constructor; auto.
-    - replace (us' ++ vs ++ eps')
-        with (lv_update_signal olv sig
-                               (copy_out
-                                  vargs
-                                  ϵ'' (us ++ vs ++ eps))).
-      (* this ^ is wrong, the vargs need to be shifted. *)
+    - set (vargs' :=
+             map (paramarg_map id (shift_lv
+                                     {|
+                                       cutoff := Datatypes.length us;
+                                       amt := Datatypes.length vs
+                                     |})) vargs) in *.
+      replace (us' ++ vs ++ eps')
+        with (lv_update_signal olv sig (copy_out vargs' ϵ'' (us ++ vs ++ eps))).
       eapply sbs_funct_call; eauto.
       + admit.
-      + unfold args_big_step.
-        admit.
-      + admit.
+      + eauto using shift_args_eval.
+      + (* TODO: pull this out into a lemma about copy_in *)
+        revert H2.
+        unfold copy_in, vargs', pipeline.
+        rewrite !map_map.
+        intro H2.
+        apply Forall2_sequence_iff.
+        apply Forall2_map_l with (lc := vargs).
+        apply Forall2_sequence_iff in H2.
+        apply Forall2_map_l with (lc := vargs) in H2.
+        eapply sublist.Forall2_impl; try eassumption.
+        intros.
+        destruct a; simpl in *; auto;
+          now rewrite shift_lv_lookup.
       + unfold lv_update_signal.
+        destruct olv; simpl in *.
+        (* need lemma about copy_out
+           and lv_update_signal *)
+        admit.
         admit.
     - replace (us' ++ vs ++ eps')
         with (lv_update_signal olv sig

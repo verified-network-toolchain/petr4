@@ -428,6 +428,20 @@ Section Properties.
     - eauto using shift_copy_out.
   Qed.
 
+  Lemma length_copy_in :
+    forall vargs l eps,
+      copy_in vargs l = Some eps ->
+      length eps = length vargs.
+  Proof.
+    unfold copy_in.
+    intros.
+    apply sequence_length in H.
+    simpl in H.
+    unfold pipeline in H.
+    rewrite map_length in H.
+    auto.
+  Qed.
+
   Lemma shift_s_eval : forall Ψ us us' ϵ ϵ' c s sig ψ,
       length us = length us' ->
       ctx_cuttoff (length ϵ) c ->
@@ -511,16 +525,6 @@ Section Properties.
              {|
                cutoff := Datatypes.length us; amt := Datatypes.length vs
              |}) olv) in *.
-      assert (length ϵ'' = length (us' ++ eps')).
-      {
-        rewrite <- huseps'.
-        rewrite lv_update_signal_length.
-        apply sbs_length in hs.
-        rewrite copy_out_length.
-        rewrite <- hs.
-        (* Is this true? *)
-        admit.
-      }
       replace (us' ++ vs ++ eps')
         with (lv_update_signal olv' sig (copy_out vargs' ϵ'' (us ++ vs ++ eps))).
       eapply sbs_funct_call; eauto.
@@ -529,6 +533,7 @@ Section Properties.
       + eauto using shift_args_eval.
       + eauto using shift_copy_in.
       + (* This feels like a shift bug *)
+        apply shift_lv_update_signal.
         admit.
     - replace (us' ++ vs ++ eps')
         with (lv_update_signal olv sig

@@ -279,45 +279,106 @@ Section Properties.
       now rewrite shift_lv_lookup.
   Qed.
 
-  (* This and the following lemma (shift_lv_update_signal) are wrong
-because they use the same eps'' for the unshifted and shifted
-executions.  Eps'' needs to be decomposed into the unshifted prefix,
-new stuff, and shifted suffix as the result of the copy_out already
-is. But the lengths will be different. *)
+  Lemma split_by_length:
+    forall A (l: list A) m n,
+      length l = n + m ->
+      exists xs ys,
+        l = xs ++ ys /\
+        length xs = n /\
+        length ys = m.
+  Proof.
+    intros.
+    exists (firstn n l).
+    exists (skipn n l).
+    intuition.
+    - auto using firstn_skipn.
+    - rewrite firstn_length.
+      lia.
+    - rewrite skipn_length.
+      lia.
+  Qed.
+
   Lemma shift_copy_out :
-    forall vargs c us vs eps eps'' eps' us',
+    forall vargs c us vs eus eps eps'' eps' us',
       cutoff c = Datatypes.length us ->
       amt c = Datatypes.length vs ->
       length us = length us' ->
-      copy_out vargs eps'' (us ++ eps) = us' ++ eps' ->
+      length eus = length us' ->
+      copy_out vargs (eus ++ eps'') (us ++ eps) = us' ++ eps' ->
       copy_out (map (paramarg_map id (shift_lv c)) vargs)
-               eps''
+               (eus ++ vs ++ eps'')
                (us ++ vs ++ eps) = us' ++ vs ++ eps'.
   Proof.
     induction vargs; intros.
     - simpl in *.
-      apply sublist.app_eq_len_eq in H2; eauto.
+      apply sublist.app_eq_len_eq in H3; eauto.
       intuition congruence.
     - simpl in *.
-      destruct a; simpl in *.
+      revert H3.
+      cut ((copy_out vargs (eus ++ eps'') (us ++ eps) = us' ++ eps' ->
+           copy_out (map (paramarg_map id (shift_lv c)) vargs)
+                    (eus ++ vs ++ eps'') (us ++ vs ++ eps) =
+             us' ++ vs ++ eps') /\
+             (forall b,
+                 (a = PAOut b \/ a = PAInOut b) ->
+                 match lv_lookup (eus ++ eps'') b with
+                 | Some v =>
+                     lv_update b v
+                               (copy_out vargs (eus ++ eps'') (us ++ eps))
+                 | None => copy_out vargs (eus ++ eps'') (us ++ eps)
+                 end = us' ++ eps' ->
+                 match lv_lookup (eus ++ vs ++ eps'') (shift_lv c b) with
+                 | Some v =>
+                     lv_update (shift_lv c b) v
+                               (copy_out (map (paramarg_map id (shift_lv c)) vargs)
+                                         (eus ++ vs ++ eps'') (us ++ vs ++ eps))
+                 | None =>
+                     copy_out (map (paramarg_map id (shift_lv c)) vargs)
+                              (eus ++ vs ++ eps'') (us ++ vs ++ eps)
+                 end = us' ++ vs ++ eps')).
+      {
+        intros.
+        destruct a; cbn in *; intuition.
+      }
+      split.
       + apply IHvargs; eauto.
-      + destruct c.
+      + intros.
+        destruct c.
         simpl in H, H0.
         rewrite H, H0.
-  Admitted.
+        simpl in *.
+        replace (Datatypes.length us) with (Datatypes.length eus)
+          by congruence.
+        erewrite shift_lv_lookup.
+        destruct (lv_lookup _ _); cbn in *.
+        * pose proof (copy_out_length vargs (eus ++ eps'') (us ++ eps)).
+          rewrite app_length in *.
+          apply split_by_length in H5.
+          destruct H5 as [xs [ys [? [? ?]]]].
+          rewrite H5 in *.
+          erewrite IHvargs with (us' := xs);
+             cbn; eauto; try congruence.
+          replace (length eus) with (length xs) by congruence.
+          eapply shift_lv_update; eauto; congruence.
+        * eapply IHvargs; eauto.
+          simpl.
+          congruence.
+  Qed.
 
   Lemma shift_lv_update_signal :
-    forall olv sig vargs c us vs eps eps'' eps' us',
+    forall olv sig vargs c us eps eps' us' eus vs eps'',
       cutoff c = length us ->
       amt c = length vs ->
       length us = length us' ->
-      lv_update_signal olv sig (copy_out vargs eps'' (us ++ eps))
+      length eus = length us' ->
+      lv_update_signal olv sig (copy_out vargs (eus ++ eps'') (us ++ eps))
       = us' ++ eps' ->
       lv_update_signal
         (option_map (shift_lv c) olv)
         sig
         (copy_out (map (paramarg_map id (shift_lv c)) vargs)
-                  eps'' (us ++ vs ++ eps))
+                  (eus ++ vs ++ eps'')
+                  (us ++ vs ++ eps))
       = us' ++ vs ++ eps'.
   Proof.
     unfold lv_update_signal.
@@ -350,18 +411,18 @@ is. But the lengths will be different. *)
       }
       subst cutoff.
       replace amt with (length vs).
-      rewrite <- H6 in Heqes.
+      rewrite <- H7 in Heqes.
       eapply shift_copy_out with (vs := vs) in Heqes;
-        eauto.
+        eauto; [|cbn in *; congruence].
       subst vargs'.
       rewrite Heqes in Heqes'.
       subst es'.
-      rewrite <- H6 in *.
+      rewrite <- H7 in *.
       unfold us0.
       cbn in *.
       eapply shift_lv_update; eauto.
       rewrite firstn_length.
-      rewrite <- H6.
+      rewrite <- H7.
       rewrite app_length.
       lia.
     - eauto using shift_copy_out.
@@ -450,6 +511,16 @@ is. But the lengths will be different. *)
              {|
                cutoff := Datatypes.length us; amt := Datatypes.length vs
              |}) olv) in *.
+      assert (length ϵ'' = length (us' ++ eps')).
+      {
+        rewrite <- huseps'.
+        rewrite lv_update_signal_length.
+        apply sbs_length in hs.
+        rewrite copy_out_length.
+        rewrite <- hs.
+        (* Is this true? *)
+        admit.
+      }
       replace (us' ++ vs ++ eps')
         with (lv_update_signal olv' sig (copy_out vargs' ϵ'' (us ++ vs ++ eps))).
       eapply sbs_funct_call; eauto.
@@ -457,7 +528,8 @@ is. But the lengths will be different. *)
         eauto using shift_lv_eval.
       + eauto using shift_args_eval.
       + eauto using shift_copy_in.
-      + eauto using shift_lv_update_signal.
+      + (* This feels like a shift bug *)
+        admit.
     - replace (us' ++ vs ++ eps')
         with (lv_update_signal olv sig
                                (copy_out vdata_args ϵ''

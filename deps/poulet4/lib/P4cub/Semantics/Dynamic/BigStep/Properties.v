@@ -298,24 +298,49 @@ Section Properties.
       lia.
   Qed.
 
-  Lemma shift_copy_out :
-    forall vargs c us vs eus eps eps'' eps' us',
+  Lemma shift_copy_out_argv :
+    forall varg c us vs eps eps'' eps' us' n,
       cutoff c = Datatypes.length us ->
       amt c = Datatypes.length vs ->
       length us = length us' ->
-      length eus = length us' ->
-      copy_out vargs (eus ++ eps'') (us ++ eps) = us' ++ eps' ->
-      copy_out (map (paramarg_map id (shift_lv c)) vargs)
-               (eus ++ vs ++ eps'')
+      copy_out_argv n varg eps'' (us ++ eps) = us' ++ eps' ->
+      copy_out_argv n (paramarg_map id (shift_lv c) varg)
+               eps''
+               (us ++ vs ++ eps) = us' ++ vs ++ eps'.
+  Proof.
+    intros.
+    destruct varg as [v | lv | lv]; cbn in *.
+    - apply sublist.app_eq_len_eq in H2; eauto.
+      intuition congruence.
+    - destruct (nth_error eps'' n) as [v |].
+      + destruct c; cbn in *; subst.
+        erewrite shift_lv_update; eauto.
+      + apply sublist.app_eq_len_eq in H2; eauto.
+        intuition congruence.
+    - destruct (nth_error eps'' n) as [v |].
+      + destruct c; cbn in *; subst.
+        erewrite shift_lv_update; eauto.
+      + apply sublist.app_eq_len_eq in H2; eauto.
+        intuition congruence.
+  Qed.
+  
+  Lemma shift_copy_out :
+    forall vargs c us vs eps eps'' eps' us' n,
+      cutoff c = Datatypes.length us ->
+      amt c = Datatypes.length vs ->
+      length us = length us' ->
+      copy_out n vargs eps'' (us ++ eps) = us' ++ eps' ->
+      copy_out n (map (paramarg_map id (shift_lv c)) vargs)
+               eps''
                (us ++ vs ++ eps) = us' ++ vs ++ eps'.
   Proof.
     induction vargs; intros.
     - simpl in *.
-      apply sublist.app_eq_len_eq in H3; eauto.
+      apply sublist.app_eq_len_eq in H2; eauto.
       intuition congruence.
     - simpl in *.
-      revert H3.
-      cut ((copy_out vargs (eus ++ eps'') (us ++ eps) = us' ++ eps' ->
+      (*revert H3.
+      cut ((copy_out n vargs eps'' (us ++ eps) = us' ++ eps' ->
            copy_out (map (paramarg_map id (shift_lv c)) vargs)
                     (eus ++ vs ++ eps'') (us ++ vs ++ eps) =
              us' ++ vs ++ eps') /\
@@ -362,23 +387,21 @@ Section Properties.
           eapply shift_lv_update; eauto; congruence.
         * eapply IHvargs; eauto.
           simpl.
-          congruence.
-  Qed.
+          congruence.*)
+  Admitted.
 
   Lemma shift_lv_update_signal :
-    forall olv sig vargs c us eps eps' us' eus vs eps'',
+    forall olv sig vargs c us eps eps' us' vs eps'',
       cutoff c = length us ->
       amt c = length vs ->
       length us = length us' ->
-      length eus = length us' ->
-      lv_update_signal olv sig (copy_out vargs (eus ++ eps'') (us ++ eps))
+      lv_update_signal olv sig (copy_out 0 vargs eps'' (us ++ eps))
       = us' ++ eps' ->
       lv_update_signal
         (option_map (shift_lv c) olv)
         sig
-        (copy_out (map (paramarg_map id (shift_lv c)) vargs)
-                  (eus ++ vs ++ eps'')
-                  (us ++ vs ++ eps))
+        (copy_out 0 (map (paramarg_map id (shift_lv c)) vargs)
+           eps'' (us ++ vs ++ eps))
       = us' ++ vs ++ eps'.
   Proof.
     unfold lv_update_signal.
@@ -388,11 +411,11 @@ Section Properties.
       destruct v; simpl in *; eauto using shift_copy_out.
       remember (copy_out _ _ _) as es in *.
       set (vargs' := (map _ _)).
-      remember (copy_out vargs' _ _) as es'.
+      remember (copy_out 0 vargs' _ _) as es'.
       symmetry in Heqes, Heqes'.
-      pose proof (copy_out_length vargs eps'' (us ++ eps)).
-      pose proof (copy_out_length vargs eps'' (us ++ eps)).
-      assert (length es = length (us ++ eps))
+      pose proof (copy_out_length vargs 0 eps'' (us ++ eps)).
+      pose proof (copy_out_length vargs 0 eps'' (us ++ eps)).
+      (*assert (length es = length (us ++ eps))
         by (subst es; apply copy_out_length).
       pose proof (firstn_skipn (length us) es).
       set (us0 := firstn _ es) in *.
@@ -425,8 +448,8 @@ Section Properties.
       rewrite <- H7.
       rewrite app_length.
       lia.
-    - eauto using shift_copy_out.
-  Qed.
+      - eauto using shift_copy_out.*)
+  Admitted.
 
   Lemma length_copy_in :
     forall vargs l eps,
@@ -524,20 +547,19 @@ Section Properties.
              option_map (shift_lv
              {|
                cutoff := Datatypes.length us; amt := Datatypes.length vs
-             |}) olv) in *.
+             |}) olv) in *.      
       replace (us' ++ vs ++ eps')
-        with (lv_update_signal olv' sig (copy_out vargs' ϵ'' (us ++ vs ++ eps))).
+        with (lv_update_signal olv' sig (copy_out 0 vargs' ϵ'' (us ++ vs ++ eps))).
       eapply sbs_funct_call; eauto.
       + inversion H0; subst; cbn in *; constructor.
         eauto using shift_lv_eval.
       + eauto using shift_args_eval.
       + eauto using shift_copy_in.
-      + (* This feels like a shift bug *)
-        apply shift_lv_update_signal.
-        admit.
+      + subst vargs' olv'.
+        erewrite shift_lv_update_signal; eauto.
     - replace (us' ++ vs ++ eps')
         with (lv_update_signal olv sig
-                               (copy_out vdata_args ϵ''
+                               (copy_out 0 vdata_args ϵ''
                                          (us ++ vs ++ eps))).
       eapply sbs_action_call; try eassumption.
       + eapply Forall2_map_l with (lc := ctrl_args).

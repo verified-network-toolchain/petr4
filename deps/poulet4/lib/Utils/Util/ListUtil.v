@@ -272,11 +272,32 @@ Fixpoint ith { A : Type } (xs : list A) (i : nat) : result string A :=
     end
   end.
 
-Definition fold_righti {A B : Type} (f : nat -> A -> B -> B) (init : B) (xs : list A) : B :=
-  snd (List.fold_right (fun a '(i, b) => (i + 1, f i a b )) (0, init) xs).
+Section FoldRighti.
+  Context {A B : Type}.
+  Variable f : nat -> A -> B -> B.
+  Variable init : B.
+  
+  Definition fold_righti (xs : list A) : B :=
+    snd (List.fold_right (fun a '(i, b) => (i + 1, f i a b )) (O, init) xs).
+End FoldRighti.
 
-Definition fold_lefti { A B : Type } (f : nat -> A -> B -> B) (init : B) (lst : list A) : B :=
-  snd (fold_left (fun '(n, b) a => (S n, f n a b)) lst (O, init)).
+
+Section FoldLefti.
+  Context {A B : Type}.
+  Variable f : nat -> A -> B -> B.
+  
+  Definition fold_lefti (init : B) (lst : list A) : B :=
+    snd (fold_left (fun '(n, b) a => (S n, f n a b)) lst (O, init)).
+
+  (*Section FoldLeftiInd.
+    Search fold_left.
+    Variable P : list A -> B -> Prop.
+
+    Hypothesis hnil : forall acc, P [] acc.
+
+    Hypothesis hcons : forall h t acc,
+        P*)
+End FoldLefti.
 
 Definition findi { A : Type } (select : A -> bool) (l : list A) : option nat :=
   fold_lefti (fun i a found_at_n =>

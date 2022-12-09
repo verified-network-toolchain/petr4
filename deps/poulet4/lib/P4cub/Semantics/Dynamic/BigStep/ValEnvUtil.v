@@ -101,20 +101,25 @@ Definition copy_in
 (** Update call-site environment with
     out variables from function call evaluation. *)
 
-Definition copy_out
-           (argsv : Val.argsv)
-           (ϵ_func : list Val.v) (ϵ_call : list Val.v) : list Val.v :=
-  fold_right
-    (fun arg ϵ_call =>
-       match arg with
-       | PAIn _ => ϵ_call
-       | PAOut lv
-       | PAInOut lv
-         => match lv_lookup ϵ_func lv with
-           | None   => ϵ_call
-           | Some v => lv_update lv v ϵ_call
-           end
-       end) ϵ_call argsv.
+Definition copy_out_argv
+  (n : nat) (argv : Val.argv) (ϵ_func : list Val.v) (ϵ_call : list Val.v) : list Val.v :=
+  match argv with
+  | PAIn _ => ϵ_call
+  | PAOut lv
+  | PAInOut lv =>
+      match nth_error ϵ_func n with
+      | None   => ϵ_call
+      | Some v => lv_update lv v ϵ_call
+      end
+  end.
+
+Fixpoint copy_out
+  (n : nat) (argsv : Val.argsv)
+  (ϵ_func : list Val.v) (ϵ_call : list Val.v) : list Val.v :=
+  match argsv with
+  | [] => ϵ_call
+  | argv :: argsv => copy_out (S n) argsv ϵ_func (copy_out_argv n argv ϵ_func ϵ_call)
+  end.
 
 Section Properties.
   Local Hint Constructors type_value : core.
@@ -137,14 +142,22 @@ Section Properties.
 
   Local Hint Rewrite lv_update_length : core.
 
-  Lemma copy_out_length : forall vs ϵ ϵ',
-      length (copy_out vs ϵ ϵ') = length ϵ'.
+  Lemma copy_out_argv_length : forall v n ϵ ϵ',
+      length (copy_out_argv n v ϵ ϵ') = length ϵ'.
   Proof.
-    unfold copy_out.
-    intro vs; induction vs as [| [] vs ih];
-      intros ϵ ϵ'; cbn in *; auto.
-    - destruct (lv_lookup ϵ b); autorewrite with core; auto.
-    - destruct (lv_lookup ϵ b); autorewrite with core; auto.
+    intros [v | lv | lv] n eps eps'; cbn; auto;
+      destruct (nth_error eps n) as [v |];
+      autorewrite with core; reflexivity.
+  Qed.
+
+  Local Hint Rewrite copy_out_argv_length : core.
+  
+  Lemma copy_out_length : forall vs n ϵ ϵ',
+      length (copy_out n vs ϵ ϵ') = length ϵ'.
+  Proof using.
+    intro vs; induction vs as [| v vs ih];
+      intros n ϵ ϵ'; cbn in *; auto;
+      try rewrite ih; autorewrite with core; reflexivity.
   Qed.
 
   Local Hint Rewrite Zcomplements.Zlength_correct : core.

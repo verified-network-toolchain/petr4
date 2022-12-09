@@ -312,7 +312,7 @@ Inductive stmt_big_step
   ⧼ Ψ <| functs := fun_clos |>, ϵ', CFunction,
       tsub_s (gen_tsub τs) body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Funct f τs eo) args ⧽
-    ⤋ ⧼ lv_update_signal olv sig (copy_out vargs ϵ'' ϵ), Cont, ψ ⧽  
+    ⤋ ⧼ lv_update_signal olv sig (copy_out O vargs ϵ'' ϵ), Cont, ψ ⧽  
 | sbs_action_call
     ϵ ϵ' ϵ'' clos c ψ a ctrl_args data_args actions
     vctrl_args vdata_args olv fun_clos act_clos body sig :
@@ -333,7 +333,7 @@ Inductive stmt_big_step
   ⧼ Ψ <| functs := fun_clos |>, vctrl_args ++ ϵ', CAction act_clos,
       body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽
-    ⤋ ⧼ lv_update_signal olv sig (copy_out vdata_args ϵ'' ϵ), Cont, ψ ⧽
+    ⤋ ⧼ lv_update_signal olv sig (copy_out O vdata_args ϵ'' ϵ), Cont, ψ ⧽
 | sbs_method_call
     ϵ c ψ ext meth τs args
     eo vargs vargs' olv sig
@@ -407,7 +407,7 @@ Inductive stmt_big_step
   ⧼ Ψ <| functs := fun_clos |>, ϵ', CApplyBlock tbl_clos action_clos inst_clos,
       apply_block ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, CApplyBlock tbls actions control_insts,
-    Stmt.Apply c ext_args args ⧽ ⤋ ⧼ copy_out vargs ϵ'' ϵ, Cont, ψ ⧽
+    Stmt.Apply c ext_args args ⧽ ⤋ ⧼ copy_out O vargs ϵ'' ϵ, Cont, ψ ⧽
 | sbs_apply_parser
     ϵ ϵ' ϵ'' n strt states parsers ψ p
     ext_args args vargs
@@ -424,7 +424,7 @@ Inductive stmt_big_step
       CParserState (length args) strt_clos states_clos prsr_clos,
       strt ⧽ ⤋ ⧼ ϵ'', final, ψ ⧽ ->
   ⧼ Ψ, ϵ, CParserState n strt states parsers,
-    Stmt.Apply p ext_args args ⧽ ⤋ ⧼ copy_out vargs ϵ'' ϵ, sig, ψ ⧽
+    Stmt.Apply p ext_args args ⧽ ⤋ ⧼ copy_out O vargs ϵ'' ϵ, sig, ψ ⧽
 | sbs_var ϵ ϵ' c og te v v' s sig ψ :
   match te with
   | inr e => ⟨ ϵ, e ⟩ ⇓ v

@@ -442,6 +442,8 @@ Section InlineProof.
 
   Definition exec_val := exec_val read_one_bit.
 
+  Print nth.
+
   (* Hypothesis read_one_bit_def : forall (b b' : bool), read_one_bit (Some b) b' <-> b = b'. *)
 
   Lemma expr_inline_correct :
@@ -463,9 +465,10 @@ Section InlineProof.
       (* We know there exists v1, v1', v2, v2' 
         for which e1 ==> v1, [[ e1 ]] ==> v1', *)
       intros. inv H. inv H0.
-      eapply IHe1 in H12 as [? ?]; eauto.
-      eapply IHe2 in H6  as [? ?]; eauto.
-      apply H in H7.
+      (* eapply IHe1 in H12 as [? ?]; eauto.
+      eapply IHe2 in H6  as [? ?]; eauto. *)
+      split; intros; admit.
+      (* apply H in H7.
       apply H6 in H8.
       apply H
       intuition.
@@ -486,16 +489,35 @@ Section InlineProof.
       try (injection H10 as ?; injection H15 as ?); subst.
       + admit. 
       + admit.
-      + admit.
+      + admit. *)
     - admit.
     - (* Case e = ExpList es. Proof: induction on es *)
-      induction vs; intros.
-      + inv H0. inv H9. inv H1. inv H8. reflexivity.
-      + inv H. inv H0. inv H1. inv H9. inv H10. f_equal. f_equal.
-        * eauto.
-        * assert (ValBaseTuple l'0 = ValBaseTuple l').
-          { eapply IHvs; try constructor; eauto. }
-          injection H. trivial.
+      split; generalize dependent sv; generalize dependent sv'; generalize dependent v.
+      + induction vs; intros.
+        * inv H. inv H0. inv H9. inv H1. inv H8. assumption.
+        * inv H0. inv H1.
+          inv H10. inv H9.
+          inv H. inv H2. inv H0. 
+          apply IHvs with (sv := ValBaseTuple l') (sv' := ValBaseTuple l'0) (v := ValBaseTuple l'1) in H8 as IH.
+          { inv IH. constructor. constructor; auto. 
+            eapply H6 in H3 as [? ?]; eauto. eapply H in H2. auto.
+          }
+          { constructor. assumption. }
+          { constructor. assumption. }
+          { constructor. assumption. }
+      + induction vs; intros.
+        * inv H. inv H0. inv H9. inv H1. inv H8. assumption.
+        * inv H0. inv H1.
+          inv H10. inv H9.
+          inv H. inv H2. inv H0. 
+          apply IHvs with (sv := ValBaseTuple l') (sv' := ValBaseTuple l'0) (v := ValBaseTuple l'1) in H8 as IH.
+          { inv IH. constructor. constructor; auto. 
+            eapply H6 in H3 as [? ?]; eauto. eapply H0 in H2. auto.
+          }
+          { constructor. assumption. }
+          { constructor. assumption. }
+          { constructor. assumption. }
+    -
   Admitted.
 
 End InlineProof.

@@ -498,10 +498,12 @@ Section InlineProof.
         * inv H0. inv H1.
           inv H10. inv H9.
           inv H. inv H2. inv H0. 
-          apply IHvs with (sv := ValBaseTuple l') (sv' := ValBaseTuple l'0) (v := ValBaseTuple l'1) in H8 as IH.
+          apply IHvs with
+            (sv := ValBaseTuple l') 
+            (sv' := ValBaseTuple l'0) 
+            (v := ValBaseTuple l'1) in H8 as IH.
           { inv IH. constructor. constructor; auto. 
-            eapply H6 in H3 as [? ?]; eauto. eapply H in H2. auto.
-          }
+            eapply H6 in H3 as [? ?]; eauto. eapply H in H2. auto. }
           { constructor. assumption. }
           { constructor. assumption. }
           { constructor. assumption. }
@@ -510,14 +512,59 @@ Section InlineProof.
         * inv H0. inv H1.
           inv H10. inv H9.
           inv H. inv H2. inv H0. 
-          apply IHvs with (sv := ValBaseTuple l') (sv' := ValBaseTuple l'0) (v := ValBaseTuple l'1) in H8 as IH.
+          apply IHvs with 
+            (sv := ValBaseTuple l') 
+            (sv' := ValBaseTuple l'0) 
+            (v := ValBaseTuple l'1) in H8 as IH.
           { inv IH. constructor. constructor; auto. 
-            eapply H6 in H3 as [? ?]; eauto. eapply H0 in H2. auto.
-          }
+            eapply H6 in H3 as [? ?]; eauto. eapply H0 in H2. auto. }
           { constructor. assumption. }
           { constructor. assumption. }
           { constructor. assumption. }
-    -
+    - split; generalize dependent sv; generalize dependent sv'; generalize dependent v.
+      + induction es; intros.
+        * inv H. inv H1. inv H9. inv H0. inv H8. assumption.
+        * inv H0. inv H10. destruct H4 as [? ?].
+          destruct a as [x e] eqn:?.
+          destruct y as [xsv sv] eqn:?.
+          simpl in *. subst.
+          inv H1. inv H11. inv H2.
+          destruct y as [x' e'] eqn:?.
+          inv H1. destruct y0 as [xsv' sv'] eqn:?.
+          simpl in *. subst. inv H.
+          destruct H4 as [? ?].
+          destruct H5 as [? ?].
+          apply IHes with 
+            (sv := ValBaseStruct l') 
+            (sv' := ValBaseStruct l'0) 
+            (v := ValBaseStruct l'1) in H8 as IH.
+          { inv IH. constructor. constructor; auto. split; auto. simpl.
+            eapply H2 in H3 as [? ?]; eauto. eapply H in H4. auto. }
+          { constructor. assumption. }
+          { constructor. assumption. }
+          { constructor. assumption. }
+      + induction es; intros.
+        * inv H. inv H1. inv H9. inv H0. inv H8. assumption.
+        * inv H0. inv H10. destruct H4 as [? ?].
+          destruct a as [x e] eqn:?.
+          destruct y as [xsv sv] eqn:?.
+          simpl in *. subst.
+          inv H1. inv H11. inv H2.
+          destruct y as [x' e'] eqn:?.
+          inv H1. destruct y0 as [xsv' sv'] eqn:?.
+          simpl in *. subst. inv H.
+          destruct H4 as [? ?].
+          destruct H5 as [? ?].
+          apply IHes with 
+            (sv := ValBaseStruct l') 
+            (sv' := ValBaseStruct l'0) 
+            (v := ValBaseStruct l'1) in H8 as IH.
+          { inv IH. constructor. constructor; auto. split; auto. simpl.
+            eapply H2 in H3 as [? ?]; eauto. eapply H1 in H4. auto. }
+          { constructor. assumption. }
+          { constructor. assumption. }
+          { constructor. assumption. }
+    - admit.
   Admitted.
 
 End InlineProof.

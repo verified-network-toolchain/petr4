@@ -339,56 +339,15 @@ Section Properties.
       apply sublist.app_eq_len_eq in H2; eauto.
       intuition congruence.
     - simpl in *.
-      (*revert H3.
-      cut ((copy_out n vargs eps'' (us ++ eps) = us' ++ eps' ->
-           copy_out (map (paramarg_map id (shift_lv c)) vargs)
-                    (eus ++ vs ++ eps'') (us ++ vs ++ eps) =
-             us' ++ vs ++ eps') /\
-             (forall b,
-                 (a = PAOut b \/ a = PAInOut b) ->
-                 match lv_lookup (eus ++ eps'') b with
-                 | Some v =>
-                     lv_update b v
-                               (copy_out vargs (eus ++ eps'') (us ++ eps))
-                 | None => copy_out vargs (eus ++ eps'') (us ++ eps)
-                 end = us' ++ eps' ->
-                 match lv_lookup (eus ++ vs ++ eps'') (shift_lv c b) with
-                 | Some v =>
-                     lv_update (shift_lv c b) v
-                               (copy_out (map (paramarg_map id (shift_lv c)) vargs)
-                                         (eus ++ vs ++ eps'') (us ++ vs ++ eps))
-                 | None =>
-                     copy_out (map (paramarg_map id (shift_lv c)) vargs)
-                              (eus ++ vs ++ eps'') (us ++ vs ++ eps)
-                 end = us' ++ vs ++ eps')).
-      {
-        intros.
-        destruct a; cbn in *; intuition.
-      }
-      split.
-      + apply IHvargs; eauto.
-      + intros.
-        destruct c.
-        simpl in H, H0.
-        rewrite H, H0.
-        simpl in *.
-        replace (Datatypes.length us) with (Datatypes.length eus)
-          by congruence.
-        erewrite shift_lv_lookup.
-        destruct (lv_lookup _ _); cbn in *.
-        * pose proof (copy_out_length vargs (eus ++ eps'') (us ++ eps)).
-          rewrite app_length in *.
-          apply split_by_length in H5.
-          destruct H5 as [xs [ys [? [? ?]]]].
-          rewrite H5 in *.
-          erewrite IHvargs with (us' := xs);
-             cbn; eauto; try congruence.
-          replace (length eus) with (length xs) by congruence.
-          eapply shift_lv_update; eauto; congruence.
-        * eapply IHvargs; eauto.
-          simpl.
-          congruence.*)
-  Admitted.
+      pose proof (copy_out_argv_length a n eps'' (us ++ eps)).
+      rewrite app_length in *.
+      apply split_by_length in H3.
+      destruct H3 as [? [? [? [? ?]]]].
+      rewrite H3 in *.
+      eapply shift_copy_out_argv in H3; eauto.
+      rewrite H3.
+      eapply IHvargs; eauto || congruence.
+  Qed.
 
   Lemma shift_lv_update_signal :
     forall olv sig vargs c us eps eps' us' vs eps'',
@@ -409,47 +368,25 @@ Section Properties.
     destruct olv; simpl in *.
     - destruct sig; eauto using shift_copy_out.
       destruct v; simpl in *; eauto using shift_copy_out.
-      remember (copy_out _ _ _) as es in *.
+      remember (copy_out _ _ _ _) as es in *.
       set (vargs' := (map _ _)).
       remember (copy_out 0 vargs' _ _) as es'.
       symmetry in Heqes, Heqes'.
       pose proof (copy_out_length vargs 0 eps'' (us ++ eps)).
-      pose proof (copy_out_length vargs 0 eps'' (us ++ eps)).
-      (*assert (length es = length (us ++ eps))
-        by (subst es; apply copy_out_length).
-      pose proof (firstn_skipn (length us) es).
-      set (us0 := firstn _ es) in *.
-      set (es0 := skipn _ es) in *.
-      destruct c.
       rewrite !app_length in *.
-      assert (cutoff = length us0).
-      {
-        cbn in *.
-        unfold us0.
-        rewrite firstn_length.
-        subst es.
-        erewrite copy_out_length.
-        rewrite app_length.
-        lia.
-      }
-      subst cutoff.
-      replace amt with (length vs).
-      rewrite <- H7 in Heqes.
-      eapply shift_copy_out with (vs := vs) in Heqes;
-        eauto; [|cbn in *; congruence].
-      subst vargs'.
-      rewrite Heqes in Heqes'.
-      subst es'.
-      rewrite <- H7 in *.
-      unfold us0.
-      cbn in *.
-      eapply shift_lv_update; eauto.
-      rewrite firstn_length.
-      rewrite <- H7.
-      rewrite app_length.
-      lia.
-      - eauto using shift_copy_out.*)
-  Admitted.
+      pose proof (split_by_length _ _ _ _ H3).
+      destruct H4 as [? [? [? [? ?]]]].
+      pose proof H4.
+      eapply shift_copy_out in H4; eauto.
+      rewrite <- Heqes'.
+      unfold vargs'.
+      rewrite -> H4.
+      destruct c; cbn in *.
+      replace cutoff with (length x) by congruence.
+      replace amt with (length vs) by congruence.
+      erewrite shift_lv_update; eauto; congruence.
+    - eauto using shift_copy_out.
+  Qed.
 
   Lemma length_copy_in :
     forall vargs l eps,
@@ -557,15 +494,22 @@ Section Properties.
       + eauto using shift_copy_in.
       + subst vargs' olv'.
         erewrite shift_lv_update_signal; eauto.
-    - replace (us' ++ vs ++ eps')
-        with (lv_update_signal olv sig
-                               (copy_out 0 vdata_args ϵ''
-                                         (us ++ vs ++ eps))).
+    - set (ct := {| cutoff := _; amt := _ |}).
+      replace (us' ++ vs ++ eps')
+        with (lv_update_signal
+                (option_map (shift_lv ct) olv)
+                sig
+                (copy_out 0
+                          (map (paramarg_map id (shift_lv ct)) vdata_args)
+                          ϵ''
+                          (us ++ vs ++ eps)))
+        by eauto using shift_lv_update_signal.
       eapply sbs_action_call; try eassumption.
       + eapply Forall2_map_l with (lc := ctrl_args).
         eauto using sublist.Forall2_impl, shift_e_eval.
-      + admit.
-      + admit.
+      + eapply shift_args_eval; cbn; auto.
+      + (* possible bug with clos *)
+        admit.
     - (* method call case, will be a repeat of the other call cases *)
       admit.
     - (* invoke case, will be a repeat of the other call cases *)

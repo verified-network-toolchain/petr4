@@ -533,24 +533,52 @@ Section InlineProof.
       econstructor; eauto.
       apply sval_to_val_eval_val_to_sval.
       intros. apply read_one_bit_def. reflexivity.
-    - intros. inv H. inv H0.
-      inv H10.
-      + eapply exec_record_ndet in H9 as ?; eauto. inv H0. destruct H2 as [? ?].
-        assert (exec_expr_det (subst_expr env e) (ValBaseStruct x)).
-        { econstructor; eauto. }
-        apply IHe in H3. inv H3. inv H5. inv H0.
-        assert (exists f, AList.get kvs (P4String.str name) = Some f /\ ).
-        { admit. }
-        inv H0.
-        apply exec_expr_det_intro with (sv := x0).
-        
-        
-      apply exec_val_exists with (va := sv0) in read_one_bit_reads as ?.
-      inv H.
-      assert (exec_expr_det (subst_expr env e) x).
-      { econstructor; eauto. }
-      apply IHe in H. inv H. inv H10.
-      + inv H0.
+  Admitted.
+
+  Lemma expr_inline_sound :
+    forall
+      (e : Expression)
+      (sv : Sval)
+      (env : Env),
+      exec_expr (subst_expr env e) sv -> exec_expr e sv.
+  Proof.
+    induction e using expr_ind; auto.
+    - intros. destruct n eqn:E; auto.
+      unfold subst_expr in H. unfold subst_name in H.
+      destruct (Env.find (P4String.str name) env) eqn:E'; simpl in *; auto.
+      admit.
+    - intros. inv H. apply IHe1 in H11. apply IHe2 in H5. econstructor; eauto.
+    - intros. inv H. apply IHe in H9. econstructor; eauto.
+    - induction vs. auto. intros. inv H. inv H0. inv H9.
+      repeat constructor.
+      + apply H3 in H1. assumption.
+      + eapply IHvs with (sv := ValBaseTuple l') in H4.
+        * inv H4. assumption.
+        * constructor. eauto.
+    - induction es. auto. intros. inv H. inv H0. inv H9.
+      destruct a as [x e]. destruct y as [xv v]. destruct H1 as [? ?]. 
+      simpl in *. subst. apply H3 in H0.
+      eapply IHes with (sv := ValBaseStruct l') in H4 as ?.
+      + inv H. constructor. constructor; eauto.
+      + econstructor. eauto. 
+    - intros. inv H. apply val_to_sval_iff in H11 as ?. subst.
+      apply IHe in H8. econstructor; eauto.
+    - intros. inv H.
+      apply val_to_sval_iff in H14 as ?. subst.
+      apply IHe1 in H8. apply IHe2 in H10.
+      econstructor; eauto.
+    - intros. inv H. apply val_to_sval_iff in H12 as ?. subst.
+      apply IHe in H7.
+      econstructor; eauto.
+    - intros. inv H. apply IHe in H8. inv H9; 
+      econstructor; eauto; try (constructor; auto).
+      + replace (P4String.str name) with "size". constructor.
+      + replace (P4String.str name) with "lastIndex". econstructor; eauto.
+    - intros. inv H. apply IHe1 in H9. destruct b.
+      + apply IHe2 in H11. econstructor; eauto.
+      + apply IHe3 in H11. econstructor; eauto.
+    - intros. inv H0.
+    - intros. inv H0.
   Admitted.
 
 End InlineProof.

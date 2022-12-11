@@ -442,134 +442,71 @@ Section InlineProof.
 
   Definition exec_val := exec_val read_one_bit.
 
-  Print nth.
-
   Hypothesis read_one_bit_def : forall b b', read_one_bit (Some b) b' <-> b = b'.
 
-  Lemma expr_inline_correct :
+  Local Hint Constructors exec_expr_det : core.
+
+  Definition exec_expr_det := exec_expr_det g read_one_bit p st.
+
+  Lemma expr_inline_correct' :
     forall
       (e : Expression)
-      (sv sv' : Sval)
       (v : Val)
       (env : Env),
-      exec_expr e sv ->
-      exec_expr (subst_expr env e) sv' ->
-      exec_val sv v <-> exec_val sv' v.
+      exec_expr_det (subst_expr env e) v -> exec_expr_det e v.
   Proof.
-    induction e using expr_ind.
-    - intros. inv H. inv H0. reflexivity.
-    - intros. inv H. inv H0. reflexivity.
-    - intros. inv H. inv H0. reflexivity.
+    induction e using expr_ind; auto.
     - admit.
-    - (* Show  e1[e2] ==> v -> [[ e1[e2] ]] ==> v' -> v = v' *)
-      (* We know there exists v1, v1', v2, v2' 
-        for which e1 ==> v1, [[ e1 ]] ==> v1', *)
-      intros. inv H. inv H0.
-      (* eapply IHe1 in H12 as [? ?]; eauto.
-      eapply IHe2 in H6  as [? ?]; eauto. *)
-      split; intros; admit.
-      (* apply H in H7.
-      apply H6 in H8.
-      apply H
-      intuition.
-      + inv H3 econstructor. 
-      + inv H. constructor.
-      assert (ValBaseStack headers next = ValBaseStack headers0 next0) by eauto.
-      assert (idxsv = idxsv0) by eauto.
-      clear H5 H6 H12 H17 IHe1 IHe2.
-      assert (rtyp0 = rtyp).
-      { rewrite H18 in H13. injection H13. trivial. }
-      clear H13 H18.
-      injection H as ?. subst.
-      assert (default_header = default_header0).
-      { rewrite H19 in H14. injection H14. auto. }
-      clear H14 H19.
-      subst. f_equal.
-      inv H7; inv H8; try discriminate; try congruence;
-      try (injection H10 as ?; injection H15 as ?); subst.
-      + admit. 
-      + admit.
-      + admit. *)
     - admit.
-    - (* Case e = ExpList es. Proof: induction on es *)
-      split; generalize dependent sv; generalize dependent sv'; generalize dependent v.
-      + induction vs; intros.
-        * inv H. inv H0. inv H9. inv H1. inv H8. assumption.
-        * inv H0. inv H1.
-          inv H10. inv H9.
-          inv H. inv H2. inv H0. 
-          apply IHvs with
-            (sv := ValBaseTuple l') 
-            (sv' := ValBaseTuple l'0) 
-            (v := ValBaseTuple l'1) in H8 as IH.
-          { inv IH. constructor. constructor; auto. 
-            eapply H6 in H3 as [? ?]; eauto. eapply H in H2. auto. }
-          { constructor. assumption. }
-          { constructor. assumption. }
-          { constructor. assumption. }
-      + induction vs; intros.
-        * inv H. inv H0. inv H9. inv H1. inv H8. assumption.
-        * inv H0. inv H1.
-          inv H10. inv H9.
-          inv H. inv H2. inv H0. 
-          apply IHvs with 
-            (sv := ValBaseTuple l') 
-            (sv' := ValBaseTuple l'0) 
-            (v := ValBaseTuple l'1) in H8 as IH.
-          { inv IH. constructor. constructor; auto. 
-            eapply H6 in H3 as [? ?]; eauto. eapply H0 in H2. auto. }
-          { constructor. assumption. }
-          { constructor. assumption. }
-          { constructor. assumption. }
-    - split; generalize dependent sv; generalize dependent sv'; generalize dependent v.
-      + induction es; intros.
-        * inv H. inv H1. inv H9. inv H0. inv H8. assumption.
-        * inv H0. inv H10. destruct H4 as [? ?].
-          destruct a as [x e] eqn:?.
-          destruct y as [xsv sv] eqn:?.
-          simpl in *. subst.
-          inv H1. inv H11. inv H2.
-          destruct y as [x' e'] eqn:?.
-          inv H1. destruct y0 as [xsv' sv'] eqn:?.
-          simpl in *. subst. inv H.
-          destruct H4 as [? ?].
-          destruct H5 as [? ?].
-          apply IHes with 
-            (sv := ValBaseStruct l') 
-            (sv' := ValBaseStruct l'0) 
-            (v := ValBaseStruct l'1) in H8 as IH.
-          { inv IH. constructor. constructor; auto. split; auto. simpl.
-            eapply H2 in H3 as [? ?]; eauto. eapply H in H4. auto. }
-          { constructor. assumption. }
-          { constructor. assumption. }
-          { constructor. assumption. }
-      + induction es; intros.
-        * inv H. inv H1. inv H9. inv H0. inv H8. assumption.
-        * inv H0. inv H10. destruct H4 as [? ?].
-          destruct a as [x e] eqn:?.
-          destruct y as [xsv sv] eqn:?.
-          simpl in *. subst.
-          inv H1. inv H11. inv H2.
-          destruct y as [x' e'] eqn:?.
-          inv H1. destruct y0 as [xsv' sv'] eqn:?.
-          simpl in *. subst. inv H.
-          destruct H4 as [? ?].
-          destruct H5 as [? ?].
-          apply IHes with 
-            (sv := ValBaseStruct l') 
-            (sv' := ValBaseStruct l'0) 
-            (v := ValBaseStruct l'1) in H8 as IH.
-          { inv IH. constructor. constructor; auto. split; auto. simpl.
-            eapply H2 in H3 as [? ?]; eauto. eapply H1 in H4. auto. }
-          { constructor. assumption. }
-          { constructor. assumption. }
-          { constructor. assumption. }
+    - admit.
+    - induction vs. auto. intros. inv H0. inv H1. inv H9. inv H2. inv H1. inv H.
+      assert (exec_expr_det (subst_expr env a) y0).
+      { econstructor; eauto. }
+      apply H2 in H. inv H. eapply IHvs with (v := ValBaseTuple l'0) in H6 as IH.
+      + inv IH. inv H. inv H8. econstructor; econstructor; econstructor; eauto.
+      + econstructor; constructor; eauto. 
+    - induction es. auto. intros. inv H.
+      inv H0. inv H. inv H10.
+      inv H1. inv H0. destruct H2 as [? ?]. destruct H5 as [? ?].
+      destruct a as [x e]. destruct y as [xsv' sv']. destruct y0 as [xv v].
+      simpl in *. subst.
+      assert (exec_expr_det (subst_expr env e) v).
+      { econstructor; eauto. }
+      apply H3 in H. inv H.
+      eapply IHes with (v := ValBaseStruct l'0) in H4 as IH.
+      + inv IH. inv H. inv H7. econstructor.
+        * constructor. apply Forall2_cons with (y := (P4String.str x, sv)); eauto.
+        * constructor. constructor; auto.
+      + econstructor; constructor; eauto.
     - intros. inv H. inv H0.
-      assert (forall v, exec_val argsv v <-> exec_val argsv0 v) by eauto.
-      rewrite val_to_sval_iff in H15. rewrite val_to_sval_iff in H12. subst.
-      split; intros.
-      + apply sval_to_val_eval_val_to_sval_eq with (v := v0) (v' := v) in read_one_bit_def; auto. subst.
-        eapply val_to_sval_iff.
+      assert (H12' := H12).
+      apply val_to_sval_iff in H12. subst.
+      eapply sval_to_val_eval_val_to_sval_iff in read_one_bit_def as ?.
+      apply H in H1. clear H. subst.
+      assert (exec_expr_det (subst_expr env e) argv).
+      { econstructor; eauto. }
+      assert (exec_expr_det e argv) by eauto. inv H0.
+      assert (exec_expr (MkExpression t (ExpUnaryOp op e) typ dir) (eval_val_to_sval v)).
+      { econstructor; eauto. }
+      econstructor; eauto.
+      apply sval_to_val_eval_val_to_sval.
+      intros. apply read_one_bit_def. reflexivity.
+    - intros. inv H. inv H0.
+      assert (H15' := H15).
+      apply val_to_sval_iff in H15. subst.
+      eapply sval_to_val_eval_val_to_sval_iff in read_one_bit_def as ?.
+      apply H in H1. clear H. subst.
+      assert (exec_expr_det (subst_expr env e1) largv).
+      { econstructor; eauto. }
+      assert (exec_expr_det (subst_expr env e2) rargv).
+      { econstructor; eauto. }
+      assert (exec_expr_det e1 largv) by eauto. inv H1.
+      assert (exec_expr_det e2 rargv) by eauto. inv H1.
+      assert (exec_expr (MkExpression t (ExpBinaryOp op e1 e2) typ dir) (eval_val_to_sval v)).
+      { econstructor; eauto. }
+      econstructor; eauto.
+      apply sval_to_val_eval_val_to_sval.
+      intros. apply read_one_bit_def. reflexivity. 
   Admitted.
 
 End InlineProof.

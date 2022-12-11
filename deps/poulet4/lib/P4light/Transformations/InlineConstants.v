@@ -444,7 +444,7 @@ Section InlineProof.
 
   Print nth.
 
-  (* Hypothesis read_one_bit_def : forall (b b' : bool), read_one_bit (Some b) b' <-> b = b'. *)
+  Hypothesis read_one_bit_def : forall b b', read_one_bit (Some b) b' <-> b = b'.
 
   Lemma expr_inline_correct :
     forall
@@ -564,7 +564,12 @@ Section InlineProof.
           { constructor. assumption. }
           { constructor. assumption. }
           { constructor. assumption. }
-    - admit.
+    - intros. inv H. inv H0.
+      assert (forall v, exec_val argsv v <-> exec_val argsv0 v) by eauto.
+      rewrite val_to_sval_iff in H15. rewrite val_to_sval_iff in H12. subst.
+      split; intros.
+      + apply sval_to_val_eval_val_to_sval_eq with (v := v0) (v' := v) in read_one_bit_def; auto. subst.
+        eapply val_to_sval_iff.
   Admitted.
 
 End InlineProof.

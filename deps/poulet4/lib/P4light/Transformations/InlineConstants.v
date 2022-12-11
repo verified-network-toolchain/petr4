@@ -1,4 +1,5 @@
 From Poulet4 Require Import
+    P4light.Semantics.Typing.ValueTyping 
     P4light.Syntax.Syntax
     P4light.Semantics.Semantics
     Utils.Util.Utiliser
@@ -442,13 +443,14 @@ Section InlineProof.
 
   Definition exec_val := exec_val read_one_bit.
 
-  Hypothesis read_one_bit_def : forall b b', read_one_bit (Some b) b' <-> b = b'.
+  Hypotheses (read_one_bit_def : forall b b', read_one_bit (Some b) b' <-> b = b')
+             (read_one_bit_reads : read_one_bit_reads read_one_bit).
 
   Local Hint Constructors exec_expr_det : core.
 
   Definition exec_expr_det := exec_expr_det g read_one_bit p st.
 
-  Lemma expr_inline_correct' :
+  Lemma expr_inline_correct :
     forall
       (e : Expression)
       (v : Val)
@@ -506,7 +508,28 @@ Section InlineProof.
       { econstructor; eauto. }
       econstructor; eauto.
       apply sval_to_val_eval_val_to_sval.
-      intros. apply read_one_bit_def. reflexivity. 
+      intros. apply read_one_bit_def. reflexivity.
+    - intros. inv H. inv H0.
+      assert (H13' := H13).
+      apply val_to_sval_iff in H13. subst.
+      eapply sval_to_val_eval_val_to_sval_iff in read_one_bit_def as ?.
+      apply H in H1. clear H. subst.
+      assert (exec_expr_det (subst_expr env e) oldv).
+      { econstructor; eauto. }
+      assert (exec_expr_det e oldv) by eauto. inv H0.
+      assert (exec_expr (MkExpression t (ExpCast typ e) typ1 dir) (eval_val_to_sval v)).
+      { econstructor; eauto. }
+      econstructor; eauto.
+      apply sval_to_val_eval_val_to_sval.
+      intros. apply read_one_bit_def. reflexivity.
+    - intros. inv H. inv H0. 
+      apply exec_val_exists with (va := sv0) in read_one_bit_reads as ?.
+      inv H.
+      assert (exec_expr_det (subst_expr env e) x).
+      { econstructor; eauto. }
+      apply IHe in H. inv H. inv H10.
+      + inv H0.
+      
   Admitted.
 
 End InlineProof.

@@ -450,6 +450,17 @@ Section InlineProof.
 
   Definition exec_expr_det := exec_expr_det g read_one_bit p st.
 
+  Lemma exec_record_ndet :
+    forall e ndet_fields name sv v,
+    exec_expr e (ValBaseStruct ndet_fields) ->
+    AList.get ndet_fields name = Some sv ->
+    exec_val sv v ->
+    exists fields,
+    exec_val (ValBaseStruct ndet_fields) (ValBaseStruct fields) /\
+    AList.get fields name = Some v.
+  Proof.
+  Admitted.
+
   Lemma expr_inline_correct :
     forall
       (e : Expression)
@@ -522,14 +533,24 @@ Section InlineProof.
       econstructor; eauto.
       apply sval_to_val_eval_val_to_sval.
       intros. apply read_one_bit_def. reflexivity.
-    - intros. inv H. inv H0. 
+    - intros. inv H. inv H0.
+      inv H10.
+      + eapply exec_record_ndet in H9 as ?; eauto. inv H0. destruct H2 as [? ?].
+        assert (exec_expr_det (subst_expr env e) (ValBaseStruct x)).
+        { econstructor; eauto. }
+        apply IHe in H3. inv H3. inv H5. inv H0.
+        assert (exists f, AList.get kvs (P4String.str name) = Some f /\ ).
+        { admit. }
+        inv H0.
+        apply exec_expr_det_intro with (sv := x0).
+        
+        
       apply exec_val_exists with (va := sv0) in read_one_bit_reads as ?.
       inv H.
       assert (exec_expr_det (subst_expr env e) x).
       { econstructor; eauto. }
       apply IHe in H. inv H. inv H10.
       + inv H0.
-      
   Admitted.
 
 End InlineProof.

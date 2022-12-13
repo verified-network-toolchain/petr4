@@ -52,6 +52,7 @@ let rec sexp_of_type = function
   | Expr.TStruct (is_header, fields) -> sexp_of_struct_type is_header fields
   | Expr.TArray (size, typ) -> sexp_of_array_type size typ
   | Expr.TVar idx -> sexp_of_type_var idx
+  | Expr.TVarBit z -> Bigint.sexp_of_t z
 
 and sexp_of_types types = sexp_of_list sexp_of_type types
 
@@ -68,6 +69,9 @@ let sexp_of_bit_expr width i =
 
 let sexp_of_int_expr width i =
   make_sexp "Expr.Int" [ Bigint.sexp_of_t width; Bigint.sexp_of_t i ]
+
+let sexp_of_varbit_expr max_width width z =
+  make_sexp "Expr.VarBit" [ Bigint.sexp_of_t max_width; Bigint.sexp_of_t width; Bigint.sexp_of_t z ]
 
 let sexp_of_var_expr typ x idx =
   make_sexp "Expr.Var" [ sexp_of_type typ; Sexp.Atom x; sexp_of_int idx ]
@@ -94,6 +98,7 @@ let rec sexp_of_expr = function
   | Expr.Index (typ, array, index) -> sexp_of_index typ array index
   | Expr.Member (typ, mem, e) -> sexp_of_member typ mem e
   | Expr.Error msg -> sexp_of_error msg
+  | Expr.VarBit (width_max, width, z) -> sexp_of_varbit_expr width_max width z
 
 and sexp_of_exprs es = sexp_of_list sexp_of_expr es
 

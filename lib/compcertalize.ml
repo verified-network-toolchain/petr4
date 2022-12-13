@@ -63,6 +63,7 @@ let rec convert_type (x : Prev.Expr.t) =
     | Prev.Expr.TStruct (b,fs) -> Expr.TStruct (b, List.map convert_type fs)
     | Prev.Expr.TArray (i, t) -> Expr.TArray (bigint_coqN i, convert_type t)
     | Prev.Expr.TVar s -> Expr.TVar (Nat.of_int s)
+    | Prev.Expr.TVarBit z -> Expr.TVarBit (bigint_coqN z)
 
 
 let convert_params (fs) = 
@@ -132,6 +133,8 @@ let rec convert_expression (x : Prev.Expr.e) = match x with
         Expr.Bit (bigint_coqN w,bigint_coqZ v)
     | Prev.Expr.Int (w,v) -> 
         Expr.Int (bigint_positive w,bigint_coqZ v)
+    | Prev.Expr.VarBit (mw, w, z) ->
+        Expr.VarBit (bigint_coqN mw, bigint_coqN w, bigint_coqZ z)
     | Prev.Expr.Var (t,x,n) ->
         Expr.Var (convert_type t, string_charlist x, Nat.of_int n)
     | Prev.Expr.Slice (a, b, e) ->

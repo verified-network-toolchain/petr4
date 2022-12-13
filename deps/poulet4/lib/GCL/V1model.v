@@ -12,14 +12,16 @@ Module ST := Stmt.
 
 Definition externs : ToGCL.model :=
   [("_", [("mark_to_drop",  G.GAssign (E.TBit (BinNat.N.of_nat 9)) "standard_metadata.egress_spec" (BV.bit (Some 9%nat) 511));
-         ("clone3", G.GSkip);
-         ("assert", G.GAssert (F.LVar "check"));
-         ("assume", G.GAssume (F.LVar "check"));
-         ("hash", G.GSkip);
-         ("truncate", G.GSkip);
-         ("random", G.GSkip);
-         ("crc_poly", G.GSkip);
-         ("digest", G.GSkip)
+          ("clone3", G.GSkip);
+          ("assert", G.GAssert (F.LVar "check"));
+          ("assume", G.GAssume (F.LVar "check"));
+          ("hopen", G.GExternVoid "hopen" [inr (BitVec.BVVar "idx" 8); inl (F.LVar "check")]);
+          ("hclose", G.GExternVoid "hclose" [inr (BitVec.BVVar "idx" 8); inl (F.LVar "check")]);
+          ("hash", G.GSkip);
+          ("truncate", G.GSkip);
+          ("random", G.GSkip);
+          ("crc_poly", G.GSkip);
+          ("digest", G.GSkip)
    ]);
   ("packet_in", [("extract", G.GAssign (E.TBit 1%N) "hdr.is_valid" (BV.bit (Some 1%nat) 1));
                 ("lookahead", G.GSkip)

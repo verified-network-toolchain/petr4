@@ -371,19 +371,69 @@ Section CRC_XOR.
 
 End CRC_XOR.
 
-Module CRC_Test.
+Module CRC_CHECK.
 
   Local Open Scope hex_N_scope.
 
-  Goal to_N (compute_crc 16 0x8005 0x0 0x0 true true
-                       (of_N 0x12345678 32)) = 0x347B.
+  Definition Nnth (i: nat) (l: list N) := nth i l 0.
+  Definition Bnth (i: nat) (l: list bool) := nth i l false.
+
+  (* The following checks come from https://crccalc.com *)
+
+  Definition data := Eval vm_compute in of_N 0x313233343536373839 72.
+
+  Definition CRC8_Poly := [0x07; 0x9B; 0x39; 0xD5; 0x1D; 0x1D; 0x07; 0x31; 0x07; 0x9B].
+  Definition CRC8_Init := [0x00; 0xFF; 0x00; 0x00; 0xFF; 0xFD; 0x00; 0x00; 0xFF; 0x00].
+  Definition CRC8_RefIn := [false; false; true; false; true; false; false; true; true; true].
+  Definition CRC8_XorOut := [0x00; 0x00; 0x00; 0x00; 0x00; 0x00; 0x55; 0x00; 0x00; 0x00].
+  Definition CRC8_Check := [0xF4; 0xDA; 0x15; 0xBC; 0x97; 0x7E; 0xA1; 0xA1; 0xD0; 0x25].
+
+  Lemma CRC8_Correct:
+    map (fun i => to_N (compute_crc 8 (Nnth i CRC8_Poly) (Nnth i CRC8_Init) (Nnth i CRC8_XorOut)
+                       (Bnth i CRC8_RefIn) (Bnth i CRC8_RefIn) data))
+      (seq 0 (length CRC8_Poly)) = CRC8_Check.
   Proof. reflexivity. Qed.
 
-  Goal to_N (compute_crc 32 0x04C11DB7 0xFFFFFFFF 0xFFFFFFFF true true
-                       (of_N 0x1234567890 40)) = 0xDC936EB1.
-  Proof. reflexivity. Qed.
+  Definition CRC16_Poly := [0x8005; 0x1021; 0x8005; 0x1021; 0xC867; 0x8005; 0x0589; 0x0589;
+                            0x3D65; 0x3D65; 0x1021; 0x1021; 0x8005; 0x1021; 0x8005; 0x1021;
+                            0x8BB7; 0xA097; 0x1021; 0x8005; 0x1021; 0x1021; 0x1021].
+  Definition CRC16_Init := [0x0000; 0x1D0F; 0x0000; 0xFFFF; 0xFFFF; 0x800D; 0x0000; 0x0000;
+                            0x0000; 0x0000; 0xFFFF; 0x0000; 0x0000; 0xFFFF; 0xFFFF; 0xB2AA;
+                            0x0000; 0x0000; 0x89EC; 0xFFFF; 0xFFFF; 0x0000; 0xC6C6].
+  Definition CRC16_RefIn := [true; false; false; false; false; false; false; false; true;
+                             false; false; true; true; true; true; true; false; false; true;
+                             true; true; false; true].
+  Definition CRC16_XorOut := [0x0000; 0x0000; 0x0000; 0x0000; 0x0000; 0x0000; 0x0001; 0x0000;
+                              0xFFFF; 0xFFFF; 0xFFFF; 0x0000; 0xFFFF; 0x0000; 0x0000; 0x0000;
+                              0x0000; 0x0000; 0x0000; 0xFFFF; 0xFFFF; 0x0000; 0x0000].
+  Definition CRC16_Check := [0xBB3D; 0xE5CC; 0xFEE8; 0x29B1; 0x4C06; 0x9ECF; 0x007E; 0x007F;
+                             0xEA82; 0xC2B7; 0xD64E; 0x2189; 0x44C2; 0x6F91; 0x4B37; 0x63D0;
+                             0xD0DB; 0x0FB3; 0x26B1; 0xB4C8; 0x906E; 0x31C3; 0xBF05].
 
-End CRC_Test.
+  Lemma CRC16_Correct:
+    map (fun i => to_N (compute_crc 16 (Nnth i CRC16_Poly) (Nnth i CRC16_Init)
+                       (Nnth i CRC16_XorOut) (Bnth i CRC16_RefIn) (Bnth i CRC16_RefIn) data))
+      (seq 0 (length CRC16_Poly)) = CRC16_Check.
+  Proof. vm_compute. reflexivity. Qed.
+
+  Definition CRC32_Poly := [0x04C11DB7; 0x04C11DB7; 0x04C11DB7; 0x04C11DB7; 0x04C11DB7;
+                            0x04C11DB7; 0x000000AF; 0x1EDC6F41; 0xA833982B; 0x814141AB].
+  Definition CRC32_Init := [0xFFFFFFFF; 0xFFFFFFFF; 0xFFFFFFFF; 0xFFFFFFFF; 0x00000000;
+                            0x52325032; 0x00000000; 0xFFFFFFFF; 0xFFFFFFFF; 0x00000000].
+  Definition CRC32_RefIn := [true; false; true; false; false;
+                             false; false; true; true; false].
+  Definition CRC32_XorOut := [0xFFFFFFFF; 0xFFFFFFFF; 0x00000000; 0x00000000; 0xFFFFFFFF;
+                              0x00000000; 0x00000000; 0xFFFFFFFF; 0xFFFFFFFF; 0x00000000].
+  Definition CRC32_Check := [0xCBF43926; 0xFC891918; 0x340BC6D9; 0x0376E6E7; 0x765E7680;
+                             0xCF72AFE8; 0xBD0BE338; 0xE3069283; 0x87315576; 0x3010BF7F].
+
+  Lemma CRC32_Correct:
+    map (fun i => to_N (compute_crc 32 (Nnth i CRC32_Poly) (Nnth i CRC32_Init)
+                       (Nnth i CRC32_XorOut) (Bnth i CRC32_RefIn) (Bnth i CRC32_RefIn) data))
+      (seq 0 (length CRC32_Poly)) = CRC32_Check.
+  Proof. vm_compute. reflexivity. Qed.
+
+End CRC_CHECK.
 
 (* Z.of_N (to_N Bits *)
 (* Example:

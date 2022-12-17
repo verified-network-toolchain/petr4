@@ -4,6 +4,7 @@ Require Import Poulet4.Utils.P4Arith
         Coq.Arith.Compare_dec Coq.micromega.Lia
         Poulet4.P4cub.Syntax.Auxiliary Poulet4.P4cub.Semantics.Climate.
 Require Import Poulet4.P4cub.Semantics.Static.Util Poulet4.P4cub.Semantics.Static.Auxiliary.
+Require Poulet4.P4light.Semantics.Ops.
 Import Val.ValueNotations ExprNotations.
 
 Local Open Scope value_scope.
@@ -17,6 +18,37 @@ Definition eval_slice (hi lo : positive) (v : Val.v) : option Val.v :=
       Some $ Val.Bit w' $
            BitArith.mod_bound w' $
            BitArith.bitstring_slice z hi lo
+  | _ => None
+  end.
+
+Lemma eval_slice_bit_correct : forall hi lo w n,
+    Val.Bit (Npos hi - Npos lo + 1)%N 
+      (BitArith.mod_bound (Npos hi - Npos lo + 1)%N
+         (BitArith.bitstring_slice n hi lo)) =
+      let (w',n') :=
+        BitArith.from_lbool
+          (Ops.bitstring_slice
+             (to_lbool w n) (Pos.to_nat lo) (Pos.to_nat hi)) in
+      (w' VW n').
+Proof.
+  intros hi lo w z.
+  destruct (BitArith.from_lbool
+              (Ops.bitstring_slice
+                 (to_lbool w z) (Pos.to_nat lo) (Pos.to_nat hi))) as [w' n] eqn:hwn.
+Abort.
+
+Definition slice_val (hi lo : positive) (v : Val.v) : option Val.v :=
+  match v with
+  | w VW n =>
+      let bits := to_lbool w n in
+      let bits' := Ops.bitstring_slice bits (Pos.to_nat lo) (Pos.to_nat hi) in
+      let (w',n') := BitArith.from_lbool bits' in
+      Some $ w' VW n'
+  | w VS z =>
+      let bits := to_lbool (Npos w) z in
+      let bits' := Ops.bitstring_slice bits (Pos.to_nat lo) (Pos.to_nat hi) in
+      let (w',z') := BitArith.from_lbool bits' in
+      Some $ w' VW z'
   | _ => None
   end.
 
@@ -165,6 +197,28 @@ Section Lemmas.
       intros v v' τ hi lo w Heval Hw Hnum Hv.
       inv Hnum; inv Hv; unravel in *; inv Heval; auto 2.
     Qed.
+
+    Lemma slice_val_types : forall v v' τ hi lo w,
+        slice_val hi lo v = Some v' ->
+        (Npos lo <= Npos hi < w)%N ->
+        numeric_width w τ ->
+        ⊢ᵥ v ∈ τ ->
+        ⊢ᵥ v' ∈ Expr.TBit (Npos hi - Npos lo + 1)%N.
+    Proof.
+      intros v v' t hi lo w hslice hw hnum hvt.
+      inv hnum; inv hvt; inv hslice; cbn in * |-.
+      - assert
+          (Z.to_N
+             (Zcomplements.Zlength
+                (Ops.bitstring_slice
+                   (to_lbool w n) (Pos.to_nat lo) (Pos.to_nat hi)))
+           = (N.pos hi - N.pos lo + 1)%N) as h.
+        { rewrite Zcomplements.Zlength_correct.
+          rewrite Ops.bitstring_slice_length.
+          lia.
+          rewrite length_to_lbool. lia. }
+        rewrite h. constructor.
+    Admitted.
     
     Lemma eval_bop_type : forall op τ1 τ2 τ v1 v2 v,
         bop_type op τ1 τ2 τ ->
@@ -233,6 +287,16 @@ Section Lemmas.
     Proof.
       intros v τ hi lo w Hw Hnum Hv;
         inv Hnum; inv Hv; try invert_type_lists_ok; unravel; eauto 2.
+    Qed.
+
+    Lemma slice_val_exists : forall v τ hi lo w,
+        (Npos lo <= Npos hi < w)%N ->
+        numeric_width w τ ->
+        ⊢ᵥ v ∈ τ ->
+        exists v', slice_val hi lo v = Some v'.
+    Proof.
+      intros v t hi lo w hw hnum hv;
+        inv hnum; inv hv; try invert_type_lists_ok; unravel; eauto 2.
     Qed.
     
     Lemma eval_bop_exists : forall op τ1 τ2 τ v1 v2,

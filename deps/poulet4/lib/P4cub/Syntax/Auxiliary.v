@@ -13,6 +13,7 @@ Fixpoint width_of_typ (τ : t) : option nat :=
   | TBool  => Some 1%nat
   | TBit w => Some $ N.to_nat w
   | TInt w => Some $ Pos.to_nat w
+  | TVarBit w => Some $ N.to_nat w
   | TError => Some 0%nat
   | TVar _ => None
   | TArray n t =>
@@ -38,8 +39,16 @@ Fixpoint t_of_e (exp: e) : t :=
   | Member τ _ _  => τ
   | (w `W _)%expr => TBit w
   | (w `S _)%expr => TInt w
+  | VarBit m w _    => TVarBit m
   | Slice hi lo _ => TBit (Npos hi - Npos lo + 1)%N
   | Lists (lists_array τ) es  => TArray (N.of_nat $ List.length es) τ
   | Lists lists_struct es     => TStruct false (List.map t_of_e es)
   | Lists (lists_header _) es => TStruct true (List.map t_of_e es)
+  end.
+
+Definition t_of_lists (ls : Expr.lists) (es : list Expr.e) : Expr.t :=
+  match ls with
+  | lists_array t  => TArray (N.of_nat $ List.length es) t
+  | lists_struct   => TStruct false (List.map t_of_e es)
+  | lists_header _ => TStruct true (List.map t_of_e es)
   end.

@@ -7,6 +7,7 @@ Import Val.ValueNotations Val.LValueNotations.
 
 Local Open Scope value_scope.
 Local Open Scope lvalue_scope.
+  
 
 (** Environments for
     evaluation are De Bruijn lists of values [Val.v].
@@ -34,15 +35,13 @@ Fixpoint lv_lookup (ϵ : list Val.v) (lv : Val.lv) : option Val.v :=
   | lv DOT x =>
       let* v := lv_lookup ϵ lv in
       match v with
-      | Val.Lists
-          (Expr.lists_struct
-          | Expr.lists_header _) vs => nth_error vs x
+      | Val.Lists _ vs => nth_error vs x
       | _ => None
       end
   | Val.Index n lv =>
       let* v := lv_lookup ϵ lv in
       match v with
-      | Val.Lists (Expr.lists_array _) vs => nth_error vs $ N.to_nat n
+      | Val.Lists _ vs => nth_error vs $ N.to_nat n
       | _ => None
       end
   end.
@@ -70,17 +69,14 @@ Fixpoint lv_update
   | lv DOT x =>
     match lv_lookup ϵ lv with
     | Some
-        (Val.Lists
-           ((Expr.lists_struct
-            | Expr.lists_header _) as ls) vs)
+        (Val.Lists ls vs)
       => lv_update lv (Val.Lists ls $ nth_update x v vs) ϵ
     | _ => ϵ
     end
   | Val.Index n lv =>
       match lv_lookup ϵ lv with
       | Some
-          (Val.Lists
-             (Expr.lists_array _ as ls) vs)
+          (Val.Lists ls vs)
         => lv_update lv (Val.Lists ls $ nth_update (N.to_nat n) v vs) ϵ
       | _ => ϵ
       end
@@ -105,20 +101,25 @@ Definition copy_in
 (** Update call-site environment with
     out variables from function call evaluation. *)
 
-Definition copy_out
-           (argsv : Val.argsv)
-           (ϵ_func : list Val.v) (ϵ_call : list Val.v) : list Val.v :=
-  fold_right
-    (fun arg ϵ_call =>
-       match arg with
-       | PAIn _ => ϵ_call
-       | PAOut lv
-       | PAInOut lv
-         => match lv_lookup ϵ_func lv with
-           | None   => ϵ_call
-           | Some v => lv_update lv v ϵ_call
-           end
-       end) ϵ_call argsv.
+Definition copy_out_argv
+  (n : nat) (argv : Val.argv) (ϵ_func : list Val.v) (ϵ_call : list Val.v) : list Val.v :=
+  match argv with
+  | PAIn _ => ϵ_call
+  | PAOut lv
+  | PAInOut lv =>
+      match nth_error ϵ_func n with
+      | None   => ϵ_call
+      | Some v => lv_update lv v ϵ_call
+      end
+  end.
+
+Fixpoint copy_out
+  (n : nat) (argsv : Val.argsv)
+  (ϵ_func : list Val.v) (ϵ_call : list Val.v) : list Val.v :=
+  match argsv with
+  | [] => ϵ_call
+  | argv :: argsv => copy_out (S n) argsv ϵ_func (copy_out_argv n argv ϵ_func ϵ_call)
+  end.
 
 Section Properties.
   Local Hint Constructors type_value : core.
@@ -134,21 +135,29 @@ Section Properties.
         destruct (lv_lookup eps lv) eqn:hlook; auto;
         destruct v; auto.
     - destruct (lv_lookup eps lv) eqn:hlook; auto.
-      destruct v0; auto. destruct ls; auto.
+      destruct v0; auto.
     - destruct (lv_lookup eps lv) eqn:hlook; auto.
-      destruct v0; auto. destruct ls; auto.
+      destruct v0; auto.
   Qed.
 
   Local Hint Rewrite lv_update_length : core.
 
-  Lemma copy_out_length : forall vs ϵ ϵ',
-      length (copy_out vs ϵ ϵ') = length ϵ'.
+  Lemma copy_out_argv_length : forall v n ϵ ϵ',
+      length (copy_out_argv n v ϵ ϵ') = length ϵ'.
   Proof.
-    unfold copy_out.
-    intro vs; induction vs as [| [] vs ih];
-      intros ϵ ϵ'; cbn in *; auto.
-    - destruct (lv_lookup ϵ b); autorewrite with core; auto.
-    - destruct (lv_lookup ϵ b); autorewrite with core; auto.
+    intros [v | lv | lv] n eps eps'; cbn; auto;
+      destruct (nth_error eps n) as [v |];
+      autorewrite with core; reflexivity.
+  Qed.
+
+  Local Hint Rewrite copy_out_argv_length : core.
+  
+  Lemma copy_out_length : forall vs n ϵ ϵ',
+      length (copy_out n vs ϵ ϵ') = length ϵ'.
+  Proof using.
+    intro vs; induction vs as [| v vs ih];
+      intros n ϵ ϵ'; cbn in *; auto;
+      try rewrite ih; autorewrite with core; reflexivity.
   Qed.
 
   Local Hint Rewrite Zcomplements.Zlength_correct : core.
@@ -242,7 +251,7 @@ Section Properties.
           | h: Util.type_lists_ok _ _ _ |- _ => inv h
           end.
       assert (⊢ᵥ V ∈ τ) as hVt by eauto.
-      destruct V as [ | q z | q z | |]; unravel in *; try discriminate; some_inv;
+      destruct V as [ | q z | q z | q z | |]; unravel in *; try discriminate; some_inv;
         inv hVt; inv H0;
         autorewrite with core in *;
         autorewrite with core in |-*; try lia;

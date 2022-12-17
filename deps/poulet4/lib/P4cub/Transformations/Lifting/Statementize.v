@@ -1,189 +1,229 @@
-Require Import Coq.Strings.String.
+Require Import Coq.Strings.String Coq.NArith.BinNat.
 From Poulet4 Require Import
      P4cub.Syntax.AST P4cub.Syntax.Auxiliary
-     P4cub.Syntax.CubNotations P4cub.Syntax.Shift.
+     P4cub.Syntax.CubNotations P4cub.Syntax.Shift
+     Utils.ForallMap.
 Import ListNotations AllCubNotations.
 
 Open Scope nat_scope.
 Open Scope string_scope.
 Open Scope list_scope.
 
-Section Lift.
-  Context {A B : Set}.
-  Variable Lift : nat -> A -> list B * A.
-  Variable Rename : (nat -> nat) -> A -> A.
+Section ShiftPairs.
+  Polymorphic Universe a.
+  Polymorphic Context {A : Type@{a}}.
+  Polymorphic Variable f : shifter -> A -> A.
 
-  Fixpoint lift_list
-    (up : nat) (l : list A) : list B * list A :=
+  Polymorphic Fixpoint shift_pairs (l : list (A * list Expr.e)) : list (A * list Expr.e) :=
     match l with
-    | []    => ([],[])
-    | a :: l =>
-      let '(bs, a') := Lift up a in
-      let '(bss, l') := lift_list (length bs + up) l in
-      (bss ++ bs, Rename (plus $ length bss) a' :: l')
+    | [] => []
+    | (a, es) :: l
+      => let n := list_sum $ map (@length _) $ map snd l in
+        (f (Shifter (length es) n) a,
+          shift_list shift_e (Shifter 0 n) es) ::
+          map (fun '(a, es') => (f (Shifter 0 $ length es) a, es')) (shift_pairs l)
     end.
-End Lift.
+  
+  Polymorphic Lemma shift_pairs_length : forall l,
+      length (shift_pairs l) = length l.
+  Proof using.
+    intro l; induction l as [| [a es] l ih];
+      unravel; f_equal; auto.
+    rewrite map_length. assumption.                     
+  Qed.
 
-(** [lift_e up e = (l, e')],
+  Polymorphic Lemma shift_pairs_inner_length : forall l,
+      map (length (A:=Expr.e)) (map snd (shift_pairs l))
+      = map (length (A:=Expr.e)) (map snd l).
+  Proof using.
+    intro l; induction l as [| [a es] l ih];
+      unravel; f_equal; auto.
+    - rewrite shift_list_length.
+      reflexivity.
+    - rewrite map_snd_map,map_id.
+      assumption.
+  Qed.
+End ShiftPairs.
+
+(** [lift_e e = (l, e')],
     where e' is a lifted expression,
     & l is a list of lifted expressions. *)
-Fixpoint lift_e (up : nat) (e : Expr.e) {struct e}
-  : list Expr.e * Expr.e :=
+Fixpoint lift_e (e : Expr.e) {struct e}
+  : Expr.e * list Expr.e :=
   match e with
   | Expr.Bool _
-  | Expr.Error _ => ([], e)
-  | Expr.Var τ og x => ([], Expr.Var τ og (up + x))
-  | Expr.Member t x e
-    => let '(inits, e) := lift_e up e in
-      (inits, Expr.Member t x e)
+  | Expr.Error _
+  | Expr.Var _ _ _ => (e, [])
   | Expr.Bit _ _
-  | Expr.Int _ _ => ([e], Expr.Var (t_of_e e) "" 0)
-  | Expr.Slice hi lo eₛ =>
-      let '(inits, eₛ) := lift_e up eₛ in
-      (Expr.Slice hi lo eₛ :: inits, Expr.Var (t_of_e e) "" 0)
-  | Expr.Cast t e =>
-      let '(inits, e) := lift_e up e in
-      (Expr.Cast t e :: inits, Expr.Var t "" 0)
+  | Expr.VarBit _ _ _
+  | Expr.Int _ _ => (Expr.Var (t_of_e e) "" 0, [e])
+  | Expr.Member t x e
+    => let '(e, inits) := lift_e e in
+      (Expr.Member t x e, inits)
   | Expr.Uop t op e =>
-      let '(inits, e) := lift_e up e in
-      (Expr.Uop t op e :: inits, Expr.Var t "" 0)
-  | Expr.Bop t op lhs rhs => 
-      let '(ll, lhs) := lift_e up lhs in
-      let '(lr, rhs) := lift_e (length ll + up) rhs in
-      (Expr.Bop
-         t op (rename_e (plus $ length lr) lhs) rhs
-         :: lr ++ ll, Expr.Var t "" 0)
+      let '(e, inits) := lift_e e in
+      (Expr.Var t "" 0, Expr.Uop t op e :: inits)
+  | Expr.Slice hi lo e =>
+      let '(e, inits) := lift_e e in
+      (Expr.Var (Expr.TBit (Npos hi - Npos lo + 1)%N) "" 0, Expr.Slice hi lo e :: inits)
+  | Expr.Cast t e =>
+      let '(e, inits) := lift_e e in
+      (Expr.Var t "" 0, Expr.Cast t e :: inits)
   | Expr.Index t e1 e2 =>
-      let '(l1, e1) := lift_e up e1 in
-      let '(l2, e2) := lift_e (length l1 + up) e2 in
-      (l2 ++ l1, Expr.Index t (rename_e (plus $ length l2) e1) e2)
+      let '(e1, l1) := lift_e e1 in
+      let '(e2, l2) := lift_e e2 in
+      (Expr.Index
+         t
+         (shift_e (Shifter 0 (length l2)) e1)
+         (shift_e (Shifter (length l2) (length l1)) e2),
+        shift_list shift_e (Shifter 0 (length l1)) l2 ++ l1)
+  | Expr.Bop t op e1 e2 => 
+      let '(e1, l1) := lift_e e1 in
+      let '(e2, l2) := lift_e e2 in
+      (Expr.Var t "" 0,
+        Expr.Bop
+          t op
+          (shift_e (Shifter 0 (length l2)) e1)
+          (shift_e (Shifter (length l2) (length l1)) e2)
+          :: shift_list shift_e (Shifter 0 (length l1)) l2 ++ l1)
   | Expr.Lists l es =>
-      let '(les, es) := lift_list lift_e rename_e up es in
-      (Expr.Lists l es :: les, Expr.Var (t_of_e e) "" 0)
+      let '(es', les) := List.split (shift_pairs shift_e $ List.map lift_e es) in
+      (Expr.Var (t_of_lists l es) "" 0, Expr.Lists l es' :: concat les)
   end.
 
-Definition lift_e_list
-  : nat -> list Expr.e -> list Expr.e * list Expr.e :=
-  lift_list lift_e rename_e.
+Definition lift_e_list (es : list Expr.e) : list Expr.e * list Expr.e :=
+  let '(es, les) := List.split (shift_pairs shift_e $ List.map lift_e es) in
+  (es, concat les).
 
-Definition lift_arg (up : nat) (arg : paramarg Expr.e Expr.e)
-  : list Expr.e * paramarg Expr.e Expr.e :=
+Definition lift_arg (arg : paramarg Expr.e Expr.e)
+  : paramarg Expr.e Expr.e * list Expr.e :=
   match arg with
   | PAIn e =>
-      let '(le, e) := lift_e up e in (le, PAIn e)
+      let '(e, le) := lift_e e in (PAIn e, le)
   | PAOut e =>
-      let '(le, e) := lift_e up e in (le, PAOut e)
+      let '(e, le) := lift_e e in (PAOut e, le)
   | PAInOut e =>
-      let '(le, e) := lift_e up e in (le, PAInOut e)
+      let '(e, le) := lift_e e in (PAInOut e, le)
   end.
 
-Definition lift_args
-  : nat -> Expr.args -> list Expr.e * Expr.args :=
-  lift_list lift_arg rename_arg.
+Definition lift_args (args : Expr.args) : Expr.args * list Expr.e :=
+  let '(args, les) := List.split (shift_pairs shift_arg $ List.map lift_arg args) in
+  (args, concat les).
 
-(** [unwind_vars [e₁;...;eₙ] s = Stmt.Var eₙ (...(Stmt.Var e₁ s )...)]. *)
-Definition unwind_vars (es : list Expr.e) : Stmt.s -> Stmt.s :=
-  List.fold_left (fun b e => Stmt.Var "" (inr e) b) es.
+Definition lift_args_list
+  (argss : list Expr.args) : list Expr.args * list Expr.e :=
+  let '(argss, argsss) :=
+    List.split (shift_pairs (shift_list shift_arg) $ map lift_args argss) in
+  (argss, concat argsss).
 
-Definition lift_trans (up : nat) (e : Parser.trns)
-  : list Expr.e * Parser.trns :=
+Fixpoint Unwind (es : list Expr.e) (s : Stmt.s) : Stmt.s :=
+  match es with
+  | [] => s
+  | e :: es => Unwind es (Stmt.Var "" (inr e) s)
+  end.
+
+Definition lift_trans (e : Parser.trns)
+  : Parser.trns * list Expr.e :=
   match e with
-  | Parser.Direct _ => ([],e)
+  | Parser.Direct _ => (e,[])
   | Parser.Select e d cases
-    => let '(le,e) := lift_e up e in
-      (le, Parser.Select e d cases)
+    => let '(e,le) := lift_e e in
+      (Parser.Select e d cases, le)
   end.
 
-Definition lift_fun_kind (up : nat) (fk : Stmt.fun_kind)
-  : list Expr.e * Stmt.fun_kind :=
+Definition lift_fun_kind (fk : Stmt.fun_kind)
+  : Stmt.fun_kind * list Expr.e  :=
   match fk with
   | Stmt.Funct _ _ None
-  | Stmt.Method _ _ _ None => ([],fk)
+  | Stmt.Method _ _ _ None => (fk,[])
   | Stmt.Funct f τs (Some e)
-    => let '(le,e) := lift_e up e in (le, Stmt.Funct f τs (Some e))
+    => let '(e,le) := lift_e e in (Stmt.Funct f τs (Some e), le)
   | Stmt.Method x m τs (Some e)
-    => let '(le,e) := lift_e up e in (le, Stmt.Method x m τs (Some e))
+    => let '(e,le) := lift_e e in (Stmt.Method x m τs (Some e), le)
   | Stmt.Action a es
-    => let '(les,es) := lift_e_list up es in (les, Stmt.Action a es)
+    => let '(es,les) := lift_e_list es in (Stmt.Action a es, les)
   end.
 
 Local Open Scope stmt_scope.
 
-Fixpoint lift_s (up : nat) (s : Stmt.s) : Stmt.s :=
+Fixpoint lift_s (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
   | Stmt.Invoke _
   | Stmt.Exit
   | Stmt.Return None => s
   | Stmt.Return (Some e)
-    => let '(le, e) := lift_e up e in
-      unwind_vars le $ Stmt.Return $ Some e
+    => let '(e, le) := lift_e e in
+      Unwind le $ Stmt.Return $ Some e
   | Stmt.Transition e =>
-      let '(le, e) := lift_trans up e in
-      unwind_vars le $ Stmt.Transition $ e
-  | e₁ `:= e₂
-    => let '(le₁, e₁) := lift_e up e₁ in
-      let '(le₂, e₂) := lift_e (length le₁ + up) e₂ in
-      unwind_vars (le₂ ++ le₁) $ rename_e (plus $ length le₂) e₁ `:= e₂
+      let '(e, le) := lift_trans e in
+      Unwind le $ Stmt.Transition $ e
+  | e1 `:= e2
+    => let '(e1, le1) := lift_e e1 in
+      let '(e2, le2) := lift_e e2 in
+      Unwind
+        (shift_list shift_e (Shifter 0 (length le1)) le2 ++ le1)
+        (shift_e (Shifter 0 (length le2)) e1
+           `:= shift_e (Shifter (length le2) (length le1)) e2)
   | Stmt.Call fk args
-    => let '(lfk,fk) := lift_fun_kind up fk in
-      let '(largs,args) := lift_args (length lfk + up) args in
-      unwind_vars
-        (largs ++ lfk) $
-        Stmt.Call (rename_fun_kind (plus $ length args) fk) args
+    => let '(fk,lfk) := lift_fun_kind fk in
+      let '(args,largs) := lift_args args in
+      Unwind
+        (shift_list shift_e (Shifter 0 (length largs)) lfk ++ largs)
+        (Stmt.Call
+           (shift_fun_kind (Shifter (length lfk) (length largs)) fk)
+           (map (shift_arg $ Shifter 0 (length lfk)) args))
   | Stmt.Apply x exts args
-    => let '(inits, args) := lift_args up args in
-      unwind_vars inits $ Stmt.Apply x exts args
-  | Stmt.Var og (inl t) s => Stmt.Var og (inl t) (lift_s up s)
+    => let '(args, inits) := lift_args args in
+      Unwind
+        inits
+        (Stmt.Apply x exts args)
+  | Stmt.Var og (inl t) s => Stmt.Var og (inl t) $ lift_s s
   | Stmt.Var og (inr e) s =>
-      let '(le,e) := lift_e up e in
-      unwind_vars
+      let '(e,le) := lift_e e in
+      Unwind
         le $ Stmt.Var og (inr e)
-        $ lift_s (length le + up) s
-  | s₁ `; s₂ => lift_s up s₁ `; lift_s up s₂
+        $ shift_s (Shifter 1 (length le)) $ lift_s s
+  | s₁ `; s₂ => lift_s s₁ `; lift_s s₂
   | If e Then s₁ Else s₂ =>
-      let '(le,e) := lift_e up e in
-      unwind_vars
-        le $ If e Then lift_s (length le + up) s₁
-        Else lift_s (length le + up) s₂
+      let '(e,le) := lift_e e in
+      Unwind
+        le $ If e Then shift_s (Shifter 0 (length le)) $ lift_s s₁
+        Else shift_s (Shifter 0 (length le)) $ lift_s s₂
   end.
 
 Local Close Scope stmt_scope.
 
-Definition lift_control_decl (up : nat) (cd : Control.d) : nat * list Control.d :=
+Definition lift_control_decl (cd : Control.d) : list Control.d * nat :=
   match cd with
-  | Control.Var x (inl t) => (0,[Control.Var x $ inl t])
+  | Control.Var x (inl t) => ([Control.Var x $ inl t], 0)
   | Control.Var x (inr e) =>
-      let '(es, e) := lift_e up e in
-      (List.length es,
-        List.map (Control.Var "" ∘ inr) es ++ [Control.Var x $ inr e])
+      let '(e, es) := lift_e e in
+      (List.map (Control.Var "" ∘ inr) es ++ [Control.Var x $ inr e], List.length es)
   | Control.Action a cps dps body
-    => (0,[Control.Action a cps dps $ lift_s 0 body])
+    => ([Control.Action a cps dps $ lift_s body], 0)
   | Control.Table t key acts =>
       let '(es,mks) := List.split key in
       let '(acts,argss) := List.split acts in
-      let '(ees,es) := lift_e_list up es in
-      let '(argsss,argss) :=
-        lift_list
-          lift_args
-          (fun ρ => List.map (rename_arg ρ))
-          (List.length ees + up) argss in
-      (List.length ees + List.length argsss,
-        List.map (Control.Var "" ∘ inr) argsss
-          ++ List.map (Control.Var "" ∘ inr)
-          (List.map (rename_e (plus $ length argsss)) es)
-          ++ [Control.Table
-                t (List.combine es mks) (List.combine acts argss)])
-      
+      let '(es,ees) := lift_e_list es in
+      let '(argss,argsss) := lift_args_list argss in
+      (List.map (Control.Var "" ∘ inr) argsss
+         ++ List.map (Control.Var "" ∘ inr)
+         (List.map (shift_e (Shifter 0 $ length argsss)) ees)
+         ++ [Control.Table
+               t
+               (List.combine (map (shift_e $ Shifter (length ees) $ length argsss) es) mks)
+               (List.combine acts $ map (shift_list shift_arg $ Shifter 0 $ length ees) argss)],
+        List.length ees + List.length argsss)
   end.
 
-Fixpoint lift_control_decls (up : nat) (cds : list Control.d) : nat * list Control.d :=
+Fixpoint lift_control_decls (cds : list Control.d) : list Control.d * nat :=
   match cds with
-  | [] => (0, [])
+  | [] => ([], 0)
   | d :: ds =>
-      let '(n, d) := lift_control_decl up d in
-      let '(ns, ds) := lift_control_decls (n + up) ds in
-      (n + ns, d ++ ds)
+      let '(d, n) := lift_control_decl d in
+      let '(ds, ns) := lift_control_decls ds in
+      (d ++ shift_ctrl_decls (Shifter 0 n) ds, n + ns)
   end.
 
 Definition lift_top_decl (td : TopDecl.d) : TopDecl.d := 
@@ -191,16 +231,16 @@ Definition lift_top_decl (td : TopDecl.d) : TopDecl.d :=
   | TopDecl.Instantiate _ _ _ _ _
   | TopDecl.Extern _ _ _ _ _ => td
   | TopDecl.Control c cparams expr_cparams eps params body apply_blk =>
-      let (up, ds) := lift_control_decls 0 body in
+      let (ds, n) := lift_control_decls body in
       TopDecl.Control
         c cparams expr_cparams eps params ds
-        $ lift_s up apply_blk  
+        $ shift_s (Shifter 0 n) $ lift_s apply_blk  
   | TopDecl.Parser p cparams expr_cparams eps params start states =>
       TopDecl.Parser
         p cparams expr_cparams eps params
-        (lift_s 0 start) $ map (lift_s 0) states
+        (lift_s start) $ map lift_s states
   | TopDecl.Funct f tparams signature body =>
-      TopDecl.Funct f tparams signature $ lift_s 0 body
+      TopDecl.Funct f tparams signature $ lift_s body
   end.
 
 Definition lift_program : list TopDecl.d -> list TopDecl.d :=

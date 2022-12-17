@@ -8,6 +8,7 @@ Module Val.
   | Bool (b : bool)
   | Bit (width : N) (n : Z)
   | Int (width : positive) (n : Z)
+  | VarBit (max_width width : N) (n : Z)
   | Lists (ls : Expr.lists) (fields : list v)
   | Error (err : string).
 

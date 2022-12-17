@@ -32,6 +32,7 @@ Fixpoint v_of_t (τ : Expr.t) : option v :=
   | Expr.TBool  => Some $ Bool false
   | Expr.TBit w => Some $ Bit w 0%Z
   | Expr.TInt w => Some $ Int w 0%Z
+  | Expr.TVarBit w => Some $ VarBit w w 0%Z
   | Expr.TArray n t =>
       v_of_t
         t >>| (fun v => repeat v $ N.to_nat n)
@@ -90,6 +91,7 @@ Fixpoint t_of_v (V : v) : Expr.t :=
   | Bool _ => Expr.TBool
   | w VW _ => Expr.TBit w
   | w VS _ => Expr.TInt w
+  | VarBit m _ _ => Expr.TVarBit m
   | Val.Error _ => Expr.TError
   | Lists (Expr.lists_array τ) vs  =>
       Expr.TArray (N.of_nat $ List.length vs) τ
@@ -137,6 +139,7 @@ Fixpoint e_of_v (V : v) : Expr.e :=
   | Bool b => Expr.Bool b
   | w VW n => w `W n
   | w VS z => w `S z
+  | VarBit m w n => Expr.VarBit m w n
   | Val.Error err => Expr.Error err
   | Lists ls vs => Expr.Lists ls (map e_of_v vs)
   end.
@@ -166,6 +169,7 @@ Section Lemmas.
     intro t; induction t using custom_t_ind;
       intros V h; unravel in *; try discriminate;
       try match_some_inv; try some_inv; auto.
+    - eauto using N.le_refl.
     - match_some_inv; some_inv.
       econstructor; eauto using Forall2_repeat_both.
     - rewrite <- Forall2_sequence_iff, sublist.Forall2_map1 in Heqo.

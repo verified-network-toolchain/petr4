@@ -46,6 +46,7 @@ Fixpoint cf_e (e : Expr.e) : Expr.e :=
   | Expr.Bool _
   | (_ `W _)%expr
   | (_ `S _)%expr
+  | Expr.VarBit _ _ _
   | Expr.Error _
   | Expr.Var _ _ _ => e
   | Expr.Slice hi lo e =>

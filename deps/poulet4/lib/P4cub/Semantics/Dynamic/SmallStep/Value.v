@@ -10,6 +10,8 @@ Inductive value : Expr.e -> Prop :=
   value (w `W n)%expr
 | value_int w z :
   value (w `S z)%expr
+| value_varbit m w n :
+  value (Expr.VarBit m w n)
 | value_lists ls es :
   Forall value es ->
   value (Expr.Lists ls es)
@@ -22,6 +24,8 @@ Section IsValueInduction.
   Hypothesis HBool : forall b : bool, P b.
   
   Hypothesis HBit : forall w n, P (w `W n)%expr.
+
+  Hypothesis HVarBit : forall m w n, P (Expr.VarBit m w n).
   
   Hypothesis HInt : forall w z, P (w `S z)%expr.
   
@@ -43,6 +47,7 @@ Section IsValueInduction.
       match H with
       | value_bool b => HBool b
       | value_bit w n => HBit w n
+      | value_varbit m w n => HVarBit m w n
       | value_int w z => HInt w z
       | value_lists ls _ Hes => HLists ls _ Hes (lind Hes)
       | value_error err => HError err

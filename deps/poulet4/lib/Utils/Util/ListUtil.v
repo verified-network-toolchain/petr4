@@ -1,7 +1,7 @@
+Require Import Coq.Strings.String.
 From Poulet4 Require Export Utils.Util.FunUtil Utils.Util.StringUtil Monads.Result.
 From Coq Require Export Lists.List micromega.Lia.
 Export ListNotations.
-Require Import Coq.Strings.String.
 Require VST.zlist.sublist.
 
 (** * List Tactics *)
@@ -28,16 +28,52 @@ Ltac inv_Forall2_cons :=
 
 (** * Helper Functions *)
 
-(** Update position [n] of list [l],
-    or return [l] if [n] is too large. *)
-Fixpoint nth_update {A : Type} (n : nat) (a : A) (l : list A) : list A :=
-  match n, l with
-  | O, _::t   => a::t
-  | S n, h::t => h :: nth_update n a t
-  | O, []
-  | S _, []  => []
+Section NthUpdate.
+  Context {A : Type}.
+
+  (** Update position [n] of list [l],
+    or return [l] if [n   ] is too large. *)
+  Fixpoint nth_update (n : nat) (a : A) (l : list A) : list A :=
+    match n, l with
+    | O, _::t   => a::t
+    | S n, h::t => h :: nth_update n a t
+    | O, []
+    | S _, []  => []
   end.
-(**[]*)
+  (**[]*)
+
+  Variable a : A.
+  
+  Lemma nth_update_app1 : forall  n l1 l2,
+    length l1 <= n ->
+    nth_update n a (l1 ++ l2) = l1 ++ nth_update (n - length l1) a l2.
+  Proof using.
+    intro n;
+    induction n as [| n ih];
+      intros [| a1 l1] l2 h; cbn in *;
+      lia || (f_equal; auto).
+    apply ih. lia.
+  Qed.
+  
+  Lemma nth_update_app2 : forall n l1 l2,
+      n < length l1 ->
+      nth_update n a (l1 ++ l2) = nth_update n a l1 ++ l2.
+  Proof using.
+    intro n;
+      induction n as [| n ih];
+      intros [| a1 l1] l2 h; cbn in *;
+      lia || (f_equal; auto).
+    apply ih. lia.
+  Qed.
+
+  Lemma nth_update_app3 : forall n l1 l2,
+      nth_update (length l1 + n) a (l1 ++ l2) = l1 ++ nth_update n a l2.
+  Proof using.
+    intros.
+    rewrite nth_update_app1 by lia.
+    f_equal. f_equal. lia.
+  Qed.
+End NthUpdate.
 
 (** * Helper Lemmas *)
 
@@ -236,11 +272,32 @@ Fixpoint ith { A : Type } (xs : list A) (i : nat) : result string A :=
     end
   end.
 
-Definition fold_righti {A B : Type} (f : nat -> A -> B -> B) (init : B) (xs : list A) : B :=
-  snd (List.fold_right (fun a '(i, b) => (i + 1, f i a b )) (0, init) xs).
+Section FoldRighti.
+  Context {A B : Type}.
+  Variable f : nat -> A -> B -> B.
+  Variable init : B.
+  
+  Definition fold_righti (xs : list A) : B :=
+    snd (List.fold_right (fun a '(i, b) => (i + 1, f i a b )) (O, init) xs).
+End FoldRighti.
 
-Definition fold_lefti { A B : Type } (f : nat -> A -> B -> B) (init : B) (lst : list A) : B :=
-  snd (fold_left (fun '(n, b) a => (S n, f n a b)) lst (O, init)).
+
+Section FoldLefti.
+  Context {A B : Type}.
+  Variable f : nat -> A -> B -> B.
+  
+  Definition fold_lefti (init : B) (lst : list A) : B :=
+    snd (fold_left (fun '(n, b) a => (S n, f n a b)) lst (O, init)).
+
+  (*Section FoldLeftiInd.
+    Search fold_left.
+    Variable P : list A -> B -> Prop.
+
+    Hypothesis hnil : forall acc, P [] acc.
+
+    Hypothesis hcons : forall h t acc,
+        P*)
+End FoldLefti.
 
 Definition findi { A : Type } (select : A -> bool) (l : list A) : option nat :=
   fold_lefti (fun i a found_at_n =>
@@ -303,8 +360,6 @@ Proof.
     intros [| n] a H; cbn in *; try lia; auto.
   assert (n < List.length t) by lia; auto.
 Qed.
-
-Search ((nat -> ?A -> ?B) -> list ?A -> list ?B).
 
 Section Mapi.
   Context {A B : Type}.

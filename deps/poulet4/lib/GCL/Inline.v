@@ -43,6 +43,7 @@ Fixpoint subst_e (η : expenv) (e : E.e) : E.e :=
   | E.Bool _ => e
   | E.Bit _ _ => e
   | E.Int _ _ => e
+  | E.VarBit _ _ _ => e
   | E.Var _ og _ =>
     match Env.find og η with
     | None => e
@@ -100,6 +101,7 @@ Fixpoint action_param_renamer_expr (table action : string) (params : list string
   | E.Bool _ => e
   | E.Bit _ _ => e
   | E.Int _ _ => e
+  | E.VarBit _ _ _ => e
   | E.Var type og x =>
     E.Var type (rename_string table action og params) x
   | E.Slice hi lo e =>
@@ -1112,7 +1114,8 @@ Definition isValid (hdr : E.e) : E.e :=
 Fixpoint header_asserts (e : E.e) : result string t :=
   match e with
   | E.Bool _ | E.Bit _ _
-  | E.Int _ _ | E.Var _ _ _
+  | E.Int _ _ | E.VarBit _ _ _
+  | E.Var _ _ _
   | E.Error _  =>  ok ISkip
   | E.Member type name e =>
       match t_of_e e with

@@ -8,7 +8,7 @@ Import AllCubNotations Val.ValueNotations Val.LValueNotations.
 Section BigStepTheorems.
   Section ExprPreservation.
     Local Hint Resolve eval_index_types : core.
-    Local Hint Resolve eval_slice_types : core.
+    Local Hint Resolve slice_val_types : core.
     Local Hint Resolve eval_uop_types : core.
     Local Hint Resolve eval_bop_type : core.
     Local Hint Resolve eval_cast_types : core.
@@ -67,7 +67,7 @@ Section BigStepTheorems.
         apply nth_error_some_length in H.
         rewrite <- henv in H.
         apply nth_error_exists in H as [v hv]; eauto.
-      - pose proof eval_slice_exists
+      - pose proof slice_val_exists
           _ _ _ _ _ H H0 H2 as [v' hv']; eauto.
       - pose proof eval_cast_exists
           _ _ _ H H2 as [v' hv']; eauto.

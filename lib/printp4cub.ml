@@ -106,7 +106,8 @@ let rec print_type p (t:Expr.t) =
   match t with
   | Expr.TBool -> fprintf p "%s" "TBool"
   | Expr.TBit i -> fprintf p "TBit: @[%a@]" print_bigint i 
-  | Expr.TInt i -> fprintf p "TInt: @[%a@]" print_bigint i 
+  | Expr.TInt i -> fprintf p "TInt: @[%a@]" print_bigint i
+  | Expr.TVarBit i -> fprintf p "TVarBit: @[%a@]" print_bigint i 
   | Expr.TError -> fprintf p "%s" "TError" 
   | Expr.TStruct (false,lt) -> fprintf p "TStruct <%a>" (print_list ~sep:"*" print_type) lt
   | Expr.TStruct (true,lt) -> fprintf p "THeader <%a>" (print_list ~sep:"*" print_type) lt
@@ -144,6 +145,7 @@ let rec print_expr p =
   | Expr.Bool b -> fprintf p "EBool %a" print_bool b
   | Expr.Bit (w, i) -> fprintf p "EBit <%a> %a" print_bigint w print_bigint i
   | Expr.Int (w, i) -> fprintf p "EInt <%a> %a" print_bigint w print_bigint i
+  | Expr.VarBit (mw, w, i) -> fprintf p "EVarBit <%a> %a %a" print_bigint mw  print_bigint w print_bigint i
   | Expr.Var (typ, x, n) ->
     fprintf p "EVar : <%a> %a %a" print_type typ print_string x
     my_print_int n

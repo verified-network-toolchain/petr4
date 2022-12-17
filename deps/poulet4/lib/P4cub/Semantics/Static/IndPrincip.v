@@ -2,9 +2,8 @@ Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Semantics.Static.Util
         Poulet4.P4cub.Semantics.Static.Typing
-        Poulet4.P4cub.Syntax.CubNotations
-        Poulet4.Utils.ForallMap.
-Import String AllCubNotations.
+        Poulet4.P4cub.Syntax.CubNotations.
+Import AllCubNotations.
 
 (** Custom induction principle for ok types. *)
 Section OkBoomerInduction.
@@ -15,6 +14,7 @@ Section OkBoomerInduction.
   Hypothesis HBool : forall Δ, P Δ Expr.TBool.
   Hypothesis HBit : forall Δ w, P Δ (Expr.TBit w).
   Hypothesis HInt : forall Δ w, P Δ (Expr.TInt w).
+  Hypothesis HVarBit : forall Δ w, P Δ (Expr.TVarBit w).
   Hypothesis HError : forall Δ, P Δ Expr.TError.
   Hypothesis HArray : forall Δ n t,
       t_ok Δ t -> P Δ t -> P Δ (Expr.TArray n t).
@@ -40,6 +40,7 @@ Section OkBoomerInduction.
       | bool_ok _     => HBool _
       | bit_ok _ w    => HBit _ w
       | int_ok _ w    => HInt _ w
+      | varbit_ok _ w => HVarBit _ w
       | error_ok _    => HError _
       | var_ok _ T HT => HVar _ _ HT
       | array_ok _ n T HT => HArray _ n T HT (toind _ _ HT)
@@ -64,6 +65,11 @@ Section TypeExprInduction.
       IntArith.bound w z ->
       P Δ Γ (w `S z) (Expr.TInt w).
   
+  Hypothesis HVarBit : forall Δ Γ m w n,
+      (w <= m)%N ->
+      BitArith.bound w n ->
+      P Δ Γ (Expr.VarBit m w n) (Expr.TVarBit m).
+
   Hypothesis HVar : forall Δ Γ τ og x,
       nth_error Γ x = Some τ ->
       t_ok Δ τ ->
@@ -143,6 +149,7 @@ Section TypeExprInduction.
       | type_bool _ _ b     => HBool _ _ b
       | type_bit _ _ _ _ H => HBit _ _ _ _ H
       | type_int _ _ _ _ H => HInt _ _ _ _ H
+      | type_varbit _ _ _ _ _ Hwm H => HVarBit _ _ _ _ _ Hwm H
       | type_var _ _ _ _ _ Hnth H => HVar _ _ _ _ _ Hnth H
       | type_slice _ _ _ _ _ _ _ Hlohiw Ht He
         => HSlice _ _ _ _ _ _ _ Hlohiw Ht He (teind _ _ _ _ He)
@@ -166,20 +173,6 @@ Section TypeExprInduction.
         => HLists _ _ _ _ _ _ Hok lok Hes (lind Hes)
       end.
 End TypeExprInduction.
-
-(** Test of induction principle. *)
-Lemma t_of_e_correct : forall Δ Γ e τ,
-    `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> t_of_e e = τ.
-Proof.
-  intros Δ Γ e τ H.
-  induction H using custom_type_expr_ind;
-    unravel in *; try reflexivity.
-  rewrite <- sublist.Forall2_map1,
-    Forall2_eq in H2; inv H0; f_equal.
-  apply f_equal with (f := @List.length Expr.t) in H5.
-  rewrite map_length, repeat_length in H5.
-  rewrite <- H5; lia.
-Qed.
 
 Section TypePatternInduction.
   Local Open Scope pat_scope.

@@ -12,6 +12,7 @@ Fixpoint inf_e  (e : Expr.e) : Expr.e :=
   match e with
   | Expr.Bool _
   | Expr.Bit _ _
+  | Expr.VarBit _ _ _
   | Expr.Int _ _
   | Expr.Error _
   | Expr.Var _ _ _ => e

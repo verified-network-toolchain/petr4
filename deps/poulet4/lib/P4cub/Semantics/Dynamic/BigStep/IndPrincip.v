@@ -16,13 +16,16 @@ Section ExprEvalInduction.
   Hypothesis HBit : forall ϵ w n, P ϵ (w `W n) (w VW n).
   
   Hypothesis HInt : forall ϵ w z, P ϵ (w `S z) (w VS z).
+
+  Hypothesis HVarBit : forall ϵ m w n,
+      P ϵ (Expr.VarBit m w n) (Val.VarBit m w n).
   
   Hypothesis HVar : forall ϵ τ og x v,
       nth_error ϵ x = Some v ->
       P ϵ (Expr.Var τ og x) v.
   
   Hypothesis HSlice : forall ϵ e hi lo v v',
-      eval_slice hi lo v = Some v' ->
+      slice_val hi lo v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
       P ϵ e v ->
       P ϵ (Expr.Slice hi lo e) v'.
@@ -89,6 +92,7 @@ Section ExprEvalInduction.
       | ebs_bool _ b => HBool ϵ b
       | ebs_bit _ w n => HBit ϵ w n
       | ebs_int _ w z => HInt ϵ w z
+      | ebs_varbit _ m w n => HVarBit ϵ m w n
       | ebs_var _ _ _ _ _ Hx => HVar _ _ _ _ _ Hx
       | ebs_slice _ _ _ _ _ _ Hv He
         => HSlice _ _ _ _ _ _ Hv He (ebsind _ _ _ He)

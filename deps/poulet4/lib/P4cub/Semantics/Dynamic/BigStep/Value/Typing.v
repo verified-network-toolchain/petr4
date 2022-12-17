@@ -20,6 +20,10 @@ Inductive type_value : v -> Expr.t -> Prop :=
 | typ_int w z :
   IntArith.bound w z ->
   ⊢ᵥ w VS z ∈ Expr.TInt w
+| typ_varbit m w n :
+  N.le w m ->
+  BitArith.bound w n ->
+  ⊢ᵥ VarBit m w n ∈ Expr.TVarBit m
 | typ_lists ls vs τ τs :
   type_lists_ok ls τ τs ->
   Forall2 type_value vs τs ->
@@ -43,6 +47,11 @@ Section ValueTypingInduction.
       IntArith.bound w z ->
       P (w VS z) (Expr.TInt w).
 
+  Hypothesis HVarBit : forall m w n,
+      N.le w m ->
+      BitArith.bound w n ->
+      P (VarBit m w n) (Expr.TVarBit m).
+  
   Hypothesis HError : forall err,
       P (Error err) Expr.TError.
   
@@ -71,6 +80,7 @@ Section ValueTypingInduction.
       | typ_bool b => HBool b
       | typ_bit _ _ H => HBit _ _ H
       | typ_int _ _ H => HInt _ _ H
+      | typ_varbit _ _ _ Hwm Hbd => HVarBit _ _ _ Hwm Hbd
       | typ_error err => HError err
       | typ_lists _ _ _ _ H Hfs => HLists _ _ _ _ H Hfs (lind Hfs)
       end.

@@ -27,11 +27,13 @@ Inductive expr_big_step (ϵ : list Val.v)
   ⟨ ϵ, w `W n ⟩ ⇓ w VW n
 | ebs_int w z :
   ⟨ ϵ, w `S z ⟩ ⇓ w VS z
+| ebs_varbit m w n :
+  ⟨ ϵ, Expr.VarBit m w n ⟩ ⇓ Val.VarBit m w n
 | ebs_var τ og x v :
   nth_error ϵ x = Some v ->
   ⟨ ϵ, Expr.Var τ og x ⟩ ⇓ v
 | ebs_slice e hi lo v v' :
-  eval_slice hi lo v = Some v' ->
+  slice_val hi lo v = Some v' ->
   ⟨ ϵ, e ⟩ ⇓ v ->
   ⟨ ϵ, Expr.Slice hi lo e ⟩ ⇓ v'
 | ebs_cast τ e v v' :
@@ -310,7 +312,7 @@ Inductive stmt_big_step
   ⧼ Ψ <| functs := fun_clos |>, ϵ', CFunction,
       tsub_s (gen_tsub τs) body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Funct f τs eo) args ⧽
-    ⤋ ⧼ lv_update_signal olv sig (copy_out vargs ϵ'' ϵ), Cont, ψ ⧽  
+    ⤋ ⧼ lv_update_signal olv sig (copy_out O vargs ϵ'' ϵ), Cont, ψ ⧽  
 | sbs_action_call
     ϵ ϵ' ϵ'' clos c ψ a ctrl_args data_args actions
     vctrl_args vdata_args olv fun_clos act_clos body sig :
@@ -331,7 +333,7 @@ Inductive stmt_big_step
   ⧼ Ψ <| functs := fun_clos |>, vctrl_args ++ ϵ', CAction act_clos,
       body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽
-    ⤋ ⧼ lv_update_signal olv sig (copy_out vdata_args ϵ'' ϵ), Cont, ψ ⧽
+    ⤋ ⧼ lv_update_signal olv sig (copy_out O vdata_args ϵ'' ϵ), Cont, ψ ⧽
 | sbs_method_call
     ϵ c ψ ext meth τs args
     eo vargs vargs' olv sig
@@ -405,7 +407,7 @@ Inductive stmt_big_step
   ⧼ Ψ <| functs := fun_clos |>, ϵ', CApplyBlock tbl_clos action_clos inst_clos,
       apply_block ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, CApplyBlock tbls actions control_insts,
-    Stmt.Apply c ext_args args ⧽ ⤋ ⧼ copy_out vargs ϵ'' ϵ, Cont, ψ ⧽
+    Stmt.Apply c ext_args args ⧽ ⤋ ⧼ copy_out O vargs ϵ'' ϵ, Cont, ψ ⧽
 | sbs_apply_parser
     ϵ ϵ' ϵ'' n strt states parsers ψ p
     ext_args args vargs
@@ -422,7 +424,7 @@ Inductive stmt_big_step
       CParserState (length args) strt_clos states_clos prsr_clos,
       strt ⧽ ⤋ ⧼ ϵ'', final, ψ ⧽ ->
   ⧼ Ψ, ϵ, CParserState n strt states parsers,
-    Stmt.Apply p ext_args args ⧽ ⤋ ⧼ copy_out vargs ϵ'' ϵ, sig, ψ ⧽
+    Stmt.Apply p ext_args args ⧽ ⤋ ⧼ copy_out O vargs ϵ'' ϵ, sig, ψ ⧽
 | sbs_var ϵ ϵ' c og te v v' s sig ψ :
   match te with
   | inr e => ⟨ ϵ, e ⟩ ⇓ v

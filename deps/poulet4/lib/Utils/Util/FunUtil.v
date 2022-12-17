@@ -163,3 +163,9 @@ Section mapply.
     reflexivity.
   Qed.
 End mapply.
+
+Lemma forall_conj_distr (U : Type) (P Q : U -> Prop) :
+    (forall u, P u /\ Q u) <-> (forall u, P u) /\ forall u, Q u.
+Proof.
+  firstorder.
+Qed.

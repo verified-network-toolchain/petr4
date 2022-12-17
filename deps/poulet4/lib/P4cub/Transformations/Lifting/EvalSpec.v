@@ -1,357 +1,277 @@
-Require Export Coq.micromega.Lia Poulet4.P4cub.Syntax.Syntax.
-From Poulet4.P4cub Require Export Semantics.Dynamic.BigStep.BigStep
-     Transformations.Lifting.Statementize.
-Import AllCubNotations Clmt.Notations Val.ValueNotations.
+Require Export Coq.micromega.Lia Poulet4.P4cub.Syntax.Syntax Coq.Arith.PeanoNat.
+From Poulet4.P4cub Require Export Syntax.Shift Semantics.Dynamic.BigStep.BigStep
+  Transformations.Lifting.Lift Semantics.Dynamic.BigStep.Properties
+  Transformations.Lifting.Statementize Transformations.Lifting.LiftSpec.
+Import Nat AllCubNotations (*Clmt.Notations*) Val.ValueNotations.
 
 (** Big-step evaluation specification for lifting in [Statementize.v] *)
 
-Inductive eval_decl_list (ϵ : list Val.v) : list Expr.e -> list Val.v -> Prop :=
-| eval_decl_nil :
-  eval_decl_list ϵ [] []
-| eval_decl_cons h hv t tv :
-  ⟨ tv ++ ϵ, h ⟩ ⇓ hv ->
-  eval_decl_list ϵ t tv ->
-  eval_decl_list ϵ (h :: t) (hv :: tv).
+Open Scope list_scope.
 
-Local Hint Constructors expr_big_step : core.
-Local Hint Constructors stmt_big_step : core.
-Local Hint Constructors lexpr_big_step : core.
-Local Hint Resolve Clmt.bind_sound : core.
-Local Hint Constructors eval_decl_list : core.
-Local Hint Constructors relop : core.
+Section EvalDeclList.
+  Variable ϵ : list Val.v.
+    
+  Definition eval_decl_list : list Expr.e -> list Val.v -> Prop :=
+    relate_decl_list expr_big_step ϵ.
 
-Lemma eval_decl_list_append : forall ϵ vs1 vs2 l1 l2,
-    eval_decl_list ϵ l1 vs1 ->
-    eval_decl_list (vs1 ++ ϵ) l2 vs2 ->
-    eval_decl_list ϵ (l2 ++ l1) (vs2 ++ vs1).
-Proof.
-  intros ϵ vs1 vs2.
-  generalize dependent vs1.
-  induction vs2 as [| v2 vs2 ih];
-    intros vs1 l1 [| e2 l2] h1 h2; inv h2; cbn; auto.
-  constructor; eauto.
-  rewrite <- app_assoc; assumption.
-Qed.
+  Local Hint Resolve relate_decl_list_length : core.
+  
+  Lemma eval_decl_list_length : forall es vs,
+      eval_decl_list es vs -> length es = length vs.
+  Proof using.
+    unfold eval_decl_list. eauto.
+  Qed.
+  
+  Local Hint Resolve shift_e_eval : core.
+  Local Hint Resolve relate_decl_list_app : core.
+    
+  Lemma eval_decl_list_app : forall vs1 vs2 es1 es2,
+      eval_decl_list es1 vs1 ->
+      eval_decl_list es2 vs2 ->
+      eval_decl_list (shift_list shift_e (Shifter 0 (length es1)) es2 ++ es1) (vs2 ++ vs1).
+  Proof using.
+    unfold eval_decl_list. eauto.
+  Qed.
+  
+  Local Hint Resolve shift_pairs_relate_snd : core.
+  
+  Lemma shift_pairs_type_snd : forall ess vss,
+      Forall2 eval_decl_list (map snd ess) vss ->
+      eval_decl_list
+        (concat (map snd (shift_pairs shift_e ess)))
+        (concat vss).
+  Proof using.
+    unfold eval_decl_list. eauto.
+  Qed.
 
-Local Hint Resolve eval_decl_list_append : core.
+  Lemma shift_pairs_relate_fst : forall es ess vs vss,
+      length es = length ess ->
+      Forall3 (fun vs e v => ⟨ vs ++ ϵ, e ⟩ ⇓ v) vss es vs ->
+      Forall2 eval_decl_list ess vss ->
+      Forall2
+        (expr_big_step (concat vss ++ ϵ))
+        (map fst (shift_pairs shift_e (combine es ess))) vs.
+  Proof using.
+    Local Hint Resolve shift_pairs_relate_fst : core.
+    Local Hint Resolve shift_e_eval : core.
+    unfold eval_decl_list. eauto.
+  Qed.
+End EvalDeclList.
 
-Lemma rename_e_id : forall e, Shift.rename_e id e = e.
-Proof.
-  unfold id.
-  induction e using custom_e_ind; unravel;
-    f_equal; auto.
-  apply map_ext_Forall in H.
-  rewrite H,map_id; reflexivity.
-Qed.
+Section EvalExpr.
+  Variable ϵ : list Val.v.
 
-Lemma shift_eval : forall vs ϵ e v,
-    ⟨ ϵ, e ⟩ ⇓ v ->
-    ⟨ vs ++ ϵ, Shift.rename_e (Nat.add $ length vs) e ⟩ ⇓ v.
-Proof.
-  intros vs ϵ e v h; induction h using custom_expr_big_step_ind;
-    unravel; eauto.
-  - constructor.
-    rewrite ForallMap.nth_error_app3; assumption.
-  - constructor.
-    rewrite <- ForallMap.Forall2_map_l; assumption.
-Qed.
+  Local Hint Resolve eval_decl_list_length : core.
+  Local Hint Resolve eval_decl_list_app : core.
+  Local Hint Constructors relate_decl_list : core.
+  Local Hint Resolve relate_decl_list_length : core.
+  Local Hint Resolve relate_decl_list_app : core.
+  Local Hint Constructors expr_big_step : core.
+  Local Hint Resolve shift_e_eval : core.
+  Local Hint Constructors Forall3 : core.
+  
+  Lemma Lift_e_good : forall e v,
+      ⟨ ϵ, e ⟩ ⇓ v -> forall e' es,
+        Lift_e e e' es -> exists vs,
+          eval_decl_list ϵ es vs /\ ⟨ vs ++ ϵ, e' ⟩ ⇓ v.
+  Proof using.
+    unfold eval_decl_list;
+    intros e v hev;
+      induction hev using custom_expr_big_step_ind;
+      intros E Es hn; inv hn; eauto.
+    - pose proof IHhev _ _ H5 as (vs & hvs & hv).
+      exists (v' :: vs). split; eauto.
+    - pose proof IHhev _ _ H4 as (vs & hvs & hv).
+      exists (v' :: vs). split; eauto.
+    - pose proof IHhev _ _ H5 as (vs & hvs & hv).
+      exists (v' :: vs). split; eauto.
+    - pose proof IHhev1 _ _ H6 as (vs1 & hvs1 & hv1); clear IHhev1.
+      pose proof IHhev2 _ _ H7 as (vs2 & hvs2 & hv2); clear IHhev2.
+      exists (v :: vs2 ++ vs1). split; eauto.
+      constructor; eauto.
+      rewrite <- app_assoc.
+      rewrite (eval_decl_list_length _ _ _ hvs2).
+      rewrite (eval_decl_list_length _ _ _ hvs1).
+      econstructor; eauto.
+      eapply shift_e_eval with (us := []); assumption.
+    - firstorder eauto.
+    - pose proof IHhev1 _ _ H5 as (vs1 & hvs1 & hv1); clear IHhev1.
+      pose proof IHhev2 _ _ H6 as (vs2 & hvs2 & hv2); clear IHhev2.
+      exists (vs2 ++ vs1). rewrite <- app_assoc.
+      split; eauto.
+      rewrite (eval_decl_list_length _ _ _ hvs1).
+      rewrite (eval_decl_list_length _ _ _ hvs2).
+      econstructor; eauto.
+      eapply shift_e_eval with (us := []); eassumption.
+    - pose proof Forall2_specialize_Forall3
+        _ _ _ _ _ _ H0 as h; clear H0.
+      assert (hlenesvs : length es = length vs)
+        by eauto using Forall2_length.
+      assert (hlenvses' : length vs = length es').
+      { rewrite <- hlenesvs.
+        eauto using Forall3_length12. }
+      pose proof h _ hlenvses' as h'; clear h; rename h' into h.
+      clear hlenesvs hlenvses'.
+      assert
+        (exists vss,
+            Forall2 (eval_decl_list ϵ) ess vss
+            /\ Forall3 (fun vs e' v => ⟨ vs ++ ϵ, e' ⟩ ⇓ v) vss es' vs)
+        as (vss & hvss & hes').
+      { clear dependent ls.
+        generalize dependent ess.
+        generalize dependent es'.
+        induction H; intros es' ih ess IH; inv ih; inv IH; firstorder eauto. }
+      clear h.
+      exists (Val.Lists ls vs :: concat vss).
+      split; auto.
+      constructor.
+      + constructor.
+        apply shift_pairs_relate_fst;
+          eauto using Forall3_length23.
+      + apply shift_pairs_relate_snd; eauto.
+        rewrite sublist.combine_snd
+          by eauto using Forall3_length23.
+        assumption.
+  Qed.
 
-Local Hint Resolve shift_eval : core.
+  Local Hint Resolve Lift_e_good : core.
+  Local Hint Constructors parser_expr_big_step : core.
 
-Lemma eval_decl_list_length : forall ϵ l vs,
-    eval_decl_list ϵ l vs -> length l = length vs.
-Proof.
-  intros ϵ l vs h; induction h; cbn; auto.
-Qed.
+  Lemma Lift_trans_good : forall pe lbl,
+      p⟨ ϵ, pe ⟩ ⇓ lbl -> forall pe' es,
+        Lift_trans pe pe' es -> exists vs,
+          eval_decl_list ϵ es vs /\ p⟨ vs ++ ϵ, pe' ⟩ ⇓ lbl.
+  Proof using.
+    intros pe lbl he pe' es hl.
+    inv he; inv hl; unfold eval_decl_list; eauto.
+    pose proof Lift_e_good _ _ H _ _ H5 as (vs & hvs & hv).
+    eauto.
+  Qed.
 
-Local Hint Resolve eval_decl_list_length : core.
+  Local Hint Resolve Lift_trans_good : core.
+  Local Hint Resolve shift_lv_eval : core.
+  Local Hint Constructors lexpr_big_step : core.
+  Local Hint Resolve relate_decl_list_det : core.
+  Local Hint Resolve expr_deterministic : core.
 
-Theorem lift_e_expr_big_step : forall e ϵ v,
-    ⟨ ϵ, e ⟩ ⇓ v ->
-    forall us l e',
-      lift_e (length us) e = (l, e') ->
-      exists vs, eval_decl_list (us ++ ϵ) l vs /\ ⟨ vs ++ us ++ ϵ, e' ⟩ ⇓ v.
-Proof.
-  intros e ϵ v h; induction h using custom_expr_big_step_ind;
-    intros us l e' heq; cbn in *; inv heq; eauto.
-  - eexists; split; eauto; cbn.
-    constructor.
-    rewrite nth_error_app2 by lia.
-    replace (length us + x - length us) with x by lia;
-      assumption.
-  - destruct (lift_e (length us) e) as [l' e''] eqn:eql. inv H1.
-    pose proof IHh _ _ _ eql as (vs & ih & ihv); clear IHh.
-    eexists; eauto.
-  - destruct (lift_e (length us) e) as [l' e''] eqn:eql. inv H1.
-    pose proof IHh _ _ _ eql as (vs & ih & ihv); clear IHh.
-    eexists; eauto.
-  - destruct (lift_e (length us) e) as [l' e''] eqn:eql. inv H1.
-    pose proof IHh _ _ _ eql as (vs & ih & ihv); clear IHh.
-    eexists; eauto.
-  - destruct (lift_e (length us) e1) as [l₁ e₁] eqn:eql1.
-    destruct (lift_e (length l₁ + length us) e2) as [l₂ e₂] eqn:eql2; inv H1.
-    pose proof IHh1 _ _ _ eql1 as (vs1 & ih1 & ihv1); clear IHh1.
-    assert (Hl1: length l₁ = length vs1) by eauto using eval_decl_list_length.
-    rewrite Hl1, <- app_length in eql2.
-    pose proof IHh2 _ _ _ eql2 as (vs2 & ih2 & ihv2); clear IHh2.
-    exists (v :: vs2 ++ vs1); split; eauto.
-    rewrite <- app_assoc in ihv2.
-    rewrite <- app_assoc in ih2.
-    constructor; eauto using eval_decl_list_append.
-    econstructor; eauto;
-      rewrite <- app_assoc; auto.
-    apply eval_decl_list_length in ih2.
-    rewrite ih2.
-    auto using shift_eval.
-  - destruct (lift_e (length us) e) as [l' e''] eqn:eql; inv H1.
-    pose proof IHh _ _ _ eql as (vs' & ih & ihv); clear IHh.
-    eexists; eauto.
-  - destruct (lift_e (length us) e₁) as [l1 e1] eqn:eql1.
-    destruct (lift_e (length l1 + length us) e₂) as [l2 e2] eqn:eql2; inv H1.
-    pose proof IHh1 _ _ _ eql1 as (vs1 & ih1 & ihv1); clear IHh1.
-    assert (Hl1: length l1 = length vs1) by eauto using eval_decl_list_length.
-    rewrite Hl1, <- app_length in eql2.
-    pose proof IHh2 _ _ _ eql2 as (vs2 & ih2 & ihv2); clear IHh2.
-    exists (vs2 ++ vs1). repeat rewrite <- app_assoc in *.
-    split; auto.
-    apply eval_decl_list_length in ih2; rewrite ih2.
-    econstructor; eauto.
-  - destruct (lift_list lift_e Shift.rename_e (length us) es)
-      as [les es'] eqn:eql; inv H2.
-    assert (help: exists vs',
-               eval_decl_list (us ++ ϵ) les vs'
-               /\ Forall2 (expr_big_step (vs' ++ us ++ ϵ)) es' vs).
-    { generalize dependent les;
-      generalize dependent es';
-        generalize dependent us.
-      induction H as [| e v es vs hev hesvs ihesvs]; inv H0;
-        intros us ES l h; unravel in *.
-      + inv h; cbn; eexists; eauto.
-      + destruct (lift_e (length us) e) as [le E] eqn:eqle.
-        destruct (lift_list lift_e Shift.rename_e (length le + length us) es)
-          as [les Es] eqn:eqles; inv h.
-        pose proof H3 _ _ _ eqle as (levs & hlevs & ihE); clear H3.
-        assert (hlen: length le = length levs)
-          by eauto using eval_decl_list_length.
-        rewrite hlen, <- app_length in eqles.
-        pose proof ihesvs H5 _ _ _ eqles as (lesvs & hlesvs & ihEs); clear ihesvs.
-        rewrite <- app_assoc in hlesvs, ihEs.
-        exists (lesvs ++ levs); split; auto using eval_decl_list_append.
-        apply eval_decl_list_length in hlesvs.
-        rewrite hlesvs.
-        constructor; rewrite <- app_assoc; auto using shift_eval. }
-    destruct help as (vs' & hvs' & h); eexists; eauto.
-Qed.
-
-Local Hint Resolve lift_e_expr_big_step : core.
-
-Lemma lift_e_list_expr_big_step : forall es vs ϵ,
-    Forall2 (expr_big_step ϵ) es vs ->
-    forall us les es',
-      lift_e_list (length us) es = (les, es') ->
-      exists vs',
-        eval_decl_list (us ++ ϵ) les vs'
-        /\ Forall2 (expr_big_step (vs' ++ us ++ ϵ)) es' vs.
-Proof.
-  intros es vs ϵ h;
-    induction h as [| e v es vs hev hesvs ihesvs];
-    intros us les es' h; unravel in *.
-  - inv h; eauto.
-  - destruct (lift_e (length us) e) as [l' e'] eqn:eql.
-    destruct (lift_e_list (length l' + length us) es)
-      as [les' es''] eqn:eqles; inv h.
-    eapply lift_e_expr_big_step in eql as (evs & hevs & ihevs); eauto.
-    assert (hl'evs : length l' = length evs)
-      by eauto using eval_decl_list_length.
-    rewrite hl'evs, <- app_length in eqles.
-    apply ihesvs in eqles as (esvs & h & ih).
-    repeat rewrite <- app_assoc in *.
-    exists (esvs ++ evs). rewrite <- app_assoc.
-    assert (hles'esvs : length les' = length esvs) by eauto.
-    rewrite hles'esvs; split; eauto.
-Qed.
-
-(* TODO: need better lemma for l-expressions. *)
-Theorem lift_e_lexpr_big_step : forall ϵ e lv,
-    l⟨ ϵ, e ⟩ ⇓ lv ->
-    forall us l e',
-      lift_e (length us) e = (l, e') ->
-      exists lv', l⟨ ϵ, e' ⟩ ⇓ lv' /\ exists vs,
-          eval_decl_list (us ++ ϵ) l vs /\
-            lv_lookup ϵ lv = lv_lookup (vs ++ us ++ ϵ) lv'.
-Proof.
-  intros ϵ e lv helv; induction helv;
-    intros us l e' h; unravel in *.
-  - inv h. exists (Val.Var (length us + x)); split; unravel; eauto.
-    exists []; cbn; split; auto.
-    rewrite ForallMap.nth_error_app3; reflexivity.
-  - destruct (lift_e (length us) e) as [le e''] eqn:eqle; inv h.
-    apply IHhelv in eqle as (lv' & he'lev' & ih); clear IHhelv.
-    eexists; split; eauto.
-    destruct ih as (vs & hvs & ih).
-    (* TODO: don't have enough evidence
-       that [e] may be evaluated under [ϵ].
-       Perhaps typing needs to be an assumption
-       then use progress? *)
-    admit.
-  - destruct (lift_e (length us) e) as [le e''] eqn:eqle; cbn in *; inv h.
-    rename e'' into e'.
-    apply IHhelv in eqle as (lv' & he'lv' & ih).
-    eexists; split; eauto.
-    destruct ih as (vs & hvs & ih).
-    eexists; split; eauto; unravel.
-    rewrite ih; reflexivity.
-Abort.
-
-(* TODO: need better lemma for l-expressions. *)
-Lemma lift_arg_big_step : forall arg varg ϵ,
-    rel_paramarg (expr_big_step ϵ) (lexpr_big_step ϵ) arg varg ->
-    forall us l arg',
-      lift_arg (length us) arg = (l, arg') ->
-      exists vs, eval_decl_list (us ++ ϵ) l vs /\ exists varg',
-          rel_paramarg
-            (expr_big_step (vs ++ us ++ ϵ))
-            (lexpr_big_step ϵ) arg' varg' /\
-            rel_paramarg
-              eq (fun lv lv' =>
-                    lv_lookup ϵ lv = lv_lookup (vs ++ us ++ ϵ) lv')
-              varg varg'.
-Proof.
-  intros [e | e | e] [v | lv | lv] ϵ heval us l [e' | e' | e'] h;
-    unravel in *; try contradiction;
-    destruct (lift_e (length us) e) as [le ?] eqn:eqle; inv h.
-  - eapply lift_e_expr_big_step in eqle as (vs & hvs & ih); eauto.
-    eexists; split; eauto. exists (PAIn v); auto.
-  - Fail eapply lift_e_lexpr_big_step in eqle; eauto.
-  (* destruct eqle as (lv' & he'lv' & ih).
-    specialize ih with ϵ.
-    destruct ih as (vs & hvs & ih).
-    eexists; split; eauto.
-    exists (PAOut lv'); auto. *) admit.
-  - Fail eapply lift_e_lexpr_big_step in eqle; eauto.
-  (* destruct eqle as (lv' & he'lv' & ih).
-    specialize ih with ϵ.
-    destruct ih as (vs & hvs & ih).
-    eexists; split; eauto.
-    exists (PAInOut lv'); auto. *) admit.
-Abort.
-
-(* TODO: need better lemma for l-expressions. *)
-Lemma lift_args_big_step : forall args vargs ϵ,
-    Forall2
-      (rel_paramarg
-         (expr_big_step ϵ)
-         (lexpr_big_step ϵ))
-      args vargs ->
-    forall us largs args',
-      lift_args (length us) args = (largs, args') ->
-      exists vs,
-        eval_decl_list (us ++ ϵ) largs vs /\ exists vargs',
-          Forall2
-            (rel_paramarg
-               (expr_big_step (vs ++ us ++ ϵ))
-               (lexpr_big_step ϵ)) args' vargs'
-          /\ Forall2
-              (rel_paramarg
-                 eq (fun lv lv' =>
-                       lv_lookup ϵ lv = lv_lookup (vs ++ us ++ ϵ) lv'))
-              vargs vargs'.
-Proof.
-  intros args vargs ϵ h;
-    induction h as [| arg varg args vargs harg hargs ih];
-    intros us largs args' h; unravel in h.
-  - inv h; eexists; split; eauto.
-  - destruct (lift_arg (length us) arg) as [larg arg'] eqn:eqlarg.
-    destruct (lift_args (length larg + length us) args)
-      as [largs'' args''] eqn:eqlargs; inv h.
-    rename largs'' into largs; rename args'' into args'.
-    Fail eapply lift_arg_big_step in eqlarg; eauto.
-  (* destruct eqlarg as (argvs & hargvs & varg' & hvarg' & ihvarg').
-    assert (hlargargvs : length larg = length argvs) by eauto.
-    rewrite hlargargvs, <- app_length in eqlargs.
-    apply ih in eqlargs as (argsvs & hargsvs & vargs' & hvargs' & ihvargs').
-    assert (hlargsargsvs : length largs = length argsvs) by eauto.
-    rewrite <- app_assoc in *; eexists; split; eauto.
-    rewrite <- app_assoc. rewrite hlargsargsvs.
-    exists (varg' :: vargs'); split.
-    + constructor; auto. (* TODO: helper lemma. *) admit.
-    + constructor; auto. *)
-Abort.
-
-Local Hint Constructors parser_expr_big_step : core.
-
-Lemma lift_trans_parser_expr_big_step : forall ϵ e st,
-    p⟨ ϵ, e ⟩ ⇓ st ->
-    forall us l e',
-      lift_trans (length us) e = (l, e') ->
-      exists vs, eval_decl_list (us ++ ϵ) l vs /\ p⟨ vs ++ us ++ ϵ, e' ⟩ ⇓ st.
-Proof.
-  intros ϵ e st hp us l e' h; inv hp; unravel in *.
-  - inv h; eexists; split; eauto.
-  - rename e0 into e.
-    destruct (lift_e (length us) e) as [le ee'] eqn:eqle.
-    eapply lift_e_expr_big_step in eqle as (vs & hvs & ihvs); eauto; inv h.
-    eexists; split; eauto.
-Qed.
+  Lemma Lift_e_good_lv : forall e lv,
+      l⟨ ϵ, e ⟩ ⇓ lv -> forall e' es,
+        Lift_e e e' es -> exists vs lv',
+          eval_decl_list ϵ es vs
+          /\ l⟨ vs ++ ϵ, e' ⟩ ⇓ lv'
+          /\ lv_lookup ϵ lv = lv_lookup (vs ++ ϵ) lv'.
+  Proof using.
+    unfold eval_decl_list.
+    intros e lv H; induction H;
+      intros e' es h; inv h; unravel; eauto.
+    - pose proof IHlexpr_big_step _ _ H5 as (vs & lv' & hvs & hlv' & hlu);
+        clear IHlexpr_big_step.
+      assert (exists v v', ⟨ϵ, e⟩ ⇓ v /\ slice_val hi lo v = Some v')
+        as (v & v' & hv & hv').
+      { (* TODO: need typing? *) admit. }
+      exists (v' :: vs), (Val.Var 0). cbn.
+      repeat split; eauto.
+      + constructor; auto.
+        econstructor; eauto.
+        pose proof Lift_e_good _ _ hv _ _ H5 as (vs' & hvs' & hv'').
+        assert (vs' = vs) by eauto; subst.
+        assumption.
+      + pose proof lexpr_expr_big_step
+          _ _ _ _ H hv as hlveq.
+        rewrite hlveq.
+        destruct v; cbn in *; inv hv'; f_equal.
+    - pose proof IHlexpr_big_step _ _ H5 as (vs & lv' & hvs & hlv' & hlu).
+      eexists; repeat esplit; eauto; cbn.
+      rewrite hlu. unfold option_bind.
+      reflexivity.
+    - pose proof Lift_e_good _ _ H _ _ H7 as (vs2 & hvs2 & hv2).
+      pose proof IHlexpr_big_step _ _ H6 as (vs1 & lv1 & hvs1 & hlv1 & hlu).
+      eexists; repeat esplit; eauto; cbn; rewrite <- app_assoc.
+      + rewrite (relate_decl_list_length _ _ _ _ hvs1),
+          (relate_decl_list_length _ _ _ _ hvs2).
+        econstructor; eauto.
+        eapply shift_lv_eval with (us:=[]); eauto.
+      + cbn; unfold option_bind.
+        replace (vs2 ++ vs1 ++ ϵ) with ([] ++ vs2 ++ vs1 ++ ϵ) by reflexivity.
+        rewrite shift_lv_lookup with (rs := []) (us := vs2) (lv := lv1); cbn.
+        rewrite hlu. unravel. reflexivity.
+  Admitted.
+End EvalExpr.
 
 Section StatementLifting.
   Context `{ext_sem : Extern_Sem}.
-  
+
+  Local Hint Constructors stmt_big_step : core.
+
   (** Specification of [unwind_vars]. *)
-  Lemma eval_decl_list_unwind_vars : forall es vs ϵ,
+  Lemma eval_decl_list_Unwind : forall ϵ es vs,
       eval_decl_list ϵ es vs ->
       forall vs' ϵ' c Ψ s sig ψ,
         length vs = length vs' ->
         ⧼ Ψ, vs ++ ϵ, c, s ⧽ ⤋ ⧼ vs' ++ ϵ', sig, ψ ⧽ ->
-        ⧼ Ψ, ϵ, c, unwind_vars es s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽.
-  Proof.
-    unfold unwind_vars.
-    intros es vs ϵ hedl; induction hedl;
-      intros [| v' vs'] ϵ' c Ψ s sig ψ hvs hs;
-      cbn in *; try discriminate; auto.
-    inv hvs. eapply IHhedl; eauto.
+        ⧼ Ψ, ϵ, c, Unwind es s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽.
+  Proof using.
+    intros eps es vs h;
+      induction h; intros; unravel in *.
+    - symmetry in H.
+      rewrite length_zero_iff_nil in H.
+      subst; assumption.
+    - destruct vs' as [| h' vs']; cbn in *; try lia.
+      inv H0. eauto.
   Qed.
-  
-Local Hint Resolve eval_decl_list_unwind_vars : core.
 
-Lemma lift_s_stmt_big_step : forall Ψ ϵ ϵ' c s sig ψ,
-    ⧼ Ψ, ϵ, c, s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ -> forall us,
-      ⧼ Ψ, us ++ ϵ, c, lift_s (length us) s ⧽ ⤋ ⧼ us ++ ϵ', sig, ψ ⧽.
-Proof.
-  intros Ψ ϵ ϵ' c s sig ψ hs; induction hs;
-    intro us; unravel; eauto.
-  - destruct eo as [e |]; inv H; auto.
-    destruct (lift_e (length us) e) as [le e'] eqn:eqle.
-    eapply lift_e_expr_big_step in eqle as (levs & hlevs & ihlevs); eauto.
-  - admit.
-  - admit.
-  - destruct (lift_e (length us) e₁) as [l₁ e₁'] eqn:eql1.
-    destruct (lift_e (length l₁ + length us) e₂) as [l₂ e₂'] eqn:eql2.
-    (* TODO: need l-expression lemma for lifting. *) admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - destruct te as [τ | e].
-    + specialize IHhs with us.
+  Local Hint Resolve eval_decl_list_Unwind : core.
+  Local Hint Resolve eval_decl_list_length : core.
+  Local Hint Resolve eval_decl_list_app : core.
+  Local Hint Resolve relate_decl_list_length : core.
+  Local Hint Resolve relate_decl_list_app : core.
+  Local Hint Resolve shift_s_eval : core.
+  Local Hint Constructors relop : core.
+  Local Hint Constructors ctx_cuttoff : core.
+  Local Hint Resolve ctx_cuttoff_le : core.
+  
+  Lemma Lift_s_good : forall Ψ ϵ ϵ' c s sig ψ,
+      ctx_cuttoff (length ϵ) c ->
+      ⧼ Ψ, ϵ, c, s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ -> forall s',
+          Lift_s s s' ->
+          ⧼ Ψ, ϵ, c, s' ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽.
+  Proof using.
+    intros Psi eps eps' c s sg psi hc hs;
+      induction hs; intros σ hσ; inv hσ; eauto.
+    - inv H.
+      pose proof Lift_e_good _ _ _ H2 _ _ H1 as (vs & hvs & hv).
+      eauto.
+    - inv hc. (*eapply eval_decl_list_Unwind; eauto.*) admit.
+    - admit.
+    - pose proof Lift_e_good_lv _ _ _ H _ _ H3 as (vs1 & hvs1 & hv1).
+      pose proof Lift_e_good _ _ _ H0 _ _ H5 as (vs2 & hvs2 & hv2).
+      eapply eval_decl_list_Unwind; eauto. admit. admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - econstructor; eauto.
+      eapply IHhs; cbn; eauto.
+    - pose proof Lift_e_good _ _ _ H _ _ H4 as (vs & hvs & hv).
+      eapply eval_decl_list_Unwind; eauto.
+      apply sbs_var with (v := v) (v' := v'); auto.
+      replace (v :: vs ++ ϵ) with ([v] ++ vs ++ ϵ) by reflexivity.
+      replace (v' :: vs ++ ϵ') with ([v'] ++ vs ++ ϵ') by reflexivity.
+      replace 1 with (length [v]) by reflexivity.
+      rewrite (eval_decl_list_length _ _ _ hvs). 
+      eapply shift_s_eval; cbn; eauto.
+      apply IHhs; cbn; eauto.
+    - eapply sbs_seq_cont; eauto.
+      apply IHhs2; auto.
+      erewrite <- sbs_length by eauto; assumption.
+    - pose proof Lift_e_good _ _ _ H _ _ H3 as (vs & hvs & hv).
+      rewrite (eval_decl_list_length _ _ _ hvs).
+      eapply eval_decl_list_Unwind; eauto.
       econstructor; eauto.
-      (* TODO: lemma for stmt evaluation
-         that [length ϵ = length ϵ']. *) admit.
-    + destruct (lift_e (length us) e) as [le e'] eqn:eqle.
-      eapply lift_e_expr_big_step in eqle
-          as (vs & hvs & he'); eauto.
-      (* TODO: lemma for stmt evaluation
-         that [length ϵ = length ϵ']. *) admit.
-  - destruct (lift_e (length us) e) as [le e'] eqn:eqle.
-      eapply lift_e_expr_big_step in eqle
-          as (vs & hvs & he'); eauto.
-      assert (hlevs : length le = length vs) by eauto.
-      rewrite hlevs, <- app_length.
-      specialize IHhs with (us := vs ++ us).
-      do 2 rewrite <- app_assoc in IHhs.
-      rewrite ssrbool.fun_if in IHhs.
-      eapply eval_decl_list_unwind_vars; eauto.
-Admitted.
+      replace 0 with (@length Val.v []) by reflexivity.
+      replace (vs ++ ϵ) with ([] ++ vs ++ ϵ) by reflexivity.
+      replace (vs ++ ϵ') with ([] ++ vs ++ ϵ') by reflexivity.
+      destruct b; eauto.
+  Admitted.
 End StatementLifting.

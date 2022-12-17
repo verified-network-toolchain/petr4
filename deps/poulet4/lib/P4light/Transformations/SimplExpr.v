@@ -127,7 +127,7 @@ Section Transformer.
       (* There are evaluation order issues here, also in bin_op, List, Record, etc. *)
       let '(l0, e0, n0) := transform_exp nameIdx func in
       let '(l1, e1, n1) :=
-          ((fix transform_lopt (idx: N) (l: list (option (@Expression tags_t))):
+        ((fix transform_lopt (idx: N) (l: list (option (@Expression tags_t))):
               (list (P4String * (@Expression tags_t)) *
                (list (option (@Expression tags_t))) * N) :=
               match l with

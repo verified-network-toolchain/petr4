@@ -256,7 +256,7 @@ Module Semantics.
     Variable tags_t : Type.
     Open Scope list_scope.
 
-    Definition normalize_width (signed : bool) (z : Z) (w_u w_v : option nat) : result (bv) :=
+    Definition normalize_width (signed : bool) (z : Z) (w_u w_v : option nat) : result string (bv) :=
       match w_u, w_v with
       | None, None =>
         ok {| signed := signed; val := z; width := None |}
@@ -270,7 +270,7 @@ Module Semantics.
         error "cannot compare signed and unsigned bvs"
       end.
 
-    Definition apply_binop (s_op u_op : option (Z -> Z -> Z)) (u v : bv) : result bv :=
+    Definition apply_binop (s_op u_op : option (Z -> Z -> Z)) (u v : bv) : result string bv :=
       if andb u.(signed) v.(signed)
       then
         let*~ op := s_op else "got signed bvs but no signed operation" in
@@ -284,9 +284,9 @@ Module Semantics.
            else
              error "got a mixed of signed and unsigned bvs".
 
-    Fixpoint lookup (s : store) (x : string) : result bv :=
+    Fixpoint lookup (s : store) (x : string) : result string bv :=
       match s with
-      | [] => error ("Could not find " ++ x ++ " in store")
+      | [] => error ("Could not find " ++ x ++ " in store")%string
       | ((y, bv)::s') =>
         if String.eqb x y
         then ok bv
@@ -305,7 +305,7 @@ Module Semantics.
     Definition update (s:store) (x : string) (u : bv) : store :=
       (x, u) :: remove x s.
 
-    Definition get_width (u v : bv) : result nat :=
+    Definition get_width (u v : bv) : result string nat :=
       match u.(width), v.(width) with
       | Some w, Some w' =>
         if Nat.eqb w w'
@@ -315,7 +315,7 @@ Module Semantics.
       |  _, _ => error "one had width the other didnt'"
       end.
 
-    Fixpoint eval (s : store) (b : BitVec.t) : result bv :=
+    Fixpoint eval (s : store) (b : BitVec.t) : result string bv :=
       match b with
       | BitVec.BitVec n w =>
         ok ({|signed := false;
@@ -475,7 +475,7 @@ Module Semantics.
       | Form.LNeq => negb (BinInt.Z.eqb x y)
       end.
 
-    Fixpoint models (s : store) (phi : Form.t) : result bool :=
+    Fixpoint models (s : store) (phi : Form.t) : result string bool :=
       match phi with
       | Form.LBool b =>
         ok b
@@ -504,7 +504,7 @@ Module Semantics.
 
     (* translate_pipeline :: list t -> result t *)
     (* Model inter-stage behavior using GCL code (inluding externs) *)
-    Fixpoint denote (a : Arch.t) (s : store) (g : @GCL.t string BitVec.t Form.t) : result (list store) :=
+    Fixpoint denote (a : Arch.t) (s : store) (g : @GCL.t string BitVec.t Form.t) : result string (list store) :=
       match g with
       | GCL.GSkip => ok [s]
       | GCL.GAssign _ lhs rhs =>

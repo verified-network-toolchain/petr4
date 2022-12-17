@@ -14,7 +14,7 @@
  *)
 {
 open Lexing
-open Test_parser
+open Stf_parser
 
 exception Error of string
 

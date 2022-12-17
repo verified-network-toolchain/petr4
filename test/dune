@@ -1,5 +1,5 @@
 (tests
   (names test)
-  (libraries core core_unix core_unix.sys_unix p4pp petr4 alcotest)
+  (libraries ANSITerminal core core_unix core_unix.sys_unix p4pp petr4 alcotest)
   (deps (source_tree ../examples))
   (action (run %{test} -e)))

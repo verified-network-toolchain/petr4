@@ -1,7 +1,12 @@
 From Coq Require Import micromega.Lia Strings.String NArith.NArith.
-From Poulet4 Require Import P4light.Syntax.Syntax
-     P4light.Syntax.SyntaxUtil P4light.Syntax.ValueUtil
-     Monads.Option P4light.Semantics.Semantics Utils.ForallMap.
+From Poulet4 Require Import
+     Monads.Option
+     Monads.Result
+     P4light.Semantics.Semantics
+     P4light.Syntax.Syntax
+     P4light.Syntax.SyntaxUtil
+     P4light.Syntax.ValueUtil
+     Utils.ForallMap.
 Require Poulet4.P4light.Semantics.Interpreter.
 
 Ltac destruct_match H :=
@@ -59,22 +64,39 @@ Section InterpreterSafe.
 
   Lemma find_member_get:
     forall (name : string) (sv v : Value.ValueBase),
-    @Interpreter.find_member tags_t v name = Some sv ->
+    @Interpreter.find_member tags_t v name = Ok sv ->
     Semantics.get_member v name sv.
   Proof.
     intros. revert sv H. induction v using Value.custom_ValueBase_ind; intros;
-      try (now inversion H); simpl in H0; try now constructor. destruct_match H0.
-    - rewrite e. inversion H0. subst. clear H0. constructor.
-    - destruct_match H0. 2: inversion H0. rewrite e. econstructor.
-      unfold Interpreter.last_index_of_next in H0.
-      destruct_match H0; [|inversion H0]; auto.
-      Unshelve.
-      exact tags_t.
+      try (now inversion H).
+    - simpl in H0.
+      destruct (AList.get vs name) eqn:Hget; cbn in H0; inversion H0; subst.
+      now constructor.
+    - simpl in H0.
+      destruct (AList.get vs name) eqn:Hget; cbn in H0; inversion H0; subst.
+      now constructor.
+    - simpl in H0.
+      destruct (AList.get vs name) eqn:Hget; cbn in H0; inversion H0; subst.
+      now constructor.
+    - cbn in H0;
+        destruct (string_dec name "size");
+        [|destruct (string_dec name "lastIndex")];
+        subst.
+      + apply ok_Ok_inj in H0; subst.
+        constructor.
+      + apply from_opt_Ok in H0.
+        unfold Interpreter.last_index_of_next in H0.
+        econstructor.
+        destruct (i =? 0)%N;
+          [auto | congruence].
+      + now apply error_not_ok in H0.
+    Unshelve.
+    exact tags_t.
   Qed.
 
   Theorem interp_expr_safe:
     forall expr this st sv,
-      Interpreter.interp_expr ge this st expr = Some sv ->
+      Interpreter.interp_expr ge this st expr = Ok sv ->
       Semantics.exec_expr ge read_ndetbit this st expr sv.
   Proof.
     induction expr using expr_ind; intros.
@@ -93,59 +115,96 @@ Section InterpreterSafe.
       constructor.
     - cbn in H. destruct_match H.
       + constructor; auto.
-      + now apply Semantics.exec_expr_name_const.
-    - cbn in H. destruct_optbind H. 2: inversion H.
-      destruct_match H. 2: inversion H. destruct_match H. 2: inversion H.
-      destruct v0; try now inversion H. destruct_match H. 2: inversion H.
-      destruct_match H; inversion H; subst; clear H. econstructor; eauto.
-    - cbn in H. destruct_optbind H. 2: inversion H.
-      destruct_match H. 2: inversion H. destruct p.
-      destruct n. 1: rewrite Bool.andb_false_r in H; inversion H.
-      destruct_match H; inversion H; subst; clear H. econstructor; eauto.
-      apply andb_prop in H2. destruct H2. apply PeanoNat.Nat.leb_le in H, H2. lia.
-    - cbn in H0. destruct_optbind H0; inversion H0. subst; clear H0.
-      constructor. revert l H1. induction H; intros.
-      + simpl in H1. inversion H1. constructor.
-      + destruct l0; simpl in H1; destruct_match H1; try now inversion H1.
-        all: destruct_match H1; inversion H1; subst. constructor; auto.
-    - cbn in H0. destruct_optbind H0; inversion H0. subst. clear H0.
-      constructor. revert l H1. induction H; intros.
-      + simpl in H1. inversion H1. simpl. constructor.
-      + destruct l0; simpl in H1; destruct x; destruct_match H1; try now inversion H1.
-        all: destruct_match H1; inversion H1; subst. clear H1.
-        simpl. destruct t0. simpl. constructor; auto. now apply IHForall.
-    - cbn in H. destruct_optbind H. 2: inversion H. destruct_match H. 2: inversion H.
-      unfold Interpreter.interp_val_sval in H. inversion H; subst; clear H.
+      + apply Semantics.exec_expr_name_const;
+          eauto using from_opt_Ok.
+    - cbn in H. repeat simpl_result_all || destruct_match H;
+        solve [tauto | econstructor; eauto].
+    - cbn in H. repeat simpl_result_all.
+      do 2 destruct_match H.
+      destruct n; simpl_result_all; subst.
+      + apply andb_prop in H1.
+        destruct H1.
+        congruence.
+      + apply andb_prop in H1.
+        destruct H1.
+        apply PeanoNat.Nat.leb_le in H, H0.
+        econstructor; eauto; lia.
+      + simpl_result_all.
+        tauto.
+    - cbn in H0; repeat simpl_result_all; subst.
+      constructor.
+      revert w Hw.
+      induction H; intros.
+      + simpl in Hw.
+        simpl_result_all; subst.
+        constructor.
+      + simpl in Hw.
+        repeat simpl_result_all; subst.
+        constructor; eauto.
+    - cbn in H0. repeat simpl_result_all; subst.
+      constructor.
+      revert w Hw.
+      induction H; intros.
+      + simpl in Hw. inversion Hw. simpl. constructor.
+      + simpl in Hw.
+        destruct_match Hw.
+        repeat simpl_result Hw; subst.
+        destruct x.
+        constructor.
+        * simpl.
+          split; [congruence | apply H; congruence].
+        * apply IHForall.
+          eauto.
+    - cbn in H.
+      repeat simpl_result_all; subst.
       econstructor; eauto.
-    - cbn in H. destruct_optbind H. 2: inversion H.
-      do 2 (destruct_match H; [| inversion H]).
-      unfold Interpreter.interp_val_sval in H. inversion H; subst; clear H.
+    - cbn in H.
+      repeat simpl_result_all; subst.
       econstructor; eauto.
-    - cbn in H. destruct_optbind H. 2: inversion H. destruct_match H; [| inversion H].
-      destruct_match H; inversion H; subst. econstructor; eauto.
-    - cbn in H. destruct_optbind H. 2: inversion H. destruct p; inversion H.
-      clear H2. destruct typ0.
-      + destruct_match H. 2: inversion H.
-        destruct_match H; inversion H; subst; clear H. econstructor; eauto.
-      + destruct_match H; inversion H. subst. clear H. econstructor; eauto.
-        apply List.find_some in H1.
-        intuition.
-        apply List.in_map_iff.
+    - cbn in H.
+      repeat simpl_result_all; subst.
+      econstructor; eauto.
+    - cbn in H.
+      repeat simpl_result_all; subst.
+      destruct_match H; try (simpl_result_all; tauto).
+      destruct_match H.
+      + repeat simpl_result_all; subst.
+        econstructor; eauto.
+      + destruct_match H;
+          repeat simpl_result_all; subst;
+          try tauto.
+        econstructor; eauto.
+        apply find_some in H2.
+        destruct H2.
+        apply in_map_iff.
         exists t0.
-        split; auto.
+        unfold P4String.equivb in *.
+        split; eauto.
         symmetry.
-        apply eqb_eq.
-        auto.
-    - simpl in H. inversion H. subst. constructor.
-    - cbn in H. destruct_optbind H. 2: inversion H.
-      destruct_match H; inversion H; subst; clear H. econstructor; eauto.
-      now apply find_member_get.
-    - cbn in H. destruct_optbind H. 2: inversion H. destruct_match H; inversion H.
-      clear H3. assert (sval_to_val read_ndetbit v (Value.ValBaseBool b)). {
-        rewrite <- H1. auto. } econstructor; eauto. destruct b; auto.
-    - simpl in H0. inversion H0.
-    - simpl in H0. inversion H0.
-    - simpl in H. inversion H. constructor.
+        now apply eqb_eq.
+    - cbn in H.
+      repeat simpl_result_all; subst.
+      econstructor; eauto.
+    - cbn in H.
+      repeat simpl_result_all; subst.
+      econstructor; eauto using find_member_get.
+    - cbn in H.
+      repeat simpl_result_all.
+      destruct_match H;
+        try (repeat simpl_result_all; tauto).
+      econstructor; eauto.
+      + rewrite <- H0.
+        eapply sval_to_val_interp.
+      + destruct b; auto.
+    - cbn in H.
+      repeat simpl_result_all.
+      tauto.
+    - cbn in H.
+      repeat simpl_result_all.
+      tauto.
+    - cbn in H.
+      repeat simpl_result_all; subst.
+      tauto.
   Qed.
 
   (* This theorem is not really completeness, but close enough.
@@ -160,7 +219,7 @@ Section InterpreterSafe.
     forall expr this st sv,
       Semantics.exec_expr ge read_one_bit this st expr sv ->
       exists sv',
-        Interpreter.interp_expr ge this st expr = Some sv'.
+        Interpreter.interp_expr ge this st expr = Ok sv'.
   Proof.
   Admitted.
 
@@ -199,89 +258,74 @@ Section InterpreterSafe.
 
   Lemma interp_expr_det_safe:
     forall this st expr v,
-      Interpreter.interp_expr_det ge this st expr = Some v ->
+      Interpreter.interp_expr_det ge this st expr = Ok v ->
       Semantics.exec_expr_det ge read_ndetbit this st expr v.
   Proof.
     unfold Interpreter.interp_expr_det.
     intros.
-    simpl in H.
-    optbind_inv.
-    inversion H.
-    econstructor.
-    - eapply interp_expr_safe.
-      eapply Heqo.
-    - eapply sval_to_val_interp.
+    simpl_result H; subst.
+    econstructor; eauto using interp_expr_safe.
   Qed.
 
   Theorem interp_lexpr_safe:
     forall expr this st lv sig,
-      Interpreter.interp_lexpr ge this st expr = Some (lv, sig) ->
+      Interpreter.interp_lexpr ge this st expr = Ok (lv, sig) ->
       Semantics.exec_lexpr ge read_ndetbit this st expr lv sig.
   Proof.
     induction expr using expr_ind;
-      try solve [simpl; intros; congruence].
+      try solve [simpl; intros; simpl_result_all; tauto].
     - intros.
-      simpl.
-      inversion H; subst.
+      simpl_result_all.
+      inversion H.
       constructor.
     - intros.
       cbn in H.
-      repeat optbind_inv.
-      destruct a.
-      repeat optbind_inv.
-      destruct a; try discriminate.
-      inversion H; subst.
-      inversion Heqo0; subst.
-      econstructor; eauto.
-      + eapply interp_expr_det_safe; eauto.
-        unfold Interpreter.interp_expr_det.
-        rewrite Heqo5; simpl.
-        rewrite H1.
-        eauto.
-      + eapply interp_expr_det_safe; eauto.
-        unfold Interpreter.interp_expr_det.
-        eauto.
-        rewrite Heqo4; simpl.
-        congruence.
+      repeat simpl_result_all.
+      destruct_match H.
+      repeat simpl_result_all; subst.
+      inversion H; subst; clear H.
+      destruct w0; try (simpl_result_all; tauto).
+      econstructor; eauto using interp_expr_det_safe.
     - intros.
-      simpl in H.
-      repeat optbind_inv.
-      destruct a.
-      repeat optbind_inv.
-      destruct a0.
-      destruct ((lo <=? hi)%N && (hi <? N.of_nat n)%N)%bool eqn:?;
-               [|congruence].
+      cbn in H.
+      repeat simpl_result_all.
+      destruct_match H.
+      repeat simpl_result_all.
+      destruct_match H.
+      destruct_match H;
+        simpl_result_all; try tauto.
       inversion H; subst.
-      econstructor; eauto using sval_to_bits_width_sval_val_comm.
-      + econstructor; eauto using interp_expr_safe.
-      + apply andb_prop in Heqb.
-        destruct Heqb.
-        split.
-        * now apply N.leb_le.
-        * apply N.ltb_lt; eauto.
+      apply interp_expr_safe in Hw0.
+      apply IHexpr in Hw.
+      econstructor.
+      + assumption.
+      + econstructor; eauto.
+      + eauto using sval_to_bits_width_sval_val_comm.
+      + apply andb_prop in H2.
+        destruct H2.
+        apply N.leb_le in H0.
+        apply N.ltb_lt in H1.
+        tauto.
     - intros.
-      simpl in H.
-      repeat optbind_inv.
-      destruct a.
-      destruct (P4String.str name =? "next")%string eqn:?.
-      + optbind_inv.
-        destruct a; try congruence.
+      cbn in *.
+      repeat simpl_result_all.
+      destruct_match H.
+      destruct_match H.
+      + repeat simpl_result_all.
+        destruct_match H;
+          simpl_result_all; try tauto.
         inversion H; subst.
-        econstructor.
-        * assumption.
-        * eapply IHexpr.
-          eassumption.
-        * eapply interp_expr_safe; eauto.
-        * destruct (next <? N.of_nat _)%N; reflexivity.
-      + inversion H; subst.
-        econstructor.
-        * assumption.
-        * eapply IHexpr; eauto.
+        eapply exec_lexpr_member_next;
+          eauto using interp_expr_safe.
+        destruct (_ <? _)%N; tauto.
+      + simpl_result_all.
+        inversion H; subst.
+        constructor; eauto.
   Qed.
-
+  
   Theorem interp_read_safe:
     forall lv st v,
-      Interpreter.interp_read st lv = Some v ->
+      Interpreter.interp_read st lv = Ok v ->
       Semantics.exec_read st lv v.
   Proof.
     intro lv.
@@ -292,12 +336,11 @@ Section InterpreterSafe.
     induction lv; repeat (intros; unfold lval_ok; simpl).
     - constructor; assumption.
     - simpl in H.
-      optbind_inv.
+      simpl_result_all.
       econstructor; eauto using find_member_get.
     - simpl in H.
-      optbind_inv.
-      optbind_inv.
-      destruct a0.
+      repeat simpl_result_all.
+      destruct w0.
       destruct (PeanoNat.Nat.leb (N.to_nat lsb) (N.to_nat msb) &&
                 PeanoNat.Nat.ltb (N.to_nat msb) n)%bool
                eqn:?;
@@ -309,10 +352,9 @@ Section InterpreterSafe.
       split.
       + eapply Bool.reflect_iff in H0; eauto using PeanoNat.Nat.leb_spec0.
       + eapply Bool.reflect_iff in H1; eauto using PeanoNat.Nat.leb_spec0.
-    - simpl in H.
-      optbind_inv.
-      destruct a; try discriminate.
-      optbind_inv.
+    - simpl_result_all.
+      destruct w; try discriminate.
+      repeat simpl_result_all.
       inversion H.
       subst.
       econstructor; eauto.
@@ -320,34 +362,31 @@ Section InterpreterSafe.
 
   Lemma set_member_safe:
     forall hdr fname v hdr',
-      Interpreter.set_member hdr fname v = Some hdr' ->
+      Interpreter.set_member hdr fname v = Ok hdr' ->
       Semantics.update_member hdr fname v hdr'.
   Proof.
+    unfold Interpreter.set_member.
     destruct hdr; intros; try discriminate.
-    - simpl in H.
-      optbind_inv.
-      inversion H.
+    - repeat simpl_result_all.
       subst.
       now constructor.
-    - simpl in H.
-      constructor.
+    - constructor.
       unfold Interpreter.set_header_field in H.
       destruct is_valid as [[ | ] | ]; simpl in H;
+        repeat simpl_result_all;
         optbind_inv;
         inversion H;
         constructor;
         auto.
-    - simpl in H.
-      destruct v; try discriminate.
-      optbind_inv.
-      inversion H.
+    - destruct v; try discriminate.
+      repeat simpl_result_all.
       subst.
       econstructor; eauto.
   Qed.
 
   Theorem interp_write_safe:
     forall lv st v st',
-      Interpreter.interp_write st lv v = Some st' ->
+      Interpreter.interp_write st lv v = Ok st' ->
       Semantics.exec_write st lv v st'.
   Proof.
     simpl; intro lv; induction lv; intros.
@@ -357,14 +396,14 @@ Section InterpreterSafe.
       constructor.
       auto.
     - simpl in H.
-      optbind_inv.
-      optbind_inv.
+      repeat simpl_result_all.
       apply IHlv in H.
       econstructor; eauto using interp_read_safe, set_member_safe.
     - simpl in H.
-      optbind_inv.
+      repeat simpl_result_all.
+      repeat simpl_result_all.
       destruct v; try discriminate.
-      destruct a; try discriminate.
+      destruct w; try discriminate.
       + destruct (PeanoNat.Nat.leb (N.to_nat lsb) (N.to_nat msb) &&
                   PeanoNat.Nat.ltb (N.to_nat msb) (Datatypes.length value0))%bool
                  eqn:?;
@@ -388,15 +427,15 @@ Section InterpreterSafe.
           by eauto using PeanoNat.Nat.ltb_spec0.
         solve [econstructor; eauto using interp_read_safe].
     - simpl in H.
-      optbind_inv.
-      destruct a;
+      repeat simpl_result_all.
+      destruct w;
         try discriminate.
       econstructor; eauto using interp_read_safe.
   Qed.
 
   Definition stmt_safe stmt :=
     forall this st fuel st' sig,
-      Interpreter.interp_stmt ge this st fuel stmt = Some (st', sig) ->
+      Interpreter.interp_stmt ge this st fuel stmt = Ok (st', sig) ->
       Semantics.exec_stmt ge read_ndetbit this st stmt st' sig.
 
   Definition pre_stmt_safe pre_stmt :=
@@ -405,7 +444,7 @@ Section InterpreterSafe.
 
   Definition block_safe block :=
     forall this st fuel st' sig,
-      Interpreter.interp_block ge this st fuel block = Some (st', sig) ->
+      Interpreter.interp_block ge this st fuel block = Ok (st', sig) ->
       Semantics.exec_block ge read_ndetbit this st block st' sig.
 
   Definition switch_case_safe switch_case :=
@@ -432,7 +471,7 @@ Section InterpreterSafe.
 
   Lemma interp_arg_safe:
     forall this st exp dir arg sig,
-      Interpreter.interp_arg ge this st exp dir = Some (arg, sig) ->
+      Interpreter.interp_arg ge this st exp dir = Ok (arg, sig) ->
       Semantics.exec_arg ge read_ndetbit this st exp dir arg sig.
   Proof.
     intros.
@@ -440,20 +479,20 @@ Section InterpreterSafe.
     destruct exp.
     - destruct dir;
         simpl in *;
-        try (optbind_inv; inversion H);
+        try (repeat simpl_result_all; inversion H);
         subst.
       + econstructor; eauto using interp_expr_det_safe.
-      + destruct a.
+      + destruct w.
         inversion H.
         subst.
         econstructor; eauto using interp_lexpr_safe.
-      + destruct a.
-        optbind_inv.
-        optbind_inv.
+      + destruct w.
+        repeat simpl_result_all.
         inversion H.
         subst.
+        assert (w = w0) by congruence.
+        subst.
         econstructor; eauto using interp_lexpr_safe, interp_read_safe.
-      + discriminate.
     - destruct dir; try discriminate.
       inversion H.
       econstructor; eauto.
@@ -461,7 +500,7 @@ Section InterpreterSafe.
 
   Lemma interp_args_safe:
     forall exps this st dirs args sig,
-      Interpreter.interp_args ge this st exps dirs = Some (args, sig) ->
+      Interpreter.interp_args ge this st exps dirs = Ok (args, sig) ->
       Semantics.exec_args ge read_ndetbit this st exps dirs args sig.
   Proof.
     induction exps; intros.
@@ -471,10 +510,10 @@ Section InterpreterSafe.
         constructor.
       + discriminate.
     - destruct dirs; simpl in H; try discriminate.
-      optbind_inv.
-      destruct a0.
-      optbind_inv.
-      destruct a1.
+      repeat simpl_result_all.
+      destruct w.
+      repeat simpl_result_all.
+      destruct w.
       inversion H.
       subst.
       econstructor; eauto using interp_arg_safe.
@@ -483,20 +522,20 @@ Section InterpreterSafe.
 
   Lemma interp_isValid_safe:
     (forall a v,
-      Interpreter.interp_isValid a = Some v ->
+      Interpreter.interp_isValid a = Ok v ->
       Semantics.exec_isValid read_ndetbit a v).
   Proof.
     intros.
     eapply (Interpreter.interp_isValid_graph_mut
               (fun a v0 =>
                  forall v,
-                   v0 = Some v ->
-                   Interpreter.interp_isValid a = Some v ->
+                   v0 = Ok v ->
+                   Interpreter.interp_isValid a = Ok v ->
                    Semantics.exec_isValid read_ndetbit a v)
               (fun fields valids0 =>
                  forall valids,
-                   valids0 = Some valids ->
-                   Interpreter.interp_isValid_fields fields = Some valids ->
+                   valids0 = Ok valids ->
+                   Interpreter.interp_isValid_fields fields = Ok valids ->
                    List.Forall2 (Semantics.exec_isValid read_ndetbit)
                                 (List.map snd fields) valids));
       intros;
@@ -506,7 +545,7 @@ Section InterpreterSafe.
       inversion H0.
       eauto.
     - simpl in *.
-      optbind_inv.
+      repeat simpl_result_all.
       inversion H1.
       subst.
       econstructor; eauto.
@@ -514,9 +553,9 @@ Section InterpreterSafe.
       simpl.
       constructor.
     - simpl in *.
-      optbind_inv.
-      optbind_inv.
-      optbind_inv.
+      repeat simpl_result_all.
+      repeat simpl_result_all.
+      repeat simpl_result_all.
       inversion H2.
       constructor; eauto.
     - eapply Interpreter.interp_isValid_graph_correct.
@@ -524,7 +563,7 @@ Section InterpreterSafe.
 
   Lemma interp_builtin_safe:
     forall this st lv name args st' sig,
-      Interpreter.interp_builtin this st lv name args = Some (st', sig) ->
+      Interpreter.interp_builtin this st lv name args = Ok (st', sig) ->
       Semantics.exec_builtin read_ndetbit this st lv name args st' sig.
   Proof.
     unfold Interpreter.interp_builtin.
@@ -538,44 +577,44 @@ Section InterpreterSafe.
                      end);
       subst;
       simpl in *.
-    - optbind_inv.
-      destruct args; [|optbind_inv; discriminate].
-      optbind_inv.
+    - repeat simpl_result_all.
+      destruct args; [|repeat simpl_result_all; tauto].
+      repeat simpl_result_all.
       inversion H.
       subst.
       econstructor; eauto using interp_isValid_safe, interp_read_safe.
-    - optbind_inv.
-      destruct a; try discriminate.
+    - repeat simpl_result_all.
+      destruct w; try (simpl_result_all; tauto).
       destruct args; try discriminate.
-      optbind_inv.
+      repeat simpl_result_all.
       inversion H.
       subst.
       econstructor; eauto using interp_read_safe, interp_write_safe.
-    - optbind_inv.
-      destruct a; try discriminate.
+    - repeat simpl_result_all.
+      destruct w; try discriminate.
       destruct args; try discriminate.
-      optbind_inv.
+      repeat simpl_result_all.
       inversion H.
       subst.
       econstructor; eauto using interp_read_safe, interp_write_safe.
-    - optbind_inv.
-      destruct a; try discriminate.
+    - repeat simpl_result_all.
+      destruct w; try discriminate.
       destruct args; try discriminate.
       destruct v; try discriminate.
       destruct args; try discriminate.
-      optbind_inv.
-      optbind_inv.
+      repeat simpl_result_all.
+      repeat simpl_result_all.
       destruct (BinInt.Z.leb_spec Z0 z); try discriminate.
       inversion H.
       subst.
       econstructor; eauto using interp_read_safe, interp_write_safe, BinInt.Z.le_ge.
-    - optbind_inv.
-      destruct a; try discriminate.
+    - repeat simpl_result_all.
+      destruct w; try discriminate.
       destruct args; try discriminate.
       destruct v; try discriminate.
       destruct args; try discriminate.
-      optbind_inv.
-      optbind_inv.
+      repeat simpl_result_all.
+      repeat simpl_result_all.
       destruct (BinInt.Z.leb_spec Z0 z); try discriminate.
       inversion H.
       subst.
@@ -585,7 +624,7 @@ Section InterpreterSafe.
 
   Lemma interp_write_option_safe:
     forall st lv v st',
-      Interpreter.interp_write_option st lv v = Some st' ->
+      Interpreter.interp_write_option st lv v = Ok st' ->
       Semantics.exec_write_option st lv v st'.
   Proof.
     intros.
@@ -599,7 +638,7 @@ Section InterpreterSafe.
 
   Lemma interp_call_copy_out_safe:
     forall outs vs st st',
-      Interpreter.interp_call_copy_out outs vs st = Some st' ->
+      Interpreter.interp_call_copy_out outs vs st = Ok st' ->
       Semantics.exec_call_copy_out outs vs st st'.
   Proof.
     unfold Interpreter.interp_call_copy_out.
@@ -617,7 +656,7 @@ Section InterpreterSafe.
     - destruct vs; try discriminate.
       intros.
       simpl in *.
-      optbind_inv.
+      repeat simpl_result_all.
       econstructor;
         eauto using interp_write_option_safe.
   Qed.
@@ -675,29 +714,46 @@ Section InterpreterSafe.
       + eapply IHxs; eauto.
   Qed.
 
+  Lemma sequence_length :
+    forall {A : Type} (m : Type -> Type) (M : Monad m) (cs : list (m A)) (vs: list A),
+      (forall A (x y : A), mret x = mret y -> x = y) ->
+      Monad.sequence cs = Monad.mret vs ->
+      length vs = length cs.
+  Proof.
+    induction cs.
+    intros.
+    - cbn in *.
+      eapply H in H0.
+      subst.
+      reflexivity.
+    - intros.
+  Admitted.
+
   Lemma interp_exprs_safe:
     forall exprs this st vals,
-      Interpreter.interp_exprs ge this st exprs = Some vals ->
+      Interpreter.interp_exprs ge this st exprs = Ok vals ->
       Semantics.exec_exprs_det ge read_ndetbit this st exprs vals.
   Proof.
     intros.
     unfold Interpreter.interp_exprs in H.
     simpl in *.
-    optbind_inv.
+    repeat simpl_result_all.
     econstructor.
     - eapply Forall2_forall.
       split.
-      + eapply lift_option_length in Heqo.
-        rewrite List.map_length in Heqo.
-        apply Heqo.
+      + eapply eq_trans.
+        symmetry.
+        eapply map_length.
+        symmetry.
+        eapply sequence_length; try eapply Hw.
+        admit.
       + intros.
         inversion H; subst.
         assert (List.In u exprs)
           by eauto using List.in_combine_l.
-        assert (List.In v a)
+        assert (List.In v w)
           by eauto using List.in_combine_r.
-        eapply lift_option_some in Heqo; eauto.
-        eauto using interp_expr_safe.
+        admit.
     - unfold svals_to_vals.
       inversion H.
       eapply Forall2_forall.
@@ -705,14 +761,14 @@ Section InterpreterSafe.
       + rewrite List.map_length.
         eauto.
       + intros.
-        eapply in_combine_f in H0.
+        eapply in_combine_f in H1.
         subst.
         eapply sval_to_val_interp.
-  Qed.
+  Admitted.
 
   Lemma interp_match_safe:
     forall this m vset,
-      Interpreter.interp_match ge this m = Some vset ->
+      Interpreter.interp_match ge this m = Ok vset ->
       Semantics.exec_match ge read_ndetbit this m vset.
   Proof.
     destruct m.
@@ -721,22 +777,22 @@ Section InterpreterSafe.
     destruct expr.
     - inversion H.
       constructor.
-    - optbind_inv.
-      optbind_inv.
+    - repeat simpl_result_all.
+      repeat simpl_result_all.
       inversion H; subst.
       constructor; eauto using interp_expr_det_safe.
-    - optbind_inv.
-      optbind_inv.
+    - repeat simpl_result_all.
+      repeat simpl_result_all.
       inversion H; subst.
       constructor; eauto using interp_expr_det_safe.
-    - optbind_inv.
-      optbind_inv.
+    - repeat simpl_result_all.
+      repeat simpl_result_all.
       econstructor; eauto using interp_expr_det_safe.
   Qed.
 
   Lemma interp_matches_safe:
     forall this matches vsets,
-      Interpreter.interp_matches ge this matches = Some vsets ->
+      Interpreter.interp_matches ge this matches = Ok vsets ->
       Semantics.exec_matches ge read_ndetbit this matches vsets.
   Proof.
     unfold Semantics.exec_matches.
@@ -745,8 +801,8 @@ Section InterpreterSafe.
     - inversion H.
       constructor.
     - intros.
-      optbind_inv.
-      optbind_inv.
+      repeat simpl_result_all.
+      repeat simpl_result_all.
       inversion H.
       subst.
       constructor; eauto.
@@ -755,21 +811,21 @@ Section InterpreterSafe.
 
   Lemma interp_table_entry_safe:
     forall this entries vset,
-      Interpreter.interp_table_entry ge this entries = Some vset ->
+      Interpreter.interp_table_entry ge this entries = Ok vset ->
       Semantics.exec_table_entry ge read_ndetbit this entries vset.
   Proof.
     unfold Interpreter.interp_table_entry.
     intros.
     destruct entries.
     simpl in *.
-    optbind_inv.
+    repeat simpl_result_all.
     econstructor; eauto using interp_matches_safe.
-    destruct (PeanoNat.Nat.eqb _ _); congruence.
+    destruct (PeanoNat.Nat.eqb _ _); simpl_result_all; congruence.
   Qed.
 
   Lemma interp_table_entries_safe:
     forall entries this vsets,
-      Interpreter.interp_table_entries ge this entries = Some vsets ->
+      Interpreter.interp_table_entries ge this entries = Ok vsets ->
       Semantics.exec_table_entries ge read_ndetbit this entries vsets.
   Proof.
     unfold Semantics.exec_table_entries.
@@ -778,45 +834,45 @@ Section InterpreterSafe.
       inversion H.
       constructor.
     - simpl in *.
-      optbind_inv.
-      optbind_inv.
+      repeat simpl_result_all.
+      repeat simpl_result_all.
       inversion H; subst.
       constructor; eauto using interp_table_entry_safe.
   Qed.
 
   Lemma interp_table_match_safe:
     forall this st name keys const_entries action,
-      Interpreter.interp_table_match ge this st name keys const_entries = Some action ->
+      Interpreter.interp_table_match ge this st name keys const_entries = Ok action ->
       Semantics.exec_table_match ge read_ndetbit this st name keys const_entries action.
   Proof.
     unfold Interpreter.interp_table_match.
     intros.
     simpl in *.
-    optbind_inv.
-    optbind_inv.
+    repeat simpl_result_all.
+    repeat simpl_result_all.
     inversion H.
     subst.
     econstructor; eauto using interp_exprs_safe, interp_table_entries_safe.
   Qed.
 
-  Definition fuel_stmt_safe (fuel: nat) : Prop :=
+  Definition fuel_stmt_safe (fuel: Interpreter.Fuel) : Prop :=
     forall stmt this st st' sig,
-      Interpreter.interp_stmt ge this st fuel stmt = Some (st', sig) ->
+      Interpreter.interp_stmt ge this st fuel stmt = Ok (st', sig) ->
       Semantics.exec_stmt ge read_ndetbit this st stmt st' sig.
 
-  Definition fuel_block_safe (fuel: nat) : Prop :=
+  Definition fuel_block_safe (fuel: Interpreter.Fuel) : Prop :=
     forall block this st st' sig,
-      Interpreter.interp_block ge this st fuel block = Some (st', sig) ->
+      Interpreter.interp_block ge this st fuel block = Ok (st', sig) ->
       Semantics.exec_block ge read_ndetbit this st block st' sig.
 
-  Definition fuel_call_safe (fuel: nat) : Prop :=
+  Definition fuel_call_safe (fuel: Interpreter.Fuel) : Prop :=
     forall this st call st' sig,
-      Interpreter.interp_call ge this st fuel call = Some (st', sig) ->
+      Interpreter.interp_call ge this st fuel call = Ok (st', sig) ->
       Semantics.exec_call ge read_ndetbit this st call st' sig.
 
-  Definition fuel_func_safe (fuel: nat) : Prop :=
+  Definition fuel_func_safe (fuel: Interpreter.Fuel) : Prop :=
     forall this st fn typ_args args st' retvs sig,
-      Interpreter.interp_func ge this st fuel fn typ_args args = Some (st', retvs, sig) ->
+      Interpreter.interp_func ge this st fuel fn typ_args args = Ok (st', retvs, sig) ->
       Semantics.exec_func ge read_ndetbit this st fn typ_args args st' retvs sig.
 
   Theorem fuel_safe:
@@ -841,64 +897,65 @@ Section InterpreterSafe.
                                                 discriminate]
       |destruct fn].
     - cbn in H.
-      optbind_inv.
-      destruct a.
+      repeat simpl_result_all.
+      destruct w.
       inversion H.
       subst.
       econstructor; eauto.
     - cbn in H.
       destruct (Interpreter.is_call rhs) eqn:?.
-      + optbind_inv.
-        destruct a.
-        optbind_inv.
-        destruct a.
+      + repeat simpl_result_all.
+        destruct w.
+        repeat simpl_result_all.
+        destruct w.
         destruct (Semantics.not_continue s1) eqn:?.
         * eapply Semantics.exec_stmt_assign_func_call; eauto using interp_lexpr_safe.
           rewrite Heqb0.
+          simpl_result_all.
           intuition congruence.
         * destruct (Semantics.not_return s0) eqn:?.
           -- eapply Semantics.exec_stmt_assign_func_call; eauto using interp_lexpr_safe.
              rewrite Heqb0, Heqb1.
-             destruct s0; simpl in *; intuition congruence.
+             destruct s0; simpl in *; simpl_result_all; intuition congruence.
           -- destruct s0; try discriminate.
-             optbind_inv.
+             repeat simpl_result_all.
              inversion H.
              subst.
              destruct s1; try discriminate.
              eapply Semantics.exec_stmt_assign_func_call; eauto using interp_lexpr_safe.
              rewrite Heqb0, Heqb1. exists (eval_val_to_sval v0).
              repeat split; eauto using interp_write_safe.
-      + optbind_inv.
-        eapply interp_expr_det_safe in Heqo.
-        optbind_inv.
-        destruct a0.
-        optbind_inv.
+      + repeat simpl_result_all.
+        eapply interp_expr_det_safe in Hw.
+        repeat simpl_result_all.
+        destruct w0.
+        repeat simpl_result_all.
         inversion H; subst.
         econstructor; eauto using interp_lexpr_safe.
         destruct (Semantics.is_continue sig) eqn:?;
                  eauto using interp_write_safe.
     - cbn in H.
-      optbind_inv.
-      destruct a.
+      repeat simpl_result_all.
+      destruct w.
       inversion H.
       subst.
       econstructor; eauto.
     - cbn in H.
       destruct fls.
-      + optbind_inv.
-        destruct (Interpreter.interp_sval_val a) eqn:?; try discriminate.
+      + repeat simpl_result_all.
+        destruct (Interpreter.interp_sval_val w) eqn:?; try discriminate.
         econstructor; eauto.
         econstructor;
           [|rewrite <- Heqv; eapply sval_to_val_interp].
         eapply interp_expr_safe; eauto.
-      + optbind_inv.
-        destruct (Interpreter.interp_sval_val a) eqn:?; try discriminate.
+      + repeat simpl_result_all.
+        destruct (Interpreter.interp_sval_val w) eqn:?; try discriminate.
         econstructor; eauto.
         econstructor;
           [|rewrite <- Heqv; eapply sval_to_val_interp].
         eapply interp_expr_safe; eauto.
     - set (eval := Interpreter.interp_block ge this st fuel block).
-      assert (eval = Some (st', sig))
+      assert (eval = Ok (st', sig))
         by (rewrite <- H; reflexivity).
       unfold eval in *.
       constructor; eauto.
@@ -908,7 +965,7 @@ Section InterpreterSafe.
       constructor.
     - cbn in H.
       destruct expr.
-      + optbind_inv.
+      + repeat simpl_result_all.
         inversion H.
         subst.
         econstructor.
@@ -918,8 +975,8 @@ Section InterpreterSafe.
         subst.
         econstructor.
     - cbn in H.
-      optbind_inv.
-      destruct (Interpreter.interp_sval_val a) eqn:?; try discriminate.
+      repeat simpl_result_all.
+      destruct (Interpreter.interp_sval_val w) eqn:?; try discriminate.
       econstructor.
       + rewrite <- Heqv.
         econstructor;
@@ -933,8 +990,8 @@ Section InterpreterSafe.
     - cbn in H.
       destruct init.
       + destruct (Interpreter.is_call e) eqn:?.
-        * optbind_inv.
-          destruct a.
+        * repeat simpl_result_all.
+          destruct w.
           destruct s0; simpl in *.
           -- inversion H.
              subst.
@@ -957,15 +1014,18 @@ Section InterpreterSafe.
              change (Value.SReject s0) with (Semantics.force_continue_signal (Value.SReject s0)).
              eapply Semantics.exec_stmt_variable_func_call; eauto.
              simpl; intuition eauto.
-        * optbind_inv.
+        * repeat simpl_result_all.
           inversion H.
-          optbind_inv.
-          inversion Heqo.
-          econstructor; [ | | rewrite <- H1; eapply interp_write_safe; reflexivity];
-            eauto.
-          econstructor; eauto using sval_to_val_interp, interp_expr_safe.
-      + optbind_inv.
-        optbind_inv.
+          repeat simpl_result_all.
+          inversion H.
+          econstructor.
+          -- eapply interp_expr_det_safe; eauto.
+          -- eauto using sval_to_val_interp.
+          -- eapply interp_write_safe.
+             simpl in *.
+             eauto.
+      + repeat simpl_result_all.
+        repeat simpl_result_all.
         inversion H.
         subst.
         econstructor; eauto using interp_write_safe.
@@ -974,10 +1034,10 @@ Section InterpreterSafe.
       inversion H.
       constructor.
     - cbn in H.
-      optbind_inv.
-      destruct a.
-      optbind_inv.
-      destruct a.
+      repeat simpl_result_all.
+      destruct w.
+      repeat simpl_result_all.
+      destruct w.
       inversion H.
       subst.
       econstructor; eauto.
@@ -989,66 +1049,71 @@ Section InterpreterSafe.
         cbn in H.
         destruct expr; try discriminate.
         destruct type_args; try discriminate.
-        optbind_inv.
-        destruct a.
-        optbind_inv.
-        destruct a.
+        repeat simpl_result_all.
+        destruct w.
+        repeat simpl_result_all.
+        destruct w.
         eapply Semantics.exec_call_builtin; eauto using interp_lexpr_safe, interp_args_safe.
         destruct (Semantics.not_continue s), (Semantics.not_continue s0);
-          try intuition congruence.
+          try (simpl_result_all; intuition congruence).
         eapply interp_builtin_safe; eauto.
       + destruct func; simpl in Heqb.
         cbn in H.
         rewrite Heqb in H.
-        optbind_inv.
-        destruct a.
-        optbind_inv.
-        destruct a.
-        optbind_inv.
-        destruct a as [[? ?] ?].
-        optbind_inv.
+        repeat simpl_result_all.
+        destruct w.
+        repeat simpl_result_all.
+        destruct w.
+        repeat simpl_result_all.
+        destruct w as [[? ?] ?].
+        repeat simpl_result_all.
         econstructor; eauto using interp_lexpr_safe, interp_args_safe, interp_call_copy_out_safe.
-        destruct (Semantics.is_continue s); intuition congruence.
+        destruct (Semantics.is_continue s);
+          simpl_result_all;
+          intuition congruence.
     - unfold Interpreter.interp_func in H.
       simpl in H.
       destruct typ_args; [|discriminate].
-      optbind_inv.
-      destruct a.
-      optbind_inv.
+      repeat simpl_result_all.
+      destruct w.
+      repeat simpl_result_all.
       inversion H.
       subst.
       econstructor; eauto.
     - unfold Interpreter.interp_func in H.
       simpl in H.
       destruct default_action, typ_args, args; try discriminate.
-      + optbind_inv.
-        optbind_inv.
-        destruct a0.
-        optbind_inv.
-        destruct a0; try discriminate.
+      + repeat simpl_result_all.
+        repeat simpl_result_all.
+        destruct w0.
+        repeat simpl_result_all.
+        destruct w0; try discriminate.
         destruct s1; try discriminate.
-        destruct a.
+        destruct w.
         * destruct a.
-          optbind_inv.
+          repeat simpl_result_all.
           destruct v; try discriminate.
           inversion H.
-          inversion Heqo.
-          inversion Heqo0.
-          subst.
+          simpl_result_all.
+          cbn in *.
+          inversion H; subst.
+          inversion Hw0; subst.
+          inversion Hw; subst.
           econstructor; eauto using interp_table_match_safe.
-          simpl; rewrite Heqo2. auto.
+          simpl.
+          now rewrite Hw2.
         * destruct v; try discriminate.
           inversion H.
-          eapply IHcall in Heqo1.
-          inversion Heqo0.
-          subst.
+          eapply IHcall in Hw1.
+          repeat simpl_result_all; subst.
+          inversion Hw0; subst.
           econstructor; eauto using interp_table_match_safe.
           simpl. auto.
     - cbn in H.
       destruct st.
-      optbind_inv.
-      destruct a as [[? ?] ?].
-      optbind_inv.
+      repeat simpl_result_all.
+      destruct w as [[? ?] ?].
+      repeat simpl_result_all.
       inversion H.
       subst.
       eapply Semantics.exec_func_external
@@ -1063,21 +1128,15 @@ Section InterpreterSafe.
         eauto.
       + eapply Target.interp_extern_safe; eauto.
       + eapply Forall2_forall; split; eauto using List.map_length.
-        * apply lift_option_length in Heqo0.
-          rewrite <- Heqo0.
-          rewrite List.map_length.
-          auto.
-        * intros.
-          eapply lift_option_some in Heqo0; eauto using List.in_combine_l.
-          unfold val_to_sval.
-          unfold Interpreter.interp_val_sval in Heqo0.
-          inversion Heqo0.
-          apply val_to_sval_eval.
+        intros.
+        apply in_combine_f in H0.
+        subst.
+        eauto.
   Qed.
 
   Theorem interp_call_safe:
     forall this st fuel call st' sig,
-      Interpreter.interp_call ge this st fuel call = Some (st', sig) ->
+      Interpreter.interp_call ge this st fuel call = Ok (st', sig) ->
       Semantics.exec_call ge read_ndetbit this st call st' sig.
   Proof.
     intros.
@@ -1086,7 +1145,7 @@ Section InterpreterSafe.
 
   Theorem interp_stmt_safe:
     forall stmt this st fuel st' sig,
-      Interpreter.interp_stmt ge this st fuel stmt = Some (st', sig) ->
+      Interpreter.interp_stmt ge this st fuel stmt = Ok (st', sig) ->
       Semantics.exec_stmt ge read_ndetbit this st stmt st' sig.
   Proof.
     intros.

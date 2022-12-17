@@ -123,7 +123,7 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
     | _, _ => (PathMap.set p dummy_env_object e, PathMap.set p dummy_object s) (* fail *)
     end
 
-  (* CRCPolynomial and Hash also accept ints (already confirmed in Tofino) 
+  (* CRCPolynomial and Hash also accept ints (already confirmed in Tofino)
      To implement this, need to save the output type in Hash. *)
   else if String.eqb class "CRCPolynomial" then
     match targs, args with
@@ -137,7 +137,7 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
           ] =>
         if (N.eqb w (N.of_nat (List.length coeff))) &&
            (N.eqb w (N.of_nat (List.length init))) &&
-           (N.eqb w (N.of_nat (List.length xor))) 
+           (N.eqb w (N.of_nat (List.length xor)))
         then
           (PathMap.set p (EnvCRCPolynomial
             (mk_CRC_polynomial w coeff reversed msb extended init xor)) e, s)
@@ -152,9 +152,9 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
     | [TypBit w; TypBit pw], [inr (ValBaseEnumField "HashAlgorithm_t" "CUSTOM"); inl poly_path] =>
         let poly :=
           match PathMap.get poly_path e with
-          | Some (EnvCRCPolynomial poly) => 
-            if N.eqb (CRCP_width poly) pw 
-            then poly 
+          | Some (EnvCRCPolynomial poly) =>
+            if N.eqb (CRCP_width poly) pw
+            then poly
             else dummy_CRC_polynomial (* fail *)
           | _ => dummy_CRC_polynomial (* fail *)
           end in
@@ -301,18 +301,18 @@ Definition val_to_bits (v : Val) : option (list bool) :=
 Definition concat_tuple (vs : list Val) : option (list bool) :=
   option_map (@concat bool) (lift_option (map val_to_bits vs)).
 
-(* The following values are likely also accepted as arguments, 
+(* The following values are likely also accepted as arguments,
    need preprocessing to work:
      ValBaseStruct (tested)
      ValBaseHeader
      ValBaseUnion
-     ValBaseStack 
+     ValBaseStack
      ValBaseSenumField (tested) *)
 Definition convert_to_bits (v: Val) : option (list bool) :=
   match v with
-  | ValBaseBool _ 
-  | ValBaseBit _ 
-  | ValBaseInt _ 
+  | ValBaseBool _
+  | ValBaseBit _
+  | ValBaseInt _
   | ValBaseVarbit _ _ => val_to_bits v
   | ValBaseTuple values => concat_tuple values
   | _ => None
@@ -320,29 +320,29 @@ Definition convert_to_bits (v: Val) : option (list bool) :=
 
 Definition repeat_concat_list {A} (num: nat) (l: list A) : list A :=
   let fix repeat_concat_list' num (l res: list A) :=
-    match num with 
+    match num with
     | O => res
     | S num' => repeat_concat_list' num' l (app l res)
-    end in 
+    end in
   repeat_concat_list' num l [].
 
 Definition extend_hash_output (hash_w: N) (output: list bool) : Val :=
-  let output_w := N.of_nat (List.length output) in 
-  let num_copies := N.div hash_w output_w in 
+  let output_w := N.of_nat (List.length output) in
+  let num_copies := N.div hash_w output_w in
   let num_remainder := Z.of_N (N.modulo hash_w output_w) in
-  let lsbs := repeat_concat_list (N.to_nat num_copies) output in 
-  let msbs := sublist (Z.of_N output_w - num_remainder) (Z.of_N output_w) output in 
+  let lsbs := repeat_concat_list (N.to_nat num_copies) output in
+  let msbs := sublist (Z.of_N output_w - num_remainder) (Z.of_N output_w) output in
   ValBaseBit (app msbs lsbs).
 
-Definition lbool_to_hex (input: list bool) :=
-  N.to_hex_uint (Z.to_N (snd (BitArith.from_lbool input))).
+Definition lbool_to_N (input: list bool) :=
+  Z.to_N (snd (BitArith.from_lbool input)).
 
 Inductive hash_get_sem : extern_func_sem :=
   | exec_hash_get_sem : forall e s p hash_w poly typs v input output,
     PathMap.get p e = Some (EnvHash (hash_w, poly)) ->
     convert_to_bits v = Some input ->
-    extend_hash_output hash_w (compute_crc (N.to_nat (CRCP_width poly)) (lbool_to_hex (CRCP_coeff poly))
-      (lbool_to_hex (CRCP_init poly)) (lbool_to_hex (CRCP_xor poly))
+    extend_hash_output hash_w (compute_crc (N.to_nat (CRCP_width poly)) (lbool_to_N (CRCP_coeff poly))
+      (lbool_to_N (CRCP_init poly)) (lbool_to_N (CRCP_xor poly))
       (CRCP_reversed poly) (CRCP_reversed poly) input) = output ->
     (* CRCP_msb, CRCP_extended: behavior waiting for response *)
     hash_get_sem e s p typs [v] s [] (SReturn output).
@@ -403,6 +403,9 @@ Definition extern_get_entries (es : extern_state) (p : path) : list table_entry 
   | _ => nil
   end.
 
+Definition extern_set_entries (es : extern_state) (p : path) (entries : list table_entry) : extern_state :=
+  PathMap.set p (ObjTable entries) es.
+
 Definition check_lpm_count (mks: list ident): option nat :=
   match findi (String.eqb "lpm") mks with
   | None => Some (List.length mks)
@@ -444,17 +447,17 @@ Definition lpm_rank(lpm_idx: nat) (vs: ValSetT): option N :=
         end
     | _ => None
     end
-  in match vs with 
-  | VSTProd l => 
-      match nth_error l lpm_idx with 
+  in match vs with
+  | VSTProd l =>
+      match nth_error l lpm_idx with
       | Some elem =>
-          match lpm_rank' elem with 
-          | None => None 
+          match lpm_rank' elem with
+          | None => None
           | Some rank => Some rank
           end
       | _ => None
       end
-  | _ => 
+  | _ =>
       lpm_rank' vs
   end.
 
@@ -466,13 +469,13 @@ Definition sort_lpm (l: list (ValSetT * action_ref)) (lpm_idx: nat): list (ValSe
   match lift_option (List.map (lpm_rank lpm_idx) vl ) with
   | None => nil
   | Some rank =>
-    let entries_rank := List.combine l rank in 
+    let entries_rank := List.combine l rank in
     let sorted := mergeSort lpm_compare entries_rank in
     fst (List.split sorted)
   end.
 
 Definition values_match_singleton (key: Val) (val: Val): bool :=
-  match Ops.eval_binary_op_eq key val with 
+  match Ops.eval_binary_op_eq key val with
   | None => dummy_bool
   | Some b => b
   end.
@@ -481,7 +484,7 @@ Fixpoint vmm_help (bits0 bits1 bits2: list bool): bool :=
   match bits2, bits1, bits0 with
   | [], [], [] => true
   | false::tl2, _::tl1, _::tl0 => vmm_help tl0 tl1 tl2
-  | true::tl2, hd1::tl1, hd0::tl0 => 
+  | true::tl2, hd1::tl1, hd0::tl0 =>
       andb (Bool.eqb hd0 hd1) (vmm_help tl0 tl1 tl2)
   (* should never hit *)
   | _, _, _ => dummy_bool
@@ -499,7 +502,7 @@ Definition values_match_mask (key: Val) (val mask: Val): bool :=
   match bits2, bits1 with
   | [], [] => true
   | false::tl2, _::tl1 => vmm_help_z (v / 2) tl1 tl2
-  | true::tl2, hd1::tl1 => 
+  | true::tl2, hd1::tl1 =>
       andb (Bool.eqb (Z.odd v) hd1) (vmm_help_z (v / 2) tl1 tl2)
   | _, _ => dummy_bool
   end. *)
@@ -518,15 +521,15 @@ Definition values_match_lpm (key: Val) (val: Val) (lpm_num_bits: N): bool :=
 
 Definition values_match_range (key: Val) (lo hi: Val): bool :=
   match assert_int key, assert_int lo, assert_int hi with
-  | Some (w0, z0, _), Some (w1, z1, _), Some (w2, z2, _) => 
+  | Some (w0, z0, _), Some (w1, z1, _), Some (w2, z2, _) =>
       if negb ((w0 =? w1)%N && (w1 =? w2)%N) then dummy_bool
       else ((z1 <=? z0) && (z0 <=? z2))
   | _, _, _ => dummy_bool
   end.
 
 Definition values_match_set (keys: list Val) (valset: ValSetT): bool :=
-  let values_match_set'' (key_valset: Val * ValSetT) := 
-    let (key, valset) := key_valset in 
+  let values_match_set'' (key_valset: Val * ValSetT) :=
+    let (key, valset) := key_valset in
     match valset with
     | VSTSingleton v => values_match_singleton key v
     | VSTUniversal => true
@@ -534,12 +537,12 @@ Definition values_match_set (keys: list Val) (valset: ValSetT): bool :=
     | VSTRange lo hi => values_match_range key lo hi
     | VSTLpm w2 v1 => values_match_lpm key v1 w2
     | _ => dummy_bool
-    end in 
+    end in
   let values_match_set' (keys: list Val) (valset: ValSetT) :=
-    match valset with 
-    | VSTProd l => 
+    match valset with
+    | VSTProd l =>
         if negb (List.length l =? List.length keys)%nat then dummy_bool
-        else fold_andb (List.map values_match_set'' (List.combine keys l)) 
+        else fold_andb (List.map values_match_set'' (List.combine keys l))
     | _ => values_match_set'' (List.hd ValBaseNull keys, valset)
     end in
   match valset with
@@ -564,18 +567,18 @@ Definition extern_matches (key: list (Val * ident)) (entries: list table_entry_v
 
 
 Definition extern_match (key: list (Val * ident)) (entries: list table_entry_valset): option action_ref :=
-  let match_res := List.filter fst (extern_matches key entries) in 
+  let match_res := List.filter fst (extern_matches key entries) in
   match match_res with
   | nil => None
   | sa :: _ => Some (snd sa)
   end.
 
-Definition interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list (P4Type ) -> list Val -> option (extern_state * list Val * signal).
+Definition interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list (P4Type ) -> list Val -> Result.result Exn.t (extern_state * list Val * signal).
 Admitted.
 
 Definition interp_extern_safe :
   forall env st class method this targs args st' retvs sig,
-    interp_extern env st class method this targs args = Some (st', retvs, sig) ->
+    interp_extern env st class method this targs args = Result.Ok (st', retvs, sig) ->
     exec_extern env st class method this targs args st' retvs sig.
 Proof.
 Admitted.
@@ -589,6 +592,7 @@ Instance TofinoExternSem : ExternSem := Build_ExternSem
   interp_extern
   interp_extern_safe
   extern_get_entries
+  extern_set_entries
   extern_match.
 
 Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
@@ -605,6 +609,10 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
       PathMap.get ["packet_out"] s7 = Some (ObjPout pout) ->
       exec_prog module_sem s0 pin s7 pout.
 
-Instance Tofino : Target := Build_Target _ exec_prog.
+Definition interp_prog : (path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * signal)) ->
+                         extern_state -> Z -> list bool -> Result.result Exn.t (extern_state * Z * list bool).
+Admitted.
+
+Instance Tofino : Target := Build_Target _ exec_prog interp_prog.
 
 End Tofino.

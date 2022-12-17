@@ -60,6 +60,14 @@ Section BitStringSlice.
     apply Forall2_bitstring_slice'; auto.
   Qed.
 
+  Fixpoint update_bitstring (bits : list A) (lo : nat) (hi : nat)
+    (nbits : list A) : list A :=
+    match bits, lo, hi, nbits with
+    | hd::tl, S lo', S hi', _ => hd :: (update_bitstring tl lo' hi' nbits)
+    | _::tl, O, S hi', nhd::ntl => nhd :: (update_bitstring tl lo hi' ntl)
+    | _::tl, O, O, [nhd] => nhd :: tl
+    | _, _, _, _ => bits
+    end.
 End BitStringSlice.
 
 Coercion pos_of_N: N >-> positive.

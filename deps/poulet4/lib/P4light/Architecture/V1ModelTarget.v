@@ -1,12 +1,13 @@
+Require Import Poulet4.Monads.ExportAll.
 Require Import Strings.String.
 Require Import Coq.Bool.Bool.
 Require Import Coq.ZArith.BinInt.
 Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
-Require Import Coq.Init.Hexadecimal.
 Require Import Poulet4.P4light.Syntax.Value.
 Require Import Poulet4.P4light.Syntax.Syntax.
+Require Poulet4.P4light.Semantics.Extract.
 From Poulet4.P4light.Syntax Require Import
      Typed P4Int SyntaxUtil P4Notations ValueUtil.
 From Poulet4.P4light.Semantics Require Import Ops.
@@ -78,17 +79,22 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
   else
     (e, s).
 
-Definition extern_func_sem := extern_env -> extern_state -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop.
+Definition extern_func_sem :=
+  extern_env -> extern_state -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop.
+
+Definition extern_func_interp :=
+  extern_env -> extern_state -> path -> list P4Type -> list Val -> result Exn.t (extern_state * list Val * signal).
 
 Inductive extern_func := mk_extern_func_sem {
   ef_class : ident;
   ef_func : ident;
-  ef_sem : extern_func_sem
+  ef_sem : extern_func_sem;
+  ef_interp : extern_func_interp
 }.
 
 Definition apply_extern_func_sem (func : extern_func) : extern_env -> extern_state -> ident -> ident -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop :=
   match func with
-  | mk_extern_func_sem class_name func_name sem =>
+  | mk_extern_func_sem class_name func_name sem _ =>
       fun e s class_name' func_name' =>
           if String.eqb class_name class_name' && String.eqb func_name func_name' then
             sem e s
@@ -111,7 +117,8 @@ Inductive register_read_sem : extern_func_sem :=
 Definition register_read : extern_func := {|
   ef_class := "register";
   ef_func := "read";
-  ef_sem := register_read_sem
+  ef_sem := register_read_sem;
+  ef_interp := fun _ _ _ _ _ => error (Exn.Other "register_read unimplemented")
 |}.
 
 Inductive register_write_sem : extern_func_sem :=
@@ -128,62 +135,141 @@ Inductive register_write_sem : extern_func_sem :=
 Definition register_write : extern_func := {|
   ef_class := "register";
   ef_func := "write";
-  ef_sem := register_write_sem
+  ef_sem := register_write_sem;
+  ef_interp := fun _ _ _ _ _ =>
+                 error (Exn.Other "register_write unimplemented")
 |}.
 
-Axiom extract : forall (pin : list bool) (typ : P4Type), Val * list bool.
-Axiom extract2 : forall (pin : list bool) (typ : P4Type) (len : Z), Val * list bool.
+Definition extract (typ: Typed.P4Type) (pkt: list bool) : option (Val * signal * list bool) :=
+  let (res, pkt') := Extract.extract (tags_t:=tags_t) typ pkt in
+  match res with
+  | inl v =>
+      Some (v, SReturnNull, pkt')
+  | inr (Reject err) =>
+      Some (ValBaseNull, SReject (Packet.error_to_string err), pkt')
+  | inr (TypeError s) =>
+      None
+  end.
+
+Definition extract2 (typ: Typed.P4Type) (n: nat) (pkt: list bool) : option (Val * signal * list bool) :=
+  let (res, pkt') := Extract.var_extract (tags_t:=tags_t) typ n pkt in
+  match res with
+  | inl v =>
+      Some (v, SReturnNull, pkt')
+  | inr (Reject err) =>
+      Some (ValBaseNull, SReject (Packet.error_to_string err), pkt')
+  | inr (TypeError s) =>
+      None
+  end.
 
 Inductive packet_in_extract_sem : extern_func_sem :=
-  | exec_packet_in_extract : forall e s p pin typ v pin',
+| exec_packet_in_extract : forall e s p pin typ v sig pin',
       PathMap.get p s = Some (ObjPin pin) ->
-      extract pin typ = (v, pin') ->
+      extract typ pin = Some (v, sig, pin') ->
       packet_in_extract_sem e s p [typ] []
             (PathMap.set p (ObjPin pin') s)
-          [v] SReturnNull
-  | exec_packet_in_extract2 : forall e s p pin typ len v pin',
+          [v] sig
+  | exec_packet_in_extract2 : forall e s p pin typ len v sig pin',
       PathMap.get p s = Some (ObjPin pin) ->
-      extract2 pin typ len = (v, pin') ->
-      packet_in_extract_sem e s p [typ] [ValBaseBit (to_lbool 32%N len)]
+      extract2 typ len pin = Some (v, sig, pin') ->
+      packet_in_extract_sem e s p [typ] [ValBaseBit (to_lbool 32%N (Z.of_nat len))]
             (PathMap.set p (ObjPin pin') s)
-          [v] SReturnNull.
+          [v] sig.
+
+Definition packet_in_extract_interp : extern_func_interp :=
+  fun env st this targs args =>
+    let* typ :=
+      match targs with
+      | [typ] => mret typ
+      | l => let n := List.length l in
+             error (Exn.Other ("packet_in_extract_interp: wrong number (" ++ StringUtil.string_of_nat n ++ ") of type arguments"))
+      end in
+    let* pin_obj :=
+      from_opt (PathMap.get this st)
+               (Exn.LocNotFoundInState (LGlobal this)) in
+    match pin_obj with
+    | ObjPin pin =>
+        let* (v, sig, pin') := from_opt (extract typ pin)
+                                        (Exn.Other "failure in extract") in
+        mret (PathMap.set this (ObjPin pin') st,
+              [v],
+              sig)
+    | _ => error (Exn.Other ("packet_in_extract_interp: expected an ObjPin for packet_in at path " ++ Exn.path_to_string this))
+    end.
 
 Definition packet_in_extract : extern_func := {|
   ef_class := "packet_in";
   ef_func := "extract";
-  ef_sem := packet_in_extract_sem
+  ef_sem := packet_in_extract_sem;
+  ef_interp := packet_in_extract_interp
 |}.
 
-Axiom emit : forall (pout : list bool) (v : Val), list bool.
+Definition emit (v : Val) : Packet (list bool) :=
+  Extract.emit v;;
+  get_state.
 
 Inductive packet_out_emit_sem : extern_func_sem :=
-  | exec_packet_out_emit : forall e s p pout typ v pout',
+  | exec_packet_out_emit : forall e s p pout typ v pout' x,
       PathMap.get p s = Some (ObjPout pout) ->
-      emit pout v = pout' ->
+      emit v pout = (inl pout', x) ->
       packet_out_emit_sem e s p [typ] [v]
             (PathMap.set p (ObjPout pout') s)
           [] SReturnNull.
 
+Definition packet_out_emit_interp : extern_func_interp :=
+  fun env st this targs args =>
+    let* typ :=
+      match targs with
+      | [typ] => mret typ
+      | _ => let n := List.length targs in
+             error (Exn.Other ("packet_out_emit_interp: wrong number (" ++ StringUtil.string_of_nat n ++ ") of type arguments"))
+      end in
+    let* v :=
+      match args with
+      | [v] => mret v
+      | _ => let n := List.length args in
+             error (Exn.Other ("packet_out_emit_interp: wrong number (" ++ StringUtil.string_of_nat n ++ ") of arguments"))
+      end in
+    let* pout_obj :=
+      from_opt (PathMap.get this st)
+               (Exn.LocNotFoundInState (LGlobal this)) in
+    match pout_obj with
+    | ObjPout pout =>
+        match emit v pout with
+        | (inl pout', _) =>
+            mret (PathMap.set this (ObjPout pout') st,
+                   [],
+                   SReturnNull)
+        | _ => error (Exn.Other ("packet_out_emit_interp: failure in emit"))
+        end
+    | _ => error (Exn.Other ("packet_out_emit_interp: expected an ObjPout for packet_out at path " ++ Exn.path_to_string this))
+    end.
+
 Definition packet_out_emit : extern_func := {|
   ef_class := "packet_out";
   ef_func := "emit";
-  ef_sem := packet_out_emit_sem
+  ef_sem := packet_out_emit_sem;
+  ef_interp := packet_out_emit_interp;
 |}.
 
-Definition get_hash_algorithm (algo : string) : option (nat * uint * uint * uint * bool * bool ) :=
+Local Open Scope hex_N_scope.
+
+Definition get_hash_algorithm (algo : string) : option (nat * N * N * N * bool * bool ) :=
   if String.eqb algo "crc32" then
       Some (32%nat,
-            (D0(D4(Dc(D1(D1(Dd(Db(D7 Nil)))))))),
-            (Df(Df(Df(Df(Df(Df(Df(Df Nil)))))))),
-            (Df(Df(Df(Df(Df(Df(Df(Df Nil)))))))),
+            0x04C11DB7,
+            0xFFFFFFFF,
+            0xFFFFFFFF,
             true, true)
   else if String.eqb algo "crc16" then
       Some (16%nat,
-            (D8(D0(D0(D5 Nil)))),
-            (D0 Nil),
-            (D0 Nil),
+            0x8005,
+            0,
+            0,
             true, true)
-  else None.
+       else None.
+
+Local Close Scope hex_N_scope.
 
 Definition val_to_bits (v : Val) : option (list bool) :=
   match v with
@@ -221,8 +307,17 @@ Inductive hash_sem : extern_func_sem :=
 Definition hash : extern_func := {|
   ef_class := "";
   ef_func := "hash";
-  ef_sem := hash_sem
+  ef_sem := hash_sem;
+  ef_interp := fun _ _ _ _ _ => error (Exn.Other "hash unimplemented")
 |}.
+
+Definition extern_funcs : list extern_func := [
+    register_read;
+    register_write;
+    packet_in_extract;
+    packet_out_emit;
+    hash
+  ].
 
 (* This only works when tags_t is a unit type. *)
 
@@ -268,6 +363,9 @@ Definition extern_get_entries (es : extern_state) (p : path) : list table_entry 
   | Some (ObjTable entries) => entries
   | _ => nil
   end.
+
+Definition extern_set_entries (es : extern_state) (p : path) (entries : list table_entry) : extern_state :=
+  PathMap.set p (ObjTable entries) es.
 
 Definition check_lpm_count (mks: list ident): option bool :=
   let num_lpm := List.length (List.filter (String.eqb "lpm") mks) in
@@ -476,26 +574,41 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry_val
   | None => None
   | Some sort_mks =>
     let entries' := List.map (fun p => (valset_to_valsett (fst p), snd p)) entries in
-        let (entries'', ks') :=
-            if list_eqb String.eqb mks ["lpm"]
-            then (sort_lpm entries', ks)
-            else if sort_mks
-                 then filter_lpm_prod mks ks entries'
-                 else (entries', ks) in
+    let (entries'', ks') :=
+      if list_eqb String.eqb mks ["lpm"]
+      then (sort_lpm entries', ks)
+      else if sort_mks
+           then filter_lpm_prod mks ks entries'
+           else (entries', ks) in
     let l := List.filter (fun s => is_some_true (values_match_set ks' (fst s)))
-                          entries'' in
+                         entries'' in
     match l with
     | nil => None
     | sa :: _ => Some (snd sa)
     end
   end.
 
-Definition interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list (P4Type ) -> list Val -> option (extern_state * list Val * signal).
-Admitted.
+Definition find_func (funcs: list extern_func) (class func: ident) : option extern_func :=
+  List.find (fun ef => ((class =? ef.(ef_class))%string &&
+                        (func =? ef.(ef_func))%string))
+            funcs.
+
+Definition interp_extern
+           (env: extern_env)
+           (st: extern_state)
+           (class: ident)
+           (method: ident)
+           (this: path)
+           (targs: list P4Type)
+           (args: list Val)
+  : result Target.Exn.t (extern_state * list Val * signal) :=
+  let* func := from_opt (find_func extern_funcs class method)
+                        (Exn.Other (class ++ "." ++ method ++ "() not found in extern_funcs")) in
+  func.(ef_interp) env st this targs args.
 
 Definition interp_extern_safe :
   forall env st class method this targs args st' retvs sig,
-    interp_extern env st class method this targs args = Some (st', retvs, sig) ->
+    interp_extern env st class method this targs args = Ok (st', retvs, sig) ->
     exec_extern env st class method this targs args st' retvs sig.
 Proof.
 Admitted.
@@ -509,6 +622,7 @@ Instance V1ModelExternSem : ExternSem := Build_ExternSem
   interp_extern
   interp_extern_safe
   extern_get_entries
+  extern_set_entries
   extern_match.
 
 Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
@@ -525,6 +639,94 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
       PathMap.get ["packet_out"] s7 = Some (ObjPout pout) ->
       exec_prog module_sem s0 pin s7 pout.
 
-Instance V1Model : Target := Build_Target _ exec_prog.
+Definition expect_result_null (r: result Exn.t (extern_state * list Val * signal)) : result Exn.t (extern_state * list Val) :=
+  let* '(st, outs, sig) := r in
+  match sig with
+  | SExit
+  | SReject _
+  | SReturn (ValBaseNull) => mret (st, outs)
+  | _ => error (Exn.Other "Expected SReturn (ValBaseNull) but got something different")
+  end.
+
+Definition set_std_meta_error (std: Val) (err: string) : Val :=
+  std.
+
+Definition interp_prog
+           (run_module: path -> extern_state -> list Val -> result Exn.t (extern_state * list Val * signal))
+           (s0: extern_state)
+           (port: Z)
+           (pin: list bool)
+  : result Exn.t (extern_state * Z * list bool) :=
+  let s1 := PathMap.set ["packet_in"] (ObjPin pin) s0 in
+  let hdr1 : Val := ValBaseNull in
+  let standard_metadata1 :=
+    ValBaseStruct [
+        ("ingress_port", ValBaseBit (repeat false 9));
+        ("egress_spec", ValBaseBit (repeat false 9));
+        ("egress_port", ValBaseBit (repeat false 9));
+        ("instance_type", ValBaseBit (repeat false 32));
+        ("packet_length", ValBaseBit (repeat false 32));
+        ("enq_timestamp", ValBaseBit (repeat false 32));
+        ("enq_qdepth", ValBaseBit (repeat false 19));
+        ("deq_timedelta", ValBaseBit (repeat false 32));
+        ("deq_qdepth", ValBaseBit (repeat false 19));
+        ("ingress_global_timestamp", ValBaseBit (repeat false 48));
+        ("egress_global_timestamp", ValBaseBit (repeat false 48));
+        ("mcast_grp", ValBaseBit (repeat false 16));
+        ("egress_rid", ValBaseBit (repeat false 16));
+        ("checksum_error", ValBaseBit [false]);
+        ("parser_error", ValBaseError "NoError");
+        ("priority", ValBaseBit (repeat false 3))
+      ]
+  in
+  let meta1 := ValBaseHeader [] false in
+  let* (s2, hdr2, meta2, standard_metadata2) :=
+    let* ret := run_module ["main"; "p"] s1
+                           [meta1;
+                            standard_metadata1] in
+    match ret with
+    | (st', [hdr2; meta2; standard_metadata2], SReturn ValBaseNull) =>
+        mret (st', hdr2, meta2, standard_metadata2)
+    | (st', [hdr2; meta2; standard_metadata2], SReject err) =>
+        let meta' := set_std_meta_error standard_metadata2 err in
+        mret (st', hdr2, meta2, standard_metadata2)
+    | _ => error (Exn.Other "interp_prog: failure in parser")
+    end
+  in
+  let* (s3, outs3) := expect_result_null (run_module ["main"; "vr"] s2 [hdr2; meta2]) in
+  let* (hdr3, meta3) :=
+    match outs3 with
+    | [hdr3; meta3] => mret (hdr3, meta3)
+    | _ => error (Exn.Other "interp_prog: failure in verify checksum")
+    end in
+  let* (s4, outs4) := expect_result_null (run_module ["main"; "ig"] s3 [hdr3; meta3; standard_metadata2]) in
+  let* (hdr4, meta4, standard_metadata4) :=
+    match outs4 with
+    | [hdr4; meta4; standard_metadata4] => mret (hdr4, meta4, standard_metadata4)
+    | _ => error (Exn.Other "interp_prog: failure in ingress")
+    end in
+  let* (s5, outs5) := expect_result_null (run_module ["main"; "eg"] s4 [hdr4; meta4; standard_metadata4]) in
+  let* (hdr5, meta5, standard_metadata5) :=
+    match outs5 with
+    | [hdr5; meta5; standard_metadata5] => mret (hdr5, meta5, standard_metadata5)
+    | _ => error (Exn.Other "interp_prog: failure in egress")
+    end in
+  let* (s6, outs6) := expect_result_null (run_module ["main"; "ck"] s5 [hdr5; meta5]) in
+  let* (hdr6, meta6) :=
+    match outs6 with
+    | [hdr6; meta6] => mret (hdr6, meta6)
+    | _ => error (Exn.Other "interp_prog: failure in checksum")
+    end in
+  (* initialize packet_out *)
+  let s6 := PathMap.set ["packet_out"] (ObjPout []) s6 in
+  let* (s7, _) := expect_result_null (run_module ["main"; "dep"] s6 [hdr6; meta6]) in
+  let* pkt := from_opt (PathMap.get ["packet_out"] s7)
+                       (Exn.Other "interp_prog: failure recovering packet") in
+  match pkt with
+  | ObjPout pout => mret (s7, 0%Z, pout)
+  | _ => error (Exn.Other "interp_prog: failure recovering packet")
+  end.
+
+Instance V1Model : Target := Build_Target _ exec_prog interp_prog.
 
 End V1Model.

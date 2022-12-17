@@ -1,521 +1,469 @@
-Set Warnings "-custom-entry-overridden".
 Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.P4cub.Syntax.AST Poulet4.Utils.P4Arith
         Poulet4.P4cub.Syntax.CubNotations
         Poulet4.P4cub.Semantics.Static.Util.
-Import String.
-(* TODO: type parameters, arguments, ok types. *)
+From RecordUpdate Require Import RecordSet.
+Import String AllCubNotations Clmt.Notations RecordSetNotations.
 
-(** Expression typing. *)
-Reserved Notation "⟦ dl , gm ⟧ ⊢ e ∈ t"
-         (at level 40, e custom p4expr, t custom p4type).
+(** * Expression typing. *)
 
-(** Statement typing. *)
-Reserved Notation "⦃ fns , dl , g1 ⦄ ctx ⊢ s ⊣ ⦃ g2 , sg ⦄"
-         (at level 40, s custom p4stmt,
-          ctx custom p4context, sg custom p4signal).
+Reserved Notation "'`⟨' Δ , Γ ⟩ ⊢ e ∈ τ" (at level 80, no associativity).
 
-(** Parser-expression typing. *)
-Reserved Notation "⟅ sts , dl , gm ⟆ ⊢ e"
-         (at level 40, e custom p4prsrexpr).
+Local Open Scope ty_scope.
+Local Open Scope expr_scope.
 
-(** Parser-state-block typing. *)
-Reserved Notation "'⟅⟅' fns , pis , eis , sts , dl , Γ '⟆⟆' ⊢ s"
-         (at level 40, s custom p4prsrstateblock).
+Inductive type_expr (Δ : nat) (Γ : list Expr.t)
+  : Expr.e -> Expr.t -> Prop :=
+| type_bool (b : bool) :
+  `⟨ Δ, Γ ⟩ ⊢ b ∈ Expr.TBool
+| type_bit w n :
+  BitArith.bound w n ->
+  `⟨ Δ, Γ ⟩ ⊢ w `W n ∈ Expr.TBit w
+| type_int w n :
+  IntArith.bound w n ->
+  `⟨ Δ, Γ ⟩ ⊢ w `S n ∈ Expr.TInt w
+| type_var τ og x :
+  nth_error Γ x = Some τ ->
+  t_ok Δ τ ->
+  `⟨ Δ, Γ ⟩ ⊢ Expr.Var τ og x ∈ τ
+| type_slice hi lo e w τ :
+  (Npos lo <= Npos hi < w)%N ->
+  numeric_width w τ ->
+  `⟨ Δ, Γ ⟩ ⊢ e ∈ τ ->
+  `⟨ Δ, Γ ⟩ ⊢ Expr.Slice hi lo e ∈ Expr.TBit (Npos hi - Npos lo + 1)%N
+| type_cast τ τ' e :
+  proper_cast τ' τ ->
+  t_ok Δ τ ->
+  `⟨ Δ, Γ ⟩ ⊢ e ∈ τ' ->
+  `⟨ Δ, Γ ⟩ ⊢ Expr.Cast τ e ∈ τ
+| type_uop op τ τ' e :
+  uop_type op τ τ' ->
+  t_ok Δ τ' ->
+  `⟨ Δ, Γ ⟩ ⊢ e ∈ τ ->
+  `⟨ Δ, Γ ⟩ ⊢ Expr.Uop τ' op e ∈ τ'
+| type_bop op τ₁ τ₂ τ e₁ e₂ :
+  bop_type op τ₁ τ₂ τ ->
+  t_ok Δ τ ->
+  `⟨ Δ, Γ ⟩ ⊢ e₁ ∈ τ₁ ->
+  `⟨ Δ, Γ ⟩ ⊢ e₂ ∈ τ₂ ->
+  `⟨ Δ, Γ ⟩ ⊢ Expr.Bop τ op e₁ e₂ ∈ τ
+| type_index e₁ e₂ w τ :
+  t_ok Δ τ ->
+  `⟨ Δ, Γ ⟩ ⊢ e₁ ∈ Expr.TArray (Z.to_N (BitArith.upper_bound w)) τ ->
+  `⟨ Δ, Γ ⟩ ⊢ e₂ ∈ Expr.TBit w ->
+  `⟨ Δ, Γ ⟩ ⊢ Expr.Index τ e₁ e₂ ∈ τ
+| type_member τ x e τs b :
+  nth_error τs x = Some τ ->
+  t_ok Δ τ ->
+  `⟨ Δ, Γ ⟩ ⊢ e ∈ Expr.TStruct b τs ->
+  `⟨ Δ, Γ ⟩ ⊢ Expr.Member τ x e ∈ τ
+| type_lists ls es τ τs :
+  t_ok_lists Δ ls ->
+  type_lists_ok ls τ τs ->
+  Forall2 (type_expr Δ Γ) es τs ->
+  `⟨ Δ, Γ ⟩ ⊢ Expr.Lists ls es ∈ τ
+| type_error err :
+  `⟨ Δ, Γ ⟩ ⊢ Expr.Error err ∈ Expr.TError
+where "'`⟨' Δ , Γ ⟩ ⊢ e ∈ τ" := (type_expr Δ Γ e τ) : type_scope.
 
-(** Control-declaration typing. *)
-Reserved Notation
-         "⦅ ts1 , as1 , fs , ci , ei , g ⦆ ⊢ d ⊣ ⦅ as2 , ts2 ⦆"
-         (at level 60, d custom p4ctrldecl).
-
-(** Toplevel-declaration typing. *)
-Reserved Notation
-         "⦗ cs1 , fs1 , pgi1 , ci1 , pi1 , ei1 ⦘ ⊢ d ⊣ ⦗ ei2 , pi2 , ci2 , pgi2 , fs2 , cs2 ⦘"
-         (at level 70, d custom p4topdecl).
-
-Import AllCubNotations Clmt.Notations.
-Open Scope climate_scope.
-
-(** Expression typing as a relation. *)
-Inductive check_expr
-          {tags_t : Type} (Δ : Delta) (Γ : Gamma)
-  : Expr.e tags_t -> Expr.t -> Prop :=
-(* Literals. *)
-| chk_bool (b : bool) (i : tags_t) :
-    ⟦ Δ, Γ ⟧ ⊢ BOOL b @ i ∈ Bool
-| chk_bit (w : N) (n : Z) (i : tags_t) :
-    BitArith.bound w n ->
-    ⟦ Δ , Γ ⟧ ⊢ w W n @ i ∈ bit<w>
-| chk_int (w : positive) (n : Z) (i : tags_t) :
-    IntArith.bound w n ->
-    ⟦ Δ , Γ ⟧ ⊢ w S n @ i ∈ int<w>
-| chk_var (x : string) (τ : Expr.t) (i : tags_t) :
-    Γ x = Some τ ->
-    t_ok Δ τ ->
-    ProperType.proper_nesting τ ->
-    ⟦ Δ , Γ ⟧ ⊢ Var x:τ @ i ∈ τ
-| chk_slice (e : Expr.e tags_t) (τ : Expr.t)
-            (hi lo : positive) (w : N) (i : tags_t) :
-    (Npos lo <= Npos hi < w)%N ->
-    numeric_width w τ ->
-    ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    let w' := Npos (hi - lo + 1)%positive in
-    ⟦ Δ, Γ ⟧ ⊢ Slice e [hi:lo] @ i ∈ bit<w'>
-| chk_cast (τ τ' : Expr.t) (e : Expr.e tags_t) (i : tags_t) :
-    proper_cast τ' τ ->
-    t_ok Δ τ' ->
-    t_ok Δ τ ->
-    ⟦ Δ, Γ ⟧ ⊢ e ∈ τ' ->
-    ⟦ Δ, Γ ⟧ ⊢ Cast e:τ @ i ∈ τ
-(* Unary operations. *)
-| chk_uop (op : Expr.uop) (τ τ' : Expr.t) (e : Expr.e tags_t) (i : tags_t) :
-    uop_type op τ τ' ->
-    ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    ⟦ Δ, Γ ⟧ ⊢ UOP op e : τ' @ i ∈ τ'
-(* Binary Operations. *)
-| chk_bop (op : Expr.bop) (τ1 τ2 τ : Expr.t) (e1 e2 : Expr.e tags_t) (i : tags_t) :
-    bop_type op τ1 τ2 τ ->
-    ⟦ Δ , Γ ⟧ ⊢ e1 ∈ τ1 ->
-    ⟦ Δ , Γ ⟧ ⊢ e2 ∈ τ2 ->
-    ⟦ Δ , Γ ⟧ ⊢ BOP e1 op e2 : τ @ i ∈ τ
-(* Member expressions. *)
-| chk_mem (e : Expr.e tags_t) (x : string)
-          (fs : F.fs string Expr.t)
-          (τ τ' : Expr.t) (i : tags_t) :
-    F.get x fs = Some τ' ->
-    member_type fs τ ->
-    t_ok Δ τ ->
-    t_ok Δ τ' ->
-    ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    ⟦ Δ, Γ ⟧ ⊢ Mem e dot x : τ' @ i ∈ τ'
-(* Structs. *)
-| chk_tuple (es : list (Expr.e tags_t)) (i : tags_t)
-            (ts : list Expr.t) :
-    Forall2 (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ) es ts ->
-    ⟦ Δ, Γ ⟧ ⊢ tup es @ i ∈ tuple ts
-| chk_struct_lit (efs : F.fs string (Expr.e tags_t))
-                 (tfs : F.fs string Expr.t) (i : tags_t) :
-    F.relfs (fun e τ => ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
-    ⟦ Δ , Γ ⟧ ⊢ struct { efs } @ i ∈ struct { tfs }
-| chk_hdr_lit (efs : F.fs string (Expr.e tags_t))
-              (tfs : F.fs string Expr.t)
-              (i : tags_t) (b : Expr.e tags_t) :
-    ProperType.proper_nesting {{ hdr { tfs } }} ->
-    F.relfs (fun e τ => ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
-    ⟦ Δ, Γ ⟧ ⊢ b ∈ Bool ->
-    ⟦ Δ , Γ ⟧ ⊢ hdr { efs } valid := b @ i ∈ hdr { tfs }
-  (* Errors. *)
-  | chk_error (err : option string) (i : tags_t) :
-      ⟦ Δ , Γ ⟧ ⊢ Error err @ i ∈ error
-  (* Header stacks. *)
-  | chk_stack (ts : F.fs string Expr.t)
-              (hs : list (Expr.e tags_t))
-              (n : positive) (ni : Z) (i : tags_t) :
-      BitArith.bound 32%N (Zpos n) ->
-      (0 <= ni < (Zpos n))%Z ->
-      ProperType.proper_nesting {{ stack ts[n] }} ->
-      t_ok Δ {{ stack ts[n] }} ->
-      Forall (fun e => ⟦ Δ, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
-      ⟦ Δ, Γ ⟧ ⊢ Stack hs:ts nextIndex:=ni @ i ∈ stack ts[n]
-  | chk_access (e : Expr.e tags_t) (idx : Z) (i : tags_t)
-               (ts : F.fs string Expr.t) (n : positive) :
-      (0 <= idx < (Zpos n))%Z ->
-      t_ok Δ {{ stack ts[n] }} ->
-      ⟦ Δ, Γ ⟧ ⊢ e ∈ stack ts[n] ->
-      ⟦ Δ, Γ ⟧ ⊢ Access e[idx] : ts @ i ∈ hdr { ts }
-where "⟦ ers ',' gm ⟧ ⊢ e ∈ ty"
-        := (check_expr ers gm e ty) : type_scope.
-(**[]*)
+Local Close Scope expr_scope.
+Local Open Scope pat_scope.
 
 (** Select-pattern-typing. *)
-Inductive check_pat : AST.Parser.pat -> Expr.t -> Prop :=
-| chk_wild t : check_pat [{ ?? }] t
-| chk_mask p1 p2 w :
-    check_pat p1 {{ bit<w> }} ->
-    check_pat p2 {{ bit<w> }} ->
-    check_pat [{ p1 &&& p2 }] {{ bit<w> }}
-| chk_range p1 p2 w :
-    check_pat p1 {{ bit<w> }} ->
-    check_pat p2 {{ bit<w> }} ->
-    check_pat [{ p1 .. p2 }] {{ bit<w> }}
-| chk_pbit w n :
-    check_pat [{ w PW n }] {{ bit<w> }}
-| chk_pint w z :
-    check_pat [{ w PS z }] {{ int<w> }}
-| chk_ptup ps ts :
-    Forall2 check_pat ps ts ->
-    check_pat [{ PTUP ps }] {{ tuple ts }}.
-(**[]*)
-                           
+Inductive type_pat : Parser.pat -> Expr.t -> Prop :=
+| type_wild t : type_pat Parser.Wild t
+| type_mask p₁ p₂ w :
+  type_pat p₁ (Expr.TBit w) ->
+  type_pat p₂ (Expr.TBit w) ->
+  type_pat (Parser.Mask p₁ p₂) (Expr.TBit w)
+| type_range p₁ p₂ w :
+  type_pat p₁ (Expr.TBit w) ->
+  type_pat p₂ (Expr.TBit w) ->
+  type_pat (Parser.Range p₁ p₂) (Expr.TBit w)
+| type_pbit w n :
+  type_pat (w PW n) (Expr.TBit w)
+| type_pint w z :
+  type_pat (w PS z) (Expr.TInt w)
+| type_pstruct ps ts :
+  Forall2 type_pat ps ts ->
+  type_pat (Parser.Lists ps) (Expr.TStruct false ts).
+Local Close Scope pat_scope.
+
 (** Parser-expression typing. *)
-Inductive check_prsrexpr {tags_t : Type}
-          (sts : user_states) (Δ : Delta) (Γ : Gamma)
-  : AST.Parser.e tags_t -> Prop :=
-| chk_goto (st : AST.Parser.state) (i : tags_t) :
-    valid_state sts st ->
-    ⟅ sts, Δ, Γ ⟆ ⊢ goto st @ i
-| chk_select (e : Expr.e tags_t) (def : AST.Parser.e tags_t)
-             (cases : F.fs AST.Parser.pat (AST.Parser.e tags_t))
-             (i : tags_t) (τ : Expr.t) :
-    ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    ⟅ sts, Δ, Γ ⟆ ⊢ def ->
-                 Forall
-                   (fun pe =>
-                      let p := fst pe in
-                      let e := snd pe in
-                      check_pat p τ /\ ⟅ sts, Δ, Γ ⟆ ⊢ e) cases ->
-                 ⟅ sts, Δ, Γ ⟆ ⊢ select e { cases } default:=def @ i
-where "⟅ sts , ers , gm ⟆ ⊢ e"
-        := (check_prsrexpr sts ers gm e).
-(**[]*)
-  
-(** Statement typing. *)
-Inductive check_stmt
-          {tags_t : Type} (fns : fenv) (Δ : Delta) (Γ : Gamma)
-  : ctx -> Stmt.s tags_t -> Gamma -> signal -> Prop :=
-| chk_skip (i : tags_t) (con : ctx) :
-    ⦃ fns, Δ, Γ ⦄ con ⊢ skip @ i ⊣ ⦃ Γ, C ⦄
-| chk_seq_cont (s1 s2 : Stmt.s tags_t) (Γ' Γ'' : Gamma)
-               (i : tags_t) (sig : signal) (con : ctx) :
-    ⦃ fns, Δ, Γ  ⦄ con ⊢ s1 ⊣ ⦃ Γ', C ⦄ ->
-    ⦃ fns, Δ, Γ' ⦄ con ⊢ s2 ⊣ ⦃ Γ'', sig ⦄ ->
-    ⦃ fns, Δ, Γ  ⦄ con ⊢ s1 ; s2 @ i ⊣ ⦃ Γ'', sig ⦄
-| chk_block (s : Stmt.s tags_t) (Γ' : Gamma) (sig : signal) (con : ctx) :
-    ⦃ fns, Δ, Γ ⦄ con ⊢ s ⊣ ⦃ Γ', sig ⦄ ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ b{ s }b ⊣ ⦃ Γ, C ⦄
-| chk_vardecl (τ : Expr.t) (x : string) eo (i : tags_t) (con : ctx) :
-    match eo with
-    | inr e => ⟦Δ,Γ⟧ ⊢ e ∈ τ
-    | inl τ => t_ok Δ τ
+Variant type_prsrexpr 
+        (total_states : nat) (Δ : nat) (Γ : list Expr.t)
+  : Parser.pt -> Prop :=
+  | type_goto (st : Parser.state_label) :
+    valid_state total_states st ->
+    type_prsrexpr total_states Δ Γ (Parser.Direct st)
+  | type_select e default cases τ :
+    valid_state total_states default ->
+    `⟨ Δ, Γ ⟩ ⊢ e ∈ τ ->
+    Forall
+      (fun '(p,st) => type_pat p τ /\ valid_state total_states st)
+      cases ->
+    type_prsrexpr total_states Δ Γ (Parser.Select e default cases).
+
+(** * Statement typing. *)
+Inductive type_fun_kind
+  (Δ : nat) (Γ : list Expr.t) (fs : fenv) (c : ctx)
+    : Stmt.fun_kind -> list Expr.t -> Expr.params -> Prop :=
+| type_call_funct f τs oe params ot :
+  fs f = Some (List.length τs, {|paramargs:=params; rtrns:=ot|}) ->
+  predop lvalue_ok oe ->
+  relop (type_expr Δ Γ) oe (option_map (tsub_t (gen_tsub τs)) ot) ->
+  type_fun_kind Δ Γ fs c (Stmt.Funct f τs oe) τs params
+| type_call_action a cargs aa cparams params :
+  action_call_ok aa c ->
+  aa a = Some (cparams,params) ->
+  Forall2 (type_expr Δ Γ) cargs cparams ->
+  type_fun_kind Δ Γ fs c (Stmt.Action a cargs) [] params
+| type_call_method ei m τs oe params ot extern_insts methods :
+  extern_call_ok extern_insts c ->
+  extern_insts ei = Some (inl methods) ->
+  Field.get m methods = Some (List.length τs, {|paramargs:=params; rtrns:=ot|}) ->
+  predop lvalue_ok oe ->
+  relop (type_expr Δ Γ) oe (option_map (tsub_t (gen_tsub τs)) ot) ->
+  type_fun_kind Δ Γ fs c (Stmt.Method ei m τs oe) τs params.
+
+Definition type_arg
+  (Δ : nat) (Γ : list Expr.t) : Expr.arg -> Expr.param -> Prop :=
+  rel_paramarg
+    (type_expr Δ Γ)
+    (fun e τ => `⟨ Δ, Γ ⟩ ⊢ e ∈ τ /\ lvalue_ok e).
+
+Definition type_args
+  (Δ : nat) (Γ : list Expr.t) : Expr.args -> list Expr.param -> Prop :=
+  Forall2 (type_arg Δ Γ).
+
+Reserved Notation "'`⧼' Δ , Γ , f , c ⧽ ⊢ s ⊣ sig" (at level 80, no associativity).
+
+Local Open Scope stmt_scope.
+
+Inductive type_stmt (Δ : nat) (Γ : list Expr.t) (fs : fenv)
+  : ctx -> Stmt.s -> signal -> Prop :=
+| type_skip c :
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ Stmt.Skip ⊣ Cont
+| type_return c eo :
+  match c, eo with
+  | CFunction (Some τ), Some e => `⟨ Δ, Γ ⟩ ⊢ e ∈ τ
+  | c, None => return_void_ok c
+  | _, _ => False
+  end ->
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ Stmt.Return eo ⊣ Return
+| type_exit c :
+  exit_ctx_ok c ->
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ Stmt.Exit ⊣ Exit
+| type_transition total_states i e :
+  type_prsrexpr total_states Δ Γ e ->
+  `⧼ Δ, Γ, fs, CParserState total_states i ⧽ ⊢ Stmt.Transition e ⊣ Trans
+| type_assign c τ e₁ e₂ :
+  lvalue_ok e₁ ->
+  `⟨ Δ, Γ ⟩ ⊢ e₁ ∈ τ ->
+  `⟨ Δ, Γ ⟩ ⊢ e₂ ∈ τ ->
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ e₁ `:= e₂ ⊣ Cont
+| type_fun_call c params τs args fk :
+  type_fun_kind Δ Γ fs c fk τs params ->
+  Forall (t_ok Δ) τs ->
+  type_args Δ Γ args (map (tsub_param (gen_tsub τs)) (map snd params)) ->
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ Stmt.Call fk args ⊣ Cont
+| type_apply
+    c extern_args args x extern_params params sig insts :
+  apply_instance_ok insts sig c ->
+  insts x = Some (inr (sig,extern_params,params)) ->
+  type_args Δ Γ args (map snd params) ->
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ Stmt.Apply x extern_args args ⊣ Cont
+| type_invoke tbl tbls aa i :
+  In tbl tbls ->
+  `⧼ Δ, Γ, fs, CApplyBlock tbls aa i ⧽ ⊢ Stmt.Invoke tbl ⊣ Cont
+| type_vardecl c og τ te s sig :
+    match te with
+    | inr e => `⟨ Δ, Γ ⟩ ⊢ e ∈ τ
+    | inl τ' => τ' = τ /\ t_ok Δ τ'
     end ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ var x with eo @ i ⊣ ⦃ x ↦ τ ,, Γ, C ⦄
-| chk_assign (τ : Expr.t) (e1 e2 : Expr.e tags_t) (i : tags_t) (con : ctx) :
-    lvalue_ok e1 ->
-    ⟦ Δ, Γ ⟧ ⊢ e1 ∈ τ ->
-    ⟦ Δ, Γ ⟧ ⊢ e2 ∈ τ ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ asgn e1 := e2 @ i ⊣ ⦃ Γ, C ⦄
-| chk_cond (guard : Expr.e tags_t) (tru fls : Stmt.s tags_t)
-           (Γ1 Γ2 : Gamma) (i : tags_t) (sgt sgf sg : signal) (con : ctx) :
-    lub sgt sgf = sg ->
-    ⟦ Δ, Γ ⟧ ⊢ guard ∈ Bool ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ tru ⊣ ⦃ Γ1, sgt ⦄ ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ fls ⊣ ⦃ Γ2, sgf ⦄ ->
-    ⦃ fns, Δ, Γ ⦄
-      con ⊢ if guard then tru else fls @ i ⊣ ⦃ Γ, sg ⦄
-(* TODO: fix:
-| chk_return_void (i : tags_t) (con : ctx) :
-    return_void_ok con ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ returns None @ i ⊣ ⦃ Γ, R ⦄
-| chk_return_fruit (τ : Expr.t) (e : Expr.e tags_t) (i : tags_t) :
-    ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    ⦃ fns, Δ, Γ ⦄ Function τ ⊢ return (Some e) @ i ⊣ ⦃ Γ, R ⦄*)
-| chk_exit (i : tags_t) (con : ctx) :
-    exit_ctx_ok con ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ exit @ i ⊣ ⦃ Γ, R ⦄
-| chk_void_call (params : Expr.params)
-                (ts : list Expr.t)
-                (args : Expr.args tags_t)
-                (f : string) (i : tags_t) (con : ctx) :
-    fns f = Some {|paramargs:=params; rtrns:=None|} ->
-    F.relfs
-      (rel_paramarg_same
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ))
-      args params ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ call f<ts>(args) @ i ⊣ ⦃ Γ, C ⦄
-| chk_act_call (params : Expr.params)
-               (args : Expr.args tags_t)
-               (a : string) (i : tags_t)
-               (aa : aenv) (con : ctx) :
-    action_call_ok aa con ->
-    aa a = Some params ->
-    F.relfs
-      (rel_paramarg
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
-      args params ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ calling a with args @ i ⊣ ⦃ Γ, C ⦄
-| chk_fun_call (τ : Expr.t) (e : Expr.e tags_t)
-               (params : Expr.params)
-               (ts : list Expr.t)
-               (args : Expr.args tags_t)
-               (f : string) (i : tags_t) (con : ctx) :
-    t_ok Δ τ ->
-    fns f = Some {|paramargs:=params; rtrns:=Some τ|} ->
-    F.relfs
-      (rel_paramarg
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
-      args params ->
-    ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    ⦃ fns, Δ, Γ ⦄
-      con ⊢ let e := call f<ts>(args) @ i ⊣ ⦃ Γ, C ⦄
-| chk_apply (eargs : F.fs string string) (args : Expr.args tags_t) (x : string)
-            (i : tags_t) (eps : F.fs string string) (params : Expr.params)
-            (tbls : tblenv) (aa : aenv) (cis : cienv) (eis : eienv) :
-    cis x = Some (eps,params) ->
-    F.relfs
-      (rel_paramarg
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
-      args params ->
-    ⦃ fns, Δ, Γ ⦄ ApplyBlock tbls aa cis eis
-                     ⊢ apply x with eargs & args @ i ⊣ ⦃ Γ, C ⦄
-| chk_invoke (tbl : string) (i : tags_t) (tbls : tblenv)
-             (aa : aenv) (cis : cienv) (eis : eienv) :
-    In tbl tbls ->
-    ⦃ fns, Δ, Γ ⦄ ApplyBlock tbls aa cis eis ⊢ invoke tbl @ i ⊣ ⦃ Γ, C ⦄
-| chk_extern_call_void (e : string) (f : string)
-                       (ts : list Expr.t)
-                       (args : Expr.args tags_t) (i : tags_t) (con : ctx)
-                       (eis : eienv) (params : Expr.params)
-                       (mhds : F.fs string Expr.arrowT) :
-    eis e = Some mhds ->
-    F.get f mhds = Some {|paramargs:=params; rtrns:=None|} ->
-    extern_call_ok eis con ->
-    F.relfs
-      (rel_paramarg
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
-      args params ->
-    ⦃ fns, Δ, Γ ⦄
-      con ⊢ extern e calls f<ts>(args) gives None @ i ⊣ ⦃ Γ, C ⦄
-| chk_extern_call_fruit (extrn : string) (f : string)
-                        (ts : list Expr.t)
-                        (args : Expr.args tags_t) (e : Expr.e tags_t)
-                        (i : tags_t) (con : ctx) (eis : eienv)
-                        (params: Expr.params) (τ : Expr.t)
-                        (mhds : F.fs string Expr.arrowT) :
-    (eis extrn = Some mhds ->
-     F.get f mhds = Some {|paramargs:=params; rtrns:=Some τ|} ->
-     extern_call_ok eis con ->
-     F.relfs
-       (rel_paramarg
-          (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-          (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
-       args params ->
-     let result := Some e in
-     (⦃ fns, Δ, Γ ⦄
-        con ⊢ extern extrn calls f<ts>(args) gives result @ i ⊣ ⦃ Γ, C ⦄))
-where "⦃ fe , ers , g1 ⦄ con ⊢ s ⊣ ⦃ g2 , sg ⦄"
-        := (check_stmt fe ers g1 con s g2 sg).
-(**[]*)
+    `⧼ Δ, τ :: Γ, fs, c ⧽ ⊢ s ⊣ sig ->
+    `⧼ Δ, Γ, fs, c ⧽ ⊢ Stmt.Var og te s ⊣ sig
+| type_seq c s₁ s₂ sig :
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ s₁ ⊣ Cont ->
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ s₂ ⊣ sig ->
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ s₁ `; s₂ ⊣ sig
+| type_cond c e s₁ s₂ sig₁ sig₂ sig :
+  lub sig₁ sig₂ = Some sig ->
+  `⟨ Δ, Γ ⟩ ⊢ e ∈ Expr.TBool ->
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ s₁ ⊣ sig₁ ->
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ s₂ ⊣ sig₂ ->
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ If e Then s₁ Else s₂ ⊣ sig
+where "'`⧼' Δ , Γ , fs , c ⧽ '⊢' s ⊣ sig" := (type_stmt Δ Γ fs c s sig).
 
-(** Parser State typing. *)
-Definition check_parser_state
-          {tags_t : Type} (fns : fenv) (pis : pienv) (eis : eienv)
-          (sts : user_states) (Δ : Delta) (Γ : Gamma)
-          '(&{state { s } transition e}& : AST.Parser.state_block tags_t) : Prop :=
-  exists (Γ' : Gamma) (sg : signal),
-    ⦃ fns, Δ, Γ ⦄ Parser pis eis ⊢ s ⊣ ⦃ Γ' , sg ⦄.
-(**[]*)
+Local Close Scope stmt_scope.
 
-Notation "'⟅⟅' fns , pis , eis , sts , Δ , Γ '⟆⟆' ⊢ s"
-  := (check_parser_state fns pis eis sts Δ Γ s).
+(** * Control-declaration typing. *)
 
-(** Control declaration typing. *)
-Inductive check_ctrldecl {tags_t : Type}
-          (tbls : tblenv) (acts : aenv) (fns : fenv)
-          (cis : cienv) (eis : eienv) (Γ : Gamma)
-  : Control.d tags_t -> aenv -> tblenv -> Prop :=
-| chk_action (a : string)
-             (signature : Expr.params)
-             (body : Stmt.s tags_t) (i : tags_t)
-             (Γ' Γ'' : Gamma) (sg : signal) :
-    bind_all signature Γ = Γ' ->
-    ⦃ fns, [], Γ' ⦄ Action acts eis ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
-    ⦅ tbls, acts, fns, cis, eis, Γ ⦆
-      ⊢ action a ( signature ) { body } @ i
-      ⊣ ⦅ a ↦ signature ,, acts, tbls ⦆
-| chk_table (t : string)
-            (kys : list (Expr.e tags_t * Expr.matchkind))
-            (actns : list string) (i : tags_t) :
-    (* Keys type. *)
-    Forall (fun '(e,_) => exists τ, ⟦ [], Γ ⟧ ⊢ e ∈ τ) kys ->
-    (* Actions available *)
-    Forall (fun a => exists pms, acts a = Some pms) actns ->
-    ⦅ tbls, acts, fns, cis, eis, Γ ⦆
-      ⊢ table t key:=kys actions:=actns @ i ⊣ ⦅ acts, (t :: tbls) ⦆
-| chk_ctrldecl_seq (d1 d2 : Control.d tags_t) (i : tags_t)
-                   (acts' acts'' : aenv) (tbls' tbls'' : tblenv) :
-    ⦅ tbls, acts, fns, cis, eis, Γ ⦆
-      ⊢ d1 ⊣ ⦅ acts', tbls'  ⦆ ->
-    ⦅ tbls', acts', fns, cis, eis, Γ ⦆
-      ⊢ d2 ⊣ ⦅ acts'', tbls'' ⦆ ->
-    ⦅ tbls, acts, fns, cis, eis, Γ  ⦆
-      ⊢ d1 ;c; d2 @ i ⊣ ⦅ acts'', tbls'' ⦆
-where
-"⦅ ts1 , as1 , fs , ci1 , ei1 , g1 ⦆ ⊢ d ⊣ ⦅ as2 , ts2 ⦆"
-  := (check_ctrldecl ts1 as1 fs ci1 ei1 g1 d as2 ts2).
-(**[]*)
+(** Control-declaration typing context. *)
+Record ctrl_type_env : Set :=
+  mk_ctrl_type_env
+    { ctype_vars : nat
+    ; ctypes : list Expr.t
+    ; cfuncts : fenv (** available functions. *)
+    ; cinsts : ienv  (** available control instances. *)
+    ; actns : aenv   (** available action signatures. *)
+    ; tbls : list string (** available table names. *) }.
+
+Global Instance eta_ctrl_type_env : Settable _ :=
+  settable! mk_ctrl_type_env
+  < ctype_vars ; ctypes ; cfuncts ; cinsts ; actns ; tbls >.
+
+Reserved Notation "Γ '⊢ᵪ' d '⊣' result"
+         (at level 80, no associativity).
+
+Variant ctrldecl_type : Set :=
+  | ctrl_var_type (τ : Expr.t)
+  | ctrl_act_type (a : string)
+      (ctrl_params : list Expr.t) (data_params : Expr.params)
+  | ctrl_tbl_type (t : string).
+
+(** Control declaration typing,
+    Producing either a new action or table. *)
+Variant type_ctrldecl (Γ : ctrl_type_env)
+  : Control.d -> ctrldecl_type -> Prop :=
+  | type_ctrl_var x te τ :
+    match te with
+    | inr e => `⟨ ctype_vars Γ, ctypes Γ ⟩ ⊢ e ∈ τ
+    | inl τ' => τ' = τ /\ t_ok (ctype_vars Γ) τ'
+    end ->
+    Γ ⊢ᵪ Control.Var x te ⊣ ctrl_var_type τ
+  | type_action action_name cparams dparams body sig :
+    `⧼ ctype_vars Γ, map snd cparams ++ bind_all dparams (ctypes Γ),
+        cfuncts Γ, CAction (actns Γ) (cinsts Γ) ⧽ ⊢ body ⊣ sig ->
+    Γ ⊢ᵪ Control.Action action_name cparams dparams body
+      ⊣ ctrl_act_type action_name (map snd cparams) dparams
+  | type_table table_name key actions :
+    (** Keys type. *)
+    Forall
+      (fun e => exists τ, `⟨ ctype_vars Γ, ctypes Γ ⟩ ⊢ e ∈ τ) (map fst key) ->
+    (** Actions type *)
+    Forall
+      (fun '(a,data_args) =>
+         exists ctrl_params data_params,
+           actns Γ a = Some (ctrl_params, data_params)
+           /\ type_args (ctype_vars Γ) (ctypes Γ)
+               data_args (List.map snd data_params))
+      actions ->
+    Γ ⊢ᵪ Control.Table
+      table_name key actions ⊣  ctrl_tbl_type table_name
+where "Γ '⊢ᵪ' d '⊣' result"
+  := (type_ctrldecl Γ d result) : type_scope.
+
+(** * Toplevel-declaration typing. *)
+
+(* TODO: add packages to [ienv]. *)
+Record top_type_env : Set :=
+  mk_top_type_env
+    { tfuncts : fenv (** available function signatures. *)
+    ; cnstrs : constructor_env (** available constructors. *)
+    ; insts_env : ienv (** available instances for parsers, controls, externs. *) }.
+
+Global Instance eta_top_type_env : Settable _ :=
+  settable! mk_top_type_env
+  < tfuncts ; cnstrs ; insts_env >.
+
+Reserved Notation "Γ₁ '⊢ₜ' d ⊣ Γ₂"
+         (at level 80, no associativity).
+
+Local Open Scope climate_scope.
+
+Definition type_ctrl
+           (params : Expr.params)
+           (Γ : list Expr.t)
+           (fs : fenv)
+           (cis : ienv)
+           (ctrl : list Control.d) : ctrl_type_env -> Prop :=
+  FoldLeft
+    (fun d Γ Γ' =>
+       exists result,
+         Γ ⊢ᵪ d ⊣ result /\
+           match result with
+           | ctrl_var_type τ =>
+               Γ' = Γ <| ctypes := τ :: Γ.(ctypes) |>
+           | ctrl_act_type an cps dps =>
+               Γ' = Γ <| actns := an ↦ (cps, dps) ,, actns Γ |>
+           | ctrl_tbl_type tn =>
+               Γ' = Γ <| tbls := tn :: tbls Γ |>
+           end)
+    ctrl
+    {| ctype_vars := 0
+    ; ctypes := bind_all params Γ
+    ; cfuncts := fs
+    ; cinsts := cis
+    ; actns := ∅ ; tbls := [] |}.
 
 (** Top-level declaration typing. *)
-(* TODO: type parameters and arguments! *)
-Inductive check_topdecl
-          {tags_t : Type} (cs : cenv) (fns : fenv)
-          (pgis : pkgienv) (cis : cienv) (pis : pienv) (eis : eienv)
-  : TopDecl.d tags_t -> eienv -> pienv -> cienv -> pkgienv -> fenv -> cenv -> Prop :=
-| chk_instantiate_control (c x : string)
-                          (ts : list Expr.t)
-                          (cparams : Expr.constructor_params)
-                          (cargs : Expr.constructor_args tags_t) (i : tags_t)
-                          (extparams : F.fs string string) (params : Expr.params) :
-    cs c = Some {{{ ControlType cparams extparams params }}} ->
-    F.relfs
-      (fun carg cparam =>
-         match carg, cparam with
-         | Expr.CAExpr e, {{{ VType τ }}}
-           => ⟦ [] , ∅ ⟧ ⊢ e ∈ τ
-         | Expr.CAName ctrl, {{{ ControlType cps eps ps }}}
-           => cs ctrl = Some {{{ ControlType cps eps ps }}}
-         (*| Expr.CAName extrn, {{{ Extern cps { mthds } }}}
-           => cs extrn = Some {{{ Extern cps { mthds } }}}*)
-         | _, _ => False
-         end) cargs cparams ->
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ Instance x of c<ts>(cargs) @ i
-      ⊣ ⦗ eis, pis, x ↦ (extparams,params) ,, cis, pgis, fns, cs ⦘
-| chk_instantiate_parser (p x : string)
-                         (ts : list Expr.t)
-                         (cparams : Expr.constructor_params)
-                         (cargs : Expr.constructor_args tags_t) (i : tags_t)
-                         (extparams : F.fs string string)
-                         (params : Expr.params) :
-    cs p = Some {{{ ParserType cparams extparams params }}} ->
-    F.relfs
-      (fun carg cparam =>
-         match carg, cparam with
-         | Expr.CAExpr e, {{{ VType τ }}}
-           => ⟦ [] , ∅ ⟧ ⊢ e ∈ τ
-         | Expr.CAName prsr, {{{ ParserType cps eps ps }}}
-           => cs prsr = Some {{{ ParserType cps eps ps }}}
-         (*| Expr.CAName extrn, {{{ Extern cps { mthds } }}}
-           => cs extrn = Some {{{ Extern cps { mthds } }}}*)
-         | _, _ => False
-         end) cargs cparams ->
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ Instance x of p<ts>(cargs) @ i
-      ⊣ ⦗ eis, x ↦ (extparams,params) ,, pis, cis, pgis, fns, cs ⦘
-(*| chk_instantiate_extern (e x : string)
-                         (cparams : Expr.constructor_params)
-                         (cargs : Expr.constructor_args tags_t) (i : tags_t)
-                         (mthds : F.fs string Expr.arrowT) :
-                         cs e = Some {{{ Extern cparams { mthds } }}} ->
-    F.relfs
-      (fun carg cparam =>
-         match carg, cparam with
-         | Expr.CAExpr e, {{{ VType τ }}}
-           => ⟦ \Delta , ∅ ⟧ ⊢ e ∈ τ
-         | Expr.CAName extrn, {{{ Extern cps { mthds } }}}
-           => cs extrn = Some {{{ Extern cps { mthds } }}}
-         | _, _ => False
-         end) cargs cparams ->
-    ⦗ cs, fns, pgis, cis, pis, eis, \Delta ⦘
-      ⊢ Instance x of e(cargs) @ i ⊣ ⦗ x ↦ mthds ,, eis, pis, cis, pgis, fns, cs ⦘ *)
-| chk_instantiate_package (pkg x : string)
-                          (ts : list Expr.t)
-                          (cparams : Expr.constructor_params)
-                          (cargs : Expr.constructor_args tags_t)
-                          (i : tags_t) :
-    cs pkg = Some {{{ PackageType cparams }}} ->
-    F.relfs
-      (fun carg cparam =>
-         match carg, cparam with
-         | Expr.CAExpr e, {{{ VType τ }}}
-           => ⟦ [] , ∅ ⟧ ⊢ e ∈ τ
-         | Expr.CAName ctrl, {{{ ControlType cps eps ps }}}
-           => cs ctrl = Some {{{ ControlType cps eps ps }}}
-         | Expr.CAName prsr, {{{ ParserType cps eps ps }}}
-           => cs prsr = Some {{{ ParserType cps eps ps }}}
-         (*| Expr.CAName extrn, {{{ Extern cps { mthds } }}}
-           => cs extrn = Some {{{ Extern cps { mthds } }}}*)
-         | _, _ => False
-         end)
-      cargs cparams ->
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      (* TODO: correctly update package instance env *)
-      ⊢ Instance x of pkg<ts>(cargs) @ i ⊣ ⦗ eis, pis, cis, (*x ↦ tt ,,*) pgis, fns, cs ⦘
-| chk_control (c : string) (cparams : Expr.constructor_params)
-              (extparams : F.fs string string)
-              (params : Expr.params) (body : Control.d tags_t)
-              (apply_blk : Stmt.s tags_t) (i : tags_t)
-              (Γ' Γ'' Γ''' : Gamma) (sg : signal)
-              (cis' : cienv) (eis' : eienv)
-              (tbls : tblenv) (acts : aenv) :
-    cbind_all cparams (∅,pgis,cis,pis,eis) = (Γ',pgis,cis',pis,eis') ->
-    (* Control declarations. *)
-    ⦅ [], ∅, fns, cis', eis', Γ' ⦆
-      ⊢ body ⊣ ⦅ acts, tbls ⦆ ->
-    bind_all params Γ' = Γ'' ->
-    (* Apply block. *)
-    ⦃ fns, [], Γ'' ⦄
-      ApplyBlock tbls acts cis eis ⊢ apply_blk ⊣ ⦃ Γ''', sg ⦄ ->
-    let ctor := Expr.CTControl cparams extparams params in
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ control c (cparams)(extparams)(params) apply { apply_blk } where { body } @ i
-        ⊣ ⦗ eis, pis, cis, pgis, fns, c ↦ ctor,, cs ⦘
-| chk_parser (p : string)
-             (cparams : Expr.constructor_params)
-             (extparams : F.fs string string)
-             (params : Expr.params) (start_state : AST.Parser.state_block tags_t)
-             (states : F.fs string (AST.Parser.state_block tags_t)) (i : tags_t)
-             (pis' : pienv) (eis' : eienv)
-             (Γ' Γ'' : Gamma) :
-    let sts := F.fold
-                 (fun st _ acc => st :: acc) states [] in
-    cbind_all cparams (∅,pgis,cis,pis,eis) = (Γ',pgis,cis,pis',eis') ->
-    bind_all params Γ' = Γ'' ->
-    ⟅⟅ fns, pis', eis', sts, [], Γ'' ⟆⟆ ⊢ start_state ->
-    F.predfs_data
-      (fun pst => ⟅⟅ fns, pis', eis', sts, [], Γ'' ⟆⟆ ⊢ pst) states ->
-    let prsr := Expr.CTParser cparams extparams params in
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ parser p (cparams)(extparams)(params) start:= start_state { states } @ i
-      ⊣ ⦗ eis, pis, cis, pgis, fns, p ↦ prsr,, cs ⦘
-(*| chk_extern (e : string)
-             (cparams : Expr.constructor_params)
-             (mthds : F.fs string Expr.arrowT) (i : tags_t) :
-    let extrn := {{{ Extern cparams { mthds } }}} in
-    ⦗ cs, fns, pgis, cis, pis, eis, \Delta ⦘
-      ⊢ extern e (cparams) { mthds } @ i
-      ⊣ ⦗ eis, pis, cis, pgis, fns, e ↦ extrn,, cs ⦘ *)
-(*| chk_package (pkg : string)
-              (TS : list string)
-              (cparams : Expr.constructor_params) (i : tags_t) :
-    let pkge := {{{ PackageType cparams }}} in
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ package pkg <TS> (cparams) @ i
-      ⊣ ⦗ eis, pis, cis, pgis, fns, pkg ↦ pkge,, cs ⦘*)
-| chk_fruit_function (f : string) (params : Expr.params)
-                     (Δ : list string)
-                     (τ : Expr.t) (body : Stmt.s tags_t) (i : tags_t)
-                     (Γ' Γ'' : Gamma) (sg : signal) :
-    bind_all params ∅ = Γ' ->
-    ⦃ fns, Δ, Γ' ⦄ Function τ ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
-    let func := {|paramargs:=params; rtrns:=Some τ|} in
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ fn f <Δ> (params) -> τ { body } @ i
-      ⊣ ⦗ eis, pis, cis, pgis, f ↦ func,,  fns, cs ⦘
-| chk_void_function (f : string) (Δ : Delta)
-                    (params : Expr.params)
-                    (body : Stmt.s tags_t) (i : tags_t)
-                    (Γ' Γ'' : Gamma) (sg : signal) :
-    bind_all params ∅ = Γ' ->
-    ⦃ fns, Δ, Γ' ⦄ Void ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
-    let func := {|paramargs:=params; rtrns:=None|} in
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ void f<Δ>(params) { body } @ i
-      ⊣ ⦗ eis, pis, cis, pgis, f ↦ func,,  fns, cs ⦘
-| chk_topdecl_seq (d1 d2 : TopDecl.d tags_t) (i : tags_t)
-                  (eis' eis'' : eienv) (pgis' pgis'' : pkgienv)
-                  (pis' pis'' : pienv) (cis' cis'' : cienv)
-                  (fns' fns'' : fenv) (cs' cs'' : cenv) :
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘ ⊢ d1
-    ⊣ ⦗ eis', pis', cis', pgis', fns', cs' ⦘ ->
-    ⦗ cs', fns', pgis', cis', pis', eis' ⦘ ⊢ d2
-    ⊣ ⦗ eis'', pis'', cis'', pgis'', fns'', cs'' ⦘ ->
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘ ⊢ d1 ;%; d2 @ i
-    ⊣ ⦗ eis'', pis'', cis'', pgis'', fns'', cs'' ⦘
+Inductive type_topdecl (Γ : top_type_env)
+  : TopDecl.d -> top_type_env -> Prop :=
+| type_instantiate_control
+    control_decl_name instance_name
+    cparams expr_cparams cargs expr_cargs extern_params params :
+  cnstrs Γ control_decl_name =
+    Some (ControlType cparams expr_cparams extern_params params) ->
+  Forall2
+    (fun carg cparam =>
+       match cparam with
+       | TopDecl.ControlInstType eps ps
+         => insts_env Γ carg = Some (inr (ControlSig,eps,ps))
+       | TopDecl.ExternInstType extern_type
+         => (* TODO:
+              How to represent extern types?
+              [nth_error (externs (insts_envs Γ)) extn = extern_type] *)
+           False
+       | _ => False
+       end) cargs cparams ->
+  Forall2
+    (type_expr 0 [])
+    expr_cargs expr_cparams ->
+  Γ ⊢ₜTopDecl.Instantiate
+    control_decl_name instance_name [] cargs expr_cargs
+    ⊣ Γ <| insts_env :=
+    insts_bind_other
+      instance_name ControlSig extern_params params
+      Γ.(insts_env) |>
+| type_instantiate_parser
+    parser_decl_name instance_name
+    cparams expr_cparams cargs expr_cargs extern_params params :
+  cnstrs Γ parser_decl_name =
+    Some (ParserType cparams expr_cparams extern_params params) ->
+  Forall2
+    (fun carg cparam =>
+       match cparam with
+       | TopDecl.ParserInstType eps ps
+         => insts_env Γ carg = Some (inr (ParserSig,eps,ps))
+       | TopDecl.ExternInstType extern_type
+         => (* TODO:
+              How to represent extern types?
+              [nth_error (externs (insts_envs Γ)) extn = extern_type] *)
+           False
+       | _ => False
+       end) cargs cparams ->
+  Forall2
+    (type_expr 0 [])
+    expr_cargs expr_cparams ->
+  Γ ⊢ₜTopDecl.Instantiate
+    parser_decl_name instance_name [] cargs expr_cargs
+    ⊣ Γ <| insts_env :=
+      insts_bind_other
+        instance_name ParserSig extern_params params
+        Γ.(insts_env) |>
+| type_instantiate_package
+    package_decl_name instance_name
+    cparams expr_cparams cargs expr_cargs :
+  cnstrs Γ package_decl_name =
+    Some (PackageType cparams expr_cparams) ->
+  Forall2
+    (fun carg cparam =>
+       match cparam with
+       | TopDecl.ControlInstType eps ps
+         => insts_env Γ carg = Some (inr (ControlSig,eps,ps))
+       | TopDecl.ParserInstType eps ps
+         => insts_env Γ carg = Some (inr (ParserSig,eps,ps))
+       | TopDecl.ExternInstType extern_type
+         => (* TODO:
+              How to represent extern types?
+              [nth_error (externs (insts_envs Γ)) extn = extern_type] *)
+           False
+       | _ => False
+       end) cargs cparams ->
+  Forall2
+    (type_expr 0 [])
+    expr_cargs expr_cparams ->
+  Γ ⊢ₜTopDecl.Instantiate
+    package_decl_name instance_name [] cargs expr_cargs
+    ⊣ Γ (* TODO: represent package types in [ienv] *)
+| type_instantiate_extern
+    (* TODO: How to represent extern types & type instantiations? *)
+    extern_decl_name extern_name
+    expr_cparams cparams τs expr_cargs cargs methods :
+  Forall (t_ok 0) τs ->
+  cnstrs Γ extern_decl_name =
+    Some (ExternType (List.length τs) cparams expr_cparams extern_name) ->
+  Forall2
+    (fun carg cparam =>
+       match cparam with
+       | TopDecl.ExternInstType extern_type
+         => (* TODO:
+              How to represent extern types?
+              [nth_error (externs (insts_envs Γ)) extn = extern_type] *)
+           False
+       | _ => False
+       end)
+    cargs (map (tsub_cparam (gen_tsub τs)) cparams) ->
+  Forall2
+    (type_expr 0 [])
+    expr_cargs (map (tsub_t (gen_tsub τs)) expr_cparams) ->
+  Γ ⊢ₜ TopDecl.Instantiate extern_decl_name extern_name τs cargs expr_cargs
+    ⊣ Γ <| insts_env := (* TODO: sub [τs] into methods *)
+         insts_bind_externs
+           extern_name methods Γ.(insts_env) |>
+| type_control
+    control_name cparams expr_cparams extern_params params
+    control_decls apply_blk Γ' sig insts :
+  (* TODO: check params are [t_ok []] *)
+  (* TODO: add extern runtime params
+     to instance envrionment when checking control body. *)
+  insts = cbind_all (insts_env Γ) cparams ->
+  type_ctrl
+    params expr_cparams (tfuncts Γ) insts control_decls Γ' ->
+  `⧼ 0, bind_all params expr_cparams,
+      tfuncts Γ, CApplyBlock (tbls Γ') (actns Γ') insts ⧽
+    ⊢ apply_blk ⊣ sig ->
+  Γ ⊢ₜ
+    TopDecl.Control
+    control_name cparams expr_cparams extern_params
+    params control_decls apply_blk
+    ⊣ Γ <| cnstrs :=
+    control_name
+      ↦ ControlType
+      (map snd cparams) expr_cparams (map snd extern_params) params ,, cnstrs Γ |>
+| type_parser
+    parser_decl_name cparams expr_cparams extern_params params
+    start_state states insts :
+  (* TODO: check params are [t_ok []] *)
+  (* TODO: add extern runtime params
+     to instance envrionment when checking control body. *)
+  insts = cbind_all (insts_env Γ) cparams ->
+  Forall
+    (fun state =>
+       `⧼ 0, bind_all params expr_cparams, tfuncts Γ,
+           CParserState (List.length states) insts ⧽ ⊢ state ⊣ Trans)
+    (start_state :: states) ->
+  Γ ⊢ₜ TopDecl.Parser
+    parser_decl_name cparams expr_cparams extern_params params
+    start_state states
+    ⊣ Γ <| cnstrs :=
+            parser_decl_name
+              ↦ ParserType
+              (map snd cparams) expr_cparams
+              (map snd extern_params) params ,, cnstrs Γ |>
+| type_extern
+    extern_name type_params cparams expr_cparams methods :
+  (* TODO: check types as [t_ok] *)
+  Γ ⊢ₜ TopDecl.Extern extern_name type_params cparams expr_cparams methods
+    ⊣ Γ <| cnstrs :=
+              extern_name
+                ↦ ExternType
+                type_params (map snd cparams)
+                expr_cparams extern_name ,, cnstrs Γ |>
+| type_function function_name type_params arrow body sig :
+  good_signal arrow sig ->
+  `⧼ type_params, bind_all (paramargs arrow) [], tfuncts Γ,
+      CFunction (rtrns arrow) ⧽ ⊢ body ⊣ sig ->
+  Γ ⊢ₜ TopDecl.Funct
+    function_name type_params arrow body
+    ⊣ Γ <| tfuncts := function_name ↦ (type_params,arrow) ,, tfuncts Γ |>
 where
-"⦗ cs1 , fs1 , pgi1 , ci1 , pi1 , ei1 ⦘ ⊢ d ⊣ ⦗ ei2 , pi2 , ci2 , pgi2 , fs2 , cs2 ⦘"
-  := (check_topdecl cs1 fs1 pgi1 ci1 pi1 ei1 d ei2 pi2 ci2 pgi2 fs2 cs2).
-(**[]*)
+"Γ₁ '⊢ₜ' d ⊣ Γ₂"
+  := (type_topdecl Γ₁ d Γ₂).
+
+Local Close Scope climate_scope.
+
+Definition type_prog
+  : TopDecl.prog -> top_type_env -> top_type_env -> Prop :=
+  FoldLeft (fun d Γ Γ' => Γ ⊢ₜ d ⊣ Γ').

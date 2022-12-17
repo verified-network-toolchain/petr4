@@ -1,772 +1,502 @@
 Require Export Poulet4.P4cub.Syntax.Syntax
-        Poulet4.P4cub.Transformations.Lifting.Statementize
-        Coq.Numbers.DecimalString
-        Coq.Strings.Ascii Coq.Strings.String.
-Import AllCubNotations StringSyntax Field.FieldTactics.
+        Poulet4.P4cub.Syntax.Shift
+        Poulet4.P4cub.Transformations.Lifting.Statementize.
+Require Import Poulet4.Utils.ForallMap.
+Import AllCubNotations.
 
-Ltac translateParserExpr_destr :=
-  match goal with 
-  | |- context [TranslateParserExpr ?e ?env]
-    => destruct (TranslateParserExpr e env) as [? ?] eqn:?; simpl in *
-  end.
-
-Ltac translateCases'_destr :=
-  match goal with 
-  | |- context [TranslateCases' ?c ?env ?i]
-    => destruct (TranslateCases' c env i) as [[? ?] ?] eqn:?; simpl in *
-  end.
-
-Ltac translateStmt_destr :=
+Ltac pair_destr :=
   match goal with
-  | |- context [TranslateStatement ?s ?env]
-    => destruct (TranslateStatement s env) as [? ?] eqn:?; simpl in *
+  | h: (_,_) = (_,_) |- _ => inv h
   end.
 
-Ltac translateArrowE_destr :=
+Ltac lift_e_destr :=
   match goal with
-  | |- context [TranslateArrowE ?args ?env ?i]
-    => destruct (TranslateArrowE args env i) as [[? ?] ?] eqn:?; simpl in *
+  | |- context [lift_e ?up ?e]
+    => destruct (lift_e up e) as [? ?] eqn:?; simpl in *
   end.
 
-Ltac translateArgs_destr :=
+Ltac lift_e_destr_hyp :=
   match goal with
-  | |- context [TranslateArgs ?args ?env ?i]
-    => destruct (TranslateArgs args env i) as [[? ?] ?] eqn:?; simpl in *
+  | H: context [lift_e ?up ?e] |- _
+    => destruct (lift_e up e)
+      as [? ?] eqn:?; simpl in *
   end.
 
-Ltac transformExpr_destr :=
+Ltac lift_e_destr_hyp_rewrite :=
   match goal with
-  | |- context [TransformExpr ?e ?env]
-    => destruct (TransformExpr e env) as [[? ?] ?] eqn:?; simpl in *
-  | |- context [TransformExprList' ?f ?e ?env ?i]
-    => destruct (TransformExprList' f e env i) as [[? ?] ?] eqn:?; simpl in *
-  | |- context [TransformFields' ?f ?e ?env ?i]
-    => destruct (TransformFields' f e env i) as [[? ?] ?] eqn:?; simpl in *
-  end.
-
-Ltac translateControlDecl_destr := 
-  match goal with
-  | |- context [TranslateControlDecl ?cd ?env]
-    => destruct (TranslateControlDecl cd env) as [[? ?] ?] eqn:?; simpl in *
-  end.
-
-Ltac translateTable_destr := 
-  match goal with
-  | |- context [TranslateTable ?body ?env ?i]
-    => destruct (TranslateTable body env i) as [[? ?] ?] eqn:?; simpl in *
-  end.
-
-Ltac translateTopDecl_destr := 
-  match goal with
-  | |- context [TranslateTopDecl ?td ?env]
-    => destruct (TranslateTopDecl td env) as [? ?] eqn:?; simpl in *
-  end.
-
-Ltac transformExpr_destr_hyp :=
-  match goal with
-  | H: context [TransformExpr ?e ?env] |- _
-    => destruct (TransformExpr e env)
-      as [[? ?] ?] eqn:?; simpl in *
-  end.
-
-Ltac transformExpr_destr_hyp_rewrite :=
-  match goal with
-  | H: TransformExpr ?e ?env = (_,_,_),
-       Hy : context [TransformExpr ?e ?env]
+  | H: lift_e ?up ?e = (_,_),
+      Hy : context [lift_e ?up ?e]
     |- _ => rewrite H in Hy; simpl in *
   end.
 
+Inductive lifted_expr : Expr.e -> Prop :=
+| lifted_bool (b : bool) :
+  lifted_expr b
+| lifted_var τ og x :
+  lifted_expr (Expr.Var τ og x)
+| lifted_index τ e₁ e₂ :
+  lifted_expr e₁ ->
+  lifted_expr e₂ ->
+  lifted_expr (Expr.Index τ e₁ e₂)
+| lifted_member τ e x :
+  lifted_expr e ->
+  lifted_expr (Expr.Member τ x e)
+| lifted_error err :
+  lifted_expr (Expr.Error err).
 
-(*Ltac quantify_varNameGen :=
-  match goal with
-        | env: VarNameGen.t, H: (forall _: VarNameGen.t, _)
-      |-   _ => specialize H with env
-    end.*) 
+Definition lifted_arg : paramarg Expr.e Expr.e -> Prop :=
+  pred_paramarg_same lifted_expr.
 
-Ltac fold_destr :=
-  match goal with
-  | |- context [fold_left ?f ?l ?acc]
-    => destruct (fold_left f l acc) as [[? ?] ?] eqn:Hfoldl; simpl in *
-  | |- context [fold_right ?f ?acc ?l]
-    => destruct (fold_right f acc l) as [[? ?] ?] eqn:Hfoldl; simpl in *
-  end.
+Variant lifted_rexpr : Expr.e -> Prop :=
+  | lifted_lifted_expr e :
+    lifted_expr e ->
+    lifted_rexpr e
+  | lifted_bit w n :
+    lifted_rexpr (Expr.Bit w n)
+  | lifted_int w z :
+    lifted_rexpr (Expr.Int w z)
+  | lifted_slice hi lo e :
+    lifted_expr e ->
+    lifted_rexpr (Expr.Slice hi lo e)
+  | lifted_cast τ e :
+    lifted_expr e ->
+    lifted_rexpr (Expr.Cast τ e)
+  | lifted_uop τ op e :
+    lifted_expr e ->
+    lifted_rexpr (Expr.Uop τ op e)
+  | lifted_bop τ op e₁ e₂ :
+    lifted_expr e₁ ->
+    lifted_expr e₂ ->
+    lifted_rexpr (Expr.Bop τ op e₁ e₂)
+  | lifted_lists ls es :
+    Forall lifted_expr es ->
+    lifted_rexpr (Expr.Lists ls es).
 
-Section Lifted.
-  Arguments String.append : simpl never.
-  
-  Context {tags_t : Type}.
-  
-  Inductive lifted_expr : Expr.e tags_t -> Prop :=
-  | lifted_bool b i :
-      lifted_expr <{ BOOL b @ i }>
-  | lifted_var x τ i :
-      lifted_expr <{ Var x:τ @ i }>
-  | lifted_member τ e x i :
-      lifted_expr e ->
-      lifted_expr <{ Mem e dot x : τ @ i }>
-  | lifted_error err i :
-      lifted_expr <{ Error err @ i }>
-  | lifted_access ts e z i :
-      lifted_expr e ->
-      lifted_expr <{ Access e[z] : ts @ i }>.
+Variant lifted_fun_kind : Stmt.fun_kind -> Prop :=
+  | lifted_Funct x τs oe :
+    predop lifted_expr oe ->
+    lifted_fun_kind (Stmt.Funct x τs oe)
+  | lifted_Action x es :
+    Forall lifted_expr es ->
+    lifted_fun_kind (Stmt.Action x es)
+  | lifted_Method x m τs oe :
+    predop lifted_expr oe ->
+    lifted_fun_kind (Stmt.Method x m τs oe).
 
-  Definition lifted_args (args : Expr.arrowE tags_t) : Prop :=
-    F.predfs_data (pred_paramarg_same lifted_expr) (paramargs args) /\
-    predop lifted_expr (rtrns args).
-  
-  Inductive lifted_stmt : Stmt.s tags_t -> Prop :=
-  | lifted_skip i :
-      lifted_stmt -{ skip @ i }-
-  | lifted_vardecl x te i :
-      match te with
-      | inl t => True
-      | inr e => lifted_expr e
-      end ->
-      lifted_stmt -{ var x with te @ i }-
-  | lifted_assign e1 e2 i :
-      lifted_expr e1 ->
-      lifted_expr e2 ->
-      lifted_stmt -{ asgn e1 := e2 @ i }-
-  | lifted_bit x w n i iw :
-      lifted_stmt -{ init x := w W n @ iw @ i }-
-  | lifted_int x w z i iw :
-      lifted_stmt -{ init x := w S z @ iw @ i }-
-  | lifted_uop τ op x e i ie :
-      lifted_expr e ->
-      lifted_stmt -{ init x := UOP op e : τ @ ie @ i}-
-  | lifted_bop τ op x e1 e2 i ie1e2 :
-      lifted_expr e1 ->
-      lifted_expr e2 ->
-      lifted_stmt -{ init x := BOP e1 op e2 : τ @ ie1e2 @ i }-
-  | lifted_slice x e hi lo i ie :
-      lifted_expr e ->
-      lifted_stmt -{ init x := Slice e [hi:lo] @ ie @ i }-
-  | lifted_cast x e τe i ie :
-      lifted_expr e ->
-      lifted_stmt -{ init x := Cast e:τe @ ie @ i }-
-  | lifted_tuple x es i ies :
-      Forall lifted_expr es ->
-      lifted_stmt -{ init x := tup es @ ies @ i }-
-  | lifted_struct x es i ies :
-      F.predfs_data lifted_expr es ->
-      lifted_stmt -{ init x := struct { es } @ ies @ i }-
-  | lifted_header x e es i ies :
-      lifted_expr e ->
-      F.predfs_data lifted_expr es ->
-      lifted_stmt -{ init x := hdr { es } valid:=e @ ies @ i }-
-  | lifted_stack x es ni τs i ies :
-      Forall lifted_expr es ->
-      lifted_stmt -{ init x := Stack es:τs nextIndex:=ni @ ies @ i }-
-  | lifted_cond e s1 s2 i :
-      lifted_expr e ->
-      lifted_stmt s1 ->
-      lifted_stmt s2 ->
-      lifted_stmt -{ if e then s1 else s2 @ i }-
-  | lifted_seq s1 s2 i :
-      lifted_stmt s1 ->
-      lifted_stmt s2 ->
-      lifted_stmt -{ s1; s2 @ i }-
-  | lifted_block s :
-      lifted_stmt s ->
-      lifted_stmt -{ b{ s }b }-
-  | lifted_extern_method_call e f targs args i :
-      lifted_args args ->
-      lifted_stmt (Stmt.SExternMethodCall e f targs args i)
-  | lifted_fun_call f targs args i :
-      lifted_args args ->
-      lifted_stmt (Stmt.SFunCall f targs args i)
-  | lifted_act_call a args i :
-      F.predfs_data (pred_paramarg_same lifted_expr) args ->
-      lifted_stmt -{ calling a with args @ i }-
-  | lifted_return eo i :
-      match eo with
-      | Some e => lifted_expr e
-      | None   => True
-      end ->
-      lifted_stmt -{ return eo @ i }-
-  | lifted_exit i :
-      lifted_stmt -{ exit @ i }-
-  | lifted_invoke t i :
-      lifted_stmt -{ invoke t @ i }-
-  | lifted_apply x ext_args args i :
-      F.predfs_data (pred_paramarg_same lifted_expr) args ->
-      lifted_stmt -{ apply x with ext_args & args @ i }-
-  | lifted_headerStackOp hdr_stk_name typ op n i :
-      lifted_stmt (Stmt.SHeaderStackOp hdr_stk_name typ op n i)
-  | lifted_setValidity e validity i : 
-      lifted_expr e -> lifted_stmt (Stmt.SSetValidity e validity i).
-  
-  Local Hint Constructors lifted_expr : core.
+Variant lifted_parser_expr : Parser.trns -> Prop :=
+  | lifted_goto st : 
+    lifted_parser_expr (Parser.Direct st)
+  | lifted_select exp default cases : 
+    lifted_expr exp ->
+    lifted_parser_expr (Parser.Select exp default cases).
 
-  Inductive lifted_parser_expr : Parser.e tags_t -> Prop :=
-  | lifted_goto st i : 
-      lifted_parser_expr (Parser.PGoto st i)
-  | lifted_select exp default cases i: 
-      lifted_expr exp -> lifted_parser_expr default -> 
-      Field.predfs_data lifted_parser_expr cases ->
-      lifted_parser_expr (Parser.PSelect exp default cases i).
+Inductive lifted_stmt : Stmt.s -> Prop :=
+| lifted_skip :
+  lifted_stmt Stmt.Skip
+| lifted_vardecl og te s :
+  match te with
+  | inl t => True
+  | inr e => lifted_rexpr e
+  end ->
+  lifted_stmt s ->
+  lifted_stmt (Stmt.Var og te s)
+| lifted_assign e1 e2 :
+  lifted_expr e1 ->
+  lifted_expr e2 ->
+  lifted_stmt (Stmt.Assign e1 e2)
+| lifted_cond e s1 s2 :
+  lifted_expr e ->
+  lifted_stmt s1 ->
+  lifted_stmt s2 ->
+  lifted_stmt (Stmt.Conditional e s1 s2)
+| lifted_seq s1 s2 :
+  lifted_stmt s1 ->
+  lifted_stmt s2 ->
+  lifted_stmt (Stmt.Seq s1 s2)
+| lifted_call fk args :
+  lifted_fun_kind fk ->
+  Forall lifted_arg args ->
+  lifted_stmt (Stmt.Call fk args)
+| lifted_return eo :
+  match eo with
+  | Some e => lifted_expr e
+  | None   => True
+  end ->
+  lifted_stmt (Stmt.Return eo)
+| lifted_exit :
+  lifted_stmt Stmt.Exit
+| lifted_transition e :
+  lifted_parser_expr e ->
+  lifted_stmt (Stmt.Transition e)
+| lifted_invoke t :
+  lifted_stmt (Stmt.Invoke t)
+| lifted_apply x ext_args args :
+  Forall lifted_arg args ->
+  lifted_stmt (Stmt.Apply x ext_args args).
 
-  Local Hint Constructors lifted_parser_expr : core.
-  
-  Definition lifted_parser_state (stblk : Parser.state_block tags_t) : Prop :=
-    lifted_stmt (Parser.stmt stblk) /\ lifted_parser_expr (Parser.trans stblk).
-  
-  Definition lifted_parser_states (states: F.fs string (Parser.state_block tags_t)) : Prop := 
-    F.predfs_data lifted_parser_state states.
+Variant lifted_control_Decl : Control.d -> Prop :=
+  | lifted_control_Var x te :
+    match te with
+    | inl t => True
+    | inr e => lifted_rexpr e
+    end ->
+    lifted_control_Decl (Control.Var x te)
+  | lifted_control_Action act cps dps body :
+    lifted_stmt body ->
+    lifted_control_Decl (Control.Action act cps dps body)
+  | lifted_control_Table table_name key actions :
+    Forall lifted_expr (map fst key) ->
+    Forall (Forall lifted_arg) (map snd actions) ->
+    lifted_control_Decl (Control.Table table_name key actions).
 
-  (*Check lifted_parser_states.*)
-  Definition lifted_table (tbl : Control.table tags_t) : Prop :=
-    Forall (fun '(e, _) => lifted_expr e) (Control.table_key tbl).
-  
-  Inductive lifted_control_Decl : Control.d tags_t -> Prop :=
-  | lifted_CDAction act sig body i :
-      lifted_stmt body ->
-      lifted_control_Decl (Control.CDAction act sig body i)
-  | lifted_CDTable table_name body i :
-      lifted_table body ->
-      lifted_control_Decl (Control.CDTable table_name body i)
-  | lifted_CDSeq d1 d2 i :
-      lifted_control_Decl d1 -> lifted_control_Decl d2 ->
-      lifted_control_Decl (Control.CDSeq d1 d2 i).
+Variant lifted_top_Decl : TopDecl.d -> Prop :=
+| lifted_Instantiate c_name i_name type_args cargs expr_cargs :
+  lifted_top_Decl (TopDecl.Instantiate c_name i_name type_args cargs expr_cargs)
+| lifted_Extern e_name type_params c_params expr_c_params methods : 
+  lifted_top_Decl (TopDecl.Extern e_name type_params c_params expr_c_params methods)
+| lifted_Control c cparams expr_cparams eps params body apply_blk :
+  Forall lifted_control_Decl body -> lifted_stmt apply_blk ->
+  lifted_top_Decl (TopDecl.Control c cparams expr_cparams eps params body apply_blk)
+| lifted_Parser p cparams expr_cparams eps params start_state states :
+  lifted_stmt start_state -> Forall lifted_stmt states ->
+  lifted_top_Decl (TopDecl.Parser p cparams expr_cparams eps params start_state states)
+| lifted_Function f tparams signature body :
+  lifted_stmt body -> lifted_top_Decl (TopDecl.Funct f tparams signature body).
 
-  Inductive lifted_top_Decl : TopDecl.d tags_t -> Prop :=
-  | lifted_TPInstantiate c_name i_name type_args cargs i :
-      lifted_top_Decl (TopDecl.TPInstantiate c_name i_name type_args cargs i)
-  | lifted_TPExtern e_name type_params c_params methods i : 
-      lifted_top_Decl (TopDecl.TPExtern e_name type_params c_params methods i)
-  | lifted_TPControl c cparams eps params body apply_blk i :
-      lifted_control_Decl body -> lifted_stmt apply_blk ->
-      lifted_top_Decl (TopDecl.TPControl c cparams eps params body apply_blk i)
-  | lifted_TPParser p cparams eps params start_state states i :
-      lifted_parser_state start_state -> lifted_parser_states states ->
-      lifted_top_Decl (TopDecl.TPParser p cparams eps params start_state states i)
-  | lifted_TPFunction f tparams signature body i :
-      lifted_stmt body -> lifted_top_Decl (TopDecl.TPFunction f tparams signature body i)
-  | lifted_TPSeq d1 d2 i :
-      lifted_top_Decl d1 -> lifted_top_Decl d2 ->
-      lifted_top_Decl (TopDecl.TPSeq d1 d2 i).
+Local Hint Constructors lifted_expr : core.
+Local Hint Constructors lifted_rexpr : core.
+Local Hint Constructors lifted_parser_expr : core.
 
-  Section HelperLemmas.
-    Variable f :
-      Expr.e tags_t -> VarNameGen.t ->
-      Stmt.s tags_t * Expr.e tags_t * VarNameGen.t.
-      
-    Section General.
-      Hypothesis Hf : forall e env, lifted_expr (snd (fst (f e env))).
-      
-      Lemma TransformExprList'_lifted_expr :
-        forall es env i,
-          Forall
-            lifted_expr
-            (snd (fst (TransformExprList' f es env i))).
-      Proof.
-        unfold TransformExprList'.
-        intro es; induction es as [| e es IHes];
-          intros env i; simpl; auto.
-        fold_destr. destruct (f e t) as [[s' e'] env'] eqn:Heqfet.
-        constructor.
-        - apply f_equal with (f:=snd ∘ fst) in Heqfet; unravel in *.
-          rewrite <- Heqfet; auto.
-        - specialize IHes with env i.
-          rewrite Hfoldl in IHes; auto.
-      Qed.
-      
-      Lemma TransformFields'_lifted_expr :
-        forall es env i,
-          F.predfs_data
-            lifted_expr
-            (snd (fst (TransformFields' f es env i))).
-      Proof.
-        unfold TransformFields', Field.fold.
-        intro es; induction es as [| (x & e) es IHes];
-          intros env i; unfold F.predfs_data, F.predf_data in *;
-            unravel in *; auto; fold_destr.
-        destruct (f e t) as [[s' e'] env'] eqn:Heqfet; unravel.
-        constructor; unravel.
-        - apply f_equal with (f:=snd ∘ fst) in Heqfet;
-            unravel in *. rewrite <- Heqfet; auto.
-        - specialize IHes with env i.
-          rewrite Hfoldl in IHes; auto.
-      Qed.
-    End General.
-  End HelperLemmas.
+Lemma rename_e_lifted_expr : forall ρ e,
+    lifted_expr e -> lifted_expr (rename_e ρ e).
+Proof.
+  intros ρ e h; induction h; unravel; auto.
+Qed.
 
-  Local Hint Resolve TransformExprList'_lifted_expr : core.
-  Local Hint Resolve TransformFields'_lifted_expr : core.
-  
-  Lemma TransformExpr_lifted_expr : forall e env,
-      lifted_expr (snd (fst (TransformExpr e env))).
+Local Hint Resolve rename_e_lifted_expr : core.
+
+Lemma rename_e_lifted_rexpr : forall ρ e,
+    lifted_rexpr e -> lifted_rexpr (rename_e ρ e).
+Proof.
+  intros ρ e h; inv h; unravel; auto;
+    constructor; rewrite sublist.Forall_map;
+    rewrite Forall_forall in *; unravel; auto.
+Qed.
+
+Local Hint Resolve rename_e_lifted_rexpr : core.
+
+Section LiftList.
+  Context {U V : Set}.
+  Variable Lift : nat -> U -> list V * U.
+  Variable Rename : (nat -> nat) -> U -> U.
+
+  Lemma lift_list_length : forall us us' vs up,
+      lift_list Lift Rename up us = (vs, us') ->
+      length us = length us'.
   Proof.
-    intro e; induction e using custom_e_ind;
-      intro env; unravel in *;
-        repeat transformExpr_destr; auto;
-          try (constructor; specialize IHe with env;
-               transformExpr_destr_hyp; inv Heqp; auto; assumption).
+    intro us; induction us as [| u us ih];
+      intros [| u' us'] vs up h; unravel in *; auto.
+    - inv h.
+    - destruct (Lift up u) as [uvs uus].
+      destruct (lift_list Lift Rename (length uvs + up) us) as [? ?]. inv h.
+    - destruct (Lift up u) as [uvs uus] eqn:hu.
+      destruct (lift_list Lift Rename (length uvs + up) us) as [usvs usus] eqn:hus. inv h.
+      f_equal. eauto.
   Qed.
   
-  Local Hint Constructors lifted_stmt : core.
+  Variable P : U -> Prop.
+  Variable Q : V -> Prop.
 
-  Ltac seq_lift :=
-    match goal with
-    | |- lifted_stmt -{ _; _ @ _ }-
-      => apply lifted_seq
-    end.
+  Hypothesis PQ_Lift : forall u u' vs up,
+      Lift up u = (vs, u') ->
+      Forall Q vs /\ P u'.
 
-  Local Hint Resolve TransformExpr_lifted_expr : core.
+  Hypothesis P_Rename : forall ρ u,
+      P u -> P (Rename ρ u).
 
-  Lemma TransformExprList'_TransformExpr_lifted_expr : forall es env i,
-      Forall
-        lifted_expr
-        (snd
-           (fst
-              (TransformExprList'
-                 TransformExpr es env i))).
+  Lemma lift_list_lifted : forall us us' vs up,
+      lift_list Lift Rename up us = (vs, us') ->
+      Forall Q vs /\ Forall P us'.
   Proof.
-    auto.
+    intro us; induction us as [| u us];
+      intros [| u' us'] vs up h; unravel in *.
+    - inv h. auto.
+    - inv h.
+    - destruct (Lift up u) as [uvs uus].
+      destruct (lift_list Lift Rename (length uvs + up) us) as [? ?]. inv h.
+    - destruct (Lift up u) as [uvs uus] eqn:hu.
+      destruct (lift_list Lift Rename (length uvs + up) us) as [usvs usus] eqn:hus. inv h.
+      pose proof PQ_Lift _ _ _ _ hu as [huvs huus].
+      pose proof IHus _ _ _ hus as [husvs husus].
+      rewrite Forall_app. auto.
   Qed.
+End LiftList.
 
-  Local Hint Resolve TransformExprList'_TransformExpr_lifted_expr : core.
+Local Hint Resolve lift_list_lifted : core.
+
+Lemma lift_list_lifted_expr : forall es l Es up,
+    lift_list lift_e rename_e up es = (l, Es) ->
+    Forall
+        (fun e : Expr.e =>
+         forall (E : Expr.e) (le : list Expr.e) (u : nat),
+           lift_e u e = (le, E) ->
+           Forall lifted_rexpr le /\ lifted_expr E) es ->
+    Forall lifted_rexpr l /\ Forall lifted_expr Es.
+Proof.
+  intro es; induction es as [| e es ih];
+    intros l [| E Es] up h H; cbn in *; inv H.
+  - inv h. auto.
+  - inv h.
+  - destruct (lift_e up e) as [le' E'] eqn:he.
+    destruct (lift_list lift_e rename_e (length le' + up) es)
+      as [les' Es'] eqn:hes. inv h.
+  - destruct (lift_e up e) as [le' E'] eqn:he.
+    destruct (lift_list lift_e rename_e (length le' + up) es)
+      as [les' Es'] eqn:hes. inv h.
+    pose proof ih _ _ _ hes H3 as [hles' hEs].
+    pose proof H2 _ _ _ he as [hle' hE'].
+    rewrite Forall_app. repeat split; eauto.
+Qed.
+
+Local Hint Resolve lift_list_lifted_expr : core.
+
+Lemma lift_e_lifted_expr : forall e E l up,
+    lift_e up e = (l, E) ->
+    Forall lifted_rexpr l /\ lifted_expr E.
+Proof.
+  intro e; induction e using custom_e_ind;
+    intros E ll up h; unravel in *;
+    repeat lift_e_destr;
+    try lift_e_destr_hyp;
+    repeat pair_destr; auto.
+  - apply IHe in Heqp as [? ?]; auto.
+  - apply IHe in Heqp as [? ?]; auto.
+  - apply IHe in Heqp as [? ?]; auto.
+  - destruct (lift_e (length l + up) e2) as [l2  e2'] eqn:eql2.
+    apply IHe1 in Heqp as [? ?].
+    apply IHe2 in eql2 as [? ?].
+    pair_destr.
+    split; auto.
+    constructor.
+    + apply lifted_bop; auto.
+    + rewrite Forall_app; auto.
+  - destruct (lift_list lift_e rename_e up exps)
+      as [l' E'] eqn:eql; inv h.
+    split; auto.
+    assert (Forall lifted_rexpr l' /\ Forall lifted_expr E')
+      as yes by eauto.
+    destruct yes; auto.
+  - destruct (lift_e (length l + up) e2) as [l2  e2'] eqn:eql2.
+    apply IHe1 in Heqp as [? ?].
+    apply IHe2 in eql2 as [? ?].
+    pair_destr.
+    split; auto; rewrite Forall_app; auto.
+  - apply IHe in Heqp as [? ?]; auto.
+Qed.
+
+Local Hint Resolve lift_e_lifted_expr : core.
+
+Lemma lift_e_list_lifted_expr : forall es es' le up,
+    lift_e_list up es = (le, es') ->
+    Forall lifted_rexpr le /\ Forall lifted_expr es'.
+Proof. eauto. Qed.
+
+Local Hint Resolve lift_e_list_lifted_expr : core.
+
+Lemma lift_arg_lifted_arg : forall arg arg' le up,
+    lift_arg up arg = (le, arg') ->
+    Forall lifted_rexpr le /\ lifted_arg arg'.
+Proof.
+  intros arg arg' le up h;
+    destruct arg as [e | e | e]; unravel in *;
+    lift_e_destr_hyp; pair_destr;
+    eapply lift_e_lifted_expr; eauto.
+Qed.
   
-  Lemma TransformFields'_TransformExpr_lifted_expr : forall es env i,
-      F.predfs_data
-        lifted_expr
-        (snd (fst (TransformFields' TransformExpr es env i))).
-  Proof.
-    auto.
-  Qed.
+Local Hint Resolve lift_arg_lifted_arg : core.
 
-  Local Hint Resolve TransformFields'_TransformExpr_lifted_expr : core.
+Lemma rename_arg_lifted_arg : forall ρ arg,
+    lifted_arg arg -> lifted_arg (rename_arg ρ arg).
+Proof.
+  intros ρ [e | e | e] h; unravel in *; auto.
+Qed.
 
-  Lemma TransformExprList'_lifted_stmt_Forall :
-    forall es,
-      Forall
-        (fun e => forall env,
-             lifted_stmt (fst (fst (TransformExpr e env)))) es ->
-      forall env i,
-        lifted_stmt (fst (fst (TransformExprList' TransformExpr es env i))).
-  Proof.
-    unfold TransformExprList';
-      intros es H; ind_list_Forall;
-        intros env i; simpl in *; auto.
-    intuition; fold_destr.
-    specialize H with env i.
-    rewrite Hfoldl in H; simpl in *; clear Hfoldl.
-    specialize H2 with t. transformExpr_destr.
-    auto.
-  Qed.
+Local Hint Resolve rename_arg_lifted_arg : core.
 
-  Local Hint Resolve TransformExprList'_lifted_stmt_Forall : core.
+Lemma lift_args_lifted_args : forall args args' le up,
+    lift_args up args = (le, args') ->
+    Forall lifted_rexpr le /\ Forall lifted_arg args'.
+Proof. eauto. Qed.
 
-  Lemma TransformFields'_lifted_stmt_Forall :
-    forall fields,
-      F.predfs_data
-        (fun e => forall env,
-             lifted_stmt (fst (fst (TransformExpr e env)))) fields ->
-      forall env i,
-        lifted_stmt (fst (fst (TransformFields' TransformExpr fields env i))).
-  Proof.
-    unfold TransformFields', Field.fold;
-      intros es H; ind_list_predfs;
-        intros env i; simpl in *; auto.
-    intuition. fold_destr.
-    specialize H with env i.
-    rewrite Hfoldl in H; simpl in *; clear Hfoldl.
-    specialize H2 with t. transformExpr_destr.
-    auto.
-  Qed.
+Local Hint Resolve lift_args_lifted_args : core.
+Local Hint Constructors lifted_parser_expr : core.
 
-  Local Hint Resolve TransformFields'_lifted_stmt_Forall : core.
-  
-  Lemma TransformExpr_lifted_stmt : forall e env,
-      lifted_stmt (fst (fst (TransformExpr e env))).
-  Proof.
-    intro e; induction e using custom_e_ind;
-      intro env; unravel in *;
-        repeat transformExpr_destr;
-        repeat seq_lift; auto;
-          try (specialize IHe with env;
-               transformExpr_destr_hyp_rewrite;
-               assumption);
-          try (specialize IHe with env;
-               transformExpr_destr_hyp_rewrite;
-               apply f_equal with (f:= (snd ∘ fst)) in Heqp;
-               unravel in *; rewrite <- Heqp; auto; assumption).
-    - specialize IHe1 with env;
-        transformExpr_destr_hyp_rewrite; assumption.
-    - specialize IHe2 with t;
-        transformExpr_destr_hyp_rewrite; assumption.
-    - specialize IHe1 with env;
-        specialize IHe2 with t;
-        transformExpr_destr_hyp_rewrite;
-        apply f_equal with (f:= snd ∘ fst) in Heqp;
-        apply f_equal with (f:= snd ∘ fst) in Heqp0.
-      unravel in *; rewrite <- Heqp, <- Heqp0; auto.
-    - apply f_equal with (f := fst ∘ fst) in Heqp; unravel in *.
-      rewrite <- Heqp; auto.
-    - apply lifted_tuple.
-      apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
-      rewrite <- Heqp; auto.
-    - apply f_equal with (f := fst ∘ fst) in Heqp; unravel in *.
-      rewrite <- Heqp; auto.
-    - apply lifted_struct.
-      apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
-      rewrite <- Heqp; auto.
-    - apply f_equal with (f := fst ∘ fst) in Heqp; unravel in *.
-      rewrite <- Heqp; auto.
-    - apply f_equal with (f := fst ∘ fst) in Heqp0; unravel in *.
-      rewrite <- Heqp0; auto.
-    - apply lifted_header.
-      + apply f_equal with (f := snd ∘ fst) in Heqp0; unravel in *.
-        rewrite <- Heqp0; auto.
-      + apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
-        rewrite <- Heqp; auto.
-    - apply f_equal with (f := fst ∘ fst) in Heqp; unravel in *.
-      rewrite <- Heqp; auto.
-    - apply lifted_stack.
-      apply f_equal with (f:=snd ∘ fst) in Heqp; unravel in *.
-      rewrite <- Heqp; auto.
-  Qed.
+Lemma lift_trans_lifted_parser_expr : forall e e' le up,
+    lift_trans up e = (le, e') ->
+    Forall lifted_rexpr le /\ lifted_parser_expr e'.
+Proof.
+  intros e e' le up h; destruct e;
+    unravel in *; try lift_e_destr_hyp;
+    pair_destr; auto.
+  apply lift_e_lifted_expr in Heqp as [? ?]; auto.
+Qed.
 
-  Local Hint Resolve TransformExpr_lifted_stmt : core.
+Local Hint Constructors lifted_fun_kind : core.
+Local Hint Constructors predop : core.
 
-  Ltac hyp_f_equal Heqp func:= 
-    apply f_equal with (f := fst) in Heqp; apply f_equal with (f := func) in Heqp; simpl in Heqp;
-      rewrite <- Heqp; auto.
-  
-  Ltac hyp_f_equal_fst Heqp:= 
-    apply f_equal with (f := fst) in Heqp; apply f_equal with (f := fst) in Heqp; simpl in Heqp;
-      rewrite <- Heqp; auto.
-  
-  Ltac hyp_f_equal_snd Heqp:= 
-    apply f_equal with (f := fst) in Heqp; apply f_equal with (f := snd) in Heqp; simpl in Heqp;
-      rewrite <- Heqp; auto.
+Lemma lift_fun_kind_lifted_fun_kind : forall fk fk' up le,
+    lift_fun_kind up fk = (le, fk') ->
+    Forall lifted_rexpr le /\ lifted_fun_kind fk'.
+Proof.
+  intros fk fk' up le h; destruct fk; unravel in *.
+  - destruct returns as [e |]; try lift_e_destr_hyp; pair_destr; auto.
+    apply lift_e_lifted_expr in Heqp as [? ?]; auto.
+  - destruct (lift_e_list up control_plane_args) as [les es'] eqn:eqles.
+    pair_destr; apply lift_e_list_lifted_expr in eqles as [? ?]; auto.
+  - destruct returns as [e |]; try lift_e_destr_hyp; pair_destr; auto.
+    apply lift_e_lifted_expr in Heqp as [? ?]; auto.
+Qed.
 
-  Lemma TranslateArgs_lifted_stmt : forall (a : Expr.args tags_t) env i,
-  lifted_stmt (fst (fst (TranslateArgs a env i))).
-  Proof.
-    intros a i. induction a;
-      intro env; simpl.
-      - constructor.
-      - destruct a. destruct (TranslateArgs a0 i env) eqn:Hs2. destruct p0. transformExpr_destr. 
-        constructor.
-        + hyp_f_equal_fst Hs2.
-        + hyp_f_equal_fst Heqp0.
-  Qed.
+Lemma rename_fun_kind_lifted_fun_kind : forall ρ fk,
+    lifted_fun_kind fk ->
+    lifted_fun_kind (rename_fun_kind ρ fk).
+Proof.
+  intros ρ fk h; inv h; unravel.
+  - constructor; destruct oe; unravel; inv H; auto.
+  - constructor.
+    rewrite sublist.Forall_map; unravel.
+    rewrite Forall_forall in *; eauto.
+  - constructor; destruct oe; unravel; inv H; auto.
+Qed.
 
-  Local Hint Resolve TranslateArgs_lifted_stmt : core.
+Local Hint Resolve rename_fun_kind_lifted_fun_kind : core.
 
-  Lemma TranslateArrowE_lifted_stmt : forall (args : Expr.arrowE tags_t) env i, 
-  lifted_stmt (fst (fst (TranslateArrowE args env i))).
-  Proof.
-    intros [pas returns] i env; simpl.
-    destruct (TranslateArgs pas i env) eqn:Hs1. destruct p. destruct returns.
-    - transformExpr_destr. constructor.
-      + hyp_f_equal_fst Hs1.
-      + hyp_f_equal_fst Heqp.
-    - simpl. hyp_f_equal_fst Hs1. 
-  Qed.
+Local Hint Constructors lifted_stmt : core.
 
-  Local Hint Resolve TranslateArrowE_lifted_stmt : core.
+Lemma unwind_vars_lifted : forall le s,
+    Forall lifted_rexpr le ->
+    lifted_stmt s ->
+    lifted_stmt (unwind_vars le s).
+Proof.
+  intro le; induction le as [| e le ih];
+    intros s hle hs; inv hle; unravel; auto.
+Qed.
 
-  Lemma TranslateArgs_lifted_expr : forall pas env i,
-      Field.predfs_data (pred_paramarg_same lifted_expr) (snd (fst (TranslateArgs pas i env))).
-  Proof.
-    intros pas i. induction pas; intro env; simpl.
-    - constructor.
-    - destruct a. translateArgs_destr. transformExpr_destr.
-      destruct p; unfold F.predfs_data, F.predf_data in *; 
-    unravel in *; rewrite Forall_app; split; try hyp_f_equal_snd Heqp0; repeat constructor;
-    simpl; unfold pred_paramarg_same, pred_paramarg; hyp_f_equal_snd Heqp1.
-  Qed.
+Local Hint Resolve unwind_vars_lifted : core.
 
-  Local Hint Resolve TranslateArgs_lifted_expr : core.
+Lemma lift_s_lifted_stmt : forall s up, lifted_stmt (lift_s up s).
+Proof.
+  intro s; induction s; intro up; unravel; auto.
+  - destruct e as [e |]; auto.
+    lift_e_destr; apply lift_e_lifted_expr in Heqp.
+    intuition.
+  - destruct (lift_trans up trns) as [le e'] eqn:eqle.
+    apply lift_trans_lifted_parser_expr in eqle as [? ?].
+    intuition.
+  - do 2 lift_e_destr.
+    apply lift_e_lifted_expr in Heqp as [? ?], Heqp0 as [? ?].
+    apply unwind_vars_lifted; auto.
+    rewrite Forall_app; auto.
+  - destruct (lift_fun_kind up call) as [lfk fk'] eqn:eqfk.
+    destruct (lift_args (length lfk + up) args) as [largs args'] eqn:eqargs.
+    apply lift_fun_kind_lifted_fun_kind in eqfk as [? ?].
+    apply lift_args_lifted_args in eqargs as [? ?].
+    apply unwind_vars_lifted; auto.
+    rewrite Forall_app; auto.
+  - destruct (lift_args up args) as [largs args'] eqn:eqargs.
+    apply lift_args_lifted_args in eqargs as [? ?]; auto.
+  - destruct expr as [t | e]; auto.
+    lift_e_destr. apply lift_e_lifted_expr in Heqp as [? ?]; auto.
+  - lift_e_destr. apply lift_e_lifted_expr in Heqp as [? ?]; auto.
+Qed.
 
-  Local Hint Constructors predop : core.
+Local Hint Resolve lift_s_lifted_stmt : core.
 
-  Lemma TransformExpr_lifted_args : forall pas i (e:Expr.e tags_t) t env,
-      lifted_args {|paramargs:=snd (fst (TranslateArgs pas i env));
-                    rtrns:=Some (snd (fst (TransformExpr e t)))|}.
-  Proof.
-    unfold lifted_args.
-    intros pas i e t env; simpl; auto.
-  Qed.
+Ltac hyp_f_equal Heqp func:= 
+  apply f_equal with (f := fst) in Heqp; apply f_equal with (f := func) in Heqp; simpl in Heqp;
+  rewrite <- Heqp; auto.
 
-  Local Hint Resolve TransformExpr_lifted_args : core.
-   
-  Lemma TranslateArrowE_lifted_args : forall (args : Expr.arrowE tags_t) env i, 
-  lifted_args (snd (fst (TranslateArrowE args env i))).
-  Proof.
-    intros [pas returns] i env; simpl.
-    destruct (TranslateArgs pas i env) eqn:Hs1;
-      destruct p eqn:Hs2; destruct returns eqn:Hs3; cbn.
-    - transformExpr_destr. hyp_f_equal_snd Heqp0. hyp_f_equal_snd Hs1.
-    - hyp_f_equal_snd Hs1. unfold lifted_args; split; cbn; auto.
-  Qed.
+Ltac hyp_f_equal_fst Heqp:= 
+  apply f_equal with (f := fst) in Heqp; apply f_equal with (f := fst) in Heqp; simpl in Heqp;
+  rewrite <- Heqp; auto.
 
-  Local Hint Resolve TranslateArrowE_lifted_args : core.
+Ltac hyp_f_equal_snd Heqp:= 
+  apply f_equal with (f := fst) in Heqp; apply f_equal with (f := snd) in Heqp; simpl in Heqp;
+  rewrite <- Heqp; auto.
 
-  Lemma TranslateStmt_lifted_stmt : forall (s : Stmt.s tags_t) (env:VarNameGen.t),
-  lifted_stmt (fst (TranslateStatement s env)).
-  Proof.
-  intros s. induction s; intros env; try simpl; auto; repeat transformExpr_destr.
+Local Hint Constructors lifted_control_Decl : core.
+
+Lemma lift_control_decl_lifted_control_Decl : forall cd cds up n,
+    lift_control_decl up cd = (n, cds) ->
+    Forall lifted_control_Decl cds.
+Proof.
+  intros cd cds up n h; destruct cd; unravel in *; auto.
   - destruct expr.
-    + simpl. auto.
-    + transformExpr_destr. constructor. 
-      * hyp_f_equal_fst Heqp. 
-      * constructor. hyp_f_equal_snd Heqp.
-  - repeat constructor. 
-    + hyp_f_equal_fst Heqp.
-    + hyp_f_equal_fst Heqp0.
-    + hyp_f_equal_snd Heqp.   
-    + hyp_f_equal_snd Heqp0.
-  - repeat translateStmt_destr. constructor.
-    + hyp_f_equal_fst Heqp.
-    + constructor. 
-      * hyp_f_equal_snd Heqp. 
-      * hyp_f_equal Heqp0 (fun x:(Stmt.s tags_t) => x).
-      * hyp_f_equal Heqp1 (fun x:(Stmt.s tags_t) => x). 
-  - repeat translateStmt_destr. constructor. 
-    + hyp_f_equal Heqp (fun x:(Stmt.s tags_t) => x).
-    + hyp_f_equal Heqp0 (fun x:(Stmt.s tags_t) => x). 
-  - translateStmt_destr. constructor. hyp_f_equal Heqp (fun x:(Stmt.s tags_t) => x).
-  - translateArrowE_destr. constructor.
-    + hyp_f_equal_fst Heqp.
-    + constructor. hyp_f_equal_snd Heqp. 
-  - translateArrowE_destr. constructor.
-    + hyp_f_equal_fst Heqp.
-    + hyp_f_equal_snd Heqp.
-  - translateArgs_destr. constructor.
-    + hyp_f_equal_fst Heqp. 
-    + hyp_f_equal_snd Heqp. 
-  - destruct e.
-    + transformExpr_destr. constructor.
-      * hyp_f_equal_fst Heqp.
-      * hyp_f_equal_snd Heqp.
-    + simpl. auto.
-  - translateArgs_destr. constructor.
-    + hyp_f_equal_fst Heqp.
-    + hyp_f_equal_snd Heqp. 
-  - repeat constructor.
-    + hyp_f_equal_fst Heqp.
-    + hyp_f_equal_snd Heqp.
-  Qed.
+    + inv h. auto.
+    + lift_e_destr_hyp. inv h.
+      apply lift_e_lifted_expr in Heqp as [hl he0].
+      rewrite Forall_app, Forall_map.
+      split; eauto using Forall_impl.
+  - inv h. auto.
+  - destruct (split key) as [es mks] eqn:hkey.
+    destruct (split actions) as [acts argss] eqn:hactions.
+    destruct (lift_e_list up es) as [ees es'] eqn:hes.
+    destruct (lift_list lift_args (fun ρ => map (rename_arg ρ)) (length ees + up) argss)
+      as [argsss argss'] eqn:hargss. inv h.
+    pose proof lift_e_list_lifted_expr _ _ _ _ hes as [hees hes'].
+    assert (Forall lifted_rexpr argsss /\ Forall (Forall lifted_arg) argss') as [hargsss hargs'].
+    { eapply lift_list_lifted; eauto.
+      intros r args hargs. unravel.
+      rewrite Forall_map. eauto using Forall_impl. }
+    repeat rewrite Forall_app. repeat rewrite Forall_map.
+    repeat split; eauto using Forall_impl.
+    constructor; auto. constructor.
+    + rewrite map_fst_combine; auto.
+      pose proof f_equal fst hkey as hfst.
+      pose proof f_equal snd hkey as hsnd.
+      apply f_equal with (f:=length (A:=Expr.e)) in hfst.
+      apply f_equal with (f:=length (A:=String.string)) in hsnd.
+      rewrite split_length_l in hfst.
+      rewrite split_length_r in hsnd. cbn in *.
+      rewrite hfst in hsnd.
+      apply lift_list_length in hes.
+      rewrite <- hes. assumption.
+    + rewrite map_snd_combine; auto.
+      pose proof f_equal fst hactions as hfst.
+      pose proof f_equal snd hactions as hsnd.
+      apply f_equal with (f:=length (A:=String.string)) in hfst.
+      apply f_equal with (f:=length (A:=Expr.args)) in hsnd.
+      rewrite split_length_l in hfst.
+      rewrite split_length_r in hsnd. cbn in *.
+      rewrite hfst in hsnd.
+      apply lift_list_length in hargss.
+      rewrite <- hargss. assumption.
+Qed.
 
-  Local Hint Resolve TranslateStmt_lifted_stmt : core.
+Local Hint Resolve lift_control_decl_lifted_control_Decl : core.
 
+Lemma lift_control_decls_lifted_control_Decls : forall cds cds' up n,
+    lift_control_decls up cds = (n, cds') ->
+    Forall lifted_control_Decl cds'.
+Proof.
+  intro cds; induction cds as [| cd cds ih];
+    intros cds' up n h; unravel in *; auto.
+  - inv h. auto.
+  - destruct (lift_control_decl up cd) as [cdn cdd] eqn:hcd.
+    destruct (lift_control_decls (cdn + up) cds) as [cdsn cdsd] eqn:hcds.
+    inv h. rewrite Forall_app. split; eauto.
+Qed.
 
-  Lemma TranslateCases_lifted_stmt : forall (translateParserE : Parser.e tags_t -> VarNameGen.t -> (Stmt.s tags_t) * Parser.e tags_t * VarNameGen.t)
-  (cases: Field.fs Parser.pat (Parser.e tags_t)),
-  F.predfs_data (fun pe => forall env, lifted_stmt (fst (fst (translateParserE pe env)))) cases -> 
-  forall (env: VarNameGen.t) (i : tags_t), 
-  lifted_stmt (fst (fst (TranslateCases' translateParserE cases env i))).
-  Proof.
-  intros translateParserE cases Hpte; ind_list_predfs; intros. 
-  - simpl. auto.
-  - simpl. translateCases'_destr. destruct (translateParserE e t) eqn: HS1.
-  destruct p0. simpl. constructor.
-    + hyp_f_equal_fst Heqp0.
-    + hyp_f_equal_fst HS1.
-  Qed.
+Local Hint Resolve lift_control_decls_lifted_control_Decls : core.
+Local Hint Constructors lifted_top_Decl : core.
 
-  Local Hint Resolve TranslateCases_lifted_stmt : core.
-
-  Lemma TranslateParserExpr_lifted_stmt : forall (e : Parser.e tags_t) (env:VarNameGen.t),
-  lifted_stmt (fst (fst (TranslateParserExpr e env))).
-  Proof.
-  intros e. induction e using pe_ind; intro env; try simpl; auto.
-  transformExpr_destr. translateParserExpr_destr. destruct p eqn:Hs0. destruct (TranslateCases' TranslateParserExpr cases t0 i) eqn:Hs1.
-  destruct p0 eqn: Hs2. simpl. repeat constructor; auto. 
-  - hyp_f_equal_fst Heqp.
-  - hyp_f_equal_fst Heqp0.
-  - hyp_f_equal_fst Hs1.
-  Qed. 
-
-  Local Hint Resolve TranslateParserExpr_lifted_stmt : core.
-
-  Lemma TranslateCases_lifted_expr : forall (translateParserE : Parser.e tags_t -> VarNameGen.t -> (Stmt.s tags_t) * Parser.e tags_t * VarNameGen.t)
-  (cases: Field.fs Parser.pat (Parser.e tags_t)),
-  F.predfs_data (fun pe => forall env, lifted_parser_expr (snd (fst (translateParserE pe env)))) cases -> 
-  forall (env: VarNameGen.t) (i : tags_t), 
-  F.predfs_data lifted_parser_expr (snd (fst (TranslateCases' translateParserE cases env i))).
-  Proof.
-  intros translateParserE cases Hpte; ind_list_predfs; intros; unfold F.predfs_data in *; 
-  unfold F.predf_data in *; unravel in *; auto.
-  translateCases'_destr. destruct (translateParserE e t) eqn: HS1.
-  destruct p0. simpl. rewrite Forall_app. split.
-    + hyp_f_equal_snd Heqp0.
-    + constructor; auto. simpl. hyp_f_equal_snd HS1.
-  Qed.
-
-  Local Hint Resolve TranslateCases_lifted_expr : core.
-
-  Lemma TranslateParserExpr_lifted_parser_expr : forall (e : Parser.e tags_t) (env:VarNameGen.t),
-  lifted_parser_expr (snd (fst (TranslateParserExpr e env))).
-  Proof.
-  intros e. induction e using pe_ind; intro env; try simpl; auto.
-  transformExpr_destr. translateParserExpr_destr. destruct p.
-  translateCases'_destr. constructor.
-  - hyp_f_equal_snd Heqp.
-  - hyp_f_equal_snd Heqp0.
-  - hyp_f_equal_snd Heqp1.   
-  Qed. 
-
-  Local Hint Resolve TranslateParserExpr_lifted_parser_expr : core.
-
-  Lemma TranslateParserState_lifted_stmt :
-    forall (parser_state: Parser.state_block tags_t) (env : VarNameGen.t),
-      lifted_parser_state (fst (TranslateParserState parser_state env)).
-  Proof.
-    intros [s e] env; simpl; translateStmt_destr; translateParserExpr_destr.
-    destruct p. simpl. unfold lifted_parser_state; split; cbn; try constructor.
-    - hyp_f_equal Heqp (fun x:(Stmt.s tags_t) => x).
-    - hyp_f_equal_fst Heqp0.
-    - hyp_f_equal_snd Heqp0.
-  Qed.
-
-  Local Hint Resolve TranslateParserState_lifted_stmt : core.
-
-  Lemma TranslateParserStates_lifted_stmt :
-    forall (parser_states: Field.fs string (Parser.state_block tags_t)) (env : VarNameGen.t),
-      lifted_parser_states (fst (TranslateParserStates parser_states env)).
-  Proof.
-    induction parser_states; intros; simpl in *.
-    - constructor.
-    - destruct a.
-      unfold lifted_parser_states, F.predfs_data.
-      destruct (TranslateParserStates parser_states env) as [prev_states env_prev] eqn:?.
-      destruct (TranslateParserState s0 env_prev) as [s' env_state] eqn:?.
-      apply Forall_app; split.
-      + apply (f_equal fst) in Heqp.
-        simpl (fst _) in Heqp.
-        rewrite <- Heqp.
-        apply IHparser_states.
-      + constructor; auto.
-        unfold F.predf_data.
-        change _ with (lifted_parser_state s').
-        apply (f_equal fst) in Heqp0.
-        simpl (fst _) in Heqp0.
-        rewrite <- Heqp0.
-        auto.
-  Qed.
-
-  Local Hint Resolve TranslateParserStates_lifted_stmt : core.
-
-  Lemma TranslateTable_lifted_stmt :
-    forall (t: Control.table tags_t) (env: VarNameGen.t) (i : tags_t),
-      lifted_stmt (fst (fst (TranslateTable t env i))).
-  Proof.
-    intros [ky acts] env i; cbn; fold_destr; clear acts.
-    hyp_f_equal_fst Hfoldl.
-    clear Hfoldl l t s.
-    generalize dependent env.
-    induction ky as [| [e mk] ky IHky]; intros env; simpl in *; auto.
-    fold_destr; transformExpr_destr.
-    specialize IHky with env.
-    rewrite Hfoldl in IHky; simpl in *.
-    hyp_f_equal_fst Heqp.
-  Qed.
-
-  Local Hint Resolve TranslateTable_lifted_stmt : core.
-
-  Lemma TranslateTable_lifted_table :
-    forall (t: Control.table tags_t) (env: VarNameGen.t) (i : tags_t),
-      lifted_table (snd (fst (TranslateTable t env i))).
-  Proof.
-    intros [ky acts] env i; cbn; fold_destr.
-    hyp_f_equal_snd Hfoldl.
-    clear Hfoldl l t s.
-    generalize dependent env.
-    induction ky as [| [e mk] ky IHky]; intros env; simpl in *.
-    - constructor.
-    - fold_destr; transformExpr_destr.
-      specialize IHky with env.
-      rewrite Hfoldl in IHky; simpl in *.
-      constructor.
-      + hyp_f_equal_snd Heqp.
-      + inversion IHky; simpl in *; subst l; auto.
-  Qed.
-
-  Local Hint Resolve TranslateTable_lifted_table : core.
-
-  Lemma TranslateControlDecl_lifted_stmt : forall (cd : Control.d tags_t) (env : VarNameGen.t),
-      lifted_stmt (fst (fst (TranslateControlDecl cd env))).
-  Proof.
-    intro cd. induction cd; intro env; simpl; auto.  
-    - translateStmt_destr. auto. 
-    - simpl. translateTable_destr. hyp_f_equal_fst Heqp.
-    - repeat translateControlDecl_destr. constructor.
-      + hyp_f_equal_fst Heqp.
-      + hyp_f_equal_fst Heqp0.
-  Qed.  
-
-  Local Hint Resolve TranslateControlDecl_lifted_stmt : core.
-
-  Lemma TranslateControlDecl_lifted_decl : forall (cd : Control.d tags_t) (env : VarNameGen.t),
-      lifted_control_Decl (snd (fst (TranslateControlDecl cd env))).
-  Proof.
-    intro cd. induction cd; intro env; simpl; auto.  
-    - translateStmt_destr. 
-      constructor.
-      replace s with (fst (TranslateStatement body env))
-        by (rewrite Heqp; exact eq_refl).
-      eauto.
-    - translateTable_destr.
-      constructor.
-      hyp_f_equal_snd Heqp.
-    - repeat translateControlDecl_destr. constructor.
-      + hyp_f_equal_snd Heqp.
-      + hyp_f_equal_snd Heqp0.
-  Qed.  
-  
-  Local Hint Resolve TranslateControlDecl_lifted_decl : core.
-
-  Lemma TranslateTopDecl_lifted_top_Decl : forall (td : TopDecl.d tags_t) (env : VarNameGen.t),
-      lifted_top_Decl (fst (TranslateTopDecl td env)).
-  Proof.
-    induction td; intros; simpl; try solve [constructor].
-    - translateControlDecl_destr.
-      translateStmt_destr.
-      constructor.
-      + hyp_f_equal_snd Heqp.
-      + constructor.
-        * hyp_f_equal_fst Heqp.
-        * replace s0 with (fst (TranslateStatement apply_blk t))
-            by (rewrite Heqp0; exact eq_refl).
-          auto.
-    - (* annoying--can't write (... start env) here because start gets
-      grabbed by some notation and then fails to parse *)
-      destruct (TranslateParserState _ env) as [start' env_start] eqn:?.
-      destruct (TranslateParserStates states env_start) as [states' env_states] eqn:?.
-      constructor.
-      + apply (f_equal fst) in Heqp.
-        simpl (fst _) in Heqp.
-        rewrite <- Heqp.
-        auto.
-      + apply (f_equal fst) in Heqp0.
-        simpl (fst _) in Heqp0.
-        rewrite <- Heqp0.
-        eauto.
-    - translateStmt_destr.
-      constructor; auto.
-      replace s with (fst (TranslateStatement body env))
-        by (rewrite Heqp; exact eq_refl).
-      auto.
-    - translateTopDecl_destr.
-      translateTopDecl_destr.
-      replace d with (fst (TranslateTopDecl td1 env))
-        by (rewrite Heqp; exact eq_refl).
-      replace d0 with (fst (TranslateTopDecl td2 t))
-        by (rewrite Heqp0; exact eq_refl).
-      constructor; auto.
-  Qed.
-
-  Local Hint Resolve TranslateTopDecl_lifted_top_Decl : core.
-
-  Lemma TranslateProgram_lifted_top_Decl : forall (prog: TopDecl.d tags_t),
-      lifted_top_Decl (TranslateProgram prog).
-  Proof.
-    unfold TranslateProgram.
-    auto.
-  Qed.
-
-End Lifted.
+Lemma lift_top_decl_lifted_top_Decl : forall td,
+    lifted_top_Decl (lift_top_decl td).
+Proof.
+  intro td; destruct td; unravel in *; auto.
+  - destruct (lift_control_decls 0 body) as [? ?] eqn:?.
+    constructor; eauto.
+  - constructor; auto.
+    rewrite sublist.Forall_map; unravel.
+    rewrite Forall_forall in *; eauto.
+Qed.

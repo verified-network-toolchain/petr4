@@ -594,9 +594,9 @@ Module IntArith.
       rewrite (IHl 2 0). lia.
   Qed.
 
-  (* Convert from little-endian (list bool) to (width:nat, value:Z) *)
+  (* Convert from big-endian (list bool) to (width:nat, value:Z) *)
   Definition from_lbool (bits: list bool) : (N * Z) :=
-    (Z.to_N (Zlength bits), lbool_to_val bits 1 0).
+    (Z.to_N (Zlength bits), lbool_to_val (List.rev bits) 1 0).
   (**[]*)
 
 End IntArith.

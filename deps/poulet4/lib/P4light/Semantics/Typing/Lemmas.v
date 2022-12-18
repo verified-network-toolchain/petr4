@@ -841,6 +841,7 @@ Section Lemmas.
     - pose proof length_to_lbool
         (N.of_nat (List.length v)) (IntArith.lbool_to_val v 1 0) as h.
       autorewrite with core in h; rewrite <- h at 2; auto.
+      admit.
     - pose proof length_to_lbool
         w₂ (BitArith.lbool_to_val v 1 0) as h.
       apply f_equal with (f:=N.of_nat) in h.

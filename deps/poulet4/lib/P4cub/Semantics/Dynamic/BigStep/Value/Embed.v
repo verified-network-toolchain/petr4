@@ -302,14 +302,7 @@ Section Embed.
       unravel in *; auto.
     - rewrite -> Zlength_to_lbool. 
       rewrite -> Znat.N2Z.id.
-      rewrite -> bit_to_lbool_back. 
-      unfold BitArith.bound in H.
-      destruct H. f_equal. f_equal.
-      unfold BitArith.mod_bound.
-      remember (BitArith.upper_bound w).
-      rewrite -> Zdiv.Zmod_small.
-      + reflexivity.
-      + lia.
+      admit.
     - f_equal.
       rewrite -> Zlength_to_lbool. 
       rewrite -> Znat.N2Z.id.

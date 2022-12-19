@@ -254,59 +254,76 @@ Module BitArith.
   Definition concat (w1 w2 : N) (z1 z2 : Z) : Z :=
     mod_bound (w1 + w2) (shiftl z1 (Z.of_N w2) + (mod_bound w2 z2)).
 
-  Fixpoint lbool_to_val (bits: list bool) (order: Z) (res : Z) : Z :=
+  Fixpoint lbool_to_val (bits: list bool) (res : Z) : Z :=
+    let order := Zlength bits - 1 in
     match bits with
-    | [] => res
-    | false :: tl => lbool_to_val tl (Z.shiftl order 1) res
-    | true :: tl => lbool_to_val tl (Z.shiftl order 1) (res + order)
+    | [] =>
+        res
+    | false :: tl =>
+        lbool_to_val tl res
+    | true :: tl =>
+        lbool_to_val tl (res + Z.shiftl 1 order)
     end.
-
-  Lemma lbool_to_val_app: forall l1 l2 o r,
-      lbool_to_val (l1 ++ l2) o r =
-        lbool_to_val l2 (Z.shiftl o (Zlength l1)) (lbool_to_val l1 o r).
-  Proof.
-    induction l1; intros.
-    - simpl. easy.
-    - rewrite <- app_comm_cons. cbn [lbool_to_val].
-      destruct a; rewrite IHl1; f_equal; rewrite shiftl_shiftl by lia;
-        f_equal; rewrite Zlength_cons; lia.
-  Qed.
-
-  Lemma lbool_to_val_1_0: forall l o r,
-      lbool_to_val l o r = (lbool_to_val l 1 0) * o + r.
-  Proof.
-    induction l; intros; cbn [lbool_to_val]. 1: now simpl. destruct a.
-    - simpl shiftl at 2. rewrite add_0_l.
-      rewrite IHl. rewrite (IHl 2 1). rewrite shiftl_mul_pow2 by lia. lia.
-    - simpl shiftl at 2. rewrite IHl. rewrite (IHl 2 0).
-      rewrite shiftl_mul_pow2 by lia. lia.
-  Qed.
 
   (* Convert from big-endian (list bool) to (width:nat, value:Z) *)
   Definition from_lbool (bits: list bool) : (N * Z) :=
-    (Z.to_N (Zlength bits), lbool_to_val (List.rev bits) 1 0).
+    (Z.to_N (Zlength bits), lbool_to_val bits 0).
   (**[]*)
-  Eval cbv in (from_lbool [false; false; false; false; false; true]).
 
-  Lemma lbool_to_val_lower : forall bits order res,
-      0 <= order ->
+  Lemma lbool_to_val_lower : forall bits res,
       0 <= res ->
-      0 <= lbool_to_val bits order res.
+      0 <= lbool_to_val bits res.
   Proof.
-    intro bits; induction bits as [| [|] bits IHbits];
-      intros order res Horder Hres;
-      unfold lbool_to_val; fold lbool_to_val; try lia; auto.
-    - apply IHbits; try lia.
-      rewrite shiftl_mul_pow2 by lia; lia.
-    - apply IHbits; try lia.
-      rewrite shiftl_mul_pow2 by lia; lia.
+    induction bits; intros.
+    - cbn; tauto.
+    - destruct a.
+      + apply IHbits.
+        rewrite Zlength_cons.
+        pose proof (Zlength_nonneg bits).
+        erewrite shiftl_mul_pow2 by lia.
+        lia.
+      + apply IHbits.
+        lia.
   Qed.
-  
+
+  Lemma lbool_to_val_upper : forall bits res,
+      lbool_to_val bits res < upper_bound (to_N (Zlength bits)) + res.
+  Proof.
+    unfold upper_bound.
+    intros.
+    rewrite Z2N.id
+      by auto using Zlength_nonneg.
+    revert res.
+    induction bits.
+    - intros.
+      rewrite Zlength_nil.
+      unfold lbool_to_val.
+      lia.
+    - intros.
+      simpl.
+      rewrite Zlength_cons.
+      rewrite pow_succ_r
+        by auto using Zlength_nonneg.
+      destruct a.
+      + rewrite shiftl_1_l in *.
+        remember (Zlength bits) as b.
+        replace (succ b - 1 ) with b by lia.
+        pose proof (IHbits (res + 2 ^ b)).
+        lia.
+      + specialize (IHbits res).
+        lia.
+  Qed.
+
   Lemma from_lbool_bound : forall bits,
       uncurry bound (from_lbool bits).
   Proof.
-  Admitted.
-  
+    intros.
+    cbn.
+    pose proof (lbool_to_val_lower bits 0).
+    pose proof (lbool_to_val_upper bits 0).
+    split; lia.
+  Qed.
+
 End BitArith.
 
 (** * Signed Integers *)
@@ -566,10 +583,14 @@ Module IntArith.
   Fixpoint lbool_to_val (bits: list bool) (order: Z) (res: Z): Z :=
     match bits with
     | []
-    | [false] => res
-    | [true] => res - order
-    | false :: tl => lbool_to_val tl (Z.shiftl order 1) res
-    | true :: tl => lbool_to_val tl (Z.shiftl order 1) (res + order)
+    | [false] =>
+        res
+    | [true] =>
+        res - order
+    | false :: tl =>
+        lbool_to_val tl (Z.shiftl order 1) res
+    | true :: tl =>
+        lbool_to_val tl (Z.shiftl order 1) (res + order)
     end.
 
   Lemma lbool_to_val_cons: forall a l o r,

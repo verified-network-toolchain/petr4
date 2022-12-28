@@ -2555,7 +2555,7 @@ if it is either $\bitWidthTyp \width$ or $\intWidthTyp \width$ and returns its w
      { \lookupTypSynEnv {\VVal \typName} = \surfaceTyp \exp \\
        \dclenv {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv
        }
-     { \dclenv {\serEnumDcl {\VVal \typName} \typName \field \exp} {} \ \ \ \ }
+     { \dclenv {\serEnumDcl {\VVal \typName} \typName \field \exp} {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}
      \quad (\serEnumTypdefD)
 
 ~ End InfRule

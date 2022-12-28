@@ -130,6 +130,7 @@
 \newcommand*{\matchkindD}{\rn{MatchKind}\rD}
 \newcommand*{\enumD}{\rn{Enum}\rD}
 \newcommand*{\serEnumD}{\rn{SerializableEnum}\rD}
+\newcommand*{\serEnumTypdefD}{\rn{SerializableEnum}\rSep\rn{Typedef}\rD}
 \newcommand*{\externObjD}{\rn{ExternObject}\rD}
 \newcommand*{\typDefD}{\rn{TypeDefinition}\rD}
 \newcommand*{\newtypeD}{\rn{NewType}\rD}
@@ -154,11 +155,15 @@
 \newcommand{\lookupEnv}[1]{\env({#1})}
 \newcommand{\lookupExternEnv}[1]{\externEnv({#1})}
 \newcommand{\lookupTypEnv}[1]{\typEnv({#1})}
+\newcommand{\lookupTypSynEnv}[1]{\typSynEnv({#1})}
 \newcommand{\emp}{[\ ]}
-\newcommand{\insertToEnv}[2]{\env[{#1} : {#2} ]}
-\newcommand{\insertToEnvv}[1]{\env[{#1}]}
-\newcommand{\extendTypEnv}[1]{\typEnv[{#1} \ \mathsf{var}]}
-\newcommand{\extendTypsEnv}[1]{\typEnv[\overline{{#1} \ \mathsf{var}}]}
+\newcommand{\insertToVarEnv}[3]{\varEnv[{#1} : ({#2}, {#3}) ]}
+\newcommand{\insertsToVarEnv}[3]{\varEnv[\overline{{#1} : ({#2}, {#3}) }]}
+\newcommand{\insertToTypEnv}[2]{\typEnv[{#1} = {#2}]}
+\newcommand{\insertsToTypEnv}[2]{\typEnv[\overline{{#1} = {#2}}]}
+\newcommand{\insertsToConstEnv}[2]{\constEnv[\overline{{#1} = {#2}}]}
+%% \newcommand{\insertToTypEnv}[1]{\typEnv[{#1} \ \mathsf{var}]}
+%% \newcommand{\insertToTypsEnv}[1]{\typEnv[\overline{{#1} \ \mathsf{var}}]}
 \newcommand{\suchThat}[2]{{#1}\ . \ {#2}}
 \newcommand{\tr}{\mathsf{true}}
 \newcommand{\fl}{\mathsf{false}}
@@ -198,11 +203,12 @@
 \newcommand{\fieldAccessEnv}[4]{\env, {#1} \vdash {#2}, {#3} : {#4}}
 \newcommand{\stmtenv}[3]{\env, \ctxt \vdash {#1} \leadsto {#2}, {#3} \dashv \env}
 \newcommand{\stmtenvv}[5]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3}, {#4} \dashv \env_{#5}}
-\newcommand{\dclenv}[2]{\env, \ctxt \vdash {#1} \leadsto {#2} \dashv \env}
-\newcommand{\dclenvv}[4]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3} \dashv \env_{#4}}
-\newcommand{\dclenvvv}[4]{\constEnv, \typEnv \vdash {#1} \leadsto {#2} \dashv {#3}, {#4}}
+%% \newcommand{\dclenv}[2]{\env, \ctxt \vdash {#1} \leadsto {#2} \dashv \env}
+\newcommand{\dclenv}[6]{\varEnv, \constEnv, \typEnv, \typSynEnv \vdash {#1} \leadsto {#2} \dashv {#3}, {#4}, {#5}, {#6}}
+%% \newcommand{\dclenvv}[4]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3} \dashv \env_{#4}}
+%% \newcommand{\dclenvvv}[4]{\constEnv, \typEnv \vdash {#1} \leadsto {#2} \dashv {#3}, {#4}}
 \newcommand{\explCast}[2]{\castenv {e} {#1} {#2}}
-\newcommand{\castenv}[3]{\env \vdash {#2} \rightarrow_{#1} {#3}}
+\newcommand{\castenv}[3]{\typEnv, \typSynEnv \vdash {#2} \rightarrow_{#1} {#3}}
 \newcommand{\implCast}[2]{\castenv {i} {#1} {#2}}
 %exp, args. exp', type pars, pars, kind, return type.
 %check if you need the dir to be returned as well. 
@@ -282,6 +288,7 @@
 \newcommand{\typeEqs}{\Delta}
 \newcommand{\anyTyp}{a}
 \newcommand{\typEnv}{\Delta}
+\newcommand{\typSynEnv}{\Theta}
 \newcommand{\varEnv}{\Gamma}
 \newcommand{\constEnv}{\Sigma}
 \newcommand{\externEnv}{\Xi}
@@ -444,7 +451,7 @@
 \newcommand{\errDcl}[1]{\mathsf{error}\ \{ {#1} \}}
 \newcommand{\matchkindDcl}[1]{\mathsf{match\_kind}\ \{{#1}\}}
 \newcommand{\enumDcl}[2]{\mathsf{enum}\ {#1}\, \{{#2} \}}
-\newcommand{\serEnumDcl}[4]{\mathsf{enum}\ {#1} \, {#2}\, \{\overline {{#3}={#4}} \}}
+\newcommand{\serEnumDcl}[4]{\mathsf{enum}\ {#1} {#2}\, \{\overline {{#3}={#4}} \}}
 \newcommand{\externObjDcl}[3]{\mathsf{extern}\ {#1}\, \langle{#2}\rangle\, \{{#3} \}}
 %type \rho \typename
 \newcommand{\newtypeDcl}[2]{\mathsf{type} \ {#1}\ {#2}}
@@ -507,7 +514,7 @@
 \newcommand{\isValidNestedTyp}[1]{\mathit{is\_valid\_nested}({#1})_\typEnv}
 %{#1} is outer, 2 is inner
 \newcommand{\noDup}[1]{\mathit{no\_duplicate}({#1})}
-\newcommand{\explicitCastOK}[2]{\explCast {#1} {#2}}
+%% \newcommand{\explicitCastOK}[2]{\explCast {#1} {#2}}
 \newcommand{\insertTypVars}[1]{\mathit{insert\_type\_vars}({#1}, \env)}
 \newcommand{\getTypeParams}[1]{\mathit{get\_type\_params}({#1})}
 \newcommand{\reduce}[1]{\mathit{reduce}({#1})_\typEnv}
@@ -531,7 +538,7 @@
 \newcommand{\concatList}[2]{{#1}\ +\!+\ {#2}}
 \newcommand{\isDirectionless}[1]{\mathit{is\_directionless}({#1})}
 \newcommand{\whatevs}{\_\!\_}
-
+\newcommand{\valMatchTyp}[1]{\mathit{value\_matches\_type}({#1})}
 %fields 
 \newcommand{\isValid}{\mathsf{isValid}}
 \newcommand{\apply}{\mathsf{apply}}
@@ -559,6 +566,9 @@
 
 %keywords
 \newcommand{\newtypKey}{\mathsf{newtype}}
+
+%values
+\newcommand{\enumVal}[2]{\typMem {#1} {#2}}
 
 %types:
 \newcommand{\dontcareTyp}{\mathsf{dontcare}}

@@ -107,7 +107,7 @@ let stf_alco_test include_dir stf_file p4_file =
       let expected, results = Petr4.Stf.run_stf stf_file p4_prog in
       List.zip_exn expected results
       |> List.iter ~f:(fun (p_exp, p) ->
-            Alcotest.(testable (Fmt.pair ~sep:Fmt.sp Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)
+          Alcotest.(testable (Fmt.pair ~sep:Fmt.sp Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)
     in
     let test = Alcotest.test_case (Filename.basename p4_file) `Quick run_stf_alcotest in
     test

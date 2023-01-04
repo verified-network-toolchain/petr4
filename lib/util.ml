@@ -155,10 +155,14 @@ let bits_to_string (bs: bool list) : string =
     let p = 7 - idx in
     acc + bit lsl p
   in
+  let collect_byte bits =
+    bits
+    |> List.foldi ~init:0 ~f:accum_bits
+  in
   bs
   |> List.map ~f:bool_to_int
   |> group8
-  |> List.map ~f:(List.foldi ~init:0 ~f:accum_bits)
+  |> List.map ~f:collect_byte
   |> List.map ~f:Char.of_int_exn
   |> String.of_char_list
 

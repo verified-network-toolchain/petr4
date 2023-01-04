@@ -150,17 +150,10 @@ let group8 lst =
   |> List.rev
 
 let bits_to_string (bs: bool list) : string =
-  List.iter ~f:(printf "%B ") bs;
-  Printf.printf "\n";
   (* Expects 0 <= idx < 8 *)
   let accum_bits idx acc bit =
     let p = 7 - idx in
     acc + bit lsl p
-  in
-  let print_char_and_conv i =
-    let c = Char.of_int_exn i in
-    Printf.printf "%d => %c\n" i c;
-    c
   in
   let collect_byte bits =
     bits
@@ -170,7 +163,7 @@ let bits_to_string (bs: bool list) : string =
   |> List.map ~f:bool_to_int
   |> group8
   |> List.map ~f:collect_byte
-  |> List.map ~f:print_char_and_conv
+  |> List.map ~f:Char.of_int_exn
   |> String.of_char_list
 
 let hex_of_nibble (i : int) : string =

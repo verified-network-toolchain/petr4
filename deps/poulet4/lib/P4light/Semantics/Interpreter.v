@@ -761,7 +761,7 @@ Section Interpreter.
                        let* args' := from_opt (exec_func_copy_out params s'')
                                               (Exn.Other "interp_func: error in exec_func_copy_out") in
                        mret (s'', args', sig')
-                   | _ :: _ => error (Exn.Other "interp_func")
+                   | _ :: _ => error (Exn.Other "interp_func: type args")
                    end
                | FTable name keys actions (Some default_action) const_entries =>
                    match typ_args, args with
@@ -783,12 +783,12 @@ Section Interpreter.
                        let* (s', call_sig) := interp_call obj_path s fuel action in
                        match call_sig with
                        | SReturn ValBaseNull => mret (s', nil, retv)
-                       | _ => error (Exn.Other "interp_func")
+                       | _ => error (Exn.Other "interp_func: did not return null")
                        end
-                   | _, _ => error (Exn.Other "interp_func")
+                   | _, _ => error (Exn.Other "interp_func: type args or args provided to a table call")
                    end
                | FTable name keys actions None const_entries =>
-                   error (Exn.Other "interp_func")
+                   error (Exn.Other "interp_func: called table with no default action")
                | FExternal class_name name =>
                    let (m, es) := s in
                    let argvs := List.map interp_sval_val args in

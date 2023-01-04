@@ -89,7 +89,7 @@ Section Soundness.
       replace w
         with (N.of_nat (length (P4Arith.to_loptbool w z))) at 2; auto.
       unfold P4Arith.to_loptbool, P4Arith.to_lbool.
-      rewrite map_length, rev_length, P4Arith.length_to_lbool'; cbn; lia.
+      rewrite map_length, length_to_lbool'; cbn; lia.
     Qed.
 
     Theorem signed_int_sound : forall tag i z w dir,
@@ -104,7 +104,7 @@ Section Soundness.
       replace w
         with (N.of_nat (length (P4Arith.to_loptbool w z))) at 2; auto.
       unfold P4Arith.to_loptbool, P4Arith.to_lbool.
-      rewrite map_length, rev_length, P4Arith.length_to_lbool'; cbn; lia.
+      rewrite map_length, P4Arith.length_to_lbool'; cbn; lia.
     Qed.
 
     Theorem string_sound : forall tag s dir,

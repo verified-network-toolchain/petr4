@@ -1289,6 +1289,8 @@ same environment and context.
 
 ## Record Constructor Rule { #sec-record-e }
 
+```done```
+
 $\records \exp$ denotes a record where an expression is assigned to each field of the record.
 The rule $\recordE$ is similar to $\listE$ rule. 
 

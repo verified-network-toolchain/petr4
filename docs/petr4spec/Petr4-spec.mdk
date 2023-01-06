@@ -1134,9 +1134,11 @@ $\name$ in the environment $\env$ and it has the type $\typ$ and direction $\dir
 
 ## Array Access Rule { #sec-array-access-e }
 
+```tuple done```
+
 $\arrayAccess {\exp_1} {\exp_2}$ denotes accessing the $\exp_2$^th^ element from the array $\exp_1$. 
 The rule $\arrayAccessE$ states that expression $\arrayAccess {\exp_1} {\exp_2}$
-translates to $\arrayAccess {\prim {\exp_1}} {\prim {\exp_2}}$
+translates to $\arrayAccess {\VVal {\exp_1}} {\VVal {\exp_2}}$
 when $\exp_1$ has the array type $\arrayTyp \typ \size$ and $\exp_2$ has a numeric type. 
 
 - $\isNumeric \exp \typ$
@@ -1149,6 +1151,7 @@ compilation. It does so by evaluating the expression $\exp$ at compile time, if 
 possible then we know the value at compile time. Otherwise, if the expression $\exp$ is
 a specialized type, extern, package, control, or parser but we cannot evaluate it at
 compile time we still consider it known at compile time.
+- $\compileTimeEval \exp$ evaluates the expression $\exp$ at compile time and returns its value if $\exp$ is a well-typed expression.
 
 ~ Begin InfRule
 
@@ -1160,6 +1163,19 @@ compile time we still consider it known at compile time.
      {\expenv {\arrayAccess {\exp_1} {\exp_2}} {\arrayAccess {\VVal {\exp_1}} {\VVal {\exp_2}}} \typ \dir }
      \quad (\arrayAccessE)
 
+\and
+
+  \inferrule
+     {\expenv {\exp_1} {\VVal {\exp_1}} {\tupleTyp {\typ_1} {\typ_n}} \dir \\\\
+      \expenv {\exp_2} {\VVal {\exp_2}} {\integerTyp} {\VVal \dir} \\\\
+      % \isArray {\arrayTyp \typ \size} \\
+      % \isNumeric {\exp_2} {\VVal \typ}\\
+      \compileTimeEval {\exp_2} = i\\
+      % \isInt i\\
+      1 \leq i \leq n}
+     {\expenv {\arrayAccess {\exp_1} {\exp_2}} {\arrayAccess {\VVal {\exp_1}} {\VVal {\exp_2}}} {\typ_i} \dir }
+     \quad (\tupleAccessE)
+
 ~ End InfRule
 
 ## Bitstring Access (Slice) Rule { #sec-bitstring-slice-e }
@@ -1170,7 +1186,6 @@ compile time we still consider it known at compile time.
 $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$ denotes slicing a the a (un)signed fixed-length integer $\exp_1$ from bit $\exp_2$ to $\exp_3$.
 
 
-- $\compileTimeEval \exp$ evaluates the expression $\exp$ at compile time and returns its value if $\exp$ is a well-typed expression.
 - $\isNumOrEnum \typ$ checks if $\typ$ is one of the following:
    * $\integerTyp$
    * $\intWidthTyp \width$
@@ -1247,6 +1262,8 @@ if it is either $\bitWidthTyp \width$ or $\intWidthTyp \width$ and returns its w
 ~ End InfRule
 
 ## List Constructor Rule { #sec-list-e }
+
+```done..might change the lang of translation to IR```
 
 $\list {\exps}$ constructs a list of expressions.
 The rule $\listE$ states that under environment $\env$ and context $\ctxt$,
@@ -1617,6 +1634,7 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
 ## Cast Rule { #sec-cast-e }
 
 ```done```
+
 The expression $\cast {\surfaceTyp \exp} \exp$ casts expression $\exp$ to type $\surfaceTyp \exp$. However, it is
 not possible to cast an expression from every type to another type. This is done by the auxiliary judgment
 $\explCast {\surfaceTyp \exp} {\VVal {\surfaceTyp \exp}}$ which states that the explicit casting of
@@ -1669,7 +1687,9 @@ done implicitly or explicitly, respectively.
 
 This auxiliary judgment states if casting of a type to another, either explicitly or implicitly or both, is valid. 
 The arrow subscription with $e$ or $i$ indicates if a rule only applies for explicit or implicit cast only, respectively. Otherwise, the arrow does not have a subscription,
-meaning that it applies for both explicit and implicit casts. 
+meaning that it applies for both explicit and implicit casts. However, note that when a rule uses recursive casts, the recursion must use the same kind of cast even when the arrow does not indicate if the cast is explicit or implicit.
+
+- Reminder: a list has a tuple type.
 
 ~ Begin InfRuleHelper
 
@@ -1871,49 +1891,93 @@ meaning that it applies for both explicit and implicit casts.
   %    \quad (\rn{TypeToSet}\rSep\rn{Implicit}\rAE)
 
   % \inferrule
-  %    { \typEqEnv \emp {\tupleTyps {\typs}} {\tupleTyps {\overline {\VVal \typ}}}}
+  %    { \typEqEnv \emp {\tupleTyps {\typs}} {\tupleTyps { {\VVal \typ}}}}
   %    { \castenv \  {\listTyps {\typs} } {\tupleTyps {\overline {\VVal \typ}}}}
   %    \quad (\rn{ListToTuple}\rAE)
 
+\and
+
+  \inferrule
+     {\castenv \ {\typs} {\overline {\VVal \typ}} }
+     {\castenv \  {\listTyps {\typ}} {\headerTyps \field {\VVal \typ}}}
+     \quad (\rn{TupleToHeader}\rAE\rSep\rn{1})
+
+\and
+
+  \inferrule
+     {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
+     {\castenv \ {\listTyps \typ} {\headerTyps \field {\VVal \typ}}}
+     \quad (\rn{TupleToHeader}\rAE\rSep\rn{2})
+
+
   % \inferrule
   %    {\explCast {\typs} {\overline {\VVal \typ}} }
-  %    {\explCast {\listTyps {\typs}} {\headerTyps \field {\VVal \typ}}}
+  %    {\explCast {\listTyps {\typ}} {\headerTyps \field {\VVal \typ}}}
   %    \quad (\rn{ListToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{1})
 
   % \inferrule
-  %    {\typEqEnv \emp {\tupleTyps \typs} {\tupleTyps {\overline {\VVal \typ}}}}
-  %    {\explCast {\listTyps \typs} {\headerTyps \field {\VVal \typ}}}
+  %    {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
+  %    {\explCast {\listTyps \typ} {\headerTyps \field {\VVal \typ}}}
   %    \quad (\rn{ListToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{2})
 
   % \inferrule
-  %    {\implCast {\typs} {\overline {\VVal \typ}}}
-  %    {\implCast {\listTyps \typs} {\headerTyps \field {\VVal \typ} }}
+  %    {\implCast {\typ} {\overline {\VVal \typ}}}
+  %    {\implCast {\listTyps \typ} {\headerTyps \field {\VVal \typ} }}
   %    \quad (\rn{ListToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{1})
 
   % \inferrule
-  %    {\typEqEnv \emp {\tupleTyps {\typs}} {\tupleTyps {\overline {\VVal \typ}}}}
-  %    {\implCast {\listTyps \typs} {\headerTyps \field {\VVal \typ} }}
+  %    {\typEqEnv \emp {\tupleTyps {\typ}} {\tupleTyps { {\VVal \typ}}}}
+  %    {\implCast {\listTyps \typ} {\headerTyps \field {\VVal \typ} }}
   %    \quad (\rn{ListToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{2})
+
+\and
+
+  \inferrule
+     {\castenv \ {\typs} {\overline {\VVal \typ}}}
+     {\castenv \ {\listTyps \typ} {\structTyps \field {\VVal \typ}}}
+     \quad (\rn{TupleToStruct}\rAE\rSep\rn{1})
+
+\and
+
+  \inferrule
+     {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
+     {\castenv \ {\listTyps \typ} {\structTyps \field {\VVal \typ}}}
+     \quad (\rn{TupleToStruct}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\explCast {\typs} {\overline {\VVal \typ}}}
-  %    {\explCast {\listTyps \typs} {\structTyps \field {\VVal \typ}}}
+  %    {\explCast {\listTyps \typ} {\structTyps \field {\VVal \typ}}}
   %    \quad (\rn{ListToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{1})
 
   % \inferrule
-  %    {\typEqEnv \emp {\tupleTyps \typs} {\tupleTyps {\overline {\VVal \typ}}}}
-  %    {\explCast {\listTyps \typs} {\structTyps \field {\VVal \typ}}}
+  %    {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
+  %    {\explCast {\listTyps \typ} {\structTyps \field {\VVal \typ}}}
   %    \quad (\rn{ListToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\implCast {\typs} {\overline {\VVal \typ}}}
-  %    {\implCast {\listTyps \typs} {\structTyps \field {\VVal \typ}}}
+  %    {\implCast {\listTyps \typ} {\structTyps \field {\VVal \typ}}}
   %    \quad (\rn{ListToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{1})
 
   % \inferrule
-  %    {\typEqEnv \emp {\tupleTyps \typs} {\tupleTyps {\overline {\VVal \typ}}}}
-  %    {\implCast {\listTyps \typs} {\structTyps \field {\VVal \typ}}}
+  %    {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
+  %    {\implCast {\listTyps \typ} {\structTyps \field {\VVal \typ}}}
   %    \quad (\rn{ListToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{2})
+
+\and
+
+  \inferrule
+     {\castenv \ {\typs} {\overline {\VVal \typ}}}
+     {\castenv \ {\recordTyps \field \typ} {\headerTyps \field {\VVal \typ}}}
+     \quad (\rn{RecordToHeader}\rAE\rSep\rn{1})
+
+\and
+
+\inferrule
+     {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
+     {\castenv \ {\recordTyps \field \typ} {\headerTyps \field {\VVal \typ}}}
+     \quad (\rn{RecordToHeader}\rAE\rSep\rn{2})
+
 
   % \inferrule
   %    {\explCast {\typs} {\overline {\VVal \typ}}}
@@ -1934,6 +1998,20 @@ meaning that it applies for both explicit and implicit casts.
   %    {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
   %    {\implCast {\recordTyps \field \typ} {\headerTyps \field {\VVal \typ}}}
   %    \quad (\rn{RecordToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{2})
+
+\and
+
+  \inferrule
+     {\castenv \ {\typs} {\overline {\VVal \typ}}}
+     {\castenv \ {\recordTyps \field \typ } {\structTyps \field {\VVal \typ}}}
+     \quad (\rn{RecordToStruct}\rAE\rSep\rn{1})
+
+\and
+
+  \inferrule
+     {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
+     {\castenv \ {\recordTyps \field \typ } {\structTyps \field {\VVal \typ}}}
+     \quad (\rn{RecordToStruct}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\explCast {\typs} {\overline {\VVal \typ}}}
@@ -2518,10 +2596,45 @@ if it is either $\bitWidthTyp \width$ or $\intWidthTyp \width$ and returns its w
 
 # Statement's Typing Rules { #sec-stmt-typing }
 
+## Assignment
+
+* from examples in P4 spec it seems that if possible, the rhs can be implicitly casted to the type of lhs. eg.:
+
+`enum bit<8> E {
+  e1 = 0,
+  e2 = 1,
+  e3 = 2
+}
+bit<8> x = E.e2; // sets x to 1 (E.e2 is automatically casted to bit<8>)`
+
+* Tuples can be assigned to other tuples with the same type, passed as arguments and returned from functions, and can be initialized with list expressions.
+* tuples are initiated with lists. ex: `tuple<bit<32>, bool> x = { 10, false };`
+* The type of a list expression is a tuple type (Section 7.2.8). List expressions can be assigned to expressions of type tuple, struct or header, and can also be passed as arguments to methods. Lists may be nested. However, list expressions are not l-values.
+* Structure-valued expressions can be used in the right-hand side of assignments, in comparisons, in field selection expressions, and as arguments to functions, method or actions. Structure-valued expressions are not left values. section 8.13. this is why extra explicit cast was added.
+
+~ Begin InfRule
+
+  % \inferrule
+  %    { \expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
+  %      \isLval {{\prim {\exp_1}}, {\typ_1}, {\dir_1}} \\ 
+  %      ({\prim {\exp_2}}, {\typ_2}, {\dir_2}) = \castExpression {\typ_1} {\exp_2}\\
+  %      % \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2} \\
+  %      % \typ_1 = \typ_2 \\
+  %      }
+  %    { \stmtenv {\assign {\exp_1} {\exp_2}} {\assign {\prim {\exp_1}} {\prim {\exp_2}}} {\unitTyp} }
+  %    \quad (\assignmentS)
+
+~ End InfRule
+
+## method call
+
+* lists can be used to be passed as arguments to methods (section 8.12).
 
 # Declaration's Typing Rules { #sec-decl-typing }
 
 ## Enum declaration
+```done```
+
 
 - Note that $\typMem \typName \field $ in the rules below is a name and not an expression. We are overloading the syntax of type membership since from the context it is clear whether it represents an expression or a string.
 
@@ -2559,6 +2672,7 @@ if it is either $\bitWidthTyp \width$ or $\intWidthTyp \width$ and returns its w
      \quad (\serEnumTypdefD)
 
 ~ End InfRule
+
 
 # References    { #sec-references }
 

@@ -2596,33 +2596,51 @@ if it is either $\bitWidthTyp \width$ or $\intWidthTyp \width$ and returns its w
 
 # Statement's Typing Rules { #sec-stmt-typing }
 
+``todo: explanation of judgment``
+``from the older draft: this judgment type checks a statement written in surface syntax, generates the IR statement from it and if applicable updates the env and ctxt.``
+``todo: have to check the envs passed to this judgment``
+
 ## Assignment
 
-* from examples in P4 spec it seems that if possible, the rhs can be implicitly casted to the type of lhs. eg.:
+These rules check that if the RHS and LHS of an assignment have an equivalent type or if an implicit cast can be inserted on the RHS to make their types equivalent. Note that P4 requires an implicit cast insertion in assignments for programs such as:
 
-`enum bit<8> E {
-  e1 = 0,
-  e2 = 1,
-  e3 = 2
+
+~ Begin P4Example
+struct S {
+    bit<32> a;
+    bit<32> b;
 }
-bit<8> x = E.e2; // sets x to 1 (E.e2 is automatically casted to bit<8>)`
+const S x = { 10, 20 }; //a = 10, b = 20.
+                        //S is a struct but {10, 20} is a tuple type. 
+                        // So we need to cast tuple to struct.
+~ End P4Example
 
-* Tuples can be assigned to other tuples with the same type, passed as arguments and returned from functions, and can be initialized with list expressions.
-* tuples are initiated with lists. ex: `tuple<bit<32>, bool> x = { 10, false };`
-* The type of a list expression is a tuple type (Section 7.2.8). List expressions can be assigned to expressions of type tuple, struct or header, and can also be passed as arguments to methods. Lists may be nested. However, list expressions are not l-values.
-* Structure-valued expressions can be used in the right-hand side of assignments, in comparisons, in field selection expressions, and as arguments to functions, method or actions. Structure-valued expressions are not left values. section 8.13. this is why extra explicit cast was added.
+- $\isLval \exp$ checks if expression $\exp$ is lvalue. 
+- Reminder: $\insertImplCast \exp \typ$ inserts potential casts. It does so by looking into implicit cast rules for type $\typ$, denoted by $\implCast \typ {\VVal \typ}$. If it finds $\VVal \typ$ such that it facilitates the typing rules it inserts the cast (that is, it returns the expression $\cast {\VVal \typ} \exp$), otherwise, it returns $\exp$.
+
 
 ~ Begin InfRule
 
-  % \inferrule
-  %    { \expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
-  %      \isLval {{\prim {\exp_1}}, {\typ_1}, {\dir_1}} \\ 
-  %      ({\prim {\exp_2}}, {\typ_2}, {\dir_2}) = \castExpression {\typ_1} {\exp_2}\\
-  %      % \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2} \\
-  %      % \typ_1 = \typ_2 \\
-  %      }
-  %    { \stmtenv {\assign {\exp_1} {\exp_2}} {\assign {\prim {\exp_1}} {\prim {\exp_2}}} {\unitTyp} }
-  %    \quad (\assignmentS)
+  \inferrule
+     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
+       \isLval {\VVal {\exp_1}} \\
+       \typEqEnv \emp {\typ_1} {\typ_2}\\
+       % \VVal {\exp_2} = \insertImplCast {\exp_2} {\typ_1}\\
+       % \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\
+       % \typ_1 = \typ_2 \\
+       }
+     { \stmtenv {\assign {\exp_1} {\exp_2}} {\assign {\VVal {\exp_1}} { {\exp_2}}} {\unitTyp} }
+     \quad (\assignmentS)
+
+\and
+
+  \inferrule
+     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
+       \isLval {{\VVal {\exp_1}}} \\ 
+       \VVal {\exp_2} = \insertImplCast {\exp_2} {\typ_1}\\
+       }
+     { \stmtenv {\assign {\exp_1} {\exp_2}} {\assign {\VVal {\exp_1}} {\VVal {\exp_2}}} {\unitTyp} }
+     \quad (\rn{Assignment}\rSep\rn{InsertCast}\rS)
 
 ~ End InfRule
 

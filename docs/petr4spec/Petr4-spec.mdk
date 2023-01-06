@@ -1292,6 +1292,8 @@ same environment and context.
 $\records \exp$ denotes a record where an expression is assigned to each field of the record.
 The rule $\recordE$ is similar to $\listE$ rule. 
 
+- $\distinct \fields$ checks that fields in $\fields$ are all distinct. 
+
 ~ Begin InfRule
 
   % \inferrule[\recordE]
@@ -1299,7 +1301,8 @@ The rule $\recordE$ is similar to $\listE$ rule.
   %    {\expenv {\record 1 n} {\recordd 1 n {\VVal \exp}} {\recordTypDef} \less  }
 
   \inferrule
-     {\expenv {\exps} {\overline {\VVal \exp}} {\typs} {\dirs}}
+     {\expenv {\exps} {\overline {\VVal \exp}} {\typs} {\dirs}\\
+      \distinct \fields}
      {\expenv {\records \exp} {\records {\VVal \exp}} {\recordTyps \field \typ} \less  }
      \quad (\recordE)
 

@@ -288,25 +288,117 @@ Definition elaborate_arrowE (ar : E.arrowE tags_t) : E.arrowE tags_t :=
   {| paramargs := elaborate_arguments ar.(paramargs);
      rtrns := ar.(rtrns) |}.
 
+Fixpoint header_asserts (e : E.e tags_t) (tags : tags_t) : result (list (E.e tags_t)) :=
+  match e with
+  | E.EBool _ _ | E.EBit _ _ _
+  | E.EInt _ _ _ | E.EVar _ _ _
+  | E.EError _ _ (*| E.EMatchKind _ _ *) =>  ok []
+  | E.EExprMember type name e tags =>
+    if String.eqb name "is_valid" then ok [] else
+    match t_of_e e with
+    | E.THeader _  =>
+      ok [e]
+    | _ =>
+      ok []
+    end
+  | E.ESlice e _ _ tags =>
+    header_asserts e tags
+  | E.ECast _ e tags =>
+    header_asserts e tags
+  | E.EUop _ E.IsValid e tags =>
+    ok []
+  | E.EUop _ _ e tags =>
+    header_asserts e tags
+  | E.EBop _ _ lhs rhs tags =>
+    let* lhs_asserts := header_asserts lhs tags in
+    let* rhs_asserts := header_asserts rhs tags in
+    ok (List.app lhs_asserts rhs_asserts)
+  | E.ETuple _ _ =>
+    (* List.fold_left (fun acc_asserts e => *)
+    (* let* acc_asserts := acc_asserts in *)
+    (* let+ new_asserts := header_asserts e tags in *)
+    (* ISeq acc_asserts new_asserts tags) es (ok (ISkip tags)) *)
+    error "[ERROR] [header_asserts] tuples should be factored out by now"
+  | E.EStruct _ _ =>
+    error "[ERROR] [header_asserts] structs should be factored out by now"
+  | E.EHeader _ _ _ =>
+    error "[ERROR] [header_asserts] header literals should be factored out by now"
+  | E.EHeaderStack _ _ _ _ =>
+    error "[ERROR] [header_asserts] header stacks should be factored out by now"
+  | E.EHeaderStackAccess _ _ _ _ =>
+    error "[ERROR] [header_asserts] header stack accesses should be factored out by now"
+  end.
+
+Definition zero (tags : tags_t) cub_type :=
+  match cub_type with
+    | E.TBit width =>
+      ok (E.EBit width BinInt.Z.zero tags)
+    | E.TInt width =>
+      ok (E.EInt width BinInt.Z.zero tags)
+    | _ =>
+      error "[Inline.zero] 0 must have a bitvector or integer type to be created"
+   end.
+
+Definition inline_assert (check : E.e tags_t) (tags : tags_t) : t :=
+  let args := {|paramargs := [("check", PAIn check)]; rtrns:= None|} in
+  IExternMethodCall "_" "assert" args tags.
+
+
+Definition isValid (hdr : E.e tags_t) (tags: tags_t) : E.e tags_t :=
+  E.EUop E.TBool E.IsValid hdr tags.
+
+
+Definition boolify hdrs tags :=
+  let uniquify := ListUtil.uniquify ExprEquivalence.eqbe in
+  List.fold_right (fun hdr b => E.EBop E.TBool E.And (isValid hdr tags) b tags)
+    (E.EBool true tags)
+    (uniquify hdrs).
+
+Definition assertify hdrs tags :=
+  let uniquify := ListUtil.uniquify ExprEquivalence.eqbe in
+  List.fold_right (fun hdr cmd => ISeq (inline_assert (isValid hdr tags) tags) cmd tags)
+     (ISkip tags)
+     (uniquify hdrs).
+
+Definition make_match (tags : tags_t) symb_key key read_modality :=
+  let match_eq := E.EBop E.TBool E.Eq symb_key key tags in
+  let ifte b t f := IConditional E.TBool b t f tags in
+  match read_modality with
+  | None =>
+    ok (symb_key, assume match_eq tags)
+  | Some dont_care (*symb_mask*) =>
+    (* let match_mask :=
+      E.EBop E.TBool E.Eq
+        (E.EBop key_type E.BitAnd symb_mask symb_key tags)
+        (E.EBop key_type E.BitAnd symb_mask      key tags)
+        tags
+    in *)
+    let orr a b := E.EBop E.TBool E.Or a b tags in
+    let andd a b := E.EBop E.TBool E.And a b tags in
+    let+ headers := header_asserts key tags in
+    let valid_headers := boolify headers tags in
+    (symb_key,
+     (* ISeq (inline_assert (orr dont_care valid_headers) tags) (assume match_mask tags) tags*)
+     ifte dont_care (assume match_eq tags) (ISkip tags))
+   end.
+
 Definition realize_symbolic_key (symb_var : string) (key_type : E.t) (key : E.e tags_t) (mk : E.matchkind) (tags : tags_t) :=
   let symb_key := E.EVar key_type symb_var tags in
-  let assume := assume (E.EBop E.TBool E.Eq symb_key key tags) tags in
-  match mk with
-  | E.MKExact =>
-    (symb_key, assume, E.EBool false tags)
-  | _ =>
-    (symb_key, assume, E.EVar E.TBool (symb_var ++ "$DONTCARE") tags)
-  end.
+  let read_modality := match mk with
+      | E.MKExact => None
+      (*| _         => Some (E.EVar key_type (symb_var ++ "$MASK") tags)*)
+      | _ => Some (E.EVar E.TBool (symb_var ++ "$DONT_CARE") tags)
+  end in
+  make_match tags symb_key key read_modality.
 
 Fixpoint normalize_keys_aux t (keys : list (E.t * E.e tags_t * E.matchkind)) i tags :=
   let keyname := "_symb$" ++ t ++ "$match_" ++ string_of_nat i in
   match keys with
-  | [] => (ISkip tags, [])
+  | [] => ok (ISkip tags, [])
   | ((key_type, key_expr, key_mk)::keys) =>
-    let (assumes, new_keys) := normalize_keys_aux t keys (i+1) tags in
-    let '(symb_key, assgn, skip_eq) := realize_symbolic_key keyname key_type key_expr key_mk tags in
-    let new_assume := IConditional E.TBool skip_eq (ISkip tags) assgn tags in
-    (ISeq new_assume assumes tags, (key_type, symb_key, key_mk)::new_keys)
+    let* (assumes, new_keys) := normalize_keys_aux t keys (i+1) tags in
+    let+ (symb_key, symb_matches) := realize_symbolic_key keyname key_type key_expr key_mk tags in
+    (ISeq symb_matches assumes tags, (key_type, symb_key, key_mk)::new_keys)
   end.
 
 Definition normalize_keys t keys := normalize_keys_aux t keys 0.
@@ -381,7 +473,6 @@ Fixpoint elim_tuple_expr (e : E.e tags_t) :=
     ok [e]
   end.
 
-
 Definition translate_simple_patterns pat tags : result (E.e tags_t) :=
   match pat with
   | Parser.PATBit w v =>
@@ -391,9 +482,6 @@ Definition translate_simple_patterns pat tags : result (E.e tags_t) :=
   | _ =>
     error "pattern too complicated, expecting int or bv literal"
   end.
-
-
-
 
 Program Fixpoint translate_pat tags e pat { struct pat } : result (E.e tags_t)  :=
   let bool_op := fun o x y => E.EBop E.TBool o x y tags in
@@ -637,8 +725,8 @@ with inline (gas : nat)
                end
              in
              let* acts := fold_lefti act_to_gcl (ok []) actions in
-             let+ named_acts := zip actions acts in
-             let (assumes, keys') := normalize_keys tbl_name keys i in
+             let* named_acts := zip actions acts in
+             let+ (assumes, keys') := normalize_keys tbl_name keys i in
              let invocation := IInvoke tbl_name keys' named_acts i in
              ISeq assumes invocation i
            | _ =>
@@ -1031,56 +1119,6 @@ Fixpoint eliminate_slice_assignments (c : t) : result t :=
   | IExternMethodCall _ _ _ _ => ok c
   end.
 
-Definition inline_assert (check : E.e tags_t) (tags : tags_t) : t :=
-  let args := {|paramargs := [("check", PAIn check)]; rtrns:= None|} in
-  IExternMethodCall "_" "assert" args tags.
-
-Definition isValid (hdr : E.e tags_t) (tags: tags_t) : E.e tags_t :=
-  E.EUop E.TBool E.IsValid hdr tags.
-
-(*inline_assert (isValid e tags) tags*)
-Fixpoint header_asserts (e : E.e tags_t) (tags : tags_t) : result (list (E.e tags_t)) :=
-  match e with
-  | E.EBool _ _ | E.EBit _ _ _
-  | E.EInt _ _ _ | E.EVar _ _ _
-  | E.EError _ _ (*| E.EMatchKind _ _ *) =>  ok []
-  | E.EExprMember type name e tags =>
-    if String.eqb name "is_valid" then ok [] else
-    match t_of_e e with
-    | E.THeader _  =>
-      ok [e]
-    | _ =>
-      ok []
-    end
-  | E.ESlice e _ _ tags =>
-    header_asserts e tags
-  | E.ECast _ e tags =>
-    header_asserts e tags
-  | E.EUop _ E.IsValid e tags =>
-    ok []
-  | E.EUop _ _ e tags =>
-    header_asserts e tags
-  | E.EBop _ _ lhs rhs tags =>
-    let* lhs_asserts := header_asserts lhs tags in
-    let* rhs_asserts := header_asserts rhs tags in
-    ok (List.app lhs_asserts rhs_asserts)
-  | E.ETuple _ _ =>
-    (* List.fold_left (fun acc_asserts e => *)
-    (* let* acc_asserts := acc_asserts in *)
-    (* let+ new_asserts := header_asserts e tags in *)
-    (* ISeq acc_asserts new_asserts tags) es (ok (ISkip tags)) *)
-    error "[ERROR] [header_asserts] tuples should be factored out by now"
-  | E.EStruct _ _ =>
-    error "[ERROR] [header_asserts] structs should be factored out by now"
-  | E.EHeader _ _ _ =>
-    error "[ERROR] [header_asserts] header literals should be factored out by now"
-  | E.EHeaderStack _ _ _ _ =>
-    error "[ERROR] [header_asserts] header stacks should be factored out by now"
-  | E.EHeaderStackAccess _ _ _ _ =>
-    error "[ERROR] [header_asserts] header stack accesses should be factored out by now"
-  end.
-
-
 Definition get_from_paramarg {A : Type} (pa : paramarg A A) :=
   match pa with
   | PAIn a => a
@@ -1088,13 +1126,8 @@ Definition get_from_paramarg {A : Type} (pa : paramarg A A) :=
   | PAInOut a => a
   | PADirLess a => a
   end.
+
 Fixpoint assert_headers_valid_before_use (c : t) : result t :=
-  let uniquify := ListUtil.uniquify ExprEquivalence.eqbe in
-  let assertify hdrs tags :=
-      List.fold_right (fun hdr cmd => ISeq (inline_assert (isValid hdr tags) tags) cmd tags)
-                      (ISkip tags)
-                      (uniquify hdrs)
-  in
   match c with
   | ISkip _
   | IVardecl _ _ _=> ok c
@@ -1133,6 +1166,9 @@ Fixpoint assert_headers_valid_before_use (c : t) : result t :=
     (* Assume this has been factored out already *)
     error "header stacks should have been factored out already"
   | IExternMethodCall ext method args tags =>
+    (*We skip extract, because we dont read the bits*)
+    (*We skip assume, because theyre only introduced in tables at this point in the pipeline. *)
+    (*if orb (String.eqb method "extract") (String.eqb method "assume") then ok c else*)
     if String.eqb method "extract" then ok c else
     let paramargs := paramargs args in
     let+ headers := List.fold_left (fun acc_hdrs '(param, arg)  =>

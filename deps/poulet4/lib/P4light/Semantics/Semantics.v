@@ -2083,7 +2083,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
       let init := uninit_out_params [] out_params in
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LInstance (p ++ [str name; param]))) params in
+      let params := map (map_fst (fun param => LInstance [param])) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := block_app init (process_locals locals) in

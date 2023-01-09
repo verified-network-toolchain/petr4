@@ -342,6 +342,7 @@ Section Ops.
 
   Definition bool_of_val (oldv : Val) : option Val :=
     match oldv with
+    | ValBaseBool b => Some (ValBaseBool b)
     | ValBaseBit [true] => Some (ValBaseBool true)
     | ValBaseBit [false] => Some (ValBaseBool false)
     | _ => None

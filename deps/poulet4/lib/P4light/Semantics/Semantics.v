@@ -339,11 +339,10 @@ Section WithGenv.
 
 Definition loc_to_sval (loc : Locator) (s : state) : Result.result Exn.t Sval :=
   match loc with
-  | LInstance p =>
+  | LInstance p
+  | LGlobal p =>
       Result.from_opt (PathMap.get p (get_memory s))
                       (Exn.LocNotFoundInState (LInstance p))
-  | LGlobal p =>
-      Result.error (Exn.GlobalVarsNotInState p)
   end.
 
 Definition loc_to_val_const
@@ -1097,14 +1096,14 @@ Definition get_expr_name (expr : @Expression tags_t) : ident :=
   match expr with
   | MkExpression _ (ExpName name _) _ _  =>
       name_only name
-  | _ => ""
+  | _ => SyntaxUtil.dummy_ident ()
   end.
 
 Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
   match expr with
   | MkExpression _ (ExpFunctionCall func _ _) _ _  =>
       get_expr_name func
-  | _ => ""
+  | _ => SyntaxUtil.dummy_ident ()
   end.
 
 (* Construct a call expression from the actionref. *)
@@ -1429,14 +1428,11 @@ Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident
   | _ => nil
   end.
 
-Definition dummy_ident : ident := "".
-Global Opaque dummy_ident.
-
 Definition get_type_name (typ : @P4Type tags_t) : ident :=
   match typ with
   | TypSpecializedType (TypTypeName type_name) _ => str type_name
   | TypTypeName type_name => str type_name
-  | _ => dummy_ident
+  | _ => SyntaxUtil.dummy_ident ()
   end.
 
 Definition get_type_params (typ : @P4Type tags_t) : list (@P4Type tags_t) :=
@@ -2087,7 +2083,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
       let init := uninit_out_params [] out_params in
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LInstance [param])) params in
+      let params := map (map_fst (fun param => LInstance (p ++ [str name; param]))) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := block_app init (process_locals locals) in

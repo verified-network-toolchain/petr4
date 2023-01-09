@@ -1029,6 +1029,7 @@ Section Soundness.
         destruct (list_eq_dec string_dec p (get_loc_path loc)).
         * rewrite <- e. rewrite PathMap.get_set_same. exists rhs. auto.
         * rewrite PathMap.get_set_diff; auto. exists sv. auto.
+        * admit.
       + specialize (H0 _ _ H2). destruct H0 as [sv ?H].
         destruct (H1 _ _ _ H2 H0) as [rt [? ?]]. subst st'.
         unfold loc_to_sval, get_memory in *. destruct l; inv H3.

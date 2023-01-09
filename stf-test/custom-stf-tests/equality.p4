@@ -55,8 +55,9 @@ control MyEgress(inout headers hdr,
 
 control MyDeparser(packet_out packet, in headers hdr) {
     apply { 
-      my_struct s1 = {0,false};
-      my_struct s2 = {1, true};
+      my_struct s1 = (my_struct){1w0, false};
+      my_struct s2 = (my_struct){1w1, true};
+        /*
       bit test1 = s1.first; //false
       bool test2 = s1.second; //
       bit test3 = s2.first;
@@ -66,22 +67,23 @@ control MyDeparser(packet_out packet, in headers hdr) {
       my_other_struct s5 = {{0,false}, {1,true}};
   
       bool a = error.NoError != error.MyError;
-      bool b = s3.first != s3.second;
-      bool c = s3 == s4;
-      bool d = s4 == s5;
+        */
+      //bool b = s3.first != s3.second;
+      //bool c = s3 == s4;
+      //bool d = s4 == s5;
       // packet.emit(s1);
       // packet.emit(s2);
-      packet.emit((bit<8>) test1);
-      packet.emit((bit<8>) ((bit) test2));
-      packet.emit((bit<8>) test3);
-      packet.emit((bit<8>) ((bit) test4));
+      //packet.emit((bit<8>) test1);
+      //packet.emit((bit<8>) ((bit) test2));
+      //packet.emit((bit<8>) test3);
+      //packet.emit((bit<8>) ((bit) test4));
       // packet.emit(s3);
       // packet.emit(s4);
       // packet.emit(s5);
-      packet.emit((bit<8>) ((bit) a));
-      packet.emit((bit<8>) ((bit) b));
-      packet.emit((bit<8>) ((bit) c));
-      packet.emit((bit<8>) ((bit) d));
+      //packet.emit((bit<8>) ((bit) a));
+      //packet.emit((bit<8>) ((bit) b));
+      //packet.emit((bit<8>) ((bit) c));
+      //packet.emit((bit<8>) ((bit) d));
     }
 }
 

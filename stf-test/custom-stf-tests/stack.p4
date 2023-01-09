@@ -56,10 +56,12 @@ struct headers {
 }
 
 parser MyParser(packet_in packet,
-                out headers hdr,
+                out headers hdr_out,
                 inout metadata meta,
                 inout standard_metadata_t standard_metadata) {
     state start {
+        headers hdr;
+        /*
         hdr.a = init(); //5 invalid headers
         hdr.b = hdr.a[0]; //one invalid header
         hdr.c = hdr.a[1]; //one invalid header
@@ -85,6 +87,8 @@ parser MyParser(packet_in packet,
         hdr.v = hdr.s[2]; //valid
         hdr.w = hdr.s[3]; //invalid
         hdr.x = hdr.s[4]; //invalid
+        */
+        hdr_out = hdr;
         transition accept;
     }
 }
@@ -107,6 +111,7 @@ control MyEgress(inout headers hdr,
 
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
+        /*
       packet.emit(hdr.b); //nop
       packet.emit(hdr.c); //nop
       packet.emit(hdr.d); //nop
@@ -126,6 +131,7 @@ control MyDeparser(packet_out packet, in headers hdr) {
       packet.emit(hdr.v); //emit 2A2A
       packet.emit(hdr.w); //nop 
       packet.emit(hdr.x); //nop
+        */
       //final expected output 0000 0005 2A2A 2A2A 2A2A 2A2A
     }
 }

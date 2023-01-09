@@ -54,21 +54,24 @@ Fixpoint lift_e (e : Expr.e) {struct e}
   | Expr.Bool _
   | Expr.Error _
   | Expr.Var _ _ _ => (e, [])
-  | Expr.Bit _ _
-  | Expr.VarBit _ _ _
-  | Expr.Int _ _ => (Expr.Var (t_of_e e) "" 0, [e])
+  | Expr.Bit _ _ =>
+      (Expr.Var (t_of_e e) "lifted_bit" 0, [e])
+  | Expr.VarBit _ _ _ =>
+      (Expr.Var (t_of_e e) "lifted_varbit" 0, [e])
+  | Expr.Int _ _ =>
+      (Expr.Var (t_of_e e) "lifted_int" 0, [e])
   | Expr.Member t x e
     => let '(e, inits) := lift_e e in
       (Expr.Member t x e, inits)
   | Expr.Uop t op e =>
       let '(e, inits) := lift_e e in
-      (Expr.Var t "" 0, Expr.Uop t op e :: inits)
+      (Expr.Var t "lifted_uop" 0, Expr.Uop t op e :: inits)
   | Expr.Slice hi lo e =>
       let '(e, inits) := lift_e e in
-      (Expr.Var (Expr.TBit (Npos hi - Npos lo + 1)%N) "" 0, Expr.Slice hi lo e :: inits)
+      (Expr.Var (Expr.TBit (Npos hi - Npos lo + 1)%N) "lifted_slice" 0, Expr.Slice hi lo e :: inits)
   | Expr.Cast t e =>
       let '(e, inits) := lift_e e in
-      (Expr.Var t "" 0, Expr.Cast t e :: inits)
+      (Expr.Var t "lifted_cast" 0, Expr.Cast t e :: inits)
   | Expr.Index t e1 e2 =>
       let '(e1, l1) := lift_e e1 in
       let '(e2, l2) := lift_e e2 in
@@ -80,7 +83,7 @@ Fixpoint lift_e (e : Expr.e) {struct e}
   | Expr.Bop t op e1 e2 => 
       let '(e1, l1) := lift_e e1 in
       let '(e2, l2) := lift_e e2 in
-      (Expr.Var t "" 0,
+      (Expr.Var t "lifted_bop" 0,
         Expr.Bop
           t op
           (shift_e (Shifter 0 (length l2)) e1)
@@ -88,7 +91,7 @@ Fixpoint lift_e (e : Expr.e) {struct e}
           :: shift_list shift_e (Shifter 0 (length l1)) l2 ++ l1)
   | Expr.Lists l es =>
       let '(es', les) := List.split (shift_pairs shift_e $ List.map lift_e es) in
-      (Expr.Var (t_of_lists l es) "" 0, Expr.Lists l es' :: concat les)
+      (Expr.Var (t_of_lists l es) "lifted_lists" 0, Expr.Lists l es' :: concat les)
   end.
 
 Definition lift_e_list (es : list Expr.e) : list Expr.e * list Expr.e :=
@@ -119,7 +122,7 @@ Definition lift_args_list
 Fixpoint Unwind (es : list Expr.e) (s : Stmt.s) : Stmt.s :=
   match es with
   | [] => s
-  | e :: es => Unwind es (Stmt.Var "" (inr e) s)
+  | e :: es => Unwind es (Stmt.Var "unwound_var" (inr e) s)
   end.
 
 Definition lift_trans (e : Parser.trns)

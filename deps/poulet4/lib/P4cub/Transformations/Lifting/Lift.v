@@ -52,26 +52,26 @@ Inductive Lift_e
 | Lift_error err :
   Lift_e (Expr.Error err) (Expr.Error err) []
 | Lift_bit w n :
-  Lift_e (w `W n) (Expr.Var (Expr.TBit w) "" 0) [w `W n]
+  Lift_e (w `W n) (Expr.Var (Expr.TBit w) "lifted_bit" 0) [w `W n]
 | Lift_int w z :
-  Lift_e (w `S z) (Expr.Var (Expr.TInt w) "" 0) [w `S z]
+  Lift_e (w `S z) (Expr.Var (Expr.TInt w) "lifted_int" 0) [w `S z]
 | Lift_varbit m w n :
-  Lift_e (Expr.VarBit m w n) (Expr.Var (Expr.TVarBit m) "" 0) [Expr.VarBit m w n]
+  Lift_e (Expr.VarBit m w n) (Expr.Var (Expr.TVarBit m) "lifted_varbit" 0) [Expr.VarBit m w n]
 | Lift_member t x e e' es :
   Lift_e e e' es ->
   Lift_e (Expr.Member t x e) (Expr.Member t x e') es
 | Lift_uop t o e e' es :
   Lift_e e e' es ->
-  Lift_e (Expr.Uop t o e) (Expr.Var t "" 0) (Expr.Uop t o e' :: es)
+  Lift_e (Expr.Uop t o e) (Expr.Var t "lifted_uop" 0) (Expr.Uop t o e' :: es)
 | Lift_slice hi lo e e' es :
   Lift_e e e' es ->
   Lift_e
     (Expr.Slice hi lo e)
-    (Expr.Var (Expr.TBit (Npos hi - Npos lo + 1)%N) "" 0)
+    (Expr.Var (Expr.TBit (Npos hi - Npos lo + 1)%N) "lifted_slice" 0)
     (Expr.Slice hi lo e' :: es)
 | Lift_cast t e e' es :
   Lift_e e e' es ->
-  Lift_e (Expr.Cast t e) (Expr.Var t "" 0) (Expr.Cast t e' :: es)
+  Lift_e (Expr.Cast t e) (Expr.Var t "lifted_cast" 0) (Expr.Cast t e' :: es)
 | Lift_index t e1 e2 e1' e2' es1 es2 :
   Lift_e e1 e1' es1 ->
   Lift_e e2 e2' es2 ->
@@ -87,7 +87,7 @@ Inductive Lift_e
   Lift_e e2 e2' es2 ->
   Lift_e
     (Expr.Bop t o e1 e2)
-    (Expr.Var t "" 0)
+    (Expr.Var t "lifted_bop" 0)
     (Expr.Bop
        t o
        (shift_e (Shifter 0 (length es2)) e1')
@@ -97,7 +97,7 @@ Inductive Lift_e
   Forall3 Lift_e es es' ess ->
   Lift_e
     (Expr.Lists ls es)
-    (Expr.Var (t_of_lists ls es) "" 0)
+    (Expr.Var (t_of_lists ls es) "lifted_lists" 0)
     (Expr.Lists ls (map fst (shift_pairs shift_e (combine es' ess)))
        :: concat (map snd (shift_pairs shift_e (combine es' ess)))).
 
@@ -113,13 +113,13 @@ Section LifteInduction.
       P (Expr.Error err) (Expr.Error err) [].
   
   Hypothesis HLift_bit : forall w n,
-      P (w `W n) (Expr.Var (Expr.TBit w) "" 0) [w `W n].
+      P (w `W n) (Expr.Var (Expr.TBit w) "lifted_bit" 0) [w `W n].
 
   Hypothesis HLift_int : forall w z,
-      P (w `S z) (Expr.Var (Expr.TInt w) "" 0) [w `S z].
+      P (w `S z) (Expr.Var (Expr.TInt w) "lifted_int" 0) [w `S z].
   
   Hypothesis HLift_varbit : forall m w n,
-      P (Expr.VarBit m w n) (Expr.Var (Expr.TVarBit m) "" 0) [Expr.VarBit m w n].
+      P (Expr.VarBit m w n) (Expr.Var (Expr.TVarBit m) "lifted_varbit" 0) [Expr.VarBit m w n].
 
   Hypothesis HLift_member : forall t x e e' es,
       Lift_e e e' es ->
@@ -129,20 +129,20 @@ Section LifteInduction.
   Hypothesis HLift_uop : forall t o e e' es,
       Lift_e e e' es ->
       P e e' es ->
-      P (Expr.Uop t o e) (Expr.Var t "" 0) (Expr.Uop t o e' :: es).
+      P (Expr.Uop t o e) (Expr.Var t "lifted_uop" 0) (Expr.Uop t o e' :: es).
   
   Hypothesis HLift_slice : forall hi lo e e' es,
       Lift_e e e' es ->
       P e e' es ->
       P
         (Expr.Slice hi lo e)
-        (Expr.Var (Expr.TBit (Npos hi - Npos lo + 1)%N) "" 0)
+        (Expr.Var (Expr.TBit (Npos hi - Npos lo + 1)%N) "lifted_slice" 0)
         (Expr.Slice hi lo e' :: es).
   
   Hypothesis HLift_cast : forall t e e' es,
       Lift_e e e' es ->
       P e e' es ->
-      P (Expr.Cast t e) (Expr.Var t "" 0) (Expr.Cast t e' :: es).
+      P (Expr.Cast t e) (Expr.Var t "lifted_cast" 0) (Expr.Cast t e' :: es).
   
   Hypothesis HLift_index : forall t e1 e2 e1' e2' es1 es2,
       Lift_e e1 e1' es1 ->
@@ -164,7 +164,7 @@ Section LifteInduction.
       P e2 e2' es2 ->
       P
         (Expr.Bop t o e1 e2)
-        (Expr.Var t "" 0)
+        (Expr.Var t "lifted_bop" 0)
         (Expr.Bop
            t o
            (shift_e (Shifter 0 (length es2)) e1')
@@ -176,7 +176,7 @@ Section LifteInduction.
       Forall3 P es es' ess ->
       P
         (Expr.Lists ls es)
-        (Expr.Var (t_of_lists ls es) "" 0)
+        (Expr.Var (t_of_lists ls es) "lifted_lists" 0)
         (Expr.Lists ls (map fst (shift_pairs shift_e (combine es' ess)))
            :: concat (map snd (shift_pairs shift_e (combine es' ess)))).
 

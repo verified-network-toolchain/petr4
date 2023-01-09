@@ -202,7 +202,7 @@ Section Transformer.
       | StatEmpty => mret (MkStatement tags stmt typ, e)
       | StatReturn oexpr =>
         let oexpr' := option_map (transform_expr e) oexpr in
-        mret (MkStatement tags (StatReturn oexpr) typ, e)
+        mret (MkStatement tags (StatReturn oexpr') typ, e)
       | StatSwitch expr cases =>
         let expr' := transform_expr e expr in
         let* cases' := sequence (map (transform_ssc e ns) cases) in

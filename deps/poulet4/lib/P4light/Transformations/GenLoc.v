@@ -450,7 +450,7 @@ Section Transformer.
         let used_list := concat
               (map (fun ps => summarize_blk (list_statement_to_block default_tag (get_parser_state_statements ps))) states) in
         let* _ := put_state (fun l => used_list ++ l) in
-        let* states' := sequence (map (transform_psrst e) states) in
+        let* states' := sequence (map (transform_psrst e''') states) in
         mret (locals', states')
       ) in
       let* (locals', states') := with_empty_state inner_scope_monad in

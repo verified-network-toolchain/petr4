@@ -350,6 +350,19 @@ In this section, we provide the signatures used throughout this document includi
 In the following we present P4 syntax. Note that we omitted annotations and meta-information since they are not required for type checking. Some notes about the syntax follows:
 
 - Surface types are the types that a developer can use and write down while writing a P4 program. The surface type presented is parametrized by a type variable and it instantiates to $\surfaceTyp \exp$ for the types that a programers writes in their P4 program.
+  + Note that similar to P4 we categorize $\errTyp$ and $\matchKindTyp$ types as surface types, even though they are declared by a P4 program/library. The reason behind this is the need to have arguments of these types, such as the example below which is taken from P4 spec:
+
+~ Begin P4Example
+extern void verify(in bool condition, in error err);
+
+ParserModel.verify(bool condition, error err) {
+    if (condition == false) {
+        ParserModel.parserError = err;
+        goto reject;
+    }
+}
+~ End P4Example
+
 - Parameters, denoted by $\prmDef \typKind$, are paremeterized by the type they have, that is, $\typKind$ represent a type where it can either be $\surfaceTyp \atyp$ or $\typ$. This is because they are used in different places and depending on where they are used they may have a different type. 
 - For simplicity, we use the expanded format of parameter in most rules to have fine access to its direction and type. However, we often don't need its initializer so we omit that. Keep in mind that a parameter could or could not have an initializer.
 - Direction is optional in parameter declaration. However, for simpilicity, we just use  $\less$ to denote a missing direction. 
@@ -2655,7 +2668,7 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
 # Declaration's Typing Rules { #sec-decl-typing }
 
-## Enum declaration
+## Enum Type declaration { #sec-enum-typ-decl }
 ```done```
 
 
@@ -2696,7 +2709,27 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
 ~ End InfRule
 
+## Header Type Declaration { #sec-header-typ-decl }
 
+## Header Stack Type Declaration { #sec-header-stack-typ-decl }
+
+## Struct Type Declaration { #sec-struct-typ-decl }
+
+## Header Union Type Declaration { #sec-header-union-typ-decl }
+
+## Parser Type Declaration { #sec-parser-typ-decl }
+
+## Package Type Declaration { #sec-package-typ-decl }
+
+## Control Type Declaration { #sec-control-typ-decl }
+
+## Error Type Declaration { #sec-error-typ-decl }
+
+## Match Kind Type Declaration { #sec-match-kind-typ-decl }
+
+## Extern Declaration { #sec-extern-decl }
+
+## Type Specialization { #sec-typ-esp }
 # References    { #sec-references }
 
 ~ Bibliography { caption:"00" }

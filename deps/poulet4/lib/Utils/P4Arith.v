@@ -306,7 +306,7 @@ Module BitArith.
     - apply IHbits; try lia.
       rewrite shiftl_mul_pow2 by lia; lia.
   Qed.
-  
+
   Lemma le_from_lbool_bound : forall bits,
       uncurry bound (le_from_lbool bits).
   Proof.
@@ -325,7 +325,7 @@ Module BitArith.
     rewrite <- Zlength_rev.
     apply le_from_lbool_bound.
   Qed.
-  
+
 End BitArith.
 
 (** * Signed Integers *)
@@ -702,7 +702,7 @@ Lemma div_2_mod_2_pow:
   forall v z : Z,
     0 <= z -> (v / 2) mod 2 ^ z * 2 + (if Z.odd v then 1 else 0) = v mod (2 * 2 ^ z).
 Proof.
-  intros v z H. rewrite (Z_div_mod_eq v 2) at 3 by lia. rewrite Zmod_odd.
+  intros v z H. rewrite (Z_div_mod_eq_full v 2) at 3. rewrite Zmod_odd.
   assert (0 < 2 ^ z) by (apply Z.pow_pos_nonneg; lia).
   rewrite Z.add_mod by lia. rewrite Z.mul_mod_distr_l by lia.
   destruct (Z.odd v).

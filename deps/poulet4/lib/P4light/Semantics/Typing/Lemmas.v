@@ -839,10 +839,10 @@ Section Lemmas.
         cbn in *; try discriminate; inv heval; auto.
     - constructor.
     - pose proof length_to_lbool
-        (N.of_nat (List.length v)) (IntArith.lbool_to_val (rev v) 1 0) as h.
+        (N.of_nat (List.length v)) (IntArith.lbool_to_val v 1 0) as h.
       autorewrite with core in h; rewrite <- h at 2; auto.
     - pose proof length_to_lbool
-        w₂ (BitArith.lbool_to_val (rev v) 1 0) as h.
+        w₂ (BitArith.lbool_to_val v 1 0) as h.
       apply f_equal with (f:=N.of_nat) in h.
       autorewrite with core in h; rewrite <- h at 2; auto.
     - pose proof length_to_lbool w v as h.
@@ -853,7 +853,7 @@ Section Lemmas.
         (N.of_nat (List.length v))
         (IntArith.mod_bound
            (Pos.of_nat (List.length v))
-           (BitArith.lbool_to_val (rev v) 1 0)) as h.
+           (BitArith.lbool_to_val v 1 0)) as h.
       autorewrite with core in h.
       rewrite <- h at 3; auto.
     - pose proof length_to_lbool

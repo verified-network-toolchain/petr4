@@ -22,7 +22,7 @@ Section BitStringSlice.
     end.
 
   Definition bitstring_slice (bits: list A) (lo : nat) (hi : nat) : list A :=
-    List.rev (bitstring_slice' bits lo hi []).
+    bitstring_slice' (List.rev bits) lo hi [].
 
   Lemma bitstring_slice'_length : forall bits slice hi lo,
         (lo <= hi < length bits)%nat ->
@@ -42,8 +42,8 @@ Section BitStringSlice.
   Proof.
     intros bits hi lo H.
     unfold bitstring_slice.
-    rewrite rev_length.
-    rewrite bitstring_slice'_length by lia; cbn; lia.
+    rewrite bitstring_slice'_length by (rewrite rev_length; lia).
+    cbn; lia.
   Qed.
 
   Lemma Forall2_bitstring_slice': forall l1 l2 s1 s2 R lo hi,
@@ -56,8 +56,9 @@ Section BitStringSlice.
   Lemma Forall2_bitstring_slice: forall l1 l2 R lo hi,
       Forall2 R l1 l2 -> Forall2 R (bitstring_slice l1 lo hi) (bitstring_slice l2 lo hi).
   Proof.
-    intros. unfold bitstring_slice. apply ListUtil.Forall2_rev.
+    intros. unfold bitstring_slice.
     apply Forall2_bitstring_slice'; auto.
+    apply Forall2_rev; auto.
   Qed.
 
   Fixpoint update_bitstring (bits : list A) (lo : nat) (hi : nat)

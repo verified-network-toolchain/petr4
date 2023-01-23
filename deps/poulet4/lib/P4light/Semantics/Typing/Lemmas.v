@@ -217,10 +217,10 @@ Section Lemmas.
               try some_inv;
               try rewrite <- Nnat.Nat2N.inj_add;
               try match goal with
-                  | |- ⊢ᵥ ValBaseBit (?l ++ ?r) \: TypBit (N.of_nat (length ?r + length ?l))
-                    => rewrite PeanoNat.Nat.add_comm; rewrite <- app_length
-                  | |- ⊢ᵥ ValBaseInt (?l ++ ?r) \: TypInt (N.of_nat (length ?r + length ?l))
-                    => rewrite PeanoNat.Nat.add_comm; rewrite <- app_length
+                  | |- ⊢ᵥ ValBaseBit (?l ++ ?r) \: TypBit (N.of_nat (length ?l + length ?r))
+                    => rewrite <- app_length
+                  | |- ⊢ᵥ ValBaseInt (?l ++ ?r) \: TypInt (N.of_nat (length ?l + length ?r))
+                    => rewrite <- app_length
                   end;
               repeat if_destruct;
               try match_some_inv; try some_inv; auto;

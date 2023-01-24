@@ -1,55 +1,26 @@
 open Core
 open Petr4
-open Common
-
-module Conf: Parse_config = struct
-  let red s = s
-  let green s = s
-
-  let preprocess include_dirs p4file =
-    let cmd =
-      String.concat ~sep:" "
-        (["cc"] @
-         (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
-          ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
-    let in_chan = Unix.open_process_in cmd in
-    let str = In_channel.input_all in_chan in
-    let _ = Unix.close_process_in in_chan in
-    str
-end
-
-module Parse = Make_parse(Conf)
-
 let parser_test include_dirs file =
-  match Parse.parse_file include_dirs file false with
-  | `Ok _ -> true
-  | `Error _ -> false
+  let cfg = Pass.mk_parse_only include_dirs file in
+  match Petr4.Unix.Driver.run_parser cfg with
+  | Ok _ -> true
+  | Error e ->
+    Printf.eprintf "error in parser test: %s" (Petr4.Common.error_to_string e);
+    false
 
-let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
-  Printf.printf "Testing file %s...\n" p4_file;
-  match Parse.parse_file include_dirs p4_file false with
-  | `Ok prog ->
-    begin
-      try
-        let prog, renamer = Elaborate.elab prog in
-        let _ = Checker.check_program renamer prog in
-        true
-      with
-      | Error.Type(info, err) ->
-        Format.eprintf "%s: %a" (P4info.to_string info) Error.format_error err;
-        false
-      | exn ->
-        Format.eprintf "Unknown exception: %s" (Exn.to_string exn);
-        false
-    end
-  | `Error (info, Lexer.Error s) -> false
-  | `Error (info, Parser.Error) -> false
-  | `Error (info, err) -> false
+let typecheck_test include_dirs file =
+  Printf.printf "Testing file %s...\n" file;
+  let cfg = Pass.mk_check_only include_dirs file in
+  match Petr4.Unix.Driver.run_checker cfg with
+  | Ok _ -> true
+  | Error e ->
+    Printf.eprintf "error in checker test: %s" (Petr4.Common.error_to_string e);
+    false
 
 let get_files path =
-  Sys.ls_dir path
-  |> List.filter ~f:(fun name ->
-      Core_kernel.Filename.check_suffix name ".p4")
+  Sys_unix.ls_dir path
+  |> List.filter
+       ~f:(fun name -> Filename.check_suffix name ".p4")
 
 let example_path l =
   let root = Filename.concat ".." "examples" in

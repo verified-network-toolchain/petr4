@@ -12,5 +12,7 @@ Notation itags := P4Int.tags.
 
 Inductive Info := NoInfo.
 Inductive Annotation := NoAnnotation.
+#[export]
 Instance Inhabitant_Info : Inhabitant Info := NoInfo.
+#[export]
 Instance Inhabitant_Annotation : Inhabitant Annotation := NoAnnotation.

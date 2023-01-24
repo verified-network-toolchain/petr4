@@ -27,6 +27,13 @@ let print_list ?(sep="") f p l =
     true in
   ignore (List.fold_left print_item false l)
 
+let print_field ?(sep="") f g p (x,y) =
+  fprintf p "@[<h>%a%s%a]" f x sep g y
+
+let print_fields ?(list_sep="") ?(field_sep="") f g =
+  print_list ~sep:list_sep
+  (print_field ~sep:field_sep f g)
+
 (* print_info prints a unit now, because we do not have info in Coq in this version. *)
 
 let p4string p (s : P4string.t) =
@@ -121,12 +128,11 @@ let rec print_type p (typ : coq_P4Type) =
   | TypTuple typs ->
       fprintf p "@[<h>tuple%a@]"
           print_type_args typs
-  | TypList typs ->
-      failwith "unimplemented: print_type TypList"
+  | TypList typs -> fprintf p "@[<h>[%a]@]" (print_list ~sep:"," print_type) typs
   | TypRecord fields ->
-      failwith "unimplemented: print_type TypRecord"
-  | TypSet elem_typ ->
-      failwith "unimplemented: print_type TypSet"
+      fprintf p "@[<h>record{%a}]"
+      (print_fields ~list_sep:";" ~field_sep:":" p4string print_type) fields
+  | TypSet elem_typ -> fprintf p "@[set<%a>@]" print_type elem_typ
   | TypError ->
       fprintf p "error"
   | TypMatchKind ->
@@ -134,31 +140,42 @@ let rec print_type p (typ : coq_P4Type) =
   | TypVoid ->
       fprintf p "void"
   | TypHeader fields ->
-      failwith "unimplemented: print_type TypHeader"
+      fprintf p "@[<h>header{%a}]"
+      (print_fields ~list_sep:";" ~field_sep:":" p4string print_type) fields
   | TypHeaderUnion fields ->
-      failwith "unimplemented: print_type TypHeaderUnion"
+      fprintf p "@[<h>union{%a}]"
+      (print_fields ~list_sep:";" ~field_sep:":" p4string print_type) fields
   | TypStruct fields ->
-      failwith "unimplemented: print_type TypStruct"
-  | TypEnum (s, typ, members) ->
-      failwith "unimplemented: print_type TypEnum"
+      fprintf p "@[<h>struct{%a}]"
+      (print_fields ~list_sep:";" ~field_sep:":" p4string print_type) fields
+  | TypEnum (s, Some typ, members) ->
+      fprintf p "@[<h>enum %a:%a {%a}"
+      p4string s print_type typ (print_list ~sep:"," p4string) members
+  | TypEnum (s, None, members) ->
+      fprintf p "@[<h>enum %a {%a}"
+      p4string s (print_list ~sep:"," p4string) members
   | TypTypeName name ->
       fprintf p "@[<h>%a@]" print_string name.str
   | TypNewType (s, typ) ->
-      failwith "unimplemented: print_type TypNewType"
+      fprintf p "@[<h>newtype %a:%a@]" p4string s print_type typ
   | TypControl ctrl ->
-      failwith "unimplemented: print_type TypControl"
+      fprintf p "@[<h>control%a@]" print_controltype ctrl
   | TypParser ctrl ->
-      failwith "unimplemented: print_type TypParser"
+      fprintf p "@[<h>parser%a@]" print_controltype ctrl
   | TypExtern s ->
-      failwith "unimplemented: print_type TypExtern"
-  | TypFunction func ->
-      failwith "unimplemented: print_type TypFunction"
+      fprintf p "@[<h>extern %a]" p4string s
+  | TypFunction func -> fprintf p "@[<h>function%a@]" print_functiontype func
   | TypAction (data_params, ctrl_params) ->
-      failwith "unimplemented: print_type TypAction"
+      fprintf p "@[<h>action(%a)(%a)@]"
+      (print_list ~sep:"," print_param) data_params
+      (print_list ~sep:"," print_param) ctrl_params
   | TypTable s ->
-      failwith "unimplemented: print_type TypTable"
+      fprintf p "@[<h>table %a]" p4string s
   | TypPackage (type_params, wildcard_params, params) ->
-      failwith "unimplemented: print_type TypPackage"
+      fprintf p "@[<h>package<%a>(%a)(%a)]"
+      (print_list ~sep:"," p4string) type_params
+      (print_list ~sep:"," p4string) wildcard_params
+      (print_list ~sep:"," print_param) params
   | TypSpecializedType (base, args) ->
       if List.for_all printable_type args
       then fprintf p "@[<h>%a%a@]" 
@@ -167,7 +184,22 @@ let rec print_type p (typ : coq_P4Type) =
       else fprintf p "@[<h>%a@]" 
                 print_type base
   | TypConstructor (type_params, wildcard_params, params, ret_type) ->
-      failwith "unimplemented: print_type TypConstructor"
+      fprintf p "@[<h>constructor<%a>(%a)(%a)->%a]"
+      (print_list ~sep:"," p4string) type_params
+      (print_list ~sep:"," p4string) wildcard_params
+      (print_list ~sep:"," print_param) params
+      print_type ret_type
+and print_functiontype p (ft : coq_FunctionType) =
+  match ft with
+  | MkFunctionType (xs,params,_,ret) ->
+    fprintf p "@[<h><%a>(%a)->%a@]"
+    (print_list ~sep:"," p4string) xs (print_list ~sep:"," print_param) params
+    print_type ret
+and print_controltype p (ct : coq_ControlType) =
+  match ct with
+  | MkControlType (xs, params) ->
+    fprintf p "@[<h><%a>(%a)@]"
+    (print_list ~sep:"," p4string) xs (print_list ~sep:"," print_param) params
 and print_param p (param: coq_P4Parameter) =
   match param with
   | MkParameter (opt, direction, typ, default_arg_id, variable) ->
@@ -387,9 +419,9 @@ let print_table_key p (key: coq_TableKey) =
 
 let print_table_keys p (keys: coq_TableKey list) =
   if (List.length keys <> 0) then
-    fprintf p "@[<v 4>key = {@,%a@]@,}"
+    fprintf p "@[<v 4>key = {@,%a@]@,}@,"
         (print_list print_table_key) keys
-  else fprintf p "@[<h>key = { }@]"
+  (* keyless table: nothing to print *)
 
 let print_table_entry p (entry: coq_TableEntry) =
   match entry with
@@ -412,6 +444,7 @@ let print_table_entries p (entries: coq_TableEntry list)=
   if (List.length entries <> 0) then
     fprintf p "@,@[<v 4>const entries = {@,%a@]@,}"
         (print_list print_table_entry) entries
+    (* empty const entries: not well supported in Tofino though valid in spec *)
 
 let print_table_size p size = 
   fprintf p "@,@[<h>size = %a;@]"
@@ -691,7 +724,7 @@ let rec print_decl p (decl : coq_Declaration) =
           print_block (OtherBlock, body)
   | DeclTable (info, name, keys, actions, entries, 
               default_action, size, custom_properties) ->
-      fprintf p "@[<v 4>table %a {@,%a@,%a%a%a%a"
+      fprintf p "@[<v 4>table %a {@,%a%a%a%a%a"
           p4string name
           print_table_keys keys
           print_table_actions actions

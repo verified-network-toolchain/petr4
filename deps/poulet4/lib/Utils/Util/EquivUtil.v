@@ -2,7 +2,7 @@ Require Export Coq.Numbers.BinNums
         Coq.Bool.Bool
         Poulet4.Utils.Util.ListUtil.
 Require Import Coq.micromega.Lia.
-Require Import Coq.Strings.String.
+Require Import String.
 
 (** * Useful Notations *)
 
@@ -171,7 +171,7 @@ Section ListStuff.
   Proof using Type.
     intros xs ys; reflect_split; subst;
       autorewrite with core in *; auto; try discriminate.
-  Qed.
+  Defined.
 End ListStuff.
 
 Ltac destruct_lifted_andb :=
@@ -258,7 +258,7 @@ Section Relop.
   Qed.
 End Relop.
 
-Instance OptionEquivalence
+Global Instance OptionEquivalence
          (A : Type) (R : A -> A -> Prop)
          `{Equivalence A R} : Equivalence (relop R).
 Proof.
@@ -268,7 +268,7 @@ Proof.
   constructor; auto.
 Defined.
 
-Instance OptionEqDec
+Global Instance OptionEqDec
          (A : Type) (R : A -> A -> Prop)
          `{HR : EqDec A R} : EqDec (option A) (relop R).
 Proof.
@@ -324,14 +324,10 @@ End ProdEquivalence.
 
 (** * Equivalence for Petr4 Base Data Types *)
 
-Instance PositiveEqDec : EqDec positive eq := { equiv_dec := BinPos.Pos.eq_dec }.
+Global Instance PositiveEqDec : EqDec positive eq := { equiv_dec := BinPos.Pos.eq_dec }.
 
-Instance NEqDec : EqDec N eq := { equiv_dec := BinNat.N.eq_dec }.
+Global Instance NEqDec : EqDec N eq := { equiv_dec := BinNat.N.eq_dec }.
 
-Instance ZEqDec : EqDec Z eq := { equiv_dec := BinInt.Z.eq_dec }.
+Global Instance ZEqDec : EqDec Z eq := { equiv_dec := BinInt.Z.eq_dec }.
 
-(* (** Tag-less strings. *) *)
-(* Definition string := String.string. *)
-
-
-Instance StringEqDec : EqDec String.string eq := { equiv_dec := Coq.Strings.String.string_dec }.
+Global Instance StringEqDec : EqDec String.string eq := { equiv_dec := string_dec }.

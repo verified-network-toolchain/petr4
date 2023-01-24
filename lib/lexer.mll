@@ -16,6 +16,8 @@
 open Lexing
 open Context
 open Parser
+open Poulet4.P4String
+open Poulet4.P4Int
 
 module S = String
 module String = S
@@ -83,7 +85,7 @@ let strip_prefix s =
 
 let parse_int n info =
   let value = Bigint.of_string (sanitize n) in
-  P4int.{tags=info; value; width_signed=None}
+  {tags=info; value; width_signed=None}
 
 let parse_width_int s n info =
   let l_s = String.length s in
@@ -100,7 +102,7 @@ let parse_width_int s n info =
     | _ -> 
       raise (Error "Illegal integer constant")
   in
-  P4int.{tags=info; value = value; width_signed}
+  {tags=info; value = value; width_signed}
 }
 
 let name = ['A'-'Z' 'a'-'z' '_'] ['A'-'Z' 'a'-'z' '0'-'9' '_']*
@@ -124,7 +126,7 @@ rule tokenize = parse
       { newline lexbuf; PRAGMA_END(info lexbuf) }
   | '"'
       { let str, end_info = (string lexbuf) in
-        STRING_LITERAL (P4string.{tags=P4info.merge (info lexbuf) end_info; str}) }
+        STRING_LITERAL ({tags=P4info.merge (info lexbuf) end_info; str}) }
   | whitespace
       { tokenize lexbuf }
   | '#'
@@ -240,7 +242,7 @@ rule tokenize = parse
   | "_"
       { DONTCARE (info lexbuf) }
   | name
-      { NAME (P4string.{tags=info lexbuf; str=Lexing.lexeme lexbuf}) }
+      { NAME ({tags=info lexbuf; str=Lexing.lexeme lexbuf}) }
   | "<="
       { LE (info lexbuf) }
   | ">="
@@ -318,7 +320,7 @@ rule tokenize = parse
   | eof
       { END (info lexbuf) }
   | _
-      { UNEXPECTED_TOKEN(P4string.{tags=info lexbuf; str=lexeme lexbuf}) }
+      { UNEXPECTED_TOKEN({tags=info lexbuf; str=lexeme lexbuf}) }
       
 and string = parse
   | eof

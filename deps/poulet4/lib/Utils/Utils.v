@@ -234,3 +234,9 @@ Proof.
       * inversion H.
     + inversion H.
 Qed.
+
+Definition fold_andb (l : list bool) :=
+  fold_left andb l true.
+
+Definition fold_orb (l : list bool) :=
+  fold_left orb l false.

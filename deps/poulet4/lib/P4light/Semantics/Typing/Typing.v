@@ -52,14 +52,14 @@ Section TypingDefs.
   Definition gamma_var_domain
              `{T : @Target tags_t expr}
              (g : gamma_var) (st : state) : Prop := forall l t,
-      typ_of_loc_var l g = Some t -> exists sv, loc_to_sval l st = Some sv.
+      typ_of_loc_var l g = Some t -> exists sv, loc_to_sval l st = Result.Ok sv.
 
   Definition gamma_var_val_typ
              `{T : @Target tags_t expr}
              (g : gamma_var) (st : state)
              (gt : genv_typ) : Prop := forall l t v,
       typ_of_loc_var l g = Some t ->
-      loc_to_sval l st = Some v ->
+      loc_to_sval l st = Result.Ok v ->
       exists rt, get_real_type gt t = Some rt /\ ⊢ᵥ v \: normᵗ rt.
 
   Definition gamma_var_prop

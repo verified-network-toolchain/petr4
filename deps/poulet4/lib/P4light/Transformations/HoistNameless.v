@@ -1,11 +1,9 @@
 From Poulet4 Require Import
      P4light.Syntax.Syntax P4light.Transformations.SimplExpr.
 From Poulet4 Require Export
-     P4cub.Syntax.Syntax Monads.Result
-     Utils.Util.StringUtil
-     P4cub.Semantics.Dynamic.BigStep.InstUtil.
-
-Import StringUtil.
+     Monads.Result Utils.Util.StringUtil.
+Require Import Coq.Lists.List.
+Import StringUtil ListNotations.
 
 Require Import String.
 Open Scope string_scope.
@@ -54,7 +52,7 @@ Section Nameless.
   Definition hoist_expression_list (g : NameGen.t) : (list (@Expression tags_t)) -> (NameGen.t * list (@Declaration tags_t) * list (@Expression tags_t)) :=
     List.fold_right hoist_expression_inner (g, [],[]).
 
-  Definition hoist_decl (g : NameGen.t) (d : @Declaration tags_t) : result (NameGen.t * list (@Declaration tags_t)) :=
+  Definition hoist_decl (g : NameGen.t) (d : @Declaration tags_t) : result string (NameGen.t * list (@Declaration tags_t)) :=
     match d with
     | DeclInstantiation tags type args name init =>
       let '(g', hoist, new_args) := hoist_expression_list g args in
@@ -63,12 +61,12 @@ Section Nameless.
     | _ => ok (g, [d])
     end.
 
-  Definition hoist_decl_inner (d : @Declaration tags_t) (acc : result (NameGen.t * list (@Declaration tags_t))) : result (NameGen.t * list (@Declaration tags_t)) :=
+  Definition hoist_decl_inner (d : @Declaration tags_t) (acc : result string (NameGen.t * list (@Declaration tags_t))) : result string (NameGen.t * list (@Declaration tags_t)) :=
     let* (g, ds) := acc in
     let+ (g', hoisted) := hoist_decl g d in
     (g, List.app hoisted ds).
 
-  Definition hoist_nameless_instantiations (p : @program tags_t) : result (@program tags_t) :=
+  Definition hoist_nameless_instantiations (p : @program tags_t) : result string (@program tags_t) :=
     let '(Program decls) := p in
     let+ (_,hoisted_decls) := List.fold_right (hoist_decl_inner) (ok (NameGen.init,[])) decls in
     Program hoisted_decls.

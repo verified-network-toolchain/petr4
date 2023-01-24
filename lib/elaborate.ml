@@ -1,11 +1,12 @@
-open Core_kernel
+open Core
 open Util
+open Poulet4.Typed
 open Surface
 open Checker_env
 
 let subst_vars_name env type_name =
   begin match Checker_env.resolve_type_name_opt type_name env with
-  | Some (TypTypeName v) -> P4name.BareName v
+  | Some (TypTypeName v) -> BareName v
   | Some _ -> failwith "unexpected type value during elaboration"
   | None -> type_name
   end
@@ -135,8 +136,8 @@ and subst_vars_stmt_declaration env decl =
                 typ = subst_vars_type env typ;
                 name = name;
                 init = option_map (subst_vars_expression env) init }
-  | _ -> raise_s [%message "declaration is not allowed as a statement"
-                     ~decl:(decl: Surface.Declaration.t)]
+  | _ -> failwith "declaration is not allowed as a statement"
+         (* decl: Surface.Declaration.t *)
 
 let subst_vars_param env param =
   let open Surface.Parameter in
@@ -247,6 +248,6 @@ let elab_decls env decls =
   List.iter ~f:observe_decl_name decls;
   elab_decls' env decls
 
-let elab (P4lightram decls) =
+let elab (Program decls) =
   let env = Checker_env.empty_t () in
-  P4lightram (elab_decls env decls), env.renamer
+  Program (elab_decls env decls), env.renamer

@@ -1,254 +1,194 @@
-Require Import Poulet4.Utils.Envn Poulet4.P4cub.Syntax.AST.
-Import String.
+From Poulet4 Require Import
+     Utils.Util.FunUtil
+     P4cub.Syntax.AST P4cub.Syntax.CubNotations.
+Import AllCubNotations String.
 
-Module E := Expr.
-Module TD := TopDecl.
-Module ST := Stmt.
+(** * Philip Wadler style de Bruijn substitution of type variables. *)
 
-Section TypeSubstitution.
+Fixpoint tshift_t (n : nat) (τ : Expr.t) : Expr.t :=
+  match τ with
+  | Expr.TBool
+  | Expr.TBit _
+  | Expr.TInt _
+  | Expr.TError       => τ
+  | Expr.TVar X       => n + X
+  | Expr.TArray s t   => Expr.TArray s (tshift_t n t)
+  | Expr.TStruct b ts => Expr.TStruct b (map (tshift_t n) ts)
+  end.
 
-  Definition find_default (σ : Env.t string E.t) (X : string) (default : E.t) :=
-    match Env.find X σ with
-    | Some t => t
-    | None   => default
+Section Sub.
+  Variable σ : nat -> Expr.t.
+
+  Definition exts (X : nat) : Expr.t :=
+    match X with
+    | O => O
+    | S n => tshift_t 1 $ σ n
     end.
 
-  Definition remove_types (σ : Env.t string E.t) (tparams : list string) :=
-    List.fold_right Env.remove σ tparams.
-
-  Fixpoint tsub_t (σ : Env.t string E.t) (t : E.t) : E.t :=
+  Fixpoint tsub_t (t : Expr.t) : Expr.t :=
     match t with
-    | E.TBool
-    | E.TBit _
-    | E.TInt _
-    | E.TError     => t    
-    | E.TTuple ts  => E.TTuple $ List.map (tsub_t σ) ts
-    | E.TStruct ts => E.TStruct $ F.map (tsub_t σ) ts
-    | E.THeader ts    => E.THeader $ F.map (tsub_t σ) ts
-    | E.THeaderStack ts n   => E.THeaderStack (F.map (tsub_t σ) ts) n
-    | E.TVar X => find_default σ X t
+    | Expr.TBool
+    | Expr.TBit _
+    | Expr.TInt _
+    | Expr.TError       => t
+    | Expr.TArray n t   => Expr.TArray n $ tsub_t t
+    | Expr.TStruct b ts => Expr.TStruct b $ List.map tsub_t ts
+    | Expr.TVar X       => σ X
     end.
-  (**[]*)
 
-  Context {tags_t : Type}.
+  Definition tsub_lists (l : Expr.lists) : Expr.lists :=
+    match l with
+    | Expr.lists_struct   => Expr.lists_struct
+    | Expr.lists_array  t => Expr.lists_array $ tsub_t t
+    | Expr.lists_header b => Expr.lists_header b
+    end.
 
-  Fixpoint tsub_e (σ : Env.t string E.t) (e : E.e tags_t) : E.e tags_t :=
+  Fixpoint tsub_e (e : Expr.e) : Expr.e :=
     match e with
-    | E.EBool _ _
-    | E.EBit _ _ _
-    | E.EInt _ _ _
-    | E.EError _ _ => e
-    | E.EVar t x i =>
-      E.EVar (tsub_t σ t) x i
-    | E.ESlice e hi lo i =>
-      Expr.ESlice (tsub_e σ e) hi lo i
-    | E.ECast t e i =>
-      Expr.ECast (tsub_t σ t) (tsub_e σ e) i
-    | E.EUop rt op e i =>
-      Expr.EUop (tsub_t σ rt) op (tsub_e σ e) i
-    | E.EBop rt op e1 e2 i =>
-      Expr.EBop (tsub_t σ rt) op (tsub_e σ e1) (tsub_e σ e2) i
-    | E.ETuple es i =>
-      E.ETuple (List.map (tsub_e σ) es) i
-    | E.EStruct es i =>
-      E.EStruct (F.map (tsub_e σ) es) i
-    | E.EHeader es e i =>
-      Expr.EHeader (F.map (tsub_e σ) es) (tsub_e σ e) i
-    | E.EExprMember rt mem arg i =>
-      E.EExprMember (tsub_t σ rt) mem (tsub_e σ arg) i
-    | E.EHeaderStack fs hs ni i =>
-      E.EHeaderStack (F.map (tsub_t σ) fs) (List.map (tsub_e σ) hs) ni i
-    | E.EHeaderStackAccess result_hdr_type stk index i =>
-      E.EHeaderStackAccess (F.map (tsub_t σ) result_hdr_type) (tsub_e σ stk) index i
+    | Expr.Bool _
+    | Expr.Bit _ _
+    | Expr.Int _ _
+    | Expr.Error _ => e
+    | Expr.Var t og x       => Expr.Var (tsub_t t) og x
+    | Expr.Slice hi lo e => Expr.Slice hi lo $ tsub_e e
+    | Expr.Cast t e      => Expr.Cast (tsub_t t) $ tsub_e e
+    | Expr.Uop rt op e   => Expr.Uop (tsub_t rt) op $ tsub_e e
+    | Expr.Bop rt op e1 e2 =>
+        Expr.Bop (tsub_t rt) op (tsub_e e1) $ tsub_e e2
+    | Expr.Index t e1 e2 => Expr.Index (tsub_t t) (tsub_e e1) $ tsub_e e2
+    | Expr.Member rt mem arg =>
+        Expr.Member (tsub_t rt) mem (tsub_e arg)
+    | Expr.Lists l es => Expr.Lists (tsub_lists l) $ map tsub_e es
     end.
-  (**[]*)
+  
+  Definition tsub_param
+    : paramarg Expr.t Expr.t -> paramarg Expr.t Expr.t :=
+    paramarg_map_same $ tsub_t.
 
+  Definition tsub_arg
+    : paramarg Expr.e Expr.e -> paramarg Expr.e Expr.e :=
+    paramarg_map_same $ tsub_e.
 
- Definition tsub_param (σ : Env.t string E.t) (pa : paramarg E.t E.t) :=
-    match pa with
-    | PAIn t => PAIn (tsub_t σ t)
-    | PAOut t => PAOut (tsub_t σ t)
-    | PAInOut t => PAInOut (tsub_t σ t)
-    | PADirLess t => PAInOut (tsub_t σ t)
-    end.
-
- Definition tsub_arg (σ : Env.t string E.t) (pa : paramarg (E.e tags_t) (E.e tags_t)) :=
-    match pa with
-    | PAIn e => PAIn (tsub_e σ e)
-    | PAOut e => PAOut (tsub_e σ e)
-    | PAInOut e => PAInOut (tsub_e σ e)
-    | PADirLess e => PAInOut (tsub_e σ e)
-    end.
-
-  Definition tsub_retE (σ : Env.t string E.t) (ret : option (E.e tags_t)) :=
-    let* e := ret in
-    Some (tsub_e σ e).
-
-  (*Print arrow.*)
-
-  Definition tsub_arrowE (σ : Env.t string E.t) (ar : E.arrowE tags_t) :=
-    let args := paramargs ar in
-    let ret := rtrns ar in
-    let args' := F.map (tsub_arg σ) args in
-    let ret' := tsub_retE σ ret in
-    {| paramargs := args'; rtrns := ret' |}.
-
-  Fixpoint tsub_s (σ : Env.t string E.t) (s : ST.s tags_t) : ST.s tags_t :=
-    match s with
-    | ST.SSkip _ => s
-    | ST.SVardecl x e i =>
-      let e' := map_sum (tsub_t σ) (tsub_e σ) e in
-      ST.SVardecl x e' i
-    | ST.SAssign lhs rhs i =>
-      let lhs' := tsub_e σ lhs in
-      let rhs' := tsub_e σ rhs in
-      ST.SAssign lhs' rhs' i
-    | ST.SConditional g tru fls i =>
-      let g' := tsub_e σ g in
-      let tru' := tsub_s σ tru in
-      let fls' := tsub_s σ fls in
-      ST.SConditional g' tru' fls' i
-    | ST.SSeq s1 s2 i =>
-      let s1' := tsub_s σ s1 in
-      let s2' := tsub_s σ s2 in
-      ST.SSeq s1' s2' i
-    | ST.SBlock b =>
-      ST.SBlock (tsub_s σ b)
-    | ST.SExternMethodCall extern_name method_name typ_args args i =>
-      (*TODO Is there something more complicated we need to do with typ_args? *)
-      let typ_args' := List.map (tsub_t σ) typ_args in
-      let args' := tsub_arrowE σ args in
-      ST.SExternMethodCall extern_name method_name typ_args' args' i
-    | ST.SFunCall f typ_args args i =>
-      (*TODO Is there something more complicated we need to do with typ_args? *)
-      let typ_args' := List.map (tsub_t σ) typ_args in
-      let args' := tsub_arrowE σ args in
-      ST.SFunCall f typ_args' args' i
-    | ST.SActCall a args i =>
-      let args' := F.map (tsub_arg σ) args in
-      ST.SActCall a args' i
-    | ST.SReturn e i =>
-      let e' := tsub_retE σ e in
-      ST.SReturn e' i
-    | ST.SExit _ => s
-    | ST.SInvoke _ _ => s
-    | ST.SApply ci ext_args args i =>
-      let args' := F.map (tsub_arg σ) args in
-      ST.SApply ci ext_args args i
-    (* | ST.PApply _ pi ext_args args i => *)
-    (*   let args' := F.map (tsub_arg σ) args in *)
-    (*   ST.PApply _ pi ext_args args' i *)
-    | ST.SHeaderStackOp _ _ _ _ _ => s
-    | ST.SSetValidity _ _ _ => s
-    end.
-
-  Definition tsub_carg (σ : Env.t string E.t) (carg : E.constructor_arg tags_t) :=
-    match carg with
-    | E.CAName _ => carg
-    | E.CAExpr e => E.CAExpr (tsub_e σ e)
-    end.
-
-  Definition tsub_retT (σ : Env.t string E.t) (ret : option E.t) :=
-    let* t := ret in
-    Some (tsub_t σ t).
-
-
-  Fixpoint tsub_cparam (σ : Env.t string E.t) (ctor_type : E.ct) :=
-    match ctor_type with
-    | E.CTControl cparams extern_params params =>
-      E.CTControl (F.map (tsub_cparam σ) cparams) extern_params
-                  (F.map (tsub_param σ) params)
-    | E.CTParser cparams extern_params params =>
-      E.CTParser (F.map (tsub_cparam σ) cparams) extern_params
-                 (F.map (tsub_param σ) params)
-    | E.CTPackage cparams =>
-      E.CTPackage (F.map (tsub_cparam σ) cparams)
-    | E.CTExtern e => E.CTExtern e
-    | E.CTType t =>
-      let t' := tsub_t σ t in
-      E.CTType t'
-    end.
-
-  Definition tsub_arrowT (σ : Env.t string E.t) (ar : E.arrowT) :=
-    let params := paramargs ar in
-    let ret := rtrns ar in
-    let params' := F.map (tsub_param σ) params in
-    let ret' := tsub_retT σ ret in
-    {| paramargs := params'; rtrns := ret' |}.
-
-  Definition tsub_method (σ : Env.t string E.t) (method_types : (list string * E.arrowT)) :=
-    let '(type_params, arrow) := method_types in
-    let σ' := remove_types σ type_params in
-    (type_params, tsub_arrowT σ' arrow).
-
-  (*Print Control.table.*)
-
-  Definition tsub_table (σ : Env.t string E.t) (tbl : Control.table tags_t) :=
-    let tbl_keys := Control.table_key tbl in
-    let tbl_acts := Control.table_actions tbl in
-    let tbl_keys' := List.map (fun '(e,mk) => (tsub_e σ e, mk)) tbl_keys in
-    {| Control.table_key := tbl_keys'; Control.table_actions := tbl_acts |}.
-
-  Fixpoint tsub_Cd (σ : Env.t string E.t) (d : Control.d tags_t) :=
-    match d with
-    | Control.CDAction a sig body i =>
-      let sig' := F.map (tsub_param σ) sig in
-      let body' := tsub_s σ body in
-      Control.CDAction a sig' body' i
-    | Control.CDTable t tbl i =>
-      Control.CDTable t (tsub_table σ tbl) i
-    | Control.CDSeq d1 d2 i =>
-      Control.CDSeq (tsub_Cd σ d1) (tsub_Cd σ d2) i
-    end.
-
-  Fixpoint tsub_transition (σ : Env.t string E.t) (transition : Parser.e tags_t) :=
+  Definition tsub_transition (transition : Parser.pt) :=
     match transition with
-    | Parser.PGoto s i =>
-      Parser.PGoto s i
-    | Parser.PSelect discriminee default cases i =>
-      let discriminee' := tsub_e σ discriminee in
-      let default' := tsub_transition σ default in
-      let cases' := F.map (tsub_transition σ) cases in
-      Parser.PSelect discriminee' default' cases' i
+    | Parser.Direct s => Parser.Direct s
+    | Parser.Select discriminee default cases =>
+        Parser.Select (tsub_e discriminee) default cases
     end.
 
-  Definition tsub_state (σ : Env.t string E.t) (st : Parser.state_block tags_t) :=
-    let s := Parser.stmt st in
-    let e := Parser.trans st in
-    let e' := tsub_transition σ e in
-    {| Parser.stmt := s; Parser.trans := e' |}.
+  Definition tsub_fun_kind (fk : Stmt.fun_kind) : Stmt.fun_kind :=
+    match fk with
+    | Stmt.Funct f τs oe
+      => Stmt.Funct f (map tsub_t τs) $ option_map tsub_e oe
+    | Stmt.Action a cargs
+      => Stmt.Action a $ map tsub_e cargs
+    | Stmt.Method e m τs oe
+      => Stmt.Method e m (map tsub_t τs) $ option_map tsub_e oe
+    end.
 
-  Fixpoint tsub_d (σ : Env.t string E.t) (d : TD.d tags_t) : TD.d tags_t :=
-    match d with
-    | TD.TPInstantiate cname iname type_args cargs i =>
+  Fixpoint tsub_s (s : Stmt.s) : Stmt.s :=
+    match s with
+    | Stmt.Skip
+    | Stmt.Invoke _
+    | Stmt.Exit => s
+    | Stmt.Return e => Stmt.Return $ option_map tsub_e e
+    | Stmt.Transition e => Stmt.Transition $ tsub_transition e
+    | (lhs `:= rhs)%stmt
+      => (tsub_e lhs `:= tsub_e rhs)%stmt
+    | Stmt.Call fk args
+      => Stmt.Call (tsub_fun_kind fk) $ map tsub_arg args
+    | Stmt.Apply ci ext_args args =>
+        Stmt.Apply ci ext_args $ map tsub_arg args
+    | Stmt.Var x e s
+      => Stmt.Var
+          x (map_sum tsub_t tsub_e e)
+          $ tsub_s s
+    | (s₁ `; s₂)%stmt => (tsub_s s₁ `; tsub_s s₂)%stmt
+    | (If g Then tru Else fls)%stmt
+      => (If tsub_e g Then tsub_s tru Else tsub_s fls)%stmt
+    end.
+  
+  Definition tsub_cparam
+             (ctor_type : TopDecl.it) : TopDecl.it :=
+    match ctor_type with
+    | TopDecl.ControlInstType extern_params params =>
+        TopDecl.ControlInstType
+          extern_params (map_snd tsub_param params)
+    | TopDecl.ParserInstType extern_params params =>
+        TopDecl.ParserInstType
+          extern_params (map_snd tsub_param params)
+    | TopDecl.PackageInstType => TopDecl.PackageInstType
+    | TopDecl.ExternInstType e => TopDecl.ExternInstType e
+    end.
+
+  Definition tsub_arrowT
+             '({| paramargs:=params; rtrns:=ret |} : Expr.arrowT) : Expr.arrowT :=
+    {| paramargs := map_snd tsub_param params
+    ; rtrns := option_map tsub_t ret |}.
+End Sub.
+
+Definition tsub_method
+           (σ : nat -> Expr.t)
+           '((Δ,xs,arr) : nat * list string * Expr.arrowT) :=
+  (Δ,xs,tsub_arrowT (exts `^ Δ σ) arr).
+
+Definition tsub_Cd (σ : nat -> Expr.t) (d : Control.d) :=
+  match d with
+  | Control.Var og te =>
+      Control.Var og $ map_sum (tsub_t σ) (tsub_e σ) te
+  | Control.Action a cps dps body =>
+      Control.Action
+        a (map_snd (tsub_t σ) cps)
+        (map_snd (tsub_param σ) dps) $ tsub_s σ body
+  | Control.Table t key acts =>
+      Control.Table
+        t (List.map (fun '(e,mk) => (tsub_e σ e, mk)) key)
+        $ List.map (fun '(a,args) => (a, map (tsub_arg σ) args)) acts
+  end.
+
+Definition tsub_d (σ : nat -> Expr.t) (d : TopDecl.d) : TopDecl.d :=
+  match d with
+  | TopDecl.Instantiate cname iname type_args cargs expr_cargs =>
       (* TODO theres something broken here, need to get type params for cname *)
-      let type_args' := List.map (tsub_t σ) type_args in
-      let cargs' := F.map (tsub_carg σ) cargs in
-      TD.TPInstantiate cname iname type_args' cargs' i
-    | TD.TPExtern ename tparams cparams methods i =>
-      let σ' := remove_types σ tparams in
-      let cparams' := F.map (tsub_cparam σ') cparams in
-      let methods' := F.map (tsub_method σ') methods in
-      TD.TPExtern ename tparams cparams' methods' i
-    | TD.TPControl cname cparams eparams params body apply_blk i =>
-      let cparams' := F.map (tsub_cparam σ) cparams in
-      let params' := F.map (tsub_param σ) params in
-      let body' := tsub_Cd σ body in
+      let type_args' := map (tsub_t σ) type_args in
+      let expr_cargs' := map (tsub_e σ) expr_cargs in
+      TopDecl.Instantiate cname iname type_args' cargs expr_cargs'
+  | TopDecl.Extern ename tparams cparams expr_cparams methods =>
+      let σ' := exts `^ tparams σ in
+      let cparams' :=
+        List.map (FunUtil.map_snd $ tsub_cparam σ') cparams in
+      let expr_cparams' :=
+        map (tsub_t σ') expr_cparams in
+      let methods' := Field.map (tsub_method σ') methods in
+      TopDecl.Extern ename tparams cparams' expr_cparams' methods'
+  | TopDecl.Control cname cparams expr_cparams eparams params body apply_blk =>
+      let cparams' := map (FunUtil.map_snd $ tsub_cparam σ) cparams in
+      let expr_cparams' :=
+        map (tsub_t σ) expr_cparams in
+      let params' := map_snd (tsub_param σ) params in
+      let body' := map (tsub_Cd σ) body in
       let apply_blk' := tsub_s σ apply_blk in
-      TD.TPControl cname cparams' eparams params' body' apply_blk' i
-    | TD.TPParser pn cps eps ps strt sts i =>
-      let cparams' := F.map (tsub_cparam σ) cps in
-      let params' := F.map (tsub_param σ) ps in
-      let start' := tsub_state σ strt in
-      let states' := F.map (tsub_state σ) sts in
-      TD.TPParser pn cparams' eps params' start' states' i
-    | TD.TPFunction f tparams params body i =>
-      let σ' := remove_types σ tparams in
+      TopDecl.Control cname cparams' expr_cparams' eparams params' body' apply_blk'
+  | TopDecl.Parser pn cps expr_cparams eps ps strt sts =>
+      let cps' := map (FunUtil.map_snd $ tsub_cparam σ) cps in
+      let expr_cparams' :=
+        map (tsub_t σ) expr_cparams in
+      let ps' := map_snd (tsub_param σ) ps in
+      let start' := tsub_s σ strt in
+      let states' := map (tsub_s σ) sts in
+      TopDecl.Parser pn cps' expr_cparams' eps ps' start' states'
+  | TopDecl.Funct f tparams params body =>
+      let σ' := exts `^ tparams σ in
       let cparams' := tsub_arrowT σ' params in
       let body' := tsub_s σ' body in
-      TD.TPFunction f tparams cparams' body' i
-    | TD.TPSeq d1 d2 i =>
-      TD.TPSeq (tsub_d σ d1) (tsub_d σ d2) i
-    end.
+      TopDecl.Funct f tparams cparams' body'
+  end.
 
-End TypeSubstitution.
+(** Generate a substitution from type arguments. *)
+Fixpoint gen_tsub (τs : list Expr.t) (X : nat) : Expr.t :=
+  match τs, X with
+  | τ :: _, O => τ
+  | _ :: τs, S n => gen_tsub τs n
+  | [], O => O
+  | [], S n => n
+  end.

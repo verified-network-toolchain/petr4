@@ -8,6 +8,10 @@ Import ListNotations.
 
 Open Scope Z_scope.
 
+Lemma nat_to_Z_to_N : forall n,
+    Z.to_N (Z.of_nat n) = N.of_nat n.
+Proof. lia. Qed.
+
 Lemma exp_ge_one : forall n1 n2 : Z, 0 < n1 -> 0 <= n2 -> 1 <= n1 ^ n2.
 Proof.
   intros n1 n2 H.
@@ -638,6 +642,16 @@ Proof.
   rewrite Zlength_to_lbool'. rewrite Zlength_nil. lia.
 Qed.
 
+Lemma length_to_lbool : forall w z,
+    length (to_lbool w z) = N.to_nat w.
+Proof.
+  intros w z.
+  replace (length (to_lbool w z))
+    with (Z.to_nat (Z.of_nat (length (to_lbool w z)))) by lia.
+  rewrite <- Zcomplements.Zlength_correct.
+  rewrite Zlength_to_lbool. lia.
+Qed.
+
 Lemma bit_mod_bound_0: forall v, BitArith.mod_bound 0 v = 0.
 Proof.
   intros. unfold BitArith.mod_bound, BitArith.upper_bound. simpl. apply Z.mod_1_r.
@@ -677,7 +691,6 @@ Lemma Z_odd_pow_2_S:
   forall (n : nat) (v : Z), Z.odd (v mod 2 ^ Z.of_nat (S n)) = Z.odd v.
 Proof.
   intros n v. rewrite !Zodd_mod. f_equal. rewrite <- Znumtheory.Zmod_div_mod; try lia.
-  - apply Z.pow_pos_nonneg; lia.
   - exists (2 ^ Z.of_nat n). rewrite Nat2Z.inj_succ. rewrite Z.pow_succ_r; lia.
 Qed.
 
@@ -690,7 +703,7 @@ Proof.
   rewrite nil_to_lbool'. rewrite (nil_to_lbool' _ _ [Z.odd v]). f_equal.
   - rewrite <- (IHn (v / 2)). f_equal. rewrite Nat2Z.inj_succ.
     rewrite Z.pow_succ_r by lia. rewrite Z.rem_mul_r; try lia.
-    2: apply Z.pow_pos_nonneg; lia. rewrite Z.mul_comm. rewrite Z.div_add by lia.
+    rewrite Z.mul_comm. rewrite Z.div_add by lia.
     rewrite Zmod_div. lia.
   - f_equal. apply Z_odd_pow_2_S.
 

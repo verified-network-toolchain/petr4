@@ -15,10 +15,11 @@
 
 %{
 module Petr4 = struct end
+open Poulet4.P4String
+open Poulet4.Typed
 open Surface
-open Core_kernel
+open Core
 open Context
-open P4string
 
 let declare_vars vars = List.iter vars ~f:declare_var
 let declare_types types = List.iter types ~f:declare_type
@@ -201,7 +202,7 @@ list(X):
 
 (**************************** P4-16 GRAMMAR ******************************)
 
-p4program : ds = topDeclarationList END { P4lightram(ds) };
+p4program : ds = topDeclarationList END { Program(ds) };
 
 topDeclarationList:
 | (* empty *) { [] }
@@ -721,9 +722,9 @@ namedType:
 
 prefixedTypeName:
 | name = NAME TYPENAME
-    { P4name.BareName name }
+    { BareName name }
 | dotPrefix go_toplevel name = NAME TYPENAME go_local
-    { P4name.QualifiedName ([], name) }
+    { QualifiedName ([], name) }
 ;
 
 prefixedType:

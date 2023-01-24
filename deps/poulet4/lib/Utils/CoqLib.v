@@ -335,3 +335,11 @@ Inductive Forall2_fold {A B C} (P : A -> B -> C -> A -> Prop) : A -> list B -> l
 (* Eval vm_compute in findi (Nat.eqb 5) [1; 2; 5; 6; 3]. *)
 
 (* Eval vm_compute in nth_error [1; 2; 5; 6; 3] 2.  *)
+
+Lemma length_concat_map_rev {A: Type}: forall (l: list (list A)),
+    length (concat (map (@rev A) l)) = length (concat l).
+Proof. induction l; simpl; [| rewrite !app_length, rev_length, IHl]; reflexivity. Qed.
+
+Lemma fold_right_ext {A B: Type}: forall (f g: A -> B -> B) (l: list A) i,
+    (forall a b, f a b = g a b) -> fold_right f i l = fold_right g i l.
+Proof. intros. induction l; simpl; [|rewrite IHl, H]; reflexivity. Qed.

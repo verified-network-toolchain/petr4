@@ -7,13 +7,13 @@ Module Clmt.
   (** Definition of environments.
       NOTE: Must be a partial map!
       Please do not change! *)
-  Definition t (D T : Type) : Type := D -> option T.
+  Definition t (D T : Set) : Set := D -> option T.
 
   (** The empty environment. *)
-  Definition empty (D T : Type) : t D T := fun _ => None.
+  Definition empty (D T : Set) : t D T := fun _ => None.
 
   Section EnvDefs.
-    Context {D T : Type}.
+    Context {D T : Set}.
     
     Context {HE : EqDec D eq}.
 
@@ -137,7 +137,7 @@ Module Clmt.
         firstorder.
       Qed.
       
-      Lemma forall_conj_distr : forall (U : Type) (P Q : U -> Prop),
+      Lemma forall_conj_distr : forall (U : Set) (P Q : U -> Prop),
           (forall u, P u /\ Q u) <-> (forall u, P u) /\ forall u, Q u.
       Proof.
         firstorder.
@@ -307,7 +307,7 @@ Module Clmt.
   End EnvDefs.
 
   Section MapVals.
-    Context {D U V : Type}.
+    Context {D U V : Set}.
     Variable (f : U -> V).
   
     Definition map_vals (e : t D U) : t D V :=

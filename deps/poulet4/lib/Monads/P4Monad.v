@@ -1,5 +1,4 @@
-Require Export Poulet4.Monads.Monad.
-Require Export Poulet4.Monads.State.
+Require Export Poulet4.Monads.ExceptionState.
 Require Export Poulet4.P4light.Syntax.P4String.
 Require Poulet4.Utils.HAList.
 
@@ -72,7 +71,7 @@ Record ParserState {Meta: Type} := mkParserState {
   std_meta: StandardMeta
 }.
 
-Instance etaParserState {M} : Settable _ := settable! mkParserState M <fuel; pkt; usr_meta; std_meta>.
+Global Instance etaParserState {M} : Settable _ := settable! mkParserState M <fuel; pkt; usr_meta; std_meta>.
 
 Definition Error := unit.
 Definition Meta := unit.

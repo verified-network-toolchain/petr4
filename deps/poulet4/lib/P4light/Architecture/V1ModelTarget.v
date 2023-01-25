@@ -191,11 +191,15 @@ Definition packet_in_extract_interp : extern_func_interp :=
                (Exn.LocNotFoundInState (LGlobal this)) in
     match pin_obj with
     | ObjPin pin =>
-        let* (v, sig, pin') := from_opt (extract typ pin)
-                                        (Exn.Other "failure in extract") in
-        mret (PathMap.set this (ObjPin pin') st,
-              [v],
-              sig)
+        match args with
+        | [] =>
+            let* (v, sig, pin') := from_opt (extract typ pin)
+                                            (Exn.Other "failure in extract") in
+            mret (PathMap.set this (ObjPin pin') st,
+                   [v],
+                   sig)
+        | _ => error (Exn.Other ("packet_in_extract_interp: varbit extract unimplemented"))
+        end
     | _ => error (Exn.Other ("packet_in_extract_interp: expected an ObjPin for packet_in at path " ++ Exn.path_to_string this))
     end.
 

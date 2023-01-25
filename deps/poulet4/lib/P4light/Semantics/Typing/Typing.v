@@ -20,6 +20,7 @@ Section TypingDefs.
   Notation path := (list ident).
   Notation Sval := (@ValueBase (option bool)).
   Notation funtype := (@FunctionType tags_t).
+  Notation inst_ref := (@inst_ref tags_t).
   
   (* Normal (mutable/non-constant) variable typing environment. *)
   Definition gamma_var := PathMap.t typ.
@@ -163,7 +164,7 @@ Section TypingDefs.
     | ExpName _ (LGlobal p) =>
       option_map (fun funt => (Some nil, funt)) (PathMap.get p gf)
     | ExpName _ (LInstance p) =>
-      let* '{|iclass:=class|} := PathMap.get this gi in
+      let* '{|iclass:=class|} : inst_ref := PathMap.get this gi in
       let^ ft := PathMap.get (class :: p) gf in (None,ft)
     | ExpExpressionMember (MkExpression _ (ExpName _ (LInstance p)) _ _) x
       => let* '{|iclass:=class; ipath:=inst_path|} := PathMap.get (this ++ p) gi in

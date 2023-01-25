@@ -465,17 +465,21 @@ Section Interpreter.
 
     Equations interp_isValid (sv: Sval) : result Exn.t bool :=
       { interp_isValid (ValBaseHeader fields valid_bit) :=
-        mret (bit_init valid_bit);
+            mret (bit_init valid_bit);
         interp_isValid (ValBaseUnion fields) :=
-        let* valids := interp_isValid_fields fields in
-        mret (List.fold_left orb valids false);
-        interp_isValid _ := error (Exn.Other "interp_isValid") }
+            let* valids := interp_isValid_fields fields in
+            mret (List.fold_left orb valids false);
+        interp_isValid ValBaseNull :=
+            error (Exn.Other "interp_isValid passed a ValBaseNull");
+        interp_isValid _ :=
+            error (Exn.Other "interp_isValid") }
     where interp_isValid_fields (fields: list (string * Sval)) : result Exn.t (list bool) :=
       { interp_isValid_fields (f :: rest) :=
-        let* f_valid := interp_isValid (snd f) in
-        let* rest_valid := interp_isValid_fields rest in
-        mret (f_valid :: rest_valid);
-        interp_isValid_fields nil := mret nil }.
+            let* f_valid := interp_isValid (snd f) in
+            let* rest_valid := interp_isValid_fields rest in
+            mret (f_valid :: rest_valid);
+        interp_isValid_fields nil :=
+            mret nil }.
 
     Definition interp_builtin (this: path) (st: state) (lv: Lval) (name: ident) (args: list Sval) : result Exn.t (state * signal) :=
       if name =? "isValid"

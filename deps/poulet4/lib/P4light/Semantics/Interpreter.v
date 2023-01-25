@@ -556,9 +556,15 @@ Section Interpreter.
           let v := interp_sval_val sv in
           let sv' := eval_val_to_sval v in
           mret ((Some sv', Some lv), sig)
-      | None, Typed.In => error (Exn.Other "No argument passed for in parameter")
-      | None, Typed.InOut => error (Exn.Other "No argument passed for inout parameter")
-      | _, Directionless => error (Exn.Other "Directionless parameter passed to interp_arg?")
+      | None, Typed.In =>
+          error (Exn.Other ("No argument passed for in parameter in scope: "
+                              ++ Exn.path_to_string this))
+      | None, Typed.InOut =>
+          error (Exn.Other ("No argument passed for inout parameter in scope: "
+                              ++ Exn.path_to_string this))
+      | _, Directionless => 
+          error (Exn.Other ("Directionless parameter passed to interp_arg in scope: "
+                              ++ Exn.path_to_string this))
       end.
 
     Fixpoint interp_args (this: path) (st: state) (exps: list (option (@Expression tags_t))) (dirs: list direction) : result Exn.t (list argument * signal) :=
@@ -570,7 +576,8 @@ Section Interpreter.
           let* (args, sig') := interp_args this st exps dirs in
           let ret_sig := if is_continue sig then sig' else sig in
           mret (arg :: args, ret_sig)
-      | _, _ => error (Exn.Other "interp_args: length mismatch")
+      | _, _ => error (Exn.Other ("interp_args: length mismatch in scope: "
+                                    ++ Exn.path_to_string this))
       end.
 
     Fixpoint interp_write_options (st: state) (args: list (option Lval)) (vals: list Sval) : result Exn.t state :=

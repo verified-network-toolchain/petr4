@@ -111,7 +111,7 @@ Inductive register_read_sem : extern_func_sem :=
       BitArith.from_lbool indexb = (REG_INDEX_WIDTH, index) ->
       (if ((-1 <? index) && (index <? size))
        then output = Znth index content
-       else output = ValBaseBit (to_lbool w 0))(*uninit_sval_of_typ None (TypBit w)) = Some output)*) ->
+       else output = ValBaseBit (to_lbool w 0)) ->
       register_read_sem e s p nil [ValBaseBit indexb] s [output] SReturnNull.
 
 Definition register_read : extern_func := {|
@@ -625,10 +625,28 @@ Instance V1ModelExternSem : ExternSem := Build_ExternSem
   extern_set_entries
   extern_match.
 
-Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
-    extern_state -> list bool -> extern_state -> list bool -> Prop :=
-  | exec_prog_intro : forall (module_sem : _ -> _ -> _ -> _ -> _ -> _ -> Prop) s0 pin s7 pout s1 s2 s3 s4 s5 s6
-      meta1 standard_metadata1 hdr2 meta2 standard_metadata2 hdr3 meta3 hdr4 meta4 standard_metadata4 hdr5 meta5 standard_metadata5 hdr6 meta6,
+(* package V1Switch<H, M>(...) *)
+Definition get_hdr_and_meta type_args : option (P4Type * P4Type) :=
+  match type_args with
+  | [hdr; meta] => Some (hdr, meta)
+  | _ => None
+  end.
+
+Inductive exec_prog
+          (arch_type_args : list P4Type)
+          (module_sem: path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop)
+          : extern_state -> list bool -> extern_state -> list bool -> Prop :=
+| exec_prog_intro : forall hdr_type meta_type smeta1
+                           s0 pin s7 pout s1 s2 s3 s4 s5 s6
+                           meta1 standard_metadata1
+                           hdr2 meta2 standard_metadata2
+                           hdr3 meta3
+                           hdr4 meta4 standard_metadata4
+                           hdr5 meta5 standard_metadata5
+                           hdr6 meta6,
+      get_hdr_and_meta arch_type_args = Some (hdr_type, meta_type) ->
+      uninit_sval_of_typ (Some false) meta_type = Some smeta1 ->
+      sval_to_val read_ndetbit smeta1 meta1 ->
       PathMap.set ["packet_in"] (ObjPin pin) s0 = s1 ->
       module_sem ["main"; "p"] s1 [meta1; standard_metadata1] s2 [hdr2; meta2; standard_metadata2] SReturnNull ->
       module_sem ["main"; "vr"] s2 [hdr2; meta2] s3 [hdr3; meta3] SReturnNull ->
@@ -637,7 +655,7 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
       module_sem ["main"; "ck"] s5 [hdr5; meta5] s6 [hdr6; meta6] SReturnNull ->
       module_sem ["main"; "dep"] s6 [hdr6] s7 nil SReturnNull ->
       PathMap.get ["packet_out"] s7 = Some (ObjPout pout) ->
-      exec_prog module_sem s0 pin s7 pout.
+      exec_prog arch_type_args module_sem s0 pin s7 pout.
 
 Definition expect_result_null (r: result Exn.t (extern_state * list Val * signal)) : result Exn.t (extern_state * list Val) :=
   let* '(st, outs, sig) := r in
@@ -652,6 +670,7 @@ Definition set_std_meta_error (std: Val) (err: string) : Val :=
   std.
 
 Definition interp_prog
+           (type_args : list P4Type)
            (run_module: path -> extern_state -> list Val -> result Exn.t (extern_state * list Val * signal))
            (s0: extern_state)
            (port: Z)
@@ -727,6 +746,6 @@ Definition interp_prog
   | _ => error (Exn.Other "interp_prog: failure recovering packet")
   end.
 
-Instance V1Model : Target := Build_Target _ exec_prog interp_prog.
+Instance V1Model : Target := Build_Target _ "main" exec_prog interp_prog.
 
 End V1Model.

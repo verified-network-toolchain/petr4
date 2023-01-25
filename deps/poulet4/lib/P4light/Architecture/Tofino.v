@@ -595,7 +595,7 @@ Instance TofinoExternSem : ExternSem := Build_ExternSem
   extern_set_entries
   extern_match.
 
-Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
+Inductive exec_prog (type_args : list P4Type) : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
     extern_state -> list bool -> extern_state -> list bool -> Prop :=
   | exec_prog_intro : forall (module_sem : _ -> _ -> _ -> _ -> _ -> _ -> Prop) s0 pin s7 pout s1 s2 s3 s4 s5 s6
       meta1 standard_metadata1 hdr2 meta2 standard_metadata2 hdr3 meta3 hdr4 meta4 standard_metadata4 hdr5 meta5 standard_metadata5 hdr6 meta6,
@@ -607,12 +607,12 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
       module_sem ["main"; "ck"] s5 [hdr5; meta5] s6 [hdr6; meta6] SReturnNull ->
       module_sem ["main"; "dep"] s6 [hdr6] s7 nil SReturnNull ->
       PathMap.get ["packet_out"] s7 = Some (ObjPout pout) ->
-      exec_prog module_sem s0 pin s7 pout.
+      exec_prog type_args module_sem s0 pin s7 pout.
 
-Definition interp_prog : (path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * signal)) ->
+Definition interp_prog (type_args : list P4Type) : (path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * signal)) ->
                          extern_state -> Z -> list bool -> Result.result Exn.t (extern_state * Z * list bool).
 Admitted.
 
-Instance Tofino : Target := Build_Target _ exec_prog interp_prog.
+Instance Tofino : Target := Build_Target _ "main" exec_prog interp_prog.
 
 End Tofino.

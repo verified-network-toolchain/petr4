@@ -28,13 +28,19 @@ Section Semantics.
 Notation Val := (@ValueBase bool).
 Notation Sval := (@ValueBase (option bool)).
 
+Context {tags_t : Type}.
+Context {inhabitant_tags_t : Inhabitant tags_t}.
+Definition dummy_type : @P4Type tags_t := TypBool.
+Opaque dummy_type.
+Definition dummy_tags := @default tags_t _.
+
 Definition mem := PathMap.t Sval.
 
 Notation ident := string.
 Notation path := (list ident).
              
-Record inst_ref : Set :=
-  { iclass:ident; ipath:path }.
+Record inst_ref : Type :=
+  { iclass:ident; ipath:path; itargs:list (@P4Type tags_t) }.
 
 Definition genv_inst := PathMap.t inst_ref.
 Definition genv_const := PathMap.t Val.
@@ -95,12 +101,6 @@ Variant get_member : Sval -> string -> Sval -> Prop :=
                                     then uninit_sval_of_typ None (@TypBit tags_t 32%N) = Some sv
                                     else sv = (ValBaseBit (to_loptbool 32%N (Z.of_N (next - 1))))) ->
                                   get_member (ValBaseStack headers next) "lastIndex" sv.
-
-Context {tags_t : Type}.
-Context {inhabitant_tags_t : Inhabitant tags_t}.
-Definition dummy_type : @P4Type tags_t := TypBool.
-Opaque dummy_type.
-Definition dummy_tags := @default tags_t _.
 
 Notation ValSet := (@ValueSet tags_t).
 Notation Lval := ValueLvalue.
@@ -1435,10 +1435,11 @@ Definition get_type_name (typ : @P4Type tags_t) : ident :=
   | _ => SyntaxUtil.dummy_ident ()
   end.
 
-Definition get_type_params (typ : @P4Type tags_t) : list (@P4Type tags_t) :=
+Definition get_type_args (typ : @P4Type tags_t) : option (list (@P4Type tags_t)) :=
   match typ with
-  | TypSpecializedType _ params => params
-  | _ => nil
+  | TypSpecializedType _ args =>
+      lift_option (map (get_real_type ge_typ) args)
+  | _ => Some nil
   end.
 
 Definition BlockNil := BlockEmpty dummy_tags.
@@ -1551,20 +1552,16 @@ Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
     (* O(n^2) time complexity here. *)
     (args ++ [arg], m, s, tl params) in
   let*' (args, m, s, _) := fold_left instantiate_arg args (mret (nil, m, s, params)) in
+  let* type_args := Result.from_opt (get_type_args typ) (Exn.TypeNameNotFound "todo")
+  in
   if is_decl_extern_obj decl then
-    let m := map_fst (map_fst (PathMap.set p {|iclass:=class_name; ipath:=p|})) m in
-    let type_params := get_type_params typ in
-    match lift_option (map (get_real_type ge_typ) type_params) with
-    | Some type_params =>
-        let (ee, s) := construct_extern (snd m) s class_name type_params p (map ienv_val_to_sumtype args) in
-        mret (inl {|iclass:=class_name; ipath:=p|}, (fst m, ee), s)
-    | None =>
-        mret (inl {|iclass:=class_name; ipath:=p|}, m, s)
-    end
+    let m := map_fst (map_fst (PathMap.set p {|iclass:=class_name; ipath:=p; itargs:=[]|})) m in
+    let (ee, s) := construct_extern (snd m) s class_name type_args p (map ienv_val_to_sumtype args) in
+    mret (inl {|iclass:=class_name; ipath:=p; itargs:=type_args|}, (fst m, ee), s)
   else
     let e := IdentMap.sets params args e in
     let+ (_, m, s) := instantiate_class_body_ce e class_name p m s in
-    (inl {|iclass:=class_name; ipath:=p|}, m, s).
+    (inl {|iclass:=class_name; ipath:=p; itargs := type_args|}, m, s).
 
 End instantiate_expr'.
 
@@ -1784,8 +1781,11 @@ Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl :
       mret (IdentMap.set (str name) (inr v) e, set_inst_mem (p ++ [str name]) (inr v) m, s)
   | DeclInstantiation _ typ args name init =>
       let* '(inst, m, s) := instantiate' ce e typ args (p ++ [str name]) m s in
-      let instantiate_decl'' (ems : Result.result Exn.t (ienv * inst_mem * extern_state)) (decl : @Declaration tags_t) : Result.result Exn.t (ienv * inst_mem * extern_state) :=
-        let* '(e, m, s) := ems in instantiate_decl' true ce e decl (p ++ [str name]) m s in
+      let instantiate_decl'' (ems : Result.result Exn.t (ienv * inst_mem * extern_state))
+                             (decl : @Declaration tags_t)
+        : Result.result Exn.t (ienv * inst_mem * extern_state) :=
+        let* '(e, m, s) := ems in
+        instantiate_decl' true ce e decl (p ++ [str name]) m s in
       let* '(_, m, s) :=
         fold_left instantiate_decl'' init (mret (e, m, s)) in
       mret (IdentMap.set (str name) inst e, m, s)
@@ -1849,7 +1849,7 @@ Definition get_direct_applications_ps (ps : @ParserState tags_t) : list (@Declar
 (* TODO we need to evaluate constants in instantiation. *)
 
 Definition packet_in_instance : ienv_val :=
-  inl {|iclass:="packet_in"; ipath:=["packet_in"]|}.
+  inl {|iclass:="packet_in"; ipath:=["packet_in"]; itargs:=[]|}.
 
 Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
   match param with
@@ -1862,7 +1862,7 @@ Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
   end.
 
 Definition packet_out_instance : ienv_val :=
-  inl {|iclass:="packet_out"; ipath:=["packet_out"]|}.
+  inl {|iclass:="packet_out"; ipath:=["packet_out"]; itargs:=[]|}.
 
 Definition is_packet_out (param : @P4Parameter tags_t) : bool :=
   match param with
@@ -1928,13 +1928,13 @@ Fixpoint instantiate_class_body (ce : cenv) (e : ienv) (class_name : ident) (p :
         let m := fold_left (inline_packet_in_and_packet_out p) params m in
         let locals := locals ++ concat (map get_direct_applications_ps states) in
         let* (m, s) := instantiate_decls ce' e locals p m s in
-        let m := set_inst_mem p (inl {|iclass:=class_name; ipath:=p|}) m in
+        let m := set_inst_mem p (inl {|iclass:=class_name; ipath:=p; itargs:=[]|}) m in
         mret (p, m, s)
     | DeclControl _ class_name' _ params _ locals apply =>
         let m := fold_left (inline_packet_in_and_packet_out p) params m in
         let locals := locals ++ get_direct_applications_blk apply in
         let* (m, s) := instantiate_decls ce' e locals p m s in
-        let m := set_inst_mem p (inl {|iclass:=class_name; ipath:=p|}) m in
+        let m := set_inst_mem p (inl {|iclass:=class_name; ipath:=p; itargs:=[]|}) m in
         mret (p, m, s)
     | DeclPackageType tags name type_params params =>
         (* Package types contain no inner declarations *)
@@ -2249,7 +2249,10 @@ Definition exec_module (ge: genv) (read_one_bit : option bool -> bool -> Prop) (
     match PathMap.get [func_inst.(iclass); "apply"] (ge_func ge) with
     | Some func =>
       exists mem': mem,
-              @exec_func ge read_one_bit [] (PathMap.empty, st) func [] (List.map eval_val_to_sval args) (mem', st') (List.map eval_val_to_sval rets) sig
+          @exec_func ge read_one_bit [] (PathMap.empty, st) func []
+                     (List.map eval_val_to_sval args)
+                     (mem', st')
+                     (List.map eval_val_to_sval rets) sig
     | None => False end
   | None => False end.
 
@@ -2267,12 +2270,23 @@ Definition gen_init_es (prog : @program tags_t) : Result.result Exn.t extern_sta
   let* ge := gen_am_ge prog in
   gen_init_es' ge prog.
 
+Definition get_main_type_args (ge: genv) (name: ident) : Result.result Exn.t (list P4Type) :=
+  match PathMap.get [name] (ge_inst ge) with
+  | Some i => mret i.(itargs)
+  | None => Result.error (Exn.NameNotFoundInIEnv name)
+  end.
+
 Definition exec_prog
            (read_one_bit: option bool -> bool -> Prop)
            (prog: @program tags_t)
   : extern_state -> list bool -> extern_state -> list bool -> Prop :=
   match gen_ge prog with
-  | Result.Ok ge => exec_prog (exec_module ge read_one_bit)
+  | Result.Ok ge =>
+      match get_main_type_args ge target_main_name with
+      | Result.Ok type_args =>
+        exec_prog type_args (exec_module ge read_one_bit)
+      | Result.Error _ => fun _ _ _ _ => False
+      end
   | Result.Error _ => fun _ _ _ _ => False
   end.
 

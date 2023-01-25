@@ -814,6 +814,7 @@ Section Interpreter.
 
   Definition interp (fuel: Fuel) (prog: @program tags_t) (st: extern_state) (in_port: Z) (pkt: list bool) : result Exn.t (extern_state * Z * (list bool)) :=
     let* ge := gen_ge prog in
-    interp_prog (interp_module ge fuel) st in_port pkt.
+    let* type_args := get_main_type_args ge target_main_name in
+    interp_prog type_args (interp_module ge fuel) st in_port pkt.
 
 End Interpreter.

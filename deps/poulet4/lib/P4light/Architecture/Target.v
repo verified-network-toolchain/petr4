@@ -170,9 +170,16 @@ End ExternSemOfSeparableExternSem. *)
 
 Class Target := {
   extern_sem :> ExternSem;
-  exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
-      extern_state -> list bool -> extern_state -> list bool -> Prop;
-  interp_prog : (path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * signal)) ->
+    target_main_name: string;
+    exec_prog : list (@P4Type tags_t) ->
+                (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
+                extern_state ->
+                list bool ->
+                extern_state ->
+                list bool ->
+                Prop;
+    interp_prog : list (@P4Type tags_t) ->
+                  (path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * signal)) ->
       extern_state -> Z -> list bool -> Result.result Exn.t (extern_state * Z * list bool);
 }.
 

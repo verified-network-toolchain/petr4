@@ -257,6 +257,10 @@ Section ValueUtil.
       TypTable, TypPackage, TypSpecializedType, TypConstructor
   *)
 
+  Definition zero_init_val_of_typ (typ: P4Type) : option Val :=
+    let* sv := uninit_sval_of_typ (Some false) typ in
+    mret (interp_sval_to_val sv).
+
   (* The definition of uninit_sval_of_sval follows val_to_sval instead of uninit_sval_of_typ.
     The discrepancies between uninit_sval_of_sval and uninit_sval_of_typ:
     1. ValBaseInteger, ValBaseVarbit, ValBaseError, ValBaseEnumField - different output sval

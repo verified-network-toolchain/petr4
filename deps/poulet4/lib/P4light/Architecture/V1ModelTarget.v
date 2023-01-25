@@ -146,7 +146,8 @@ Definition extract (typ: Typed.P4Type) (pkt: list bool) : option (Val * signal *
   | inl v =>
       Some (v, SReturnNull, pkt')
   | inr (Reject err) =>
-      Some (ValBaseNull, SReject (Packet.error_to_string err), pkt')
+      let* v := ValueUtil.zero_init_val_of_typ typ in
+      Some (v, SReject (Packet.error_to_string err), pkt')
   | inr (TypeError s) =>
       None
   end.
@@ -157,7 +158,8 @@ Definition extract2 (typ: Typed.P4Type) (n: nat) (pkt: list bool) : option (Val 
   | inl v =>
       Some (v, SReturnNull, pkt')
   | inr (Reject err) =>
-      Some (ValBaseNull, SReject (Packet.error_to_string err), pkt')
+      let* v := ValueUtil.zero_init_val_of_typ typ in
+      Some (v, SReject (Packet.error_to_string err), pkt')
   | inr (TypeError s) =>
       None
   end.

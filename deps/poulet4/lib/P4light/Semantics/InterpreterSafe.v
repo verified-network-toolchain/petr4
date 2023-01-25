@@ -493,6 +493,7 @@ Section InterpreterSafe.
         assert (w = w0) by congruence.
         subst.
         econstructor; eauto using interp_lexpr_safe, interp_read_safe.
+      + econstructor; eauto using interp_expr_det_safe.
     - destruct dir; try discriminate.
       inversion H.
       econstructor; eauto.

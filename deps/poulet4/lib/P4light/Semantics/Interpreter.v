@@ -541,6 +541,7 @@ Section Interpreter.
 
     Definition interp_arg (this: path) (st: state) (exp: option (@Expression tags_t)) (dir: direction) : result Exn.t (argument * signal) :=
       match exp, dir with
+      | Some expr, Directionless
       | Some expr, Typed.In =>
           let* v := interp_expr_det this st expr in
           let sv := eval_val_to_sval v in
@@ -562,8 +563,8 @@ Section Interpreter.
       | None, Typed.InOut =>
           error (Exn.Other ("No argument passed for inout parameter in scope: "
                               ++ Exn.path_to_string this))
-      | _, Directionless => 
-          error (Exn.Other ("Directionless parameter passed to interp_arg in scope: "
+      | None, Directionless => 
+          error (Exn.Other ("No argument passed for directionless parameter in scope: "
                               ++ Exn.path_to_string this))
       end.
 

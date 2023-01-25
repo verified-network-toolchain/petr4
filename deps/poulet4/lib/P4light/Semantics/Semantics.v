@@ -981,6 +981,10 @@ Definition get_arg_directions (func : @Expression tags_t) : list direction :=
 *)
 Inductive exec_arg (read_one_bit : option bool -> bool -> Prop) :
                    path -> state -> option (@Expression tags_t) -> direction -> argument -> signal -> Prop :=
+  | exec_arg_directionless : forall this st expr v sv,
+                  exec_expr_det read_one_bit this st expr v ->
+                  val_to_sval v sv ->
+                  exec_arg read_one_bit this st (Some expr) Directionless (Some sv, None) SContinue
   | exec_arg_in : forall this st expr v sv,
                   exec_expr_det read_one_bit this st expr v ->
                   val_to_sval v sv ->

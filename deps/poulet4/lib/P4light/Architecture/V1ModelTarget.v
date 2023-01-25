@@ -669,13 +669,21 @@ Definition expect_result_null (r: result Exn.t (extern_state * list Val * signal
 Definition set_std_meta_error (std: Val) (err: string) : Val :=
   std.
 
+Set Printing Implicit.
 Definition interp_prog
-           (type_args : list P4Type)
+           (arch_type_args : list P4Type)
            (run_module: path -> extern_state -> list Val -> result Exn.t (extern_state * list Val * signal))
            (s0: extern_state)
            (port: Z)
            (pin: list bool)
   : result Exn.t (extern_state * Z * list bool) :=
+  let* '(hdr_type, meta_type) :=
+    Result.from_opt (get_hdr_and_meta arch_type_args)
+                    (Exn.Other "V1Model: get_hdr_and_meta") in
+  let* smeta1 :=
+    Result.from_opt (uninit_sval_of_typ (Some false) meta_type)
+                    (Exn.Other "V1Model: uninit_sval_of_typ") in
+  let meta1 := interp_sval_to_val smeta1 in
   let s1 := PathMap.set ["packet_in"] (ObjPin pin) s0 in
   let hdr1 : Val := ValBaseNull in
   let standard_metadata1 :=
@@ -698,7 +706,6 @@ Definition interp_prog
         ("priority", ValBaseBit (repeat false 3))
       ]
   in
-  let meta1 := ValBaseHeader [] false in
   let* (s2, hdr2, meta2, standard_metadata2) :=
     let* ret := run_module ["main"; "p"] s1
                            [meta1;

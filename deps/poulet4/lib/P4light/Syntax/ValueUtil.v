@@ -170,6 +170,15 @@ Section ValueUtil.
   Definition svals_to_vals (read_one_bit : option bool -> bool -> Prop) :=
     Forall2 (sval_to_val read_one_bit).
 
+  Definition determinize_bit (b : option bool) : bool :=
+    match b with
+    | Some b => b
+    | None => false
+    end.
+
+  Fixpoint interp_sval_to_val (v: Sval) : Val :=
+    ValueBaseMap (determinize_bit) v.
+
   Definition val_to_sval :=
     exec_val read_detbit.
 

@@ -1513,9 +1513,11 @@ Inductive exec_abstract_method : path -> fundef -> extern_state -> list Val -> e
 
 Section instantiate_class_body.
 
-Variable instantiate_class_body_ce : forall (e : ienv) (class_name : ident) (p : path) (m : inst_mem)
+Variable instantiate_class_body_ce : forall (e : ienv)
+                                            (class_name : ident)
+                                            (type_args: list (@P4Type tags_t)) (p : path) (m : inst_mem)
                                             (s : extern_state),
-    Result.result Exn.t (path * inst_mem * extern_state).
+  Result.result Exn.t (path * inst_mem * extern_state).
 
 Section instantiate_expr'.
 
@@ -1552,16 +1554,16 @@ Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
     (* O(n^2) time complexity here. *)
     (args ++ [arg], m, s, tl params) in
   let*' (args, m, s, _) := fold_left instantiate_arg args (mret (nil, m, s, params)) in
-  let* type_args := Result.from_opt (get_type_args typ) (Exn.TypeNameNotFound "todo")
-  in
+  let* type_args := Result.from_opt (get_type_args typ) (Exn.TypeNameNotFound "todo") in
   if is_decl_extern_obj decl then
     let m := map_fst (map_fst (PathMap.set p {|iclass:=class_name; ipath:=p; itargs:=[]|})) m in
     let (ee, s) := construct_extern (snd m) s class_name type_args p (map ienv_val_to_sumtype args) in
     mret (inl {|iclass:=class_name; ipath:=p; itargs:=type_args|}, (fst m, ee), s)
   else
     let e := IdentMap.sets params args e in
-    let+ (_, m, s) := instantiate_class_body_ce e class_name p m s in
-    (inl {|iclass:=class_name; ipath:=p; itargs := type_args|}, m, s).
+    let+ (_, m, s) := instantiate_class_body_ce e class_name type_args p m s in
+    let iref := inl {|iclass:=class_name; ipath:=p; itargs := type_args|} in
+    (iref, set_inst_mem p iref m, s).
 
 End instantiate_expr'.
 
@@ -1625,112 +1627,6 @@ Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tag
           end
       end
   end.
-
-(* Definition eval_expr_gen_sound_1_statement read_one_bit st this hook expr v :=
-  forall (H_hook : forall expr v, hook expr = Some v ->
-          exec_expr_det read_one_bit this st expr v),
-  eval_expr_gen hook expr = Some v ->
-  exec_expr_det read_one_bit this st expr v. *)
-
-(* Lemma eval_expr_gen_sound_1 : forall read_one_bit st this hook expr v,
-  eval_expr_gen_sound_1_statement read_one_bit st this hook expr v
-with eval_expr_gen_sound_1_preT : forall read_one_bit st this hook tags expr typ dir v,
-  eval_expr_gen_sound_1_statement read_one_bit st this hook (MkExpression tags expr typ dir) v.
-Proof.
-  - intros. destruct expr; apply eval_expr_gen_sound_1_preT.
-  - unfold eval_expr_gen_sound_1_statement; intros.
-    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
-    destruct (hook (MkExpression tags expr typ dir)) as [v' | ] eqn:?.
-    1 : apply H_hook. congruence.
-    destruct expr; inversion H0.
-    + repeat constructor.
-    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
-      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
-    + destruct args as [larg rarg].
-      destruct (eval_expr_gen _ _) eqn:? in H2;
-        only 1 : destruct (eval_expr_gen _ _) eqn:? in H2;
-        only 2-3 : inversion H2.
-      econstructor; only 1-2 : eapply eval_expr_gen_sound_1; eassumption.
-    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
-      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H2.
-      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
-    + destruct (eval_expr_gen _ _) as [[] | ] eqn:? in H2; only 1-12, 15-20 : inversion H2.
-      * econstructor; only 2 : econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
-      * destruct is_valid; only 2 : discriminate.
-        econstructor; only 1 : (eapply eval_expr_gen_sound_1; eassumption).
-        constructor; constructor; assumption.
-Qed. *)
-
-(* Definition eval_expr_gen_sound_statement read_one_bit st this hook expr v :=
-  forall (H_hook : forall expr v, hook expr = Some v ->
-          forall v', exec_expr_det read_one_bit this st expr v' ->
-          v' = v),
-  eval_expr_gen hook expr = Some v ->
-  forall v', exec_expr_det read_one_bit this st expr v' ->
-    v' = v. *)
-
-(* Lemma eval_expr_gen_sound : forall read_one_bit st this hook expr v,
-  eval_expr_gen_sound_statement read_one_bit st this hook expr v
-with eval_expr_gen_sound_preT : forall read_one_bit st this hook tags expr typ dir v,
-  eval_expr_gen_sound_statement read_one_bit st this hook (MkExpression tags expr typ dir) v.
-Proof.
-  - intros. destruct expr; apply eval_expr_gen_sound_preT.
-  - unfold eval_expr_gen_sound_statement; intros.
-    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
-    destruct (hook (MkExpression tags expr typ dir)) as [v'' | ] eqn:?.
-    1 : eapply H_hook; only 2 : eassumption; congruence.
-    destruct expr; inversion H0.
-    + inversion H1; subst. reflexivity.
-    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
-      inversion H1; subst.
-      assert (argv = v0) by (eapply eval_expr_gen_sound; eassumption).
-      congruence.
-    + destruct args as [larg rarg].
-      destruct (eval_expr_gen _ _) eqn:? in H3;
-        only 1 : destruct (eval_expr_gen _ _) eqn:? in H3;
-        only 2-3 : inversion H3.
-      inversion H1; subst.
-      assert (largv = v0) by (eapply eval_expr_gen_sound; eassumption).
-      assert (rargv = v1) by (eapply eval_expr_gen_sound; eassumption).
-      congruence.
-    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
-      inversion H1; subst.
-      assert (oldv = v0) by (eapply eval_expr_gen_sound; eassumption).
-      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H3.
-      congruence.
-    + destruct (eval_expr_gen _ _) as [[] | ] eqn:H_eval_expr_gen in H3; only 1-12, 15-20 : inversion H3.
-      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
-        inversion H1; subst;
-          lazymatch goal with
-          | H : exec_expr _ _ expr _ |- _ =>
-              apply H_eval_expr_gen in H;
-              inversion H; subst
-          end;
-          lazymatch goal with
-          | H : get_member _ _ _ _ |- _ =>
-              inversion H; subst
-          end.
-        congruence.
-      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
-        inversion H1; subst;
-          lazymatch goal with
-          | H : exec_expr _ _ expr _ |- _ =>
-              apply H_eval_expr_gen in H;
-              inversion H; subst
-          end;
-          lazymatch goal with
-          | H : get_member _ _ _ _ |- _ =>
-              inversion H; subst
-          end.
-        destruct is_valid; only 2 : inversion H3.
-        inversion H9; subst.
-        congruence.
-Qed. *)
-
-(* We might want to prove this lemma in future. *)
-(* Lemma eval_expr_gen_complete : forall st this expr v,
-  exec_expr this st expr v ->
-  eval_expr_gen (fun _ loc => loc_to_sval this loc st) expr = Some v. *)
 
 (* The evaluation of value expressions during instantiation is based on eval_expr_gen. *)
 
@@ -1918,7 +1814,7 @@ Definition decl_to_string {tags_t: Type} (d : @Declaration tags_t) : string :=
                     params => "package type"
   end.
 
-Fixpoint instantiate_class_body (ce : cenv) (e : ienv) (class_name : ident) (p : path)
+Fixpoint instantiate_class_body (ce : cenv) (e : ienv) (class_name : ident) (type_args: list (@P4Type tags_t)) (p : path)
       (m : inst_mem) (s : extern_state) : Result.result Exn.t (path * inst_mem * extern_state) :=
   match IdentMap.get class_name ce with
   | Some (ce', decl) =>
@@ -1928,13 +1824,13 @@ Fixpoint instantiate_class_body (ce : cenv) (e : ienv) (class_name : ident) (p :
         let m := fold_left (inline_packet_in_and_packet_out p) params m in
         let locals := locals ++ concat (map get_direct_applications_ps states) in
         let* (m, s) := instantiate_decls ce' e locals p m s in
-        let m := set_inst_mem p (inl {|iclass:=class_name; ipath:=p; itargs:=[]|}) m in
+        let m := set_inst_mem p (inl {|iclass:=class_name; ipath:=p; itargs:=type_args|}) m in
         mret (p, m, s)
     | DeclControl _ class_name' _ params _ locals apply =>
         let m := fold_left (inline_packet_in_and_packet_out p) params m in
         let locals := locals ++ get_direct_applications_blk apply in
         let* (m, s) := instantiate_decls ce' e locals p m s in
-        let m := set_inst_mem p (inl {|iclass:=class_name; ipath:=p; itargs:=[]|}) m in
+        let m := set_inst_mem p (inl {|iclass:=class_name; ipath:=p; itargs:=type_args|}) m in
         mret (p, m, s)
     | DeclPackageType tags name type_params params =>
         (* Package types contain no inner declarations *)

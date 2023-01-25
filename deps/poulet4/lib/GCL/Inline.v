@@ -1,5 +1,6 @@
 Set Warnings "-custom-entry-overridden".
 From Coq Require Import Program.Basics Arith.EqNat String List.
+From Poulet4 Require Export P4light.Transformations.SimplExpr.
 From Poulet4 Require Export P4cub.Syntax.AST P4cub.Syntax.CubNotations.
 From Poulet4 Require Export
      Utils.P4Arith Utils.Envn
@@ -20,10 +21,8 @@ Module F := F.
 Section Inline.
 Variable tags_t : Type.
 
-
-
 (* this needs to be changed to an array access *)
-(*Left and right brackets for array accesses *)
+(* Left and right brackets for array accesses *)
 Definition AAL := "$_". (* evoke [ *)
 Definition AAR := "_$". (* evoke ] *)
 Definition index_array_str s idx :=
@@ -103,12 +102,12 @@ Definition assume b tags :=
   let args := {| paramargs:=[ ("check", PAIn b) ] ; rtrns:=None |} in
   IExternMethodCall "_" "assume" args tags.
 
-Definition rename_string (table action x : string) (params : list string) :=
+Definition rename_string (table : string) (action : N) (x : string) (params : list string) :=
   if fold_right (fun y => orb (String.eqb x y)) false params
-  then "_symb$" ++ table ++ "$" ++ action ++ "$arg$" ++ x
+  then "_symb$" ++ table ++ "$" ++ (N_to_string action) ++ "$arg$" ++ x
   else x.
 
-Fixpoint action_param_renamer_expr (table action : string) (params : list string) (e : E.e tags_t) : E.e tags_t :=
+Fixpoint action_param_renamer_expr (table : string) (action : N) (params : list string) (e : E.e tags_t) : E.e tags_t :=
   match e with
   | E.EBool _ _ => e
   | E.EBit _ _ _ => e
@@ -140,7 +139,7 @@ Fixpoint action_param_renamer_expr (table action : string) (params : list string
     E.EHeaderStackAccess fs (action_param_renamer_expr table action params stack) idx i
   end.
 
-Fixpoint action_param_renamer (table action : string) (params : list string) (c : t) : result (t * list string) :=
+Fixpoint action_param_renamer (table :string) (action : N) (params : list string) (c : t) : result (t * list string) :=
   match c with
   | ISkip _ => ok (c, params)
   | IVardecl type x i => ok (c, filter (negb ∘ (String.eqb x)) params)
@@ -171,7 +170,7 @@ Fixpoint action_param_renamer (table action : string) (params : list string) (c 
     let e' := action_param_renamer_expr table action params e in
     ok (ISetValidity e' v i, params)
   | IHeaderStackOp hdr_stck_name typ hsop size i =>
-    ok (IHeaderStackOp (rename_string hdr_stck_name table action params) typ hsop size i, params)
+    ok (IHeaderStackOp (rename_string table action hdr_stck_name params) typ hsop size i, params)
   | IExternMethodCall extn method ar i =>
     let pargs := paramargs ar in
     let ret := rtrns ar in
@@ -713,7 +712,7 @@ with inline (gas : nat)
                match act with
                | CD.CDAction _ params body tags =>
                  let* s := inline gas unroll ctx body in
-                 let+ (s', _) := action_param_renamer tbl_name a (string_list_of_params params) s in
+                 let+ (s', _) := action_param_renamer tbl_name (BinNat.N.of_nat i) (string_list_of_params params) s in
                  let set_action_run :=
                      IAssign act_type
                      (E.EVar act_type ("_return$" ++ tbl_name ++ ".action_run") tags)

@@ -635,14 +635,20 @@ Section Interpreter.
               match interp_sval_val condsv with
               | ValBaseBool b =>
                   interp_stmt this st fuel (if b then tru else fls)
-              | _ => error (Exn.Other "interp_stmt")
+              | ValBaseNull =>
+                  error (Exn.Other "interp_stmt conditional: expected bool, got null")
+              | _ =>
+                  error (Exn.Other "interp_stmt conditional: expected bool")
               end
           | MkStatement tags (StatConditional cond tru None) typ =>
               let* condsv := interp_expr this st cond in
               match interp_sval_val condsv with
               | ValBaseBool b =>
                   interp_stmt this st fuel (if b then tru else empty_statement)
-              | _ => error (Exn.Other "interp_stmt")
+              | ValBaseNull =>
+                  error (Exn.Other "interp_stmt conditional: expected bool, got null")
+              | _ =>
+                  error (Exn.Other "interp_stmt conditional: expected bool")
               end
           | MkStatement tags (StatBlock block) typ =>
               interp_block this st fuel block
@@ -658,10 +664,11 @@ Section Interpreter.
           | MkStatement tags (StatSwitch expr cases) typ =>
               let* sv := interp_expr this st expr in
               match interp_sval_val sv with
-              | ValBaseString s =>
+              | ValBaseEnumField _ s =>
                   let block := match_switch_case s cases in
                   interp_block this st fuel block
-              | _ => error (Exn.Other "interp_stmt")
+              | ValBaseNull => error (Exn.Other "interp_stmt switch: expected enum, got null")
+              | _ => error (Exn.Other "interp_stmt switch: expected enum")
               end
           | MkStatement tags (StatVariable typ' name (Some e) loc) typ =>
               if is_call e
@@ -687,7 +694,8 @@ Section Interpreter.
               mret (st', SContinue)
           | MkStatement tags (StatConstant typ' name e loc) typ =>
               mret (st, SContinue)
-          | _ => error (Exn.Other "interp_stmt")
+          | MkStatement _ (StatInstantiation _ _ _ _) _ =>
+              error (Exn.Other "interp_stmt called on instantiation stmt")
           end
       end
     with interp_block

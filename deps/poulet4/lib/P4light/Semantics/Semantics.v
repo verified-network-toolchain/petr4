@@ -1273,8 +1273,8 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
   | exec_stmt_empty : forall this_path st tags typ,
       exec_stmt read_one_bit this_path st
                 (MkStatement tags StatEmpty typ) st SContinue
-  | exec_stmt_switch : forall tags expr cases typ this_path st st' sig s block,
-      exec_expr_det read_one_bit this_path st expr (ValBaseString s) ->
+  | exec_stmt_switch : forall tags expr cases typ this_path st st' sig e s block,
+      exec_expr_det read_one_bit this_path st expr (ValBaseEnumField e s) ->
       match_switch_case s cases = block ->
       exec_block read_one_bit this_path st block st' sig ->
       exec_stmt read_one_bit this_path st

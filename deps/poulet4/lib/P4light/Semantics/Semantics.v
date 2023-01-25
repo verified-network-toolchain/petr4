@@ -75,6 +75,9 @@ Definition sval_to_bits_width {A} (v : @ValueBase A) : option (list A * nat) :=
   | _ => None
   end.
 
+Definition get_last_of_stack headers next : option Sval :=
+  ListUtil.Znth_default None (Z.of_N (next - 1)) (List.map Some headers).
+
 (* The following reads give unspecified values:
     1. reading a field from a header that is currently invalid.
     2. reading a field from a header that is currently valid, but the field has not been initialized
@@ -96,6 +99,9 @@ Variant get_member : Sval -> string -> Sval -> Prop :=
   | get_member_stack_size : forall headers next,
                             get_member (ValBaseStack headers next) "size"
                               (ValBaseBit (to_loptbool 32%N (Zlength headers)))
+  | get_member_stack_last : forall headers next hdr,
+                            get_last_of_stack headers next = Some hdr ->
+                            get_member (ValBaseStack headers next) "last" hdr
   | get_member_stack_last_index : forall headers next sv tags_t,
                                   (if (next =? 0)%N
                                     then uninit_sval_of_typ None (@TypBit tags_t 32%N) = Some sv

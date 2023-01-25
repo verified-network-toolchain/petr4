@@ -2238,7 +2238,9 @@ and type_function_call env ctx call_info func type_args args =
     | _ ->
       failwith "Type is not callable."
   in
-  let type_args = List.map ~f:(translate_type_opt env) type_args in
+  let type_args = List.map type_args ~f:(fun t -> t
+                                                  |> translate_type_opt env
+                                                  |> option_map (reduce_type env)) in
   let params_args = match_params_to_args env (fst func) params args in
   let type_params_args =
     match List.zip type_params type_args with

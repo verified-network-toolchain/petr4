@@ -38,6 +38,11 @@ Extract Inlined Constant SimplExpr.Nzero => "(Bigint.of_zarith_bigint (Zarith.Z.
 Extract Inlined Constant BinNat.N.eqb => "Bigint.(=)".
 Extract Inlined Constant BinNat.N.add => "Bigint.(+)".
 Extract Inlined Constant Nat.add => "(+)".
+Extract Inlined Constant BinNat.N.eqb => "Bigint.(=)".
+Extract Inlined Constant BinNat.N.ltb => "Bigint.(<)".
+Extract Inlined Constant BinInt.Z.ltb => "Bigint.(<)".
+Extract Inlined Constant BinNat.N.leb => "Bigint.(<=)".
+Extract Inlined Constant BinInt.Z.leb => "Bigint.(<=)".
 
 Require Poulet4.P4light.Semantics.Interpreter.
 Require Poulet4.P4light.Architecture.V1ModelTarget.

@@ -391,7 +391,7 @@ Section Transformer.
     | DeclAction tags name data_params ctrl_params body =>
       let inner_monad := (
         let* e' := declare_params LCurScope e [P4String.str name] data_params in
-        let* e'' := declare_params LCurScope e [P4String.str name] ctrl_params in
+        let* e'' := declare_params LCurScope e' [P4String.str name] ctrl_params in
         let* body' := transform_blk LCurScope e'' [P4String.str name] body in
         mret body'
       ) in

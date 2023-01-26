@@ -348,7 +348,9 @@ Definition loc_to_sval (loc : Locator) (s : state) : Result.result Exn.t Sval :=
   | LInstance p
   | LGlobal p =>
       Result.from_opt (PathMap.get p (get_memory s))
-                      (Exn.LocNotFoundInState (LInstance p))
+                      (Exn.LocNotFoundInState
+                         loc 
+                         "Called from loc_to_sval.")
   end.
 
 Definition loc_to_val_const

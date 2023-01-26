@@ -99,7 +99,7 @@ Section Transformer.
     | BareName name =>
         match IdentMap.get (P4String.str name) e with
         | Some loc => loc
-        | None => NoLocator
+        | None => LGlobal ["missing_" ++ name.(P4String.str)]%string
         end
     | QualifiedName path name =>
         LGlobal (clear_list (path ++ [name]))

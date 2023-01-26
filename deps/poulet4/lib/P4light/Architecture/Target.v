@@ -14,7 +14,7 @@ Module Exn.
   Open Scope string_scope.
   Inductive t :=
   | GlobalVarsNotInState (var : list string)
-  | LocNotFoundInState (var : Locator)
+  | LocNotFoundInState (var : Locator) (msg: string)
   | TypeNameNotFound (type_name: string)
   | NameNotFoundInIEnv (name: string)
   | NameNotFoundInClassEnv (name: string)
@@ -45,8 +45,8 @@ Module Exn.
           ++ loc_to_string (LGlobal p)
           ++ " in a Semantics.state. "
           ++ "Global variables are stored in the genv."
-    | LocNotFoundInState l =>
-        "Couldn't find " ++ loc_to_string l ++ " in a Semantics.state."
+    | LocNotFoundInState l msg =>
+        "Couldn't find " ++ loc_to_string l ++ " in a Semantics.state. " ++ msg
     | TypeNameNotFound t =>
         "Couldn't find the type name " ++ t ++ " in a genv_typ."
     | NameNotFoundInIEnv name =>

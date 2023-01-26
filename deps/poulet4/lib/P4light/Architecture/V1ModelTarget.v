@@ -188,7 +188,9 @@ Definition packet_in_extract_interp : extern_func_interp :=
       end in
     let* pin_obj :=
       from_opt (PathMap.get this st)
-               (Exn.LocNotFoundInState (LGlobal this)) in
+               (Exn.LocNotFoundInState
+                  (LGlobal this)
+                  "Called from packet_in_extract_interp.") in
     match pin_obj with
     | ObjPin pin =>
         match args with
@@ -238,7 +240,9 @@ Definition packet_out_emit_interp : extern_func_interp :=
       end in
     let* pout_obj :=
       from_opt (PathMap.get this st)
-               (Exn.LocNotFoundInState (LGlobal this)) in
+               (Exn.LocNotFoundInState
+                  (LGlobal this)
+                  "Called from packet_out_emit_interp.") in
     match pout_obj with
     | ObjPout pout =>
         match emit v pout with

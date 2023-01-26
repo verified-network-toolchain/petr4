@@ -229,8 +229,8 @@ module MakeDriver (IO: DriverIO) = struct
     run_parser cfg.cfg_parser
     >>= print_surface cfg
     >>= check cfg
-    >>= gen_loc cfg
     >>= normalize cfg
+    >>= gen_loc cfg
     >>= print_p4light cfg
 
   let run_compiler (cfg: Pass.compiler_cfg) =

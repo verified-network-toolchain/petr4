@@ -2196,7 +2196,6 @@ Definition gen_ge_typ (prog : @program tags_t) : Result.result Exn.t genv_typ :=
     add_decls_to_ge_typ IdentMap.empty l
   end.
 
-(* TODO this is a dummy function. This should be implemented at the same time as instantiation-time evaluation. *)
 Definition gen_ge_senum (prog : @program tags_t) : Result.result Exn.t genv_senum :=
   match prog with
   | Program l =>

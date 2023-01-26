@@ -21,14 +21,12 @@ parser MyParser(packet_in packet,
                 inout metadata meta,
                 inout standard_metadata_t standard_metadata) {
     state start {
-        /*
         packet.extract(hdr.arr.next);
         packet.extract(hdr.arr.next);
         packet.extract(hdr.arr.next);
         packet.extract(hdr.arr.next);
         packet.extract(hdr.arr.next);
         packet.extract(hdr.arr.next);
-        */
         transition accept;
     }
 }
@@ -61,7 +59,7 @@ std_meta) {
 
 control MyDeparser(packet_out packet, in hdr_t hdr) {
     apply {
-        //packet.emit(hdr.arr);
+        packet.emit(hdr.arr);
     }
 }
 

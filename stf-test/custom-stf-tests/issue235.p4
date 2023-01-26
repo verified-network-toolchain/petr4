@@ -24,12 +24,10 @@ parser MyParser(packet_in packet,
                 inout metadata meta,
                 inout standard_metadata_t standard_metadata) {
     state start {
-        /*
         packet.extract(hdr.h.next);
         packet.extract(hdr.h.next);
         packet.extract(hdr.h.next);
         packet.extract(hdr.h.next);
-        */
         transition accept;
     }
 }

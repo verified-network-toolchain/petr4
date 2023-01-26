@@ -12,15 +12,12 @@ error { MyError }
 parser MySubParser(packet_in packet, inout head[11] hdr, standard_metadata_t standard_metadata) {
 
     state start {
-        /*
         hdr.pop_front(1);
         packet.extract(hdr[10]);
         transition select(hdr[10].v) {
             1 : first;
             default : pre_reject;
         }
-        */
-        transition accept;
     }
 
     state first {
@@ -64,7 +61,6 @@ parser MyParser(packet_in packet,
     MySubParser() subparser;
 
     state start {
-        /*
         hdr.pop_front(1);
         packet.extract(hdr[10]);
         transition select(hdr[10].v) {
@@ -72,8 +68,6 @@ parser MyParser(packet_in packet,
             0 : accept;
             _ : evoke_subparser;
         }
-        */
-        transition accept;
     }
 
     state evoke_subparser {

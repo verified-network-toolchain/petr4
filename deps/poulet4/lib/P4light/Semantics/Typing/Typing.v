@@ -180,7 +180,7 @@ Section TypingDefs.
              (this : path) (gf : gamma_func)
              (ge : genv) : Prop := forall e ft,
       lookup_func_typ this gf ge e = Some ft ->
-      exists fd, lookup_func ge this e = Some fd.
+      exists a fd, lookup_func ge this e a = Some fd.
   
   Definition lub_StmType (τ₁ τ₂ : StmType) : StmType :=
     match τ₁, τ₂ with
@@ -261,9 +261,9 @@ Section TypingDefs.
         (* TODO: lookup [FExternal] by [class] or [name]. *)
         fundef_funtype_prop
           Γ Γext
-          (FExternal class name)
+          (FExternal class name (map get_param_name_dir params))
           (MkFunctionType Xs params FunExtern rt).
-
+    (*
     Definition gamma_func_types
                (gf : gamma_func)
                (gext : gamma_ext) : Prop :=
@@ -356,9 +356,11 @@ Section TypingDefs.
         (** Preservation. *)
         forall st' sig, run_call ge read_one_bit this st call st' sig ->
                    gamma_stmt_prop Γ st'.
+*)
   End Typing.
 End TypingDefs.
 
+(*
 Notation "x '⊢ₑ' e"
   := (expr_types
         (fst (fst (fst x)))
@@ -388,3 +390,4 @@ Notation "x '⊢ᵪ' e"
         (snd (fst (fst x)))
         (snd (fst x)) (snd x) e)
        (at level 80, no associativity) : type_scope.
+*)

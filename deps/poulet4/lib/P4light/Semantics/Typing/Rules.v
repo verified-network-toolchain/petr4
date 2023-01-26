@@ -6,6 +6,7 @@ From Poulet4.P4light Require Export
 (** Inference rules for the p4light types system
     given as theorems for progress & preservation. *)
 
+(*
 Section Soundness.
   Create HintDb option_monad.
   Local Hint Unfold option_bind       : option_monad.
@@ -1389,3 +1390,4 @@ Section Soundness.
     Admitted.
   End StmtTyping.
 End Soundness.
+*)

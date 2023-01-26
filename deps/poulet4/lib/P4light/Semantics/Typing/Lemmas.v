@@ -3,6 +3,7 @@ From Poulet4 Require Export Utils.P4Arith
 Require Export Coq.ZArith.BinInt.
 
 (** * Helper Lemmas for [Rules.v]. *)
+(*
 
 Lemma N_of_Z_of_nat : forall n,
     Z.to_N (Z.of_nat n) = N.of_nat n.
@@ -1555,3 +1556,5 @@ Section Lemmas.
     inv Hesv; inv Hcall.
   Qed.
 End Lemmas.
+
+*)

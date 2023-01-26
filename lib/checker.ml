@@ -3765,11 +3765,13 @@ and type_serializable_enum env ctx info annotations underlying_type
     let expr_typed = cast_expression env expr_ctx underlying_type expr in
     match compile_time_eval_expr env expr_typed with
     | Some value ->
+      let expr_of_val = val_to_literal value in
       let enum_val: P4light.coq_Value = ValEnumField (name, member) in
       env
       |> Checker_env.insert_type_of member_name enum_type
-      |> Checker_env.insert_const member_name
-        enum_val, members_typed @ [member, expr_typed]
+      |> Checker_env.insert_const
+        member_name
+        enum_val, members_typed @ [member, expr_of_val]
     | None -> failwith "could not evaluate enum member"
   in
   let env = Checker_env.insert_type (QualifiedName ([], name)) enum_type env in

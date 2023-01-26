@@ -176,7 +176,7 @@ Section ValueUtil.
     | None => false
     end.
 
-  Fixpoint interp_sval_to_val (v: Sval) : Val :=
+  Definition interp_sval_to_val (v: Sval) : Val :=
     ValueBaseMap (determinize_bit) v.
 
   Definition val_to_sval :=

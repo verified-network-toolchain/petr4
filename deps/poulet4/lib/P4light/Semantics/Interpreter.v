@@ -572,17 +572,26 @@ Section Interpreter.
       end.
 
     Fixpoint interp_args (this: path) (st: state) (exps: list (option (@Expression tags_t))) (dirs: list direction) : result Exn.t (list argument * signal) :=
-      match exps, dirs with
-      | nil, nil =>
-          mret (nil, SContinue)
-      | exp :: exps, dir :: dirs =>
-          let* (arg, sig) := interp_arg this st exp dir in
-          let* (args, sig') := interp_args this st exps dirs in
-          let ret_sig := if is_continue sig then sig' else sig in
-          mret (arg :: args, ret_sig)
-      | _, _ => error (Exn.Other ("interp_args: length mismatch in scope: "
-                                    ++ Exn.path_to_string this))
-      end.
+      let expslen := List.length exps in
+      let dirslen := List.length dirs in
+      if Nat.eqb expslen dirslen
+      then match exps, dirs with
+           | nil, nil =>
+               mret (nil, SContinue)
+           | exp :: exps, dir :: dirs =>
+               let* (arg, sig) := interp_arg this st exp dir in
+               let* (args, sig') := interp_args this st exps dirs in
+               let ret_sig := if is_continue sig then sig' else sig in
+               mret (arg :: args, ret_sig)
+           | _, _ => error (Exn.Other ("interp_args: length mismatch in scope: "
+                                         ++ Exn.path_to_string this))
+           end
+      else error (Exn.Other ("interp_args: length mismatch in scope: "
+                               ++ Exn.path_to_string this
+                               ++ ". Had " ++ string_of_nat expslen
+                               ++ " exps and "
+                               ++ string_of_nat dirslen
+                               ++ " dirs.")).
 
     Fixpoint interp_write_options (st: state) (args: list (option Lval)) (vals: list Sval) : result Exn.t state :=
       match args, vals with
@@ -755,13 +764,13 @@ Section Interpreter.
                                  else interp_builtin this st lv (str fname) (extract_invals argvals)
                         | _, _ => error (Exn.Other "interp_call")
                         end
-                   else let dirs := get_arg_directions func in
-                        let* (argvals, sig) := interp_args this st args dirs in
-                        let* (obj_path, fd) := from_opt (lookup_func ge this func)
+                   else let* (obj_path, fd) := from_opt (lookup_func ge this func (Zlength args))
                                                         (Exn.Other ("interp_stmt: lookup_func could not find "
                                                                       ++ Exn.path_to_string this
                                                                       ++ "."
                                                                       ++ expr_to_string func)) in
+                        let dirs := get_arg_directions fd in
+                        let* (argvals, sig) := interp_args this st args dirs in
                         let s2 := if is_some obj_path then set_memory PathMap.empty st else st in
                         let* (s3, outvals, sig') := interp_func (force this obj_path) s2 fuel fd targs (extract_invals argvals) in
                         let s4 := if is_some obj_path then set_memory (get_memory st) s3 else s3 in
@@ -788,7 +797,7 @@ Section Interpreter.
                        mret (s'', args', sig')
                    | _ :: _ => error (Exn.Other "interp_func: type args")
                    end
-               | FTable name keys actions (Some default_action) const_entries =>
+               | FTable name keys actions default_action const_entries =>
                    match typ_args, args with
                    | nil, nil =>
                        let* action_ref := interp_table_match obj_path s name keys const_entries in
@@ -812,9 +821,7 @@ Section Interpreter.
                        end
                    | _, _ => error (Exn.Other "interp_func: type args or args provided to a table call")
                    end
-               | FTable name keys actions None const_entries =>
-                   error (Exn.Other "interp_func: called table with no default action")
-               | FExternal class_name name =>
+               | FExternal class_name name params =>
                    let (m, es) := s in
                    let argvs := List.map interp_sval_val args in
                    let* (es', argvs', sig) := interp_extern ge es class_name name obj_path typ_args argvs in
@@ -829,8 +836,8 @@ Section Interpreter.
       : result Exn.t (extern_state * list Val * signal) :=
       let* func_inst := from_opt (PathMap.get this (ge_inst ge))
                                  (Exn.Other "object not found in ge_inst") in
-      let* func := from_opt (PathMap.get [func_inst.(iclass); "apply"] (ge_func ge))
-                            (Exn.Other "apply method for module not found in ge_func") in
+      let* func := from_opt (find_fundef ge [func_inst.(iclass); "apply"] (Zlength args))
+                            (Exn.Other ("apply method for module " ++ Exn.path_to_string this ++ " (arity: " ++ string_of_nat (length args) ++ ") not found in ge_func")) in
       let st' : state := (PathMap.empty, st) in
       let sargs := List.map eval_val_to_sval args in
       let* (st, rets, sig) := interp_func this st' fuel func [] sargs in 

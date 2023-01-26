@@ -56,7 +56,7 @@ Definition verify (cond: list bool -> bool) (e: error) : Packet unit :=
     else err (Reject e) bs.
 
 Definition pkt_min_size (n: nat) : list bool -> bool :=
-  fun bs => Nat.leb (List.length bs) n.
+  fun bs => Nat.leb n (List.length bs).
 
 Definition extract_bits (n: nat) : Packet (list bool) :=
   verify (pkt_min_size n) PacketTooShort;;

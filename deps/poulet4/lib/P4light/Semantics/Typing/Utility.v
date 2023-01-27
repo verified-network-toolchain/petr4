@@ -46,7 +46,7 @@ Section Util.
       numeric τ -> unary_type UMinus τ τ.
   
   Lemma unary_type_eq : forall o t t', unary_type o t t' -> t = t'.
-  Proof.
+  Proof using.
     intros ? ? ? H; inversion H; subst; auto.
   Qed.
 
@@ -516,12 +516,16 @@ End Cast_Type_ind.
 Ltac some_inv :=
   match goal with
   | H: Some _ = Some _ |- _ => inversion H; subst; clear H
+  | H: Ok _ = Ok _ |- _ => inversion H; subst; clear H
   end.
 
 Ltac match_some_inv :=
   match goal with
   | H: match ?trm with Some _ => _ | None => _ end = Some _
     |- _ => destruct trm as [? |] eqn:? ; cbn in *;
+          try discriminate
+  | H: match ?trm with Ok _ => _ | Error _ => _ end = Ok _
+    |- _ => destruct trm as [? | ?] eqn:? ; cbn in *;
           try discriminate
   end.
 
@@ -545,7 +549,7 @@ Section Lemmas.
 
   Lemma Eq_type_normᵗ : forall t : typ,
       Eq_type t -> Eq_type (normᵗ t).
-  Proof.
+  Proof using.
     intros t H; induction H using my_Eq_type_ind;
       cbn in *; try (constructor; rewrite Forall_forall in *; eauto).
     - inversion H0; subst; cbn in *; auto.
@@ -576,7 +580,7 @@ Section Lemmas.
 
   Lemma numeric_width_normᵗ : forall w (t : typ),
       numeric_width w t -> numeric_width w (normᵗ t).
-  Proof.
+  Proof using.
     intros w t H; inv_numeric_width; auto.
   Qed.
 
@@ -584,7 +588,7 @@ Section Lemmas.
   
   Lemma numeric_normᵗ : forall t : typ,
       numeric t -> numeric (normᵗ t).
-  Proof.
+  Proof using.
     intros t H; inv_numeric; auto.
   Qed.
 
@@ -592,7 +596,7 @@ Section Lemmas.
   
   Lemma binary_type_normᵗ : forall o (r r1 r2 : typ),
       binary_type o r1 r2 r -> binary_type o (normᵗ r1) (normᵗ r2) (normᵗ r).
-  Proof.
+  Proof using.
     intros o r r1 r2 Hbt; inversion Hbt; subst; cbn; eauto.
   Qed.
 
@@ -604,7 +608,7 @@ Section Lemmas.
              uninit_sval_of_typ b t = Some v) ts ->
       Forall (fun τ : P4Type => [] ⊢ok τ) ts ->
       exists vs, sequence (map (uninit_sval_of_typ b) ts) = Some vs.
-  Proof.
+  Proof using.
     intros ts b Hts IHts Hokts.
     rewrite Forall_forall in IHts, Hokts.
     pose proof reduce_inner_impl_forall
@@ -637,7 +641,7 @@ Section Lemmas.
                 uninit_sval_of_typ b t >>| pair x)
              xts)
         = Some xvs.
-  Proof.
+  Proof using.
     intros xts b Hxts IHxts Hok.
     rewrite Forall_forall in IHxts, Hok.
     pose proof reduce_inner_impl_forall
@@ -696,7 +700,7 @@ Section Lemmas.
   Lemma is_expr_typ_uninit_sval_of_typ : forall (t : typ) b,
     is_expr_typ t -> [] ⊢ok t ->
     exists v, uninit_sval_of_typ b t = Some v.
-  Proof.
+  Proof using.
     intros t b Ht Hok;
       induction Ht as
         [ (* bool *)
@@ -786,7 +790,7 @@ Section Lemmas.
     f_equal; auto; assumption.
     
   Lemma normᵗ_idem : forall t, normᵗ_idem_def t.
-  Proof.
+  Proof using.
     apply normᵗ_idem_ind;
       unfold normᵗ_idem_def,normᶜ_idem_def,
       normᶠ_idem_def,normᵖ_idem_def; cbn in *;
@@ -859,7 +863,7 @@ Section Lemmas.
   
   Lemma is_hdr_typ_normᵗ_impl : forall t : typ,
       is_hdr_typ (normᵗ t) -> is_hdr_typ t.
-  Proof.
+  Proof using.
     intros t Ht.
     induction t; cbn in *; inv Ht; eauto.
     - rewrite <- H0 in IHt. auto.
@@ -868,7 +872,7 @@ Section Lemmas.
   
   Lemma is_expr_typ_normᵗ_impl : forall t : typ,
       is_expr_typ (normᵗ t) -> is_expr_typ t.
-  Proof.
+  Proof using.
     intros t Ht.
     remember (normᵗ t) as normᵗt eqn:Heqt.
     generalize dependent t.
@@ -942,7 +946,7 @@ Section Lemmas.
   
   Lemma uninit_sval_of_typ_norm : forall t,
       uninit_sval_of_typ_norm_def t.
-  Proof.
+  Proof using.
     apply uninit_sval_of_typ_norm_ind;
       unfold uninit_sval_of_typ_norm_def; cbn;
         try (intros; f_equal; auto; assumption);
@@ -958,7 +962,7 @@ Section Lemmas.
   Lemma member_type_normᵗ : forall ts (t : typ),
       member_type ts t ->
       member_type (map (fun '(x,t) => (x,normᵗ t)) ts) (normᵗ t).
-  Proof.
+  Proof using.
     intros ts t H; inversion H; subst; cbn; auto.
   Qed.
 
@@ -966,7 +970,7 @@ Section Lemmas.
 
   Lemma cast_type_normᵗ_same : forall τ₁ τ₂ : typ,
       cast_type τ₁ τ₂ -> normᵗ τ₂ = τ₂.
-  Proof.
+  Proof using.
     intros t1 t2 h;
       induction h using my_cast_type_ind;
       cbn; auto; f_equal.
@@ -1043,7 +1047,7 @@ Section Lemmas.
   
   Lemma cast_type_normᵗ : forall τ₁ τ₂ : typ,
       cast_type τ₁ τ₂ -> cast_type (normᵗ τ₁) (normᵗ τ₂).
-  Proof.
+  Proof using.
     intros t1 t2 h; induction h using my_cast_type_ind;
       cbn; auto.
     - constructor.

@@ -1,5 +1,6 @@
 From Poulet4 Require Export Utils.P4Arith
-     P4light.Semantics.Typing.Typing.
+  P4light.Semantics.Typing.Typing
+  P4light.Semantics.Ops.
 Require Export Coq.ZArith.BinInt.
 
 (** * Helper Lemmas for [Rules.v]. *)
@@ -25,14 +26,14 @@ Section Lemmas.
 
   Lemma sub_gamma_var_refl : forall (Γ : @gamma_var tags_t),
       sub_gamma_var Γ Γ.
-  Proof.
+  Proof using.
     intros g; unfold sub_gamma_var.
     auto using FuncAsMap.submap_refl.
   Qed.
 
   Lemma sub_gamma_const_refl : forall p (Γ : @gamma_const tags_t),
       sub_gamma_const p Γ Γ.
-  Proof.
+  Proof using.
     intros p g; unfold sub_gamma_const.
     auto using FuncAsMap.submap_refl.
   Qed.
@@ -42,7 +43,7 @@ Section Lemmas.
 
   Lemma sub_gamma_expr_refl : forall p (Γ : @gamma_expr tags_t),
       sub_gamma_expr p Γ Γ.
-  Proof.
+  Proof using.
     intros p g; unfold sub_gamma_expr; auto.
   Qed.
 
@@ -54,7 +55,7 @@ Section Lemmas.
         sub_gamma_const p Γ Γ' ->
         gamma_const_domain p Γ' ge ->
         gamma_const_domain p Γ ge.
-    Proof.
+    Proof using.
       unfold sub_gamma_const,gamma_const_domain,FuncAsMap.submap; eauto.
     Qed.
 
@@ -63,7 +64,7 @@ Section Lemmas.
         sub_gamma_const p Γ Γ' ->
         gamma_const_val_typ p Γ' ge ->
         gamma_const_val_typ p Γ ge.
-    Proof.
+    Proof using.
       unfold sub_gamma_const,gamma_const_val_typ,FuncAsMap.submap; eauto.
     Qed.
 
@@ -75,7 +76,7 @@ Section Lemmas.
         sub_gamma_const p Γ Γ' ->
         gamma_const_prop p Γ' ge ->
         gamma_const_prop p Γ ge.
-    Proof.
+    Proof using.
       unfold gamma_const_prop; firstorder eauto.
     Qed.
 
@@ -86,7 +87,7 @@ Section Lemmas.
         sub_gamma_var Γ Γ' ->
         gamma_var_domain Γ' st' ->
         gamma_var_domain Γ st'.
-    Proof.
+    Proof using.
       unfold sub_gamma_var, gamma_var_domain, FuncAsMap.submap; eauto.
     Qed.
 
@@ -95,7 +96,7 @@ Section Lemmas.
         sub_gamma_var Γ Γ' ->
         gamma_var_val_typ Γ' st' ge ->
         gamma_var_val_typ Γ st' ge.
-    Proof.
+    Proof using.
       unfold sub_gamma_var,gamma_var_val_typ,FuncAsMap.submap; eauto.
     Qed.
 
@@ -106,7 +107,7 @@ Section Lemmas.
       sub_gamma_var Γ Γ' ->
       gamma_var_prop Γ' st' ge ->
       gamma_var_prop Γ st' ge.
-    Proof.
+    Proof using T st st' tags_t.
       unfold gamma_var_prop; firstorder eauto.
     Qed.
 
@@ -119,7 +120,7 @@ Section Lemmas.
         sub_gamma_expr p Γ Γ' ->
         gamma_expr_prop p Γ' st' ge ->
         gamma_expr_prop p Γ st' ge.
-    Proof.
+    Proof using T ge p st st' tags_t.
       unfold sub_gamma_expr,gamma_expr_prop; firstorder eauto.
     Qed.
 
@@ -128,7 +129,7 @@ Section Lemmas.
         gamma_stmt_prop ge p Δ Γ st ->
         gamma_stmt_prop ge p Δ Γ' st' ->
         gamma_stmt_prop ge p Δ Γ st'.
-    Proof.
+    Proof using.
       unfold gamma_stmt_prop; firstorder eauto.
     Qed.
   End SubGamma.
@@ -139,7 +140,7 @@ Section Lemmas.
     Lemma bind_var_typ_sub_gamma_var : forall Γ : gamma_var,
         PathMap.get (get_loc_path l) Γ = None ->
         sub_gamma_var Γ (bind_var_typ l t Γ).
-    Proof.
+    Proof using.
       unfold sub_gamma_var,FuncAsMap.submap,bind_var_typ.
       intros g Hl l' t' Hlt'.
       destruct l as [p | p]; destruct l' as [l' | l'];
@@ -153,7 +154,7 @@ Section Lemmas.
     Lemma bind_var_typ_gamma_sub_gamma : forall Γ : gamma_expr,
         PathMap.get (get_loc_path l) (var_gamma Γ) = None ->
         sub_gamma_expr p Γ (bind_var_typ_gamma_expr l t Γ).
-    Proof.
+    Proof using.
       unfold bind_var_typ_gamma_expr,sub_gamma_expr.
       intros [gv gc] H; cbn in *.
       split; auto using bind_var_typ_sub_gamma_var.
@@ -162,7 +163,7 @@ Section Lemmas.
     Lemma bind_typ_gamma_stmt_sub_gamma : forall (Γ : gamma_stmt),
         PathMap.get (get_loc_path l) (var_gamma Γ) = None ->
         sub_gamma_expr p Γ (bind_typ_gamma_stmt l t Γ).
-    Proof.
+    Proof using.
       unfold bind_typ_gamma_stmt.
       intros [ge gf] H; cbn in *.
       auto using bind_var_typ_gamma_sub_gamma.
@@ -184,7 +185,7 @@ Section Lemmas.
       unary_type o t t' ->
       Ops.eval_unary_op o v = Some v' ->
       ⊢ᵥ v \: t -> ⊢ᵥ v' \: t'.
-  Proof.
+  Proof using.
     intros o v v' t t' Hut Heval Hvt;
       inversion Hut; subst;
         inversion Hvt; subst;
@@ -208,7 +209,7 @@ Section Lemmas.
       binary_type o t1 t2 t ->
       Ops.eval_binary_op o v1 v2 = Some v ->
       ⊢ᵥ v1 \: t1 -> ⊢ᵥ v2 \: t2 -> ⊢ᵥ v \: t.
-  Proof.
+  Proof using.
     intros o t t1 t2 v v1 v2 Hbt Hebo Hvt1 Hvt2;
       inversion Hbt; subst;
         inversion Hvt1; subst; inversion Hvt2; subst;
@@ -244,7 +245,7 @@ Section Lemmas.
   Lemma Eq_type_get_real_type : forall ge (t r : typ),
       get_real_type ge t = Some r ->
       Eq_type t -> Eq_type r.
-  Proof.
+  Proof using.
     intros ge t r Hget Ht; generalize dependent r;
       generalize dependent ge.
     induction Ht using my_Eq_type_ind;
@@ -290,7 +291,7 @@ Section Lemmas.
       get_real_type ge t1 = Some r1 ->
       get_real_type ge t2 = Some r2 ->
       exists r, get_real_type ge t = Some r /\ binary_type o r1 r2 r.
-  Proof.
+  Proof using.
     intros ge o t t1 t2 r1 r2 Hbt Hr1 Hr2.
     inversion Hbt; subst;
       try inv_numeric; try inv_numeric_width;
@@ -303,7 +304,7 @@ Section Lemmas.
       ⊢ᵥ v1 \: t ->
       ⊢ᵥ v2 \: t ->
       exists b, Ops.eval_binary_op_eq v1 v2 = Some b.
-  Proof.
+  Proof using.
     intros t v1 v2 Ht;
       generalize dependent v2;
       generalize dependent v1.
@@ -440,7 +441,7 @@ Section Lemmas.
       ⊢ᵥ v1 \: t1 ->
       ⊢ᵥ v2 \: t2 ->
       exists v, Ops.eval_binary_op o v1 v2 = Some v.
-  Proof.
+  Proof using.
     intros o t t1 t2 v1 v2 Hctk Hbt Hv1 Hv2; inv Hbt; cbn in *;
       try match goal with
           | HE: Eq_type ?t, Hv1: ⊢ᵥ ?v1 \: ?t, Hv2: ⊢ᵥ ?v2 \: ?t
@@ -479,7 +480,7 @@ Section Lemmas.
       get_real_type ge t = Some r ->
       member_type ts t ->
       exists rs, member_type rs r.
-  Proof.
+  Proof using.
     intros t r ts ge Hge Hmem.
     inversion Hmem; subst; cbn in *;
       autounfold with option_monad in *;
@@ -497,7 +498,7 @@ Section Lemmas.
       member_type ts t ->
       ⊢ᵥ v \: t ->
       exists v', get_member v x v'.
-  Proof.
+  Proof using.
     intros x v ts t t' Htsx Hmem Hvt.
     inversion Hmem; subst; inversion Hvt; subst; cbn in *;
       unfold AList.all_values, P4String.clear_AList_tags in *;
@@ -526,7 +527,7 @@ Section Lemmas.
       get_member v x v' ->
       ⊢ᵥ v \: t ->
       ⊢ᵥ v' \: t'.
-  Proof.
+  Proof using.
     intros x ts t t' v v' Htst Htsx Hgm Hvt.
     inversion Htst; subst; inversion Hvt; subst;
       inversion Hgm; subst;
@@ -570,7 +571,7 @@ Section Lemmas.
         forall (ge2 : genv_typ) (l : list typ),
           Forall2 (fun c b : typ => get_real_type ge2 c = Some b) ts2 l ->
           Forall2 cast_type l0 l.
-  Proof.
+  Proof using.
     intros ts1 ts2 H H0 ge1 l0 Heqo0 ge2 l Heqo.
     rewrite Forall2_forall_nth_error in *.
     destruct H as [h_len_ts h_ts].
@@ -603,7 +604,7 @@ Section Lemmas.
       sequence (map (get_real_type ge1) ts) = Some l0 ->
       Forall2 (fun v w : typ => get_real_type ge2 v = Some w) (map snd xts) (map snd l) ->
       Forall2 (fun (t : typ) (xt : P4String.t tags_t * typ) => cast_type t (snd xt)) l0 l.
-  Proof.
+  Proof using.
     intros ts xts ge1 ge2 l0 l H0 H1 Heqo0 h_snd.
     rewrite <- Forall2_sequence_iff in Heqo0.
     rewrite ForallMap.Forall2_map_r.
@@ -631,7 +632,7 @@ Section Lemmas.
       map fst yts = map fst l ->
       Forall2 (fun v w : typ => get_real_type ge2 v = Some w) (map snd yts) (map snd l) ->
       AList.all_values cast_type l0 l.
-  Proof.
+  Proof using.
     intros xts yts ge1 ge2 l0 l H1 H2 h_fst_xts_l0 h_snd_xts_l0 h_fst_yts_l h_snd_yts_l.
     unfold AList.all_values in *.
     rewrite Forall2_conj in *.
@@ -656,7 +657,7 @@ Section Lemmas.
       get_real_type ge1 τ₁ = Some r₁ ->
       get_real_type ge2 τ₂ = Some r₂ ->
       cast_type τ₁ τ₂ -> cast_type r₁ r₂.
-  Proof.
+  Proof using.
     intros ge1 ge2 t1 t2 r1 r2 h1 h2 hc.
     generalize dependent ge2;
       generalize dependent ge1;
@@ -682,7 +683,7 @@ Section Lemmas.
             forall vs : AList.AList ident ValueBase eq,
               AList.all_values (@val_typ bool tags_t) vs (P4String.clear_AList_tags xts) ->
               Datatypes.length yts = Datatypes.length vs.
-  Proof.
+  Proof using.
     intros xts yts H1 vs H6.
     apply Forall2_length in H6, H1.
     unfold P4String.clear_AList_tags in H6.
@@ -745,7 +746,7 @@ Section Lemmas.
                end
            end) xts vs = Some f ->
         Forall2 val_typ vs ts -> AList.all_values val_typ f (P4String.clear_AList_tags xts).
-  Proof.
+  Proof using.
     intros ts xts H0 H1 vs f Heqo H4.
     unfold AList.all_values.
     rewrite Forall2_conj.
@@ -798,7 +799,7 @@ Section Lemmas.
            end) yts vs = Some f ->
         AList.all_values val_typ vs (P4String.clear_AList_tags xts) ->
         AList.all_values val_typ f (P4String.clear_AList_tags yts).
-  Proof.
+  Proof using.
     intros xts yts H1 H2 vs f Heqo H6.
     unfold AList.all_values in *.
     rewrite Forall2_conj in *.
@@ -836,7 +837,7 @@ Section Lemmas.
       Ops.eval_cast τ₂ v₁ = Some v₂ ->
       cast_type τ₁ τ₂ ->
       ⊢ᵥ v₁ \: τ₁ -> ⊢ᵥ v₂ \: τ₂.
-  Proof.
+  Proof using.
     intros t1 t2 v1 v2 heval hcast;
       generalize dependent v2;
       generalize dependent v1.
@@ -934,7 +935,7 @@ Section Lemmas.
           | Some fields' => Some (f fields')
           | None => None
           end = Some v₂.
-  Proof.
+  Proof using.
     intros vs ts yts f H H0 H1 H4 H5.
     rewrite H4. unfold AList.all_values in H0, H5, H1.
     rewrite Forall2_conj in H0, H1, H5.
@@ -1004,7 +1005,7 @@ Section Lemmas.
       cast_type τ₁ τ₂ ->
       ⊢ᵥ v₁ \: τ₁ ->
       exists v₂, Ops.eval_cast τ₂ v₁ = Some v₂.
-  Proof.
+  Proof using.
     intros t1 t2 v1 hc h; generalize dependent t2;
       induction h using custom_val_typ_ind;
       intros t2 hc; inv hc; cbn; eauto;
@@ -1104,7 +1105,7 @@ Section Lemmas.
   Lemma delta_genv_prop_remove : forall Δ (ge : @genv_typ tags_t) X,
       delta_genv_prop ge Δ ->
       delta_genv_prop (IdentMap.remove X ge) (remove_str X Δ).
-  Proof.
+  Proof using.
     intros d ge X H.
     unfold delta_genv_prop in *.
     rewrite Forall_forall in *; intros Y HInY.
@@ -1118,7 +1119,7 @@ Section Lemmas.
   Lemma delta_genv_prop_removes : forall Xs Δ (ge : @genv_typ tags_t),
       delta_genv_prop ge Δ ->
       delta_genv_prop (IdentMap.removes Xs ge) (remove_all Δ Xs).
-  Proof.
+  Proof using.
     unfold IdentMap.removes, FuncAsMap.removes.
     intro Xs; induction Xs as [| X Xs IHXs]; intros d ge Hged; cbn; auto.
   Qed.
@@ -1135,7 +1136,7 @@ Section Lemmas.
         delta_genv_prop ge Δ ->
         exists ρs,
           sequence (map (get_real_type ge) ts) = Some ρs.
-  Proof.
+  Proof using.
     intros d ts Hts IHts ge Hge.
     rewrite Forall_forall in IHts.
     specialize IHts with (ge := ge).
@@ -1166,7 +1167,7 @@ Section Lemmas.
                   | Some t' => Some (a, t')
                   | None    => None
                   end) ts) = Some ρs.
-  Proof.
+  Proof using.
     intros d xts Hxts IHxts ge Hge.
     rewrite Forall_forall in IHxts.
     specialize IHxts with (ge := ge).
@@ -1217,7 +1218,7 @@ Section Lemmas.
         ps -> forall ge : @genv_typ tags_t,
           delta_genv_prop ge Δ ->
           exists ps', sequence (map (get_real_param ge) ps) = Some ps'.
-  Proof.
+  Proof using.
     intros d ps Hps IHps ge Hged.
     rewrite Forall_forall in IHps.
     specialize IHps with (ge := ge).
@@ -1235,7 +1236,7 @@ Section Lemmas.
   Lemma ok_get_real_type_ex :
     forall Δ τ, Δ ⊢ok τ ->
       ok_get_real_type_ex_def Δ τ.
-  Proof.
+  Proof using.
     apply ok_get_real_type_ex_ind;
       autounfold with ind_def; cbn;
         autounfold with option_monad; eauto 2.
@@ -1411,7 +1412,7 @@ Section Lemmas.
       delta_genv_prop ge Δ ->
       sequence (map (get_real_type ge) ts) = Some rs ->
       Forall (fun r => [] ⊢ok r) rs.
-  Proof.
+  Proof using.
     intros d ge ts rs Hts IHts Hge Hrs.
     rewrite Forall_forall in IHts.
     specialize IHts with (ge := ge).
@@ -1447,7 +1448,7 @@ Section Lemmas.
            xts)
       = Some xrs ->
       Forall (fun xr => [] ⊢ok snd xr) xrs.
-  Proof.
+  Proof using.
     intros d ge xts xrs Hxts IHxts Hge Hxrs.
     rewrite Forall_forall in IHxts.
     specialize IHxts with (ge := ge).
@@ -1480,7 +1481,7 @@ Section Lemmas.
       delta_genv_prop ge Δ ->
       sequence (map (get_real_param ge) ps) = Some rs ->
       Forall (P4Parameter_ok []) rs.
-  Proof.
+  Proof using.
     intros d ge ps rs Hps IHps Hge Hrs.
     rewrite Forall_forall in IHps.
     specialize IHps with (ge := ge).
@@ -1502,7 +1503,7 @@ Section Lemmas.
   Lemma delta_genv_prop_ok_typ_nil : forall Δ t,
       Δ ⊢ok t ->
       delta_genv_prop_ok_typ_nil_def Δ t.
-  Proof.
+  Proof using.
     apply delta_genv_prop_ok_typ_nil_ind;
       autounfold with ind_def; cbn;
         autounfold with option_monad;
@@ -1549,7 +1550,7 @@ Section Lemmas.
       member_type ts t -> member_type rs r ->
       get_real_type ge t = Some r ->
       sequence (map (fun '(x,t) => get_real_type ge t >>| pair x) ts) = Some rs.
-  Proof.
+  Proof using.
     intros ts rs t r ge Hts Hrs Htr;
       inversion Hts; subst; inversion Hrs; subst;
         cbn in *; autounfold with option_monad in *;
@@ -1560,7 +1561,7 @@ Section Lemmas.
     forall (T: @Target _ expr) (dummy: Inhabitant tags_t)
       (ge : @genv _ T) rob p st st' e sv sig,
       exec_expr ge rob p st e sv -> ~ exec_call ge rob p st e st' sig.
-  Proof.
+  Proof using.
     intros T dummy ge rob p st st' e sv sig Hesv Hcall.
     inv Hesv; inv Hcall.
   Qed.
@@ -1568,14 +1569,14 @@ Section Lemmas.
   Definition gamma_var_val_typ_real_norm `{T : Target _ expr}
     (Γ : gamma_var) (st : state) (ge : @genv_typ tags_t) : Prop := forall l (τ : typ) v,
       typ_of_loc_var l Γ = Some τ ->
-      loc_to_sval l st = Some v -> ⊢ᵥ v \: τ.
+      loc_to_sval l st = Ok v -> ⊢ᵥ v \: τ.
 
   Lemma gamma_var_domain_impl_real_norm : forall `{T: Target _ expr} gt st Γ,
       gamma_var_domain Γ st ->
       gamma_var_domain
         (FuncAsMap.map_map
            (normᵗ ∘ (try_get_real_type gt)) Γ) st.
-  Proof.
+  Proof using.
     unfold gamma_var_domain.
     intros T gt st G hdom l t hltv.
     specialize hdom with (l:=l).
@@ -1591,7 +1592,7 @@ Section Lemmas.
         (FuncAsMap.map_map
            (normᵗ ∘ (try_get_real_type gt)) Γ) st ->
       gamma_var_domain Γ st.
-  Proof.
+  Proof using.
     unfold gamma_var_domain.
     intros T gt st G hdom l t hltv.
     specialize hdom with (l:=l).
@@ -1607,7 +1608,7 @@ Section Lemmas.
       gamma_var_val_typ_real_norm
         (FuncAsMap.map_map
            (normᵗ ∘ (try_get_real_type gt)) Γ) st gt.
-  Proof.
+  Proof using.
     unfold gamma_var_val_typ, gamma_var_val_typ_real_norm.
     intros T gt st G h l t v ht hv.
     specialize h with (l:=l).
@@ -1629,7 +1630,7 @@ Section Lemmas.
         (FuncAsMap.map_map
            (normᵗ ∘ (try_get_real_type gt)) Γ) st gt ->
       gamma_var_val_typ Γ st gt.
-  Proof.
+  Proof using.
     unfold gamma_var_val_typ, gamma_var_val_typ_real_norm.
     intros T gt st G D hD hDG h l t v ht hv.
     specialize h with (l:=l).
@@ -1658,7 +1659,7 @@ Section Lemmas.
       exec_read st lv sv ->
       Γ ⊢ₗ lv \: τ ->
       ⊢ᵥ sv \: τ.
-  Proof.
+  Proof using.
     intros T ge st G lv sv t hG hread hlv.
     generalize dependent t.
     induction hread; intros t hlv; inv hlv;
@@ -1690,7 +1691,7 @@ Section Lemmas.
       gamma_var_val_typ_real_norm Γ st ge ->
       Γ ⊢ₗ lv \: t ->
       exists sv, exec_read st lv sv.
-  Proof.
+  Proof using.
     intros T ge st G lv t hGdom hG hlvt.
     induction hlvt.
     - unfold gamma_var_prop in hGdom.
@@ -1719,7 +1720,7 @@ Section Lemmas.
   Lemma havoc_header_val_typ : forall f (τ : typ) v v',
       havoc_header f v = Some v' ->
       ⊢ᵥ v \: τ -> ⊢ᵥ v' \: τ.
-  Proof.
+  Proof using.
     intros f t v v' h hvt.
     inv hvt; cbn in h; inv h.
     constructor; auto.
@@ -1743,7 +1744,7 @@ Section Lemmas.
       lift_option_kv (kv_map (havoc_header f) vs) = Some vs' ->
       Forall (fun hdr => exists vs bits, hdr = ValBaseHeader vs bits) (map snd vs) ->
       Forall (fun hdr => exists vs bits, hdr = ValBaseHeader vs bits) (map snd vs').
-  Proof.
+  Proof using.
     unfold lift_option_kv, kv_map.
     intros f vs; induction vs as [| [x v] vs ih];
       intros [| [y v'] vs'] h H; cbn in *;
@@ -1757,7 +1758,7 @@ Section Lemmas.
       lift_option_kv (kv_map (havoc_header f) vs) = Some vs' ->
       AList.all_values val_typ vs ts ->
       AList.all_values val_typ vs' ts.
-  Proof.
+  Proof using.
     unfold AList.all_values, lift_option_kv.
     intros f ts; induction ts as [| [x t] ts ih];
       intros [| [y v] vs] [| [z v'] vs'] hvs' hvts; cbn in *;
@@ -1769,7 +1770,7 @@ Section Lemmas.
   Lemma havoc_headers_ex : forall f (vs : list (string * ValueBase)),
       Forall (fun v => exists hdr bits, v = ValBaseHeader hdr bits) (map snd vs) ->
       exists vs', lift_option_kv (kv_map (havoc_header f) vs) = Some vs'.
-  Proof.
+  Proof using.
     unfold lift_option_kv,kv_map,kv_map_func.
     intros f vs; induction vs as [| [x v] vs ih];
       intros hall; inv hall; cbn; eauto.
@@ -1805,7 +1806,7 @@ Section Lemmas.
       AList.get (P4String.clear_AList_tags τs) x = Some fτ ->
       member_type τs τ ->
       ⊢ᵥ fv \: fτ -> ⊢ᵥ sv₁ \: τ -> ⊢ᵥ sv₂ \: τ.
-  Proof.
+  Proof using.
     intros sv1 sv2 v x t ft ts hum hget hmem hfvt hsv1.
     inv hum; inv hsv1; inv hmem.
     - constructor; auto. solve_update_member_preserves_typ.
@@ -1837,7 +1838,7 @@ Section Lemmas.
       member_type τs τ ->
       ⊢ᵥ fv \: τ' -> ⊢ᵥ sv₁ \: τ ->
       exists sv₂, update_member sv₁ x fv sv₂.
-  Proof.
+  Proof using.
     intros sv1 fv x t t' ts hget hmem hfvt hsvt.
     inv hmem; inv hsvt.
     - pose proof AListUtil.all_values_keys_eq _ _ _ _ _ _ _ H2 as hfst.
@@ -1934,7 +1935,7 @@ Section Lemmas.
       (lo <= hi < List.length bits₁)%nat ->
       List.length bits₂ = (hi - lo + 1)%nat ->
       List.length (update_bitstring bits₁ lo hi bits₂) = List.length bits₁.
-  Proof.
+  Proof using.
     intros A bits; induction bits as [| a bits ih];
       intros bts lo hi hbits hbts; cbn in *; auto.
     destruct lo as [| lo]; destruct hi as [| hi]; cbn in *.
@@ -1956,7 +1957,7 @@ Section Lemmas.
       gamma_var_val_typ_real_norm Γ st ge ->
       Γ ⊢ₗ lv \: t -> ⊢ᵥ v \: t ->
       exists st', exec_write st lv v st'.
-  Proof.
+  Proof using.
     intros T ge st G lv v t hdom hG hlvt hvt.
     generalize dependent v.
     induction hlvt; intros v hvt.
@@ -2009,7 +2010,7 @@ Section Lemmas.
       exec_write st lv v st' ->
       Γ ⊢ₗ lv \: t -> ⊢ᵥ v \: t ->
       gamma_var_domain Γ st' /\ gamma_var_val_typ_real_norm Γ st' ge.
-  Proof.
+  Proof using.
     intros T ge st st' G lv sv t hdom hG hwrite.
     generalize dependent t.
     induction hwrite; intros t hlvt hsvt; inv hlvt.
@@ -2022,7 +2023,8 @@ Section Lemmas.
         destruct l as [l | l]; cbn in *; try discriminate.
         destruct (list_eq_dec string_dec l loc) as [hlloc | hlloc]; subst.
         * pose proof PathMap.get_set_same loc rhs st as h.
-          unfold PathMap.get,FuncAsMap.get in *. rewrite h. eauto.
+          unfold PathMap.get,FuncAsMap.get in *. rewrite h.
+          cbn. eauto.
         * specialize hdom with (LInstance l) t'; cbn in hdom.
           pose proof PathMap.get_set_diff l loc rhs st hlloc as h.
           unfold PathMap.get,FuncAsMap.get in *.
@@ -2037,6 +2039,7 @@ Section Lemmas.
         * rewrite H1 in htyp_of. some_inv.
           pose proof PathMap.get_set_same loc rhs st as h.
           unfold PathMap.get,FuncAsMap.get in *. rewrite h in hloc_to_sval.
+          cbn in *. unfold ok in *.
           some_inv. assumption.
         * pose proof PathMap.get_set_diff l loc rhs st hlloc as h.
           specialize hG with (LInstance l) t' v as H. cbn in H.

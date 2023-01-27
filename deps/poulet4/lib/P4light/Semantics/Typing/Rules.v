@@ -67,7 +67,7 @@ Section Soundness.
 
     Theorem bool_sound : forall tag b dir,
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpBool b) TypBool dir.
-    Proof.
+    Proof using.
       intros; soundtac.
     Qed.
 
@@ -76,7 +76,7 @@ Section Soundness.
           ⊢ₑ
           MkExpression
           tag (ExpInt (P4Int.Build_t _ i z None)) TypInteger dir.
-    Proof.
+    Proof using.
       intros; soundtac.
     Qed.
 
@@ -87,7 +87,7 @@ Section Soundness.
           (ExpInt
              (P4Int.Build_t _ i z (Some (w,false))))
           (TypBit w) dir.
-    Proof.
+    Proof using.
       intros tag i z w dir; soundtac; split; auto.
       replace w
         with (N.of_nat (length (P4Arith.to_loptbool w z))) at 2; auto.
@@ -102,7 +102,7 @@ Section Soundness.
           tag
           (ExpInt (P4Int.Build_t _ i z (Some (w,true))))
           (TypInt w) dir.
-    Proof.
+    Proof using.
       intros tag i z w dir; soundtac; split; auto.
       replace w
         with (N.of_nat (length (P4Arith.to_loptbool w z))) at 2; auto.
@@ -112,7 +112,7 @@ Section Soundness.
 
     Theorem string_sound : forall tag s dir,
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpString s) TypString dir.
-    Proof.
+    Proof using.
       intros; soundtac.
     Qed.
 
@@ -120,7 +120,7 @@ Section Soundness.
         is_directional dir = true ->
         typ_of_loc_var loc (var_gamma Γ) = Some t ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpName x loc) t dir.
-    Proof.
+    Proof using.
       intros i x l t d Hd Hgt; soundtac.
       - unfold gamma_expr_prop, gamma_var_prop, gamma_var_domain in Hg.
         destruct Hg as [[Hg _] _].
@@ -150,7 +150,7 @@ Section Soundness.
         typ_of_loc_const this loc Γ = Some t ->
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression tag (ExpName x loc) t Directionless.
-    Proof.
+    Proof using.
       intros i x l t Hgt; soundtac; try discriminate.
       - unfold gamma_expr_prop, gamma_const_prop, gamma_const_domain in Hg.
         destruct Hg as (_ & Hg & _).
@@ -168,7 +168,7 @@ Section Soundness.
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression
           tag (ExpArrayAccess arry idx) (TypHeader ts) dir.
-    Proof.
+    Proof using.
       intros i e1 e2 ts d n Hn [He1 Ht1] [He2 Ht2];
         autounfold with * in *.
       intros Hgrt Hdelta Hgok Hok Hise rob st Hrobsome Hrob Hg; simpl in *.
@@ -297,7 +297,7 @@ Section Soundness.
           ⊢ₑ MkExpression
           tag (ExpBitStringAccess bits lo hi)
           (TypBit (hi - lo + 1)%N) dir.
-    Proof.
+    Proof using.
       intros i e lo hi d w Hlwh [He Ht].
       autounfold with * in *.
       intros Hgrt Hdelta Hgok Hok Hise rob st Hrobsome Hrob Hg.
@@ -365,7 +365,7 @@ Section Soundness.
         Forall (fun e => (ge,this,Δ,Γ) ⊢ₑ e) es ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpList es)
                       (TypTuple (map typ_of_expr es)) dir.
-    Proof.
+    Proof using.
       intros i es d Hes. autounfold with * in *; cbn in *.
       intros Hgrt Hged Hgok Hok Hise rob st Hrobsome Hrob Hg.
       rewrite Forall_forall in Hes.
@@ -430,7 +430,7 @@ Section Soundness.
           ⊢ₑ MkExpression
           tag (ExpRecord es)
           (TypRecord (map (fun '(x,e) => (x,typ_of_expr e)) es)) dir.
-    Proof.
+    Proof using.
       intros i es d Hes.
       autounfold with * in *; cbn in *.
       intros Hgrt Hged Hgok Hok Hise rob st Hrobsome Hrob Hg.
@@ -543,7 +543,7 @@ Section Soundness.
         unary_type o (typ_of_expr e) t ->
         (ge,this,Δ,Γ) ⊢ₑ e ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpUnaryOp o e) t dir.
-    Proof.
+    Proof using.
       intros i o e t d Hut He; autounfold with * in *; cbn in *.
       intros Hgrt Hdelta Hgok Hok Hise rob st Hrobsome Hrob Hg.
       inversion Hok; subst; inversion H4; subst.
@@ -628,7 +628,7 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ₑ e1 ->
         (ge,this,Δ,Γ) ⊢ₑ e2 ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpBinaryOp o e1 e2) t dir.
-    Proof.
+    Proof using.
       intros i o t e1 e2 d Hctk Hbt He1 He2.
       autounfold with * in *; cbn in *.
       intros Hgrt Hged Hgok Hok His rob st Hrobsome Hrob Hgst.
@@ -732,7 +732,7 @@ Section Soundness.
         cast_type (typ_of_expr e) t ->
         (ge,this,Δ,Γ) ⊢ₑ e ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpCast t e) t dir.
-    Proof.
+    Proof using.
       intros i e t dir Hcast He.
       intros Hgrt Hdlta Hgok Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
       inversion Hok; subst. inversion H4; subst.
@@ -776,7 +776,7 @@ Section Soundness.
           ⊢ₑ MkExpression
           tag (ExpTypeMember X M)
           (TypEnum E None mems) dir.
-    Proof.
+    Proof using.
       intros tag X M E mems dir Hget Hmem.
       soundtac; split; auto; inv Hrn.
       - rewrite Hget in H7; some_inv; auto.
@@ -792,7 +792,7 @@ Section Soundness.
           ⊢ₑ MkExpression
           tag (ExpTypeMember X M)
           (TypEnum E (Some t) (map fst mems)) dir.
-    Proof.
+    Proof using.
       intros i X M E t mems dir HM.
       intros Hgrt Hdlta Hok Hise rob st Hrob Hg; cbn in *.
       inversion Hok; subst; inversion H1; subst;
@@ -808,7 +808,7 @@ Section Soundness.
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression
           tag (ExpErrorMember err) TypError dir.
-    Proof.
+    Proof using.
       intros tag err dir; soundtac.
     Qed.
 
@@ -823,7 +823,7 @@ Section Soundness.
         AList.get ts x = Some t ->
         (ge,this,Δ,Γ) ⊢ₑ e ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) t dir.
-    Proof.
+    Proof using.
       intros i e x ts t dir hsize hlstdx Hnxt Hmem Hts He.
       intros Hgrt Hdlta Hgok Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
       inversion Hok; subst; inversion H4; subst.
@@ -965,7 +965,7 @@ Section Soundness.
         (ge,this,Δ,Γ) ᵗ⊢ₑ e \: TypArray t w ->
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression tag (ExpExpressionMember e x) (TypBit 32) dir.
-    Proof.
+    Proof using.
       intros i e x dir t w Hstr [He Htyp].
       intros Hgrt Hdlta Hgok Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
       inversion Hok; subst. inversion H4; subst.
@@ -992,7 +992,7 @@ Section Soundness.
         P4String.str x = "lastIndex"%string ->
         (ge,this,Δ,Γ) ᵗ⊢ₑ e \: TypArray t w ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) (TypBit 32) dir.
-    Proof.
+    Proof using.
       intros i e x dir t w Hstr [He Htyp].
       intros Hgrt Hdlta Hgok Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
       inversion Hok; subst. inversion H4; subst.
@@ -1027,7 +1027,7 @@ Section Soundness.
         (ge,this,Δ,Γ) ᵗ⊢ₑ e₂ \: t ->
         (ge,this,Δ,Γ) ᵗ⊢ₑ e₃ \: t ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpTernary e₁ e₂ e₃) t dir.
-    Proof.
+    Proof using.
       intros i e1 e2 e3 t d [He1 Ht1] [He2 Ht2] [He3 Ht3].
       autounfold with * in *; cbn in *.
       intros Hge Hged Hgok Hok Hise rob st Hrob Hreads Hgst.
@@ -1087,7 +1087,7 @@ Section Soundness.
         (ge,this,Δ,Γ)
           ⊢ₛ MkStatement
           tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ.
-    Proof.
+    Proof using.
       cbn. intros i e1 e2 Hte1e2 Hlvoke1 Hisexpr2 He1 He2.
       autounfold with * in *.
       intros Hge Hged Hgok Hoks Hiss rob st Hrob Hread Hgst.
@@ -1171,7 +1171,7 @@ Section Soundness.
         (ge,this,Δ,Γ)
           ⊢ₛ MkStatement
           tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ.
-    Proof.
+    Proof using.
       cbn. intros i e1 e2 Hte1e2 Hlvoke1 Hiscalle2 He1 He2.
       autounfold with * in *.
       intros Hge Hged Hgok Hoks Hiss rob st Hrob Hread Hgst.
@@ -1205,7 +1205,7 @@ Section Soundness.
            | None    => typ_of_stmt s₁
            | Some s₂ => lub_StmType (typ_of_stmt s₁) (typ_of_stmt s₂)
            end) ⊣ Γ.
-    Proof.
+    Proof using.
       cbn. intros i e s1 s2 Γ₁ [He Het] Hs1 Hs2.
       autounfold with * in *.
       intros Hge Hged Hgok Hoks Hiss rob st Hrob Hread Hgst.
@@ -1244,7 +1244,7 @@ Section Soundness.
 
     Theorem exit_sound : forall tag,
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag StatExit StmVoid ⊣ Γ.
-    Proof.
+    Proof using.
       unfold stmt_types; intros; repeat (split; [eauto; assumption |]).
       intros ? ? Hrn; inversion Hrn; subst; eauto.
     Qed.
@@ -1252,7 +1252,7 @@ Section Soundness.
     Theorem return_sound : forall tag e,
         predop (fun e => (ge,this,Δ,Γ) ⊢ₑ e) e ->
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatReturn e) StmVoid ⊣ Γ.
-    Proof.
+    Proof using.
       cbn. intros i e He.
       autounfold with * in *.
       intros Hge Hged Hgok Hoks Hiss rob st Hrob Hreads Hgst.
@@ -1273,7 +1273,7 @@ Section Soundness.
 
     Theorem empty_sound : forall tag,
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag StatEmpty StmUnit ⊣ Γ.
-    Proof.
+    Proof using.
       unfold stmt_types; intros; repeat (split; [eauto; assumption |]).
       intros ? ? Hrn; inversion Hrn; subst; eauto.
     Qed.
@@ -1282,7 +1282,7 @@ Section Soundness.
         Block_StmTypes blk t ->
         (ge,this,Δ,Γ) ⊢ᵦ blk ⊣ Γ' ->
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatBlock blk) t ⊣ Γ.
-    Proof.
+    Proof using.
       intros Γ' tag blk t Hblk. revert dependent Γ'.
       induction Hblk; intros Γ' Hsblk Hge Hged Hgok Hoks Hiss rob st Hrob Hreads Hgsp;
         simpl in *; split; auto.
@@ -1309,7 +1309,7 @@ Section Soundness.
           (ExpFunctionCall e τs es)
           TypVoid Directionless ->
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatMethodCall e τs es) StmUnit ⊣ Γ.
-    Proof.
+    Proof using.
       intros tag e τs es Hcall.
       intros Hge Hged Hgok Hoks Hiss rob st Hrob Hreads Hgsp. cbn [fst snd] in *.
       split; auto.
@@ -1335,7 +1335,7 @@ Section Soundness.
         (ge,this,Δ,Γ)
           ⊢ₛ MkStatement tag
           (StatDirectApplication τ τ' es) StmUnit ⊣ Γ.
-    Proof.
+    Proof using.
       intros tag τ τ' es Hcall.
       intros Hge Hged Hgok Hoks Hiss rob st Hrob Hreads Hgsp.
       cbn [fst snd] in *. split; auto.
@@ -1360,7 +1360,7 @@ Section Soundness.
           ⊢ₛ MkStatement
           tag (StatVariable τ x None l) StmUnit
           ⊣ bind_typ_gamma_stmt l τ Γ.
-    Proof.
+    Proof using.
       cbn. intros i t x l Hl.
       autounfold with * in *.
       intros Hge Hged Hgok Hoks Hiss rob st Hrob Hread Hgst.
@@ -1395,9 +1395,11 @@ Section Soundness.
               bind_var_typ in *; cbn in Hlt';
               pose proof list_eq_dec string_dec l' l as Hl'l;
               destruct Hl'l as [Hl'l | Hl'l]; subst;
-              try (rewrite PathMap.get_set_same; eauto);
-              try (rewrite PathMap.get_set_diff in Hlt' by assumption;
-                   rewrite PathMap.get_set_diff by assumption; eauto).
+              try rewrite PathMap.get_set_same in Hlt';
+              try rewrite PathMap.get_set_same; eauto;
+              try some_inv; cbn;
+              try rewrite PathMap.get_set_diff in Hlt' by assumption;
+              try rewrite PathMap.get_set_diff by assumption; eauto.
           * clear Hdom; unfold gamma_var_val_typ in *.
             intros l' t' sv' Hlt' Hlsv'.
             unfold update_val_by_loc in *.
@@ -1413,6 +1415,7 @@ Section Soundness.
               try  rewrite PathMap.get_set_same in Hlsv';
               try rewrite PathMap.get_set_diff in Hlt' by assumption;
               try rewrite PathMap.get_set_diff in Hlsv' by assumption;
+              cbn in *; unfold ok in *;
               repeat some_inv;
               eauto 6 using uninit_sval_of_typ_val_typ.
         + destruct Hgst as [HΓₑ [Hgfdom Hgft]].
@@ -1426,7 +1429,7 @@ Section Soundness.
           ⊢ₛ MkStatement
           tag (StatVariable τ x (Some e) l) StmUnit
           ⊣ bind_typ_gamma_stmt l τ Γ.
-    Proof.
+    Proof using.
       cbn. intros i t x e l Hl He.
       autounfold with * in *.
       intros Hge Hged Hgok Hoks Hiss rob st Hrob Hread Hgst.
@@ -1464,16 +1467,17 @@ Section Soundness.
                  bind_var_typ in *; cbn in Hlt';
                  pose proof list_eq_dec string_dec l' l as Hl'l;
                  destruct Hl'l as [Hl'l | Hl'l]; subst;
-                 try (rewrite PathMap.get_set_same; eauto);
-                 try (rewrite PathMap.get_set_diff in Hlt' by assumption;
-                      rewrite PathMap.get_set_diff by assumption; eauto).
+                 try rewrite PathMap.get_set_same in Hlt';
+                 try rewrite PathMap.get_set_same; eauto;
+                 try some_inv; cbn;
+                 try rewrite PathMap.get_set_diff in Hlt' by assumption;
+                 try rewrite PathMap.get_set_diff by assumption; eauto.
             -- clear Hdom; unfold gamma_var_val_typ in *.
                intros l' t' sv' Hlt' Hlsv'.
                unfold update_val_by_loc in *.
                specialize Hvart with (l:=l') (t:=t') (v:=sv').
                destruct l' as [l' | l']; cbn in *; try discriminate.
                destruct st as [st ext].
-               repeat simpl_result_all; subst.
                destruct l as [l | l];
                  unfold update_memory,get_memory,get_loc_path,
                  bind_var_typ in *; cbn in Hlt';
@@ -1483,6 +1487,7 @@ Section Soundness.
                  try rewrite PathMap.get_set_same in Hlsv';
                  try rewrite PathMap.get_set_diff in Hlt' by assumption;
                  try rewrite PathMap.get_set_diff in Hlsv' by assumption;
+                 cbn in *; unfold ok in *;
                  repeat some_inv; eauto.
           * eapply exec_expr_call_False in H11; eauto. contradiction.
     Qed.
@@ -1494,7 +1499,7 @@ Section Soundness.
           ⊢ₛ MkStatement
           tag (StatVariable τ x (Some e) l) StmUnit
           ⊣ bind_typ_gamma_stmt l τ Γ.
-    Proof.
+    Proof using.
       cbn. intros i t x e l Hl He.
       autounfold with * in *.
       intros Hge Hged Hgok Hoks Hiss rob st Hrob Hread Hgst.

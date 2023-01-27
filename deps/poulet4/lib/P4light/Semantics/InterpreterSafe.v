@@ -82,6 +82,7 @@ Section InterpreterSafe.
         destruct (string_dec name "size");
         [|destruct (string_dec name "lastIndex")];
         [| |destruct (string_dec name "last")];
+        [| | |destruct (string_dec name "next")];
         subst.
       + apply ok_Ok_inj in H0; subst.
         constructor.
@@ -90,6 +91,8 @@ Section InterpreterSafe.
         econstructor.
         destruct (i =? 0)%N;
           [auto | congruence].
+      + apply from_opt_Ok in H0.
+        now econstructor.
       + apply from_opt_Ok in H0.
         now econstructor.
       + now apply error_not_ok in H0.

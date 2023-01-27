@@ -171,7 +171,7 @@ Inductive packet_in_extract_sem : extern_func_sem :=
       packet_in_extract_sem e s p [typ] []
             (PathMap.set p (ObjPin pin') s)
           [v] sig
-  | exec_packet_in_extract2 : forall e s p pin typ len v sig pin',
+ | exec_packet_in_extract2 : forall e s p pin typ len v sig pin',
       PathMap.get p s = Some (ObjPin pin) ->
       extract2 typ len pin = Some (v, sig, pin') ->
       packet_in_extract_sem e s p [typ] [ValBaseBit (to_lbool 32%N (Z.of_nat len))]

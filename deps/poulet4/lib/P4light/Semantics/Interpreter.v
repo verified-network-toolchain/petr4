@@ -53,7 +53,10 @@ Section Interpreter.
                else if string_dec member "last"
                     then from_opt (get_last_of_stack headers next)
                                   (Exn.Other "failure in get_last_of_stack")
-                    else error (Exn.Other ("find_member: " ++ member ++ " not a property of a stack"))
+                    else if string_dec member "next"
+                         then from_opt (get_next_of_stack headers next)
+                                       (Exn.Other "failure in get_next_of_stack")
+                         else error (Exn.Other ("find_member: " ++ member ++ " not a property of a stack"))
       | _ => error (Exn.Other "find_member called on a bad value (not a struct, union, header, or stack")
       end.
 

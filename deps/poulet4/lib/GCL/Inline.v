@@ -730,7 +730,7 @@ then error "args has typevar call funct" else  *)
     | ST.Exit =>
       ok IExit
 
-    | ST.Invoke tbl_name =>
+    | ST.Invoke _ tbl_name => (* TODO: how to inline table left-hand side? *)
       let* tdecl := from_opt (find_table ctx tbl_name) "could not find table in environment" in
       match tdecl with
       | CD.Table _ key actions =>

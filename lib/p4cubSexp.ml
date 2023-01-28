@@ -226,7 +226,8 @@ let sexp_of_args = sexp_of_list sexp_of_arg
 let sexp_of_call call args =
   make_sexp "Stmt.Call" [ sexp_of_fun_kind call; sexp_of_args args ]
 
-let sexp_of_invoke name = make_sexp "Stmt.Invoke" [ Sexp.Atom name ]
+let sexp_of_invoke eo name =
+make_sexp "Stmt.Invoke" [ sexp_of_expr_opt eo; Sexp.Atom name ]
 
 let sexp_of_apply name ext_args args =
   make_sexp "Stmt.Apply" [ sexp_of_strings ext_args; sexp_of_args args ]
@@ -247,7 +248,7 @@ let rec sexp_of_stmt = function
   | Stmt.Transition trans -> sexp_of_transition_stmt trans
   | Stmt.Assign (lhs, rhs) -> sexp_of_assign lhs rhs
   | Stmt.Call (call, args) -> sexp_of_call call args
-  | Stmt.Invoke name -> sexp_of_invoke name
+  | Stmt.Invoke (eo, name) -> sexp_of_invoke eo name
   | Stmt.Apply (name, ext_args, args) -> sexp_of_apply name ext_args args
   | Stmt.Var (x, e, tail) -> sexp_of_var_decl x e tail
   | Stmt.Seq (h, t) -> sexp_of_seq_stmt h t

@@ -297,8 +297,8 @@ let rec print_stmt p =
   | Stmt.Exit ->
     fprintf p "SExit"
 
-  | Stmt.Invoke s ->
-    fprintf p "SInvoke %s" s
+  | Stmt.Invoke (eo, s) ->
+    fprintf p "SInvoke %a %s" (print_option print_expr) eo s
 
   | Stmt.Apply (s, fs, arg) ->
     fprintf p "SApply @[%s, Ext_args = %a, args = %a@]"

@@ -367,9 +367,11 @@ Inductive stmt_big_step
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Method ext meth τs eo) args ⧽
     ⤋ ⧼ lv_update_signal olv sig (copy_out_from_args vargs vargs' ϵ), Cont, ψ ⧽
 | sbs_invoke
-    ϵ₁ ϵ₂ ϵ' t (tbls : tenv) acts insts pats light_sets
+    ϵ₁ ϵ₂ ϵ' eo lvo t (tbls : tenv) acts insts pats light_sets
     ψ (key : list (Expr.e * string)) actions vs light_vals arefs
-    a opt_ctrl_args ctrl_args data_args :
+    a idx opt_ctrl_args ctrl_args data_args :
+  (** Evaluate left hand expression *)
+  relop (lexpr_big_step (ϵ₁ ++ ϵ₂)) eo lvo ->
   (** Lookup table. *)
   tbls t = Some (length ϵ₂, key, actions) ->
   (** Evaluate table key. *)
@@ -383,13 +385,24 @@ Inductive stmt_big_step
   = Some (mk_action_ref a opt_ctrl_args) ->
   (** Find appropriate action data-plane arguments in table. *)
   Field.get a actions = Some data_args ->
+  (** Get index of action name in table declaration. *)
+  Field.get_index a actions = Some idx ->
   (** Force control-plane arguments to be defined. *)
   Forall2 (fun oe e => oe = Some e) opt_ctrl_args ctrl_args ->
   (** Evaluate action. *)
   ⧼ Ψ, ϵ₂, CApplyBlock tbls acts insts,
     Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽ ⤋ ⧼ ϵ', Cont, ψ ⧽ ->
   ⧼ Ψ, ϵ₁ ++ ϵ₂, CApplyBlock tbls acts insts,
-    Stmt.Invoke t ⧽ ⤋ ⧼ ϵ₁ ++ ϵ', Cont, ψ ⧽
+    Stmt.Invoke eo t ⧽
+    ⤋ ⧼ lv_update_signal
+          lvo
+          (Rtrn
+             (Some 
+             (Val.Lists
+                Expr.lists_struct
+                [Val.Bool true; Val.Bool false;
+                 Val.Bit (BinNat.N.of_nat (length actions)) (Z.of_nat idx)])))
+          (ϵ₁ ++ ϵ'), Cont, ψ ⧽
 | sbs_apply_control
     ϵ ϵ' ϵ'' tbls actions control_insts
     c ext_args args vargs sig ψ
@@ -446,6 +459,8 @@ Inductive stmt_big_step
   ⧼ Ψ, ϵ, c, If e Then s₁ Else s₂ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽
 where "⧼ Ψ , ϵ , c , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
   := (stmt_big_step Ψ ϵ c s ϵ' sig ψ) : type_scope.
+
+
 
 Local Close Scope stmt_scope.
 Local Close Scope value_scope.

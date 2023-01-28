@@ -55,11 +55,12 @@ Definition inf_transition  (transition : Parser.pt) :=
 Fixpoint inf_s  (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
-  | Stmt.Exit
-  | Stmt.Invoke _ => s
+  | Stmt.Exit          => s
   | Stmt.Return e      => Stmt.Return $ option_map inf_e e
   | Stmt.Transition e  => Stmt.Transition $ inf_transition e
   | (lhs `:= rhs)%stmt => (inf_e lhs `:= inf_e rhs)%stmt
+  | Stmt.Invoke e t
+    => Stmt.Invoke (option_map inf_e e) t
   | Stmt.Call fk args
     => Stmt.Call (inf_fun_kind fk) $ map inf_arg args
   | Stmt.Apply ci ext_args args =>

@@ -854,9 +854,9 @@ Section ToP4cub.
             match ret_var, ret_type with
               Some (original_name,rv), Some rt =>
                 let switch_expr := E.Var rt original_name rv in
-                ST.Invoke callee_string
+                ST.Invoke (Some switch_expr) callee_string
             | _, _ =>
-                ST.Invoke callee_string
+                ST.Invoke None callee_string
             end
         | TypParser _ =>
             error "[FIXME] translate parser apply calls"

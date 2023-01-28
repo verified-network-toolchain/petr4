@@ -130,8 +130,9 @@ Inductive lifted_stmt : Stmt.s -> Prop :=
 | lifted_transition e :
   lifted_parser_expr e ->
   lifted_stmt (Stmt.Transition e)
-| lifted_invoke t :
-  lifted_stmt (Stmt.Invoke t)
+| lifted_invoke eo t :
+  predop lifted_rexpr eo ->
+  lifted_stmt (Stmt.Invoke eo t)
 | lifted_apply x ext_args args :
   Forall lifted_arg args ->
   lifted_stmt (Stmt.Apply x ext_args args).
@@ -495,6 +496,7 @@ Proof.
     destruct hin as (arg & hlift & hin); subst.
     auto.
   - destruct eo; cbn; auto.
+  - inv H; cbn; auto.
   - constructor.
     rewrite Forall_forall in *.
     intros arg' hin.
@@ -540,6 +542,8 @@ Proof.
       intros pa' hin.
       rewrite in_map_iff in hin.
       destruct hin as (pa & hlift & hin); subst. eauto.
+  - destruct lhs; try lift_e_destr;
+      try apply lift_e_lifted_expr in Heqp as [? ?]; auto.
   - destruct (lift_args args) as [args' largs] eqn:eqargs.
     apply lift_args_lifted_args in eqargs as [? ?]; auto.
   - destruct expr as [t | e]; auto.

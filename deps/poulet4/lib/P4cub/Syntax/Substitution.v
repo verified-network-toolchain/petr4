@@ -92,12 +92,13 @@ Section Sub.
   Fixpoint tsub_s (s : Stmt.s) : Stmt.s :=
     match s with
     | Stmt.Skip
-    | Stmt.Invoke _
     | Stmt.Exit => s
     | Stmt.Return e => Stmt.Return $ option_map tsub_e e
     | Stmt.Transition e => Stmt.Transition $ tsub_transition e
     | (lhs `:= rhs)%stmt
       => (tsub_e lhs `:= tsub_e rhs)%stmt
+    | Stmt.Invoke e t
+      => Stmt.Invoke (option_map tsub_e e) t
     | Stmt.Call fk args
       => Stmt.Call (tsub_fun_kind fk) $ map tsub_arg args
     | Stmt.Apply ci ext_args args =>

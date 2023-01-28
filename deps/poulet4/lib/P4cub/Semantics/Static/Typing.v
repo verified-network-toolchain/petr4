@@ -177,9 +177,16 @@ Inductive type_stmt (Δ : nat) (Γ : list Expr.t) (fs : fenv)
   insts x = Some (inr (sig,extern_params,params)) ->
   type_args Δ Γ args (map snd params) ->
   `⧼ Δ, Γ, fs, c ⧽ ⊢ Stmt.Apply x extern_args args ⊣ Cont
-| type_invoke tbl tbls aa i :
-  In tbl tbls ->
-  `⧼ Δ, Γ, fs, CApplyBlock tbls aa i ⧽ ⊢ Stmt.Invoke tbl ⊣ Cont
+| type_invoke eo tbl tbls aa i n :
+  tbls tbl = Some n ->
+  predop
+    (fun e =>
+       `⟨ Δ, Γ ⟩ ⊢
+         e ∈ Expr.TStruct
+         false
+         [Expr.TBool; Expr.TBool; Expr.TBit (N.of_nat n)])
+    eo ->
+  `⧼ Δ, Γ, fs, CApplyBlock tbls aa i ⧽ ⊢ Stmt.Invoke eo tbl ⊣ Cont
 | type_vardecl c og τ te s sig :
     match te with
     | inr e => `⟨ Δ, Γ ⟩ ⊢ e ∈ τ
@@ -211,7 +218,7 @@ Record ctrl_type_env : Set :=
     ; cfuncts : fenv (** available functions. *)
     ; cinsts : ienv  (** available control instances. *)
     ; actns : aenv   (** available action signatures. *)
-    ; tbls : list string (** available table names. *) }.
+    ; tbls : tbl_env (** available table names. *) }.
 
 Global Instance eta_ctrl_type_env : Settable _ :=
   settable! mk_ctrl_type_env
@@ -222,9 +229,9 @@ Reserved Notation "Γ '⊢ᵪ' d '⊣' result"
 
 Variant ctrldecl_type : Set :=
   | ctrl_var_type (τ : Expr.t)
-  | ctrl_act_type (a : string)
+  | ctrl_act_type (action_name : string)
       (ctrl_params : list Expr.t) (data_params : Expr.params)
-  | ctrl_tbl_type (t : string).
+  | ctrl_tbl_type (table_name : string) (number_of_actions : nat).
 
 (** Control declaration typing,
     Producing either a new action or table. *)
@@ -254,7 +261,7 @@ Variant type_ctrldecl (Γ : ctrl_type_env)
                data_args (List.map snd data_params))
       actions ->
     Γ ⊢ᵪ Control.Table
-      table_name key actions ⊣  ctrl_tbl_type table_name
+      table_name key actions ⊣ ctrl_tbl_type table_name (List.length actions)
 where "Γ '⊢ᵪ' d '⊣' result"
   := (type_ctrldecl Γ d result) : type_scope.
 
@@ -291,15 +298,15 @@ Definition type_ctrl
                Γ' = Γ <| ctypes := τ :: Γ.(ctypes) |>
            | ctrl_act_type an cps dps =>
                Γ' = Γ <| actns := an ↦ (cps, dps) ,, actns Γ |>
-           | ctrl_tbl_type tn =>
-               Γ' = Γ <| tbls := tn :: tbls Γ |>
+           | ctrl_tbl_type tn n =>
+               Γ' = Γ <| tbls := tn ↦ n ,, tbls Γ |>
            end)
     ctrl
     {| ctype_vars := 0
     ; ctypes := bind_all params Γ
     ; cfuncts := fs
     ; cinsts := cis
-    ; actns := ∅ ; tbls := [] |}.
+    ; actns := ∅ ; tbls := ∅ |}.
 
 (** Top-level declaration typing. *)
 Inductive type_topdecl (Γ : top_type_env)

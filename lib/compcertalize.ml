@@ -224,8 +224,8 @@ let rec stmt_convert (s:  Prev.Stmt.s) =
     | Prev.Stmt.Return e ->
         Stmt.Return (Option.map convert_expression e)
     | Prev.Stmt.Exit -> Stmt.Exit
-    | Prev.Stmt.Invoke t ->
-        Stmt.Invoke (string_charlist t)
+    | Prev.Stmt.Invoke (eo,t) ->
+        Stmt.Invoke (Option.map convert_expression eo, string_charlist t)
     | Prev.Stmt.Apply (s, fs, a) ->
         Stmt.Apply (string_charlist s,
         List.map string_charlist fs,

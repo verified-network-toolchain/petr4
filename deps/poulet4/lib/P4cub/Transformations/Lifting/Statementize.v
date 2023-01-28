@@ -149,8 +149,8 @@ Local Open Scope stmt_scope.
 Fixpoint lift_s (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
-  | Stmt.Invoke _
   | Stmt.Exit
+  | Stmt.Invoke None _
   | Stmt.Return None => s
   | Stmt.Return (Some e)
     => let '(e, le) := lift_e e in
@@ -165,6 +165,9 @@ Fixpoint lift_s (s : Stmt.s) : Stmt.s :=
         (shift_list shift_e (Shifter 0 (length le1)) le2 ++ le1)
         (shift_e (Shifter 0 (length le2)) e1
            `:= shift_e (Shifter (length le2) (length le1)) e2)
+  | Stmt.Invoke (Some e) t
+    => let '(e, le) := lift_e e in
+      Unwind le $ Stmt.Invoke (Some e) t
   | Stmt.Call fk args
     => let '(fk,lfk) := lift_fun_kind fk in
       let '(args,largs) := lift_args args in

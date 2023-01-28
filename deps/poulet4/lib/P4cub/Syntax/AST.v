@@ -205,7 +205,7 @@ Module Stmt.
   | Assign (lhs rhs : Expr.e)     (** assignment *)
   | Call (call : fun_kind) (** kind of call *)
       (args : Expr.args)   (** arguments *)
-  | Invoke (table_name : string) (** table invocation *)
+  | Invoke (lhs : option Expr.e) (table_name : string) (** table invocation *)
   | Apply (instance_name : string)
       (ext_args : list string)
       (args : Expr.args) (** apply statements *)

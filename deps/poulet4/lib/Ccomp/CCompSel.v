@@ -330,6 +330,7 @@ Section CCompSel.
 
   Definition
     CTranslateTableInvoke
+      (tbl_result_temp : option ident)
       (tbl : string)
     : StateT ClightEnv (result string) Clight.statement :=
     let* env := get_state in
@@ -360,7 +361,7 @@ Section CCompSel.
     let arg_list := [arg_action; arg_table; arg_keys] in
     let call :=
       Scall
-        None
+        tbl_result_temp
         (table_match_function (Z.of_nat (List.length key)))
         arg_list in
     let action_to_take_id := Efield (Evar action_id action_ref) _action int_signed in
@@ -980,7 +981,16 @@ Section CCompSel.
           Scall (Some resultid) (Evar id (Clight.type_of_function f')) elist in
         let judge := Sifthenelse (result) Sskip (Sreturn (Some Cfalse)) in
         mret (Ssequence kompute judge)
-    | Stmt.Invoke tbl => CTranslateTableInvoke tbl
+    | Stmt.Invoke None tbl => CTranslateTableInvoke None tbl
+    | Stmt.Invoke (Some e) tbl =>
+        let t := t_of_e e in
+        let* ct := State_lift (CTranslateType t) in
+        let* tempid := State_lift (CCompEnv.add_temp_nameless ct) in
+        let* lvalue := CTranslateExpr e in
+        let^ tbl_call := CTranslateTableInvoke (Some tempid) tbl in
+        Ssequence
+          tbl_call
+          (Sassign lvalue (Etempvar tempid ct))
     | Stmt.Assign e1 e2 =>
       let* e1' := CTranslateExpr e1 in
       let^ e2' := CTranslateExpr e2 in

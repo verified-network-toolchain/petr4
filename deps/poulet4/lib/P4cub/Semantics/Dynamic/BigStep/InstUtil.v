@@ -8,7 +8,8 @@ Definition tenv : Set :=
     string (** table name. *)
     (nat (** number of variables in scope. Tables have dynamic scope. *)
      * list (Expr.e * string) (** table key. *)
-     * list (string * Expr.args)) (** actions. *).
+     * list (string * Expr.args) (** actions. *)
+     * option (string * list Expr.e)) (** default action. *).
 
 (** Function declarations and closures. *)
 Inductive fdecl: Set :=

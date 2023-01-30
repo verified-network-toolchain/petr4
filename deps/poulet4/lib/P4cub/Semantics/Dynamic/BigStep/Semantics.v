@@ -275,11 +275,14 @@ Definition arg_big_step (ϵ : list Val.v) : Expr.arg -> Val.argv -> Prop :=
 Definition args_big_step (ϵ : list Val.v) : Expr.args -> Val.argsv -> Prop :=
   Forall2 (arg_big_step ϵ).
 
-Variant eval_table_action : bool -> Prop :=
-  | eval_some_table_action :
-    eval_table_action true
-  | eval_none_table_action :
-    eval_table_action false.
+Variant eval_table_action
+  : option (string * list Expr.e) -> option (@action_ref Expr.e) -> bool -> string -> list Expr.e -> Prop :=
+  | eval_table_action_hit def a opt_ctrl_args ctrl_args :
+    (** Force control-plane arguments to be defined. *)
+    Forall2 (fun oe e => oe = Some e) opt_ctrl_args ctrl_args ->
+    eval_table_action def (Some (mk_action_ref a opt_ctrl_args)) true a ctrl_args
+  | eval_table_action_miss a ctrl_args :
+    eval_table_action (Some (a, ctrl_args)) None false a ctrl_args.
 
 Inductive stmt_big_step
   `{ext_sem : Extern_Sem} (Ψ : stmt_eval_env ext_sem)
@@ -377,12 +380,12 @@ Inductive stmt_big_step
     ⤋ ⧼ lv_update_signal olv sig (copy_out_from_args vargs vargs' ϵ), Cont, ψ ⧽
 | sbs_invoke
     ϵ₁ ϵ₂ ϵ' eo lvo t (tbls : tenv) acts insts pats light_sets
-    ψ (key : list (Expr.e * string)) actions vs light_vals arefs
-    a idx opt_ctrl_args ctrl_args data_args :
+    ψ (key : list (Expr.e * string)) actions def vs light_vals arefs
+    hit a idx ctrl_args data_args :
   (** Evaluate left hand expression *)
   relop (lexpr_big_step (ϵ₁ ++ ϵ₂)) eo lvo ->
   (** Lookup table. *)
-  tbls t = Some (length ϵ₂, key, actions) ->
+  tbls t = Some (length ϵ₂, key, actions, def) ->
   (** Evaluate table key. *)
   Forall2 (expr_big_step ϵ₂) (map fst key) vs ->
   (** Evaluate table entries. *)
@@ -390,14 +393,14 @@ Inductive stmt_big_step
   (** Embed p4cub patterns in p4light value sets. *)
   Forall2 embed_pat_valset pats light_sets ->
   (** Get action reference from control-plane with control-plane arguments. *)
-  extern_match (combine light_vals (map snd key)) (combine light_sets arefs)
-  = Some (mk_action_ref a opt_ctrl_args) ->
+  eval_table_action
+    def
+    (extern_match (combine light_vals (map snd key)) (combine light_sets arefs))
+    hit a ctrl_args ->
   (** Find appropriate action data-plane arguments in table. *)
   Field.get a actions = Some data_args ->
   (** Get index of action name in table declaration. *)
   Field.get_index a actions = Some idx ->
-  (** Force control-plane arguments to be defined. *)
-  Forall2 (fun oe e => oe = Some e) opt_ctrl_args ctrl_args ->
   (** Evaluate action. *)
   ⧼ Ψ, ϵ₂, CApplyBlock tbls acts insts,
     Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽ ⤋ ⧼ ϵ', Cont, ψ ⧽ ->
@@ -409,7 +412,7 @@ Inductive stmt_big_step
              (Some 
              (Val.Lists
                 Expr.lists_struct
-                [Val.Bool true; Val.Bool false;
+                [Val.Bool hit; Val.Bool $ negb hit;
                  Val.Bit (BinNat.N.of_nat (length actions)) (Z.of_nat idx)])))
           (ϵ₁ ++ ϵ'), Cont, ψ ⧽
 | sbs_apply_control
@@ -465,8 +468,6 @@ Inductive stmt_big_step
   ⧼ Ψ, ϵ, c, If e Then s₁ Else s₂ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽
 where "⧼ Ψ , ϵ , c , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
   := (stmt_big_step Ψ ϵ c s ϵ' sig ψ) : type_scope.
-
-
 
 Local Close Scope stmt_scope.
 Local Close Scope value_scope.

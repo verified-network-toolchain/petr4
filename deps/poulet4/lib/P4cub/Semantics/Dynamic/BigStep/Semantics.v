@@ -2,6 +2,7 @@ Require Import Coq.ZArith.BinInt
   Poulet4.P4cub.Syntax.CubNotations
   Poulet4.P4light.Architecture.Target
   Poulet4.P4light.Syntax.Syntax
+  Poulet4.P4cub.Semantics.Climate
   RecordUpdate.RecordSet.
 From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.Value.Value.
@@ -9,7 +10,7 @@ From Poulet4.P4cub.Semantics.Dynamic Require Export
   BigStep.ExprUtil BigStep.ValEnvUtil BigStep.InstUtil
   BigStep.Value.Embed.
 Import Val.ValueNotations ExprNotations ParserNotations
-  Val.LValueNotations StmtNotations RecordSetNotations.
+  Val.LValueNotations StmtNotations RecordSetNotations Clmt.Notations.
 
 (** * Expression evaluation. *)
 
@@ -330,11 +331,11 @@ Inductive stmt_big_step
     ⤋ ⧼ lv_update_signal olv sig (copy_out O vargs ϵ'' ϵ), Cont, ψ ⧽  
 | sbs_action_call
     ϵ ϵ' ϵ'' clos c ψ a ctrl_args data_args actions
-    vctrl_args vdata_args olv fun_clos act_clos body sig :
+    vctrl_args vdata_args olv act_clos body sig :
   (** Get action from context. *)
   actions_of_ctx c actions ->
   (** Lookup action. *)
-  actions a = Some (ADecl clos fun_clos act_clos body) ->
+  actions a = Some (ADecl clos act_clos body) ->
   (** Evaluate control-plane arguments. *)
   Forall2 (expr_big_step ϵ) ctrl_args vctrl_args ->
   (** Evaluate data-plane arguments. *)
@@ -342,7 +343,7 @@ Inductive stmt_big_step
   (** Copyin. *)
   copy_in vdata_args clos = Some ϵ' ->
   (** Evaluate the action body. *)
-  ⧼ Ψ <| functs := fun_clos |>, vctrl_args ++ ϵ', CAction act_clos,
+  ⧼ Ψ, vctrl_args ++ ϵ', CAction act_clos,
       body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽
     ⤋ ⧼ lv_update_signal olv sig (copy_out O vdata_args ϵ'' ϵ), Cont, ψ ⧽
@@ -470,4 +471,31 @@ where "⧼ Ψ , ϵ , c , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
   := (stmt_big_step Ψ ϵ c s ϵ' sig ψ) : type_scope.
 
 Local Close Scope stmt_scope.
+Local Open Scope climate_scope.
+
+Variant ctrl_big_step
+  (tbls : tenv) (acts : aenv) (ϵ : list Val.v)
+  : Control.d -> list Val.v -> aenv -> tenv -> Prop :=
+  | cbs_var x te v :
+    SumForall (fun τ => v_of_t τ = Some v) (fun e => ⟨ ϵ, e ⟩ ⇓ v) te ->
+    ctrl_big_step tbls acts ϵ (Control.Var x te) (v :: ϵ) acts tbls
+  | cbs_action a ctrl_params data_params body :
+    ctrl_big_step
+      tbls acts ϵ (Control.Action a ctrl_params data_params body)
+      ϵ (a ↦ ADecl ϵ acts body ,, acts) tbls
+  | cbs_table t key actions def :
+    ctrl_big_step
+      tbls acts ϵ (Control.Table t key actions def)
+      ϵ acts (t ↦ (length ϵ, key, actions, def) ,, tbls).
+
+(*Check FoldLeft.*)
+
+(* can instance args be used in control declarations outside of apply block?
+   I don't think so.
+   I think it only has constructor args for ctrl decls.
+   Need to fix typing def probs. *)
+
+(*Definition ctrls_big_step*)
+
 Local Close Scope value_scope.
+Local Close Scope climate_scope.

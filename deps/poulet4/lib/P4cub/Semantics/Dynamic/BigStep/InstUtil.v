@@ -23,9 +23,7 @@ Definition fenv: Set := Clmt.t string fdecl.
 Inductive adecl: Set :=
 | ADecl
     (clos : list Val.v) (** value closure *)
-    (fs : fenv) (** function closure *)
     (actions : Clmt.t string adecl) (** action closure *)
-    (* TODO: needs De Bruijn extern instance closure env. *)
     (body : Stmt.s) (** action body *).
 
 (** Action names to closures. *)

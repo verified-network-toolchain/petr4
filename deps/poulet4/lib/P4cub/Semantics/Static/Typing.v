@@ -188,10 +188,9 @@ Inductive type_stmt (Δ : nat) (Γ : list Expr.t) (fs : fenv)
     eo ->
   `⧼ Δ, Γ, fs, CApplyBlock tbls aa i ⧽ ⊢ Stmt.Invoke eo tbl ⊣ Cont
 | type_vardecl c og τ te s sig :
-    match te with
-    | inr e => `⟨ Δ, Γ ⟩ ⊢ e ∈ τ
-    | inl τ' => τ' = τ /\ t_ok Δ τ'
-    end ->
+  SumForall
+    (fun τ' => τ' = τ /\ t_ok Δ τ')
+    (fun e => `⟨ Δ, Γ ⟩ ⊢ e ∈ τ) te ->
     `⧼ Δ, τ :: Γ, fs, c ⧽ ⊢ s ⊣ sig ->
     `⧼ Δ, Γ, fs, c ⧽ ⊢ Stmt.Var og te s ⊣ sig
 | type_seq c s₁ s₂ sig :
@@ -238,10 +237,9 @@ Variant ctrldecl_type : Set :=
 Variant type_ctrldecl (Γ : ctrl_type_env)
   : Control.d -> ctrldecl_type -> Prop :=
   | type_ctrl_var x te τ :
-    match te with
-    | inr e => `⟨ ctype_vars Γ, ctypes Γ ⟩ ⊢ e ∈ τ
-    | inl τ' => τ' = τ /\ t_ok (ctype_vars Γ) τ'
-    end ->
+    SumForall
+      (fun τ' => τ' = τ /\ t_ok (ctype_vars Γ) τ')
+      (fun e  => `⟨ ctype_vars Γ, ctypes Γ ⟩ ⊢ e ∈ τ) te ->
     Γ ⊢ᵪ Control.Var x te ⊣ ctrl_var_type τ
   | type_action action_name cparams dparams body sig :
     `⧼ ctype_vars Γ, map snd cparams ++ bind_all dparams (ctypes Γ),

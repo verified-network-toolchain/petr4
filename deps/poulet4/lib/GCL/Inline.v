@@ -733,7 +733,7 @@ then error "args has typevar call funct" else  *)
     | ST.Invoke _ tbl_name => (* TODO: how to inline table left-hand side? *)
       let* tdecl := from_opt (find_table ctx tbl_name) "could not find table in environment" in
       match tdecl with
-      | CD.Table _ key actions =>
+      | CD.Table _ key actions _ => (* TODO: default action? *)
         let keys : list (E.t * E.e * string) :=
           List.map (fun '(e,m) => (t_of_e e,e,m)) key in
         let act_size := Nat.max (PeanoNat.Nat.log2_up (List.length actions)) 1 in

@@ -248,7 +248,7 @@ Variant type_ctrldecl (Γ : ctrl_type_env)
         cfuncts Γ, CAction (actns Γ) (cinsts Γ) ⧽ ⊢ body ⊣ sig ->
     Γ ⊢ᵪ Control.Action action_name cparams dparams body
       ⊣ ctrl_act_type action_name (map snd cparams) dparams
-  | type_table table_name key actions :
+  | type_table table_name key actions def :
     (** Keys type. *)
     Forall
       (fun e => exists τ, `⟨ ctype_vars Γ, ctypes Γ ⟩ ⊢ e ∈ τ) (map fst key) ->
@@ -260,8 +260,15 @@ Variant type_ctrldecl (Γ : ctrl_type_env)
            /\ type_args (ctype_vars Γ) (ctypes Γ)
                data_args (List.map snd data_params))
       actions ->
+    predop
+      (fun '(a, es) =>
+         In a (map fst actions)
+         /\ exists ctrl_params data_params,
+           actns Γ a = Some (ctrl_params, data_params)
+           /\ Forall2 (type_expr (ctype_vars Γ) (ctypes Γ)) es ctrl_params)
+      def ->
     Γ ⊢ᵪ Control.Table
-      table_name key actions ⊣ ctrl_tbl_type table_name (List.length actions)
+      table_name key actions def ⊣ ctrl_tbl_type table_name (List.length actions)
 where "Γ '⊢ᵪ' d '⊣' result"
   := (type_ctrldecl Γ d result) : type_scope.
 

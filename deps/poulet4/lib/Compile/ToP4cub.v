@@ -273,7 +273,7 @@ Section ToP4cub.
     match d with
     | Control.Action _ _ _ _ =>
         add_action decls d
-    | Control.Table _ _ _ =>
+    | Control.Table _ _ _ _ =>
         add_table decls d
     | _ => decls
     end.
@@ -309,7 +309,7 @@ Section ToP4cub.
     match d with
     | Control.Var x _
     | Control.Action x _ _ _
-    | Control.Table x _ _ => String.eqb name x
+    | Control.Table x _ _ _ => String.eqb name x
     end.
   
   Definition is_member (name : string) (l : list (TopDecl.d)) : bool :=
@@ -1905,7 +1905,9 @@ Section ToP4cub.
           translate_keys
             [] (term_names ++ get_variables ctx) keys in
         let+ cub_actions := translate_actions ctx term_names actions in
-        add_table ctx (Control.Table name cub_keys cub_actions)
+        (* TODO: correct default action:
+           needs to split to get control-plane args *)
+         add_table ctx (Control.Table name cub_keys cub_actions None)
     | DeclHeader tags name fields =>
         (* error "[FIXME] Header Declarations unimplemented" *)
         let+ fs := translate_decl_fields [] fields in

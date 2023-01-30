@@ -144,10 +144,11 @@ Definition tsub_Cd (σ : nat -> Expr.t) (d : Control.d) :=
       Control.Action
         a (map_snd (tsub_t σ) cps)
         (map_snd (tsub_param σ) dps) $ tsub_s σ body
-  | Control.Table t key acts =>
+  | Control.Table t key acts def =>
       Control.Table
         t (List.map (fun '(e,mk) => (tsub_e σ e, mk)) key)
-        $ List.map (fun '(a,args) => (a, map (tsub_arg σ) args)) acts
+        (List.map (fun '(a,args) => (a, map (tsub_arg σ) args)) acts)
+        $ option_map (fun '(a,es) => (a, map (tsub_e σ) es)) def
   end.
 
 Definition tsub_d (σ : nat -> Expr.t) (d : TopDecl.d) : TopDecl.d :=

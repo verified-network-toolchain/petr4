@@ -147,10 +147,11 @@ Variant lifted_control_Decl : Control.d -> Prop :=
   | lifted_control_Action act cps dps body :
     lifted_stmt body ->
     lifted_control_Decl (Control.Action act cps dps body)
-  | lifted_control_Table table_name key actions :
+  | lifted_control_Table table_name key actions def :
     Forall lifted_expr (map fst key) ->
     Forall (Forall lifted_arg) (map snd actions) ->
-    lifted_control_Decl (Control.Table table_name key actions).
+    predop (fun '(_,es) => Forall lifted_expr es) def ->
+    lifted_control_Decl (Control.Table table_name key actions def).
 
 Variant lifted_top_Decl : TopDecl.d -> Prop :=
 | lifted_Instantiate c_name i_name type_args cargs expr_cargs :
@@ -608,65 +609,94 @@ Proof.
     destruct (split actions) as [acts argss] eqn:hactions.
     destruct (lift_e_list es) as [es' ees] eqn:hes.
     destruct (lift_args_list argss)
-      as [argss' argsss] eqn:hargss. inv h.
+      as [argss' argsss] eqn:hargss.
+    destruct (omap_effect [] (fun '(a, es) => map_fst (pair a) (lift_e_list es)) default_action)
+      as [def' defes] eqn:eqdef. inv h.
     pose proof lift_e_list_lifted_expr _ _ _ hes as [hees hes'].
     pose proof lift_args_list_lifted _ _ _ hargss as [hargss' hargsss].
     repeat rewrite Forall_app. repeat rewrite Forall_map.
     repeat split; eauto using Forall_impl.
-    constructor; auto. constructor.
-    + rewrite map_fst_combine.
-      * clear dependent es.
-        clear dependent acts.
-        clear dependent argss'.
-        rewrite Forall_forall in hes' |- *.
-        intros e' hin.
-        rewrite in_map_iff in hin.
-        destruct hin as (e & ? & hin); subst. auto.
-      * pose proof f_equal fst hkey as hfst.
-        pose proof f_equal snd hkey as hsnd.
-        apply f_equal with (f:=length (A:=Expr.e)) in hfst.
-        apply f_equal with (f:=length (A:=String.string)) in hsnd.
-        rewrite split_length_l in hfst.
-        rewrite split_length_r in hsnd. cbn in *.
-        rewrite hfst in hsnd.
-        rewrite map_length.
-        unfold lift_e_list in hes.
-        destruct (split (shift_pairs shift_e $ map lift_e es))
-          as [es'' les] eqn:hsplit.
-        rewrite split_map in hsplit.
-        do 2 pair_destr. unravel in *.
-        rewrite map_length, shift_pairs_length, map_length.
-        assumption.
-    + rewrite map_snd_combine.
-      * clear dependent es.
-        clear dependent es'.
-        clear dependent mks.
-        clear dependent acts.
-        clear dependent argss.
-        clear dependent argsss.
-        clear actions table_name key hees.
-        induction argss'; inv hargsss;
-          constructor; auto.
-        clear dependent argss'.
-        induction a; inv H1; constructor; auto.
-      * pose proof f_equal fst hactions as hfst.
-        pose proof f_equal snd hactions as hsnd.
-        apply f_equal with (f:=length (A:=String.string)) in hfst.
-        apply f_equal with (f:=length (A:=Expr.args)) in hsnd.
-        rewrite split_length_l in hfst.
-        rewrite split_length_r in hsnd. cbn in *.
-        rewrite hfst in hsnd.
-        rewrite map_length.
-        unfold lift_args_list in hargss.
-        destruct (split (shift_pairs (shift_list shift_arg) $ map lift_args argss))
-          as [argss'' argsss'] eqn:hsplit.
-        rewrite split_map in hsplit.
-        unravel in *. do 2 pair_destr.
-        rewrite map_length, shift_pairs_length, map_length.
-        assumption.
+    + destruct default_action as [[a des] |]; cbn in *.
+      * destruct (map_fst (pair a) (lift_e_list des))
+          as [[a' des'] ?] eqn:eqdesfst; inv eqdef.
+        destruct (lift_e_list des) as [? ?] eqn:eqdes; cbn in *; inv eqdesfst.
+        pose proof lift_e_list_lifted_expr _ _ _ eqdes as [hdes1 hdes2].
+        rewrite Forall_forall in hdes1 |- *.
+        intros e hein.
+        constructor. eauto.
+      * inv eqdef. auto.
+    + constructor; auto. constructor.
+      * rewrite map_fst_combine.
+         -- clear dependent es.
+            clear dependent acts.
+            clear dependent argss'.
+            rewrite Forall_forall in hes' |- *.
+            intros e' hin.
+            rewrite in_map_iff in hin.
+            destruct hin as (e & ? & hin); subst.
+            rewrite in_map_iff in hin.
+            destruct hin as (? & ? & ?); subst.
+            auto.
+         -- pose proof f_equal fst hkey as hfst.
+            pose proof f_equal snd hkey as hsnd.
+            apply f_equal with (f:=length (A:=Expr.e)) in hfst.
+            apply f_equal with (f:=length (A:=String.string)) in hsnd.
+            rewrite split_length_l in hfst.
+            rewrite split_length_r in hsnd. cbn in *.
+            rewrite hfst in hsnd.
+            rewrite map_length.
+            unfold lift_e_list in hes.
+            destruct (split (shift_pairs shift_e $ map lift_e es))
+              as [es'' les] eqn:hsplit.
+            rewrite split_map in hsplit.
+            do 2 pair_destr. unravel in *.
+            do 2 rewrite map_length.
+            rewrite shift_pairs_length, map_length.
+            assumption.
+      * rewrite map_snd_combine.
+        --  clear dependent es.
+            clear dependent es'.
+            clear dependent mks.
+            clear dependent acts.
+            clear dependent argss.
+            clear dependent argsss.
+            clear dependent def'.
+            clear actions table_name key hees.
+            induction argss'; inv hargsss;
+              constructor; auto.
+            clear dependent argss'.
+            induction a; inv H1; constructor; auto.
+        --  pose proof f_equal fst hactions as hfst.
+            pose proof f_equal snd hactions as hsnd.
+            apply f_equal with (f:=length (A:=String.string)) in hfst.
+            apply f_equal with (f:=length (A:=Expr.args)) in hsnd.
+            rewrite split_length_l in hfst.
+            rewrite split_length_r in hsnd. cbn in *.
+            rewrite hfst in hsnd.
+            rewrite map_length.
+            unfold lift_args_list in hargss.
+            destruct (split (shift_pairs (shift_list shift_arg) $ map lift_args argss))
+              as [argss'' argsss'] eqn:hsplit.
+            rewrite split_map in hsplit.
+            unravel in *. do 2 pair_destr.
+            rewrite map_length, shift_pairs_length, map_length.
+            assumption.
+      * destruct default_action as [[a des] |]; cbn in *.
+        -- destruct (map_fst (pair a) (lift_e_list des))
+          as [[a' des'] ?] eqn:eqdesfst; inv eqdef.
+           destruct (lift_e_list des) as [? ?] eqn:eqdes; cbn in *; inv eqdesfst.
+           pose proof lift_e_list_lifted_expr _ _ _ eqdes as [hdes1 hdes2].
+           constructor.
+           rewrite Forall_forall in hdes2 |- *.
+           intros e hein.
+           rewrite in_map_iff in hein.
+           destruct hein as (? & ? & ?); subst.
+           eauto.
+        -- inv eqdef. constructor.
 Qed.
 
 Local Hint Resolve lift_control_decl_lifted_control_Decl : core.
+Local Hint Constructors predop : core.
 
 Lemma shift_lifted_control_Decl : forall sh cd,
     lifted_control_Decl cd ->
@@ -692,6 +722,12 @@ Proof.
       intros arg' hin.
       rewrite in_map_iff in hin.
       destruct hin as (arg & ? & hin); subst; auto.
+    + destruct def as [[da des] |];
+        inv H1; constructor.
+      rewrite Forall_forall in H3 |- *.
+      intros e hein.
+      rewrite in_map_iff in hein.
+      destruct hein as (? & ? & ?); subst; auto.
 Qed.
 
 Local Hint Resolve shift_lifted_control_Decl : core.

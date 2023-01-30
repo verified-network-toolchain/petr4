@@ -318,11 +318,12 @@ let print_control_d p (d : Control.d) =
     (print_fields print_string print_type) ctrl_params
     print_params data_params
     print_stmt st
-  | Control.Table (s, key, ss) ->
-    fprintf p "CDTable %s (%a) %a"
+  | Control.Table (s, key, ss, def) ->
+    fprintf p "CDTable %s (%a) %a %a"
     s
     (print_fields print_expr print_string) key
     (print_fields print_string print_args) ss
+    (print_option (fun p (a, es) -> fprintf p "(%s , %a)" a (print_list print_expr) es)) def
 
 let print_tp_decl p (d: TopDecl.d) =
   match d with 

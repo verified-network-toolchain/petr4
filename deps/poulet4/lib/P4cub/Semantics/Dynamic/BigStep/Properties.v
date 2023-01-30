@@ -402,6 +402,8 @@ Section Properties.
     auto.
   Qed.
 
+  Local Hint Constructors SumForall : core.
+  
   Lemma shift_s_eval : forall Ψ us us' ϵ ϵ' c s sig ψ,
       length us = length us' ->
       ctx_cuttoff (length ϵ) c ->
@@ -519,9 +521,7 @@ Section Properties.
     - (* parser case... *)
       admit.
     - econstructor; eauto.
-      + destruct te; simpl in *.
-        * apply H.
-        * auto.
+      + inv H; simpl in *; eauto.
       + instantiate (1:=v').
         replace (v :: us ++ vs ++ eps) with
           ((v :: us) ++ vs ++ eps)

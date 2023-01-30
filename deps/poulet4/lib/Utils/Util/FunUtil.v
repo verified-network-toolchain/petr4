@@ -131,7 +131,7 @@ Section OExists.
 
   Lemma OExists_exists : forall o : option A,
       OExists o <-> exists a, P a /\ o = Some a.
-  Proof.
+  Proof using.
     intros [a |]; split.
     - intro h; inv h; eauto.
     - intros (a' & H & h); inv h; auto.
@@ -139,6 +139,67 @@ Section OExists.
     - intros (a' & H & h); inv h.
   Qed.
 End OExists.
+
+Section OptionEffect.
+  Polymorphic Universes a b c.
+  Polymorphic Context {A : Type@{a}} {B : Type@{b}} {C : Type@{a}}.
+  Polymorphic Variable default : C.
+  Polymorphic Variable f : A -> B * C.
+  Polymorphic Variable R : A -> B -> C -> Prop.
+
+  Polymorphic Definition omap_effect (o : option A) : option B * C :=
+    match o with
+    | Some a => let '(b, c) := f a in (Some b, c)
+    | None   => (None, default)
+    end.
+  
+  Polymorphic Variant orelate_effect : option A -> option B -> C -> Prop :=
+    | orelate_effect_some a b c :
+      R a b c ->
+      orelate_effect (Some a) (Some b) c
+    | orelate_effect_none :
+      orelate_effect None None default.
+
+  Polymorphic Hypothesis f_R : forall a,
+      R a (fst (f a)) (snd (f a)).
+
+  Local Hint Constructors orelate_effect : core.
+  
+  Polymorphic Lemma omap_orelate_effect : forall o,
+      orelate_effect o (fst (omap_effect o)) (snd (omap_effect o)).
+  Proof using A B C R default f f_R.
+    intros [a |]; cbn; auto.
+    destruct (f a) as [b c] eqn:fa. cbn.
+    pose proof f_equal fst fa as ffst.
+    pose proof f_equal snd fa as fsnd.
+    cbn in *.
+    rewrite <- ffst, <- fsnd.
+    auto.
+  Qed.
+
+  Polymorphic Hypothesis R_f : forall a b c,
+      R a b c -> f a = (b, c).
+
+  Polymorphic Lemma orelate_omap_effect : forall oa ob c,
+      orelate_effect oa ob c ->
+      omap_effect oa = (ob, c).
+  Proof using A B C R R_f default f.
+    intros [a |] [b |] c h; inv h; cbn; try reflexivity.
+    erewrite R_f with (b:=b) (c:=c) by assumption.
+    reflexivity.
+  Qed.
+End OptionEffect.
+
+Section Forall_Sum.
+  Polymorphic Universes a b.
+  Polymorphic Context {A : Type@{a}} {B : Type@{b}}.
+  Polymorphic Variables (P : A -> Prop) (Q : B -> Prop).
+
+  Polymorphic Variant SumForall : A + B -> Prop :=
+    | Forall_inl a : P a -> SumForall (inl a)
+    | Forall_inr b : Q b -> SumForall (inr b).
+End Forall_Sum.
+  
 
 Reserved Infix "`^" (at level 10, left associativity).
 
@@ -154,12 +215,12 @@ Section mapply.
   Variable f : A -> A.
 
   Lemma mapply0 : forall a, f `^ 0 a = a.
-  Proof.
+  Proof using.
     reflexivity.
   Qed.
 
   Lemma mapply1 : forall a, f `^ 1 a = f a.
-  Proof.
+  Proof using.
     reflexivity.
   Qed.
 End mapply.

@@ -160,6 +160,12 @@ Variant ctx : Set :=
       (states : list Stmt.s)
       (available_parsers : inst_env).
 
+Variant actions_of_ctx : ctx -> aenv -> Prop :=
+  | actions_of_CAction a :
+    actions_of_ctx (CAction a) a
+  | actions_of_CApplyBlock te aa cs :
+    actions_of_ctx (CApplyBlock te aa cs) aa.
+
 (** Fetch the next state-block to evaluate. *)
 Definition get_state_block
            (strt : Stmt.s)
@@ -269,6 +275,12 @@ Definition arg_big_step (ϵ : list Val.v) : Expr.arg -> Val.argv -> Prop :=
 Definition args_big_step (ϵ : list Val.v) : Expr.args -> Val.argsv -> Prop :=
   Forall2 (arg_big_step ϵ).
 
+Variant eval_table_action : bool -> Prop :=
+  | eval_some_table_action :
+    eval_table_action true
+  | eval_none_table_action :
+    eval_table_action false.
+
 Inductive stmt_big_step
   `{ext_sem : Extern_Sem} (Ψ : stmt_eval_env ext_sem)
   : list Val.v -> ctx -> Stmt.s -> list Val.v -> signal
@@ -316,11 +328,8 @@ Inductive stmt_big_step
 | sbs_action_call
     ϵ ϵ' ϵ'' clos c ψ a ctrl_args data_args actions
     vctrl_args vdata_args olv fun_clos act_clos body sig :
-  match c with
-  | CAction actions
-  | CApplyBlock _ actions _ => Some actions
-  | _ => None
-  end = Some actions ->
+  (** Get action from context. *)
+  actions_of_ctx c actions ->
   (** Lookup action. *)
   actions a = Some (ADecl clos fun_clos act_clos body) ->
   (** Evaluate control-plane arguments. *)
@@ -439,10 +448,7 @@ Inductive stmt_big_step
   ⧼ Ψ, ϵ, CParserState n strt states parsers,
     Stmt.Apply p ext_args args ⧽ ⤋ ⧼ copy_out O vargs ϵ'' ϵ, sig, ψ ⧽
 | sbs_var ϵ ϵ' c og te v v' s sig ψ :
-  match te with
-  | inr e => ⟨ ϵ, e ⟩ ⇓ v
-  | inl τ => v_of_t τ = Some v
-  end ->
+  SumForall (fun τ => v_of_t τ = Some v) (fun e => ⟨ ϵ, e ⟩ ⇓ v) te ->
   ⧼ Ψ, v :: ϵ, c, s ⧽ ⤋ ⧼ v' :: ϵ', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stmt.Var og te s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽
 | sbs_seq_cont ϵ ϵ' ϵ'' c s₁ s₂ sig ψ ψ' :

@@ -237,7 +237,8 @@ Module Control.
       (actions :
         list
           (string (** action name *)
-           * Expr.args (** data-plane arguments *))).
+           * Expr.args (** data-plane arguments *)))
+      (default_action : option (string * list Expr.e)).
 End Control.
 
 (** Top-Level Declarations *)

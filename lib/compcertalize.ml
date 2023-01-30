@@ -243,11 +243,12 @@ let controld_convert (d :  Prev.Control.d) =
             List.map (fun (x,t) -> string_charlist x, convert_type t) ctrl_params,
             convert_params data_params,
             stmt_convert st)
-    | Prev.Control.Table (t, key, mks) ->
+    | Prev.Control.Table (t, key, mks, def) ->
         Control.Table (
             string_charlist t,
             List.map (fun (e,mk) -> convert_expression e, string_charlist mk) key,
-            List.map (fun (a,args) -> string_charlist a, args_convert args) mks)
+            List.map (fun (a,args) -> string_charlist a, args_convert args) mks,
+            Option.map (fun (a, es) -> string_charlist a, List.map convert_expression es) def)
 
 let topdecl_convert (d:  Prev.TopDecl.d) =
     match d with

@@ -78,10 +78,11 @@ Definition inf_Cd  (d : Control.d) :=
       Control.Var og $ map_sum id inf_e te
   | Control.Action a cps dps body =>
       Control.Action a cps dps $ inf_s body
-  | Control.Table t key acts =>
+  | Control.Table t key acts def =>
       Control.Table
         t (map (fun '(e,mk) => (inf_e e, mk)) key)
-        $ map (fun '(a,args) => (a, map inf_arg args)) acts
+        (map (fun '(a,args) => (a, map inf_arg args)) acts)
+        $ option_map (fun '(x,es) => (x, map inf_e es)) def
   end.
 
 Definition inf_d  (d : TopDecl.d) : TopDecl.d :=

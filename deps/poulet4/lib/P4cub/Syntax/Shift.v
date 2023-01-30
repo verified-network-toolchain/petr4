@@ -194,10 +194,11 @@ Definition shift_ctrl_decl
   match d with
   | Control.Var x te => Control.Var x $ map_sum id (shift_e sh) te
   | Control.Action a cps dps s => Control.Action a cps dps $ shift_s sh s
-  | Control.Table t key argss =>
+  | Control.Table t key argss def =>
       Control.Table
         t (map (fun '(e, mk) => (shift_e sh e, mk)) key)
         (map (fun '(a, args) => (a, map (shift_arg sh) args)) argss)
+        $ option_map (fun '(a, es) => (a, map (shift_e sh) es)) def
   end.
 
 Fixpoint shift_ctrl_decls

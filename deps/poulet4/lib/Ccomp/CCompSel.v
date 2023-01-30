@@ -1141,7 +1141,7 @@ Section CCompSel.
            (* TODO should be added to actions *)
            modify_state (CCompEnv.add_function a f) ;;
            state_return Sskip
-       | Control.Table name keys acts =>
+       | Control.Table name keys acts def =>
            modify_state (add_Table name keys acts) ;;
            let^ '(id, _, _) := search_state (find_table name) in
            let num_keys :=  Cint_of_Z (Z.of_nat (List.length keys)) in

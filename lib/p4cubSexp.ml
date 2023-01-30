@@ -276,20 +276,21 @@ let sexp_of_control_action_decl name cparams dparams body =
       sexp_of_stmt body;
     ]
 
-let sexp_of_control_table_decl name key actions =
+let sexp_of_control_table_decl name key actions def =
   make_sexp "Control.Table"
     [
       Sexp.Atom name;
       sexp_of_fields sexp_of_expr sexp_of_string key;
       sexp_of_dict sexp_of_args actions;
+      sexp_of_option (sexp_of_pair sexp_of_string sexp_of_exprs)  def
     ]
 
 let sexp_of_control_decl = function
   | Control.Var (x, e) -> sexp_of_control_var x e
   | Control.Action (name, cparams, dparams, body) ->
       sexp_of_control_action_decl name cparams dparams body
-  | Control.Table (name, key, actions) ->
-      sexp_of_control_table_decl name key actions
+  | Control.Table (name, key, actions, def) ->
+      sexp_of_control_table_decl name key actions def
 
 let sexp_of_control_inst_type extern_params params =
   make_sexp "TopDecl.ControlInstType"

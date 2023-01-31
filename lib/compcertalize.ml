@@ -225,7 +225,7 @@ let rec stmt_convert (s:  Prev.Stmt.s) =
         Stmt.Return (Option.map convert_expression e)
     | Prev.Stmt.Exit -> Stmt.Exit
     | Prev.Stmt.Invoke (eo,t) ->
-        Stmt.Invoke (Option.map convert_expression eo, string_charlist t)
+        Stmt.Invoke (string_charlist t)
     | Prev.Stmt.Apply (s, fs, a) ->
         Stmt.Apply (string_charlist s,
         List.map string_charlist fs,
@@ -247,8 +247,7 @@ let controld_convert (d :  Prev.Control.d) =
         Control.Table (
             string_charlist t,
             List.map (fun (e,mk) -> convert_expression e, string_charlist mk) key,
-            List.map (fun (a,args) -> string_charlist a, args_convert args) mks,
-            Option.map (fun (a, es) -> string_charlist a, List.map convert_expression es) def)
+            List.map (fun (a,args) -> string_charlist a, args_convert args) mks)
 
 let topdecl_convert (d:  Prev.TopDecl.d) =
     match d with

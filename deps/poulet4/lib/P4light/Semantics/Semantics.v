@@ -130,8 +130,7 @@ Variant fundef :=
       (entries : option (list (@table_entry tags_t (@Expression tags_t))))
   | FExternal
       (class : ident)
-      (name : ident)
-      (params : list (ident * direction)).
+      (name : ident).
 
 Definition genv_func := PathMap.t fundef.
 Definition genv_typ := IdentMap.t (@P4Type tags_t).
@@ -704,15 +703,7 @@ Definition is_some : forall {A} (input: option A), bool := @ssrbool.isSome.
   Return None if failed.
   Return Some (None, fd) if the function should be executed on the current path. *)
 
-Definition fundef_has_arity (arity: Z) (f: fundef) : bool :=
-  match f with
-  | FExternal _ _ params 
-  | FInternal params _ =>
-      Zlength params =? arity
-  | FTable _ _ _ _ _ => arity =? 0
-  end%Z.
-  
-Definition lookup_func (this_path : path) (func : @Expression tags_t) (arity: Z) : option (option path * fundef) :=
+Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (option path * fundef) :=
   let ge_func := ge_func ge in
   let ge_inst := ge_inst ge in
   (* We should think about using option monad in this function. *)
@@ -974,11 +965,13 @@ Inductive exec_write : state -> Lval -> Sval -> state -> Prop :=
 
 Definition argument : Type := (option Sval) * (option Lval).
 
-Definition get_arg_directions (func : fundef) : list direction :=
+Definition get_arg_directions (func : @Expression tags_t) : list direction :=
   match func with
-  | FExternal _ _ params
-  | FInternal params _ => List.map snd params
-  | FTable _ _ _ _ _ => []
+  | MkExpression _ _ (TypFunction (MkFunctionType _ params _ _)) _ =>
+      map get_param_dir params
+  | MkExpression _ _ (TypAction data_params ctrl_params) _ =>
+      map get_param_dir data_params ++ map (fun _ => In) ctrl_params
+  | _ => nil (* impossible *)
   end.
 
 (* given expression and direction, evaluate to argument. *)
@@ -1371,8 +1364,7 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
   *)
   | exec_call_func : forall this_path s1 tags func targs args typ dir argvals obj_path fd outvals s2 s3 s4 s5 sig sig' ret_s ret_sig,
       is_builtin_func func = false ->
-      lookup_func this_path func (Zlength args) = Some (obj_path, fd) ->
-      let dirs := get_arg_directions fd in
+      let dirs := get_arg_directions func in
       exec_args read_one_bit this_path s1 args dirs argvals sig ->
       s2 = (if is_some obj_path then set_memory PathMap.empty s1 else s1) ->
       exec_func read_one_bit (force this_path obj_path) s2 fd targs (extract_invals argvals) s3 outvals sig' ->
@@ -1405,11 +1397,11 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
       exec_func obj_path s (FTable name keys actions None const_entries) nil s nil None *)
 
   (* Todo: check in/inout/out & uninitialized args *)
-  | exec_func_external : forall obj_path class_name name params m es es' targs args argvs argvs' args' sig,
+  | exec_func_external : forall obj_path class_name name m es es' targs args argvs argvs' args' sig,
       svals_to_vals read_one_bit args argvs ->
       exec_extern ge es class_name name obj_path targs argvs es' argvs' sig ->
       vals_to_svals argvs' args' ->
-      exec_func read_one_bit obj_path (m, es) (FExternal class_name name params) targs args (m, es') args' sig.
+      exec_func read_one_bit obj_path (m, es) (FExternal class_name name) targs args (m, es') args' sig.
 
 End WithGenv.
 
@@ -2038,13 +2030,13 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) (block_app init body)) ge
   | DeclExternFunction _ _ name _ p4params =>
       let params := map get_param_name_dir p4params in
-      PathMap.set (p ++ [str name]) (FExternal "" (str name) params) ge
+      PathMap.set (p ++ [str name]) (FExternal "" (str name)) ge
   | DeclExternObject _ name _ methods =>
       let add_method_prototype ge' method :=
         match method with
         | ProtoMethod _ _ mname _ p4params =>
             let params := map get_param_name_dir p4params in
-            PathMap.set (p ++ [str name; str mname]) (FExternal (str name) (str mname) params) ge'
+            PathMap.set (p ++ [str name; str mname]) (FExternal (str name) (str mname)) ge'
         | _ => ge
         end
       in fold_left add_method_prototype methods ge

@@ -767,13 +767,13 @@ Section Interpreter.
                                  else interp_builtin this st lv (str fname) (extract_invals argvals)
                         | _, _ => error (Exn.Other "interp_call")
                         end
-                   else let* (obj_path, fd) := from_opt (lookup_func ge this func (Zlength args))
+                   else let dirs := get_arg_directions func in
+                        let* (argvals, sig) := interp_args this st args dirs in
+                        let* (obj_path, fd) := from_opt (lookup_func ge this func)
                                                         (Exn.Other ("interp_stmt: lookup_func could not find "
                                                                       ++ Exn.path_to_string this
                                                                       ++ "."
                                                                       ++ expr_to_string func)) in
-                        let dirs := get_arg_directions fd in
-                        let* (argvals, sig) := interp_args this st args dirs in
                         let s2 := if is_some obj_path then set_memory PathMap.empty st else st in
                         let* (s3, outvals, sig') := interp_func (force this obj_path) s2 fuel fd targs (extract_invals argvals) in
                         let s4 := if is_some obj_path then set_memory (get_memory st) s3 else s3 in
@@ -824,7 +824,7 @@ Section Interpreter.
                        end
                    | _, _ => error (Exn.Other "interp_func: type args or args provided to a table call")
                    end
-               | FExternal class_name name params =>
+               | FExternal class_name name =>
                    let (m, es) := s in
                    let argvs := List.map interp_sval_val args in
                    let* (es', argvs', sig) := interp_extern ge es class_name name obj_path typ_args argvs in

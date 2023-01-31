@@ -20,7 +20,6 @@ Section TypingDefs.
   Notation path := (list ident).
   Notation Sval := (@ValueBase (option bool)).
   Notation funtype := (@FunctionType tags_t).
-  Notation inst_ref := (@inst_ref tags_t).
   
   (* Normal (mutable/non-constant) variable typing environment. *)
   Definition gamma_var := PathMap.t typ.
@@ -157,14 +156,14 @@ Section TypingDefs.
 
   (** Typing analogue to [lookup_func]. *)
   Definition lookup_func_typ
-             (this : path) (gf : gamma_func) (gi : genv_inst)
+             (this : path) (gf : gamma_func) (gi : @genv_inst tags_t)
              '(MkExpression _ func _ _ : expr)
     : option (option path * closure) :=
     match func with
     | ExpName _ (LGlobal p) =>
       option_map (fun funt => (Some nil, funt)) (PathMap.get p gf)
     | ExpName _ (LInstance p) =>
-      let* '{|iclass:=class|} : inst_ref := PathMap.get this gi in
+      let* '{|iclass:=class|} := PathMap.get this gi in
       let^ ft := PathMap.get (class :: p) gf in (None,ft)
     | ExpExpressionMember (MkExpression _ (ExpName _ (LInstance p)) _ _) x
       => let* '{|iclass:=class; ipath:=inst_path|} := PathMap.get (this ++ p) gi in
@@ -180,7 +179,7 @@ Section TypingDefs.
              (this : path) (gf : gamma_func)
              (ge : genv) : Prop := forall e ft,
       lookup_func_typ this gf ge e = Some ft ->
-      exists a fd, lookup_func ge this e a = Some fd.
+      exists fd, lookup_func ge this e = Some fd.
   
   Definition lub_StmType (τ₁ τ₂ : StmType) : StmType :=
     match τ₁, τ₂ with
@@ -261,9 +260,9 @@ Section TypingDefs.
         (* TODO: lookup [FExternal] by [class] or [name]. *)
         fundef_funtype_prop
           Γ Γext
-          (FExternal class name (map get_param_name_dir params))
+          (FExternal class name)
           (MkFunctionType Xs params FunExtern rt).
-    (*
+
     Definition gamma_func_types
                (gf : gamma_func)
                (gext : gamma_ext) : Prop :=
@@ -356,11 +355,9 @@ Section TypingDefs.
         (** Preservation. *)
         forall st' sig, run_call ge read_one_bit this st call st' sig ->
                    gamma_stmt_prop Γ st'.
-*)
   End Typing.
 End TypingDefs.
 
-(*
 Notation "x '⊢ₑ' e"
   := (expr_types
         (fst (fst (fst x)))
@@ -390,4 +387,3 @@ Notation "x '⊢ᵪ' e"
         (snd (fst (fst x)))
         (snd (fst x)) (snd x) e)
        (at level 80, no associativity) : type_scope.
-*)

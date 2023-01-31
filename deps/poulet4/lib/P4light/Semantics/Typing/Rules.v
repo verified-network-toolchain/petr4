@@ -6,7 +6,6 @@ From Poulet4.P4light Require Export
 (** Inference rules for the p4light types system
     given as theorems for progress & preservation. *)
 
-(*
 Section Soundness.
   Create HintDb option_monad.
   Local Hint Unfold option_bind       : option_monad.
@@ -1026,11 +1025,12 @@ Section Soundness.
     - destruct Hgstvar. red in H0, H1. unfold update_val_by_loc, update_memory in H.
       destruct st as [m es]. split; repeat intro.
       + apply H0 in H2. clear H0 H1. subst st'. unfold loc_to_sval, get_memory in *.
-        destruct H2 as [sv ?]. destruct l; inv H.
+        destruct H2 as [sv ?]. destruct l; inv H;
         destruct (list_eq_dec string_dec p (get_loc_path loc)).
         * rewrite <- e. rewrite PathMap.get_set_same. exists rhs. auto.
         * rewrite PathMap.get_set_diff; auto. exists sv. auto.
-        * admit.
+        * rewrite <- e. rewrite PathMap.get_set_same. exists rhs. auto.
+        * rewrite PathMap.get_set_diff; auto. exists sv. auto.
       + specialize (H0 _ _ H2). destruct H0 as [sv ?H].
         destruct (H1 _ _ _ H2 H0) as [rt [? ?]]. subst st'.
         unfold loc_to_sval, get_memory in *. destruct l; inv H3.
@@ -1390,4 +1390,3 @@ Section Soundness.
     Admitted.
   End StmtTyping.
 End Soundness.
-*)

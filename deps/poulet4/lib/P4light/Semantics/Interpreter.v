@@ -839,7 +839,7 @@ Section Interpreter.
       : result Exn.t (extern_state * list Val * signal) :=
       let* func_inst := from_opt (PathMap.get this (ge_inst ge))
                                  (Exn.Other "object not found in ge_inst") in
-      let* func := from_opt (find_fundef ge [func_inst.(iclass); "apply"] (Zlength args))
+      let* func := from_opt (PathMap.get [func_inst.(iclass); "apply"] (ge_func ge))
                             (Exn.Other ("apply method for module " ++ Exn.path_to_string this ++ " (arity: " ++ string_of_nat (length args) ++ ") not found in ge_func")) in
       let st' : state := (PathMap.empty, st) in
       let sargs := List.map eval_val_to_sval args in

@@ -133,8 +133,7 @@ Variant fundef :=
       (name : ident)
       (params : list (ident * direction)).
 
-(* Need a list to allow for overloading, but for most things it will be a singleton. *)
-Definition genv_func := PathMap.t (list fundef).
+Definition genv_func := PathMap.t fundef.
 Definition genv_typ := IdentMap.t (@P4Type tags_t).
 
 
@@ -713,16 +712,6 @@ Definition fundef_has_arity (arity: Z) (f: fundef) : bool :=
   | FTable _ _ _ _ _ => arity =? 0
   end%Z.
   
-Definition find_fundef (p: path) (arity: Z) : option fundef :=
-  let* candidates := PathMap.get p (ge_func ge) in
-  List.hd_error candidates.
-
-Definition add_fundef (p: path) (f: fundef) (ge_func: genv_func) :=
-  match PathMap.get p ge_func with
-  | None => PathMap.set p [f] ge_func
-  | Some l => PathMap.set p (f :: l) ge_func
-  end.
-
 Definition lookup_func (this_path : path) (func : @Expression tags_t) (arity: Z) : option (option path * fundef) :=
   let ge_func := ge_func ge in
   let ge_inst := ge_inst ge in
@@ -732,12 +721,12 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) (arity: Z)
   | MkExpression _ (ExpName _ loc) _ _ =>
       match loc with
       | LGlobal p =>
-        let* fd := find_fundef p arity in
+        let* fd := PathMap.get p ge_func in
         Some (Some nil, fd)
       | LInstance p =>
           match PathMap.get this_path ge_inst with
           | Some {| iclass:=class_name; |} =>
-            let* fd := find_fundef (class_name :: p) arity in
+            let* fd := PathMap.get (class_name :: p) ge_func in
             Some (None, fd)
           | _ => None
           end
@@ -751,7 +740,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) (arity: Z)
           | LInstance p =>
               match PathMap.get this_path ge_inst with
               | Some {| iclass:=class_name; |} =>
-                  let* fd := find_fundef (class_name :: p ++ [str name]) arity in
+                  let* fd := PathMap.get (class_name :: p ++ [str name]) ge_func in
                   Some (None, fd)
               | _ => None
               end
@@ -763,14 +752,14 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) (arity: Z)
           | LGlobal p =>
               match PathMap.get p ge_inst with
               | Some {|iclass:=class_name; ipath:=inst_path|} =>
-                  let* fd := find_fundef [class_name; str name] arity in
+                  let* fd := PathMap.get [class_name; str name] ge_func in
                   Some (Some inst_path, fd)
               | None => None
               end
           | LInstance p =>
               match PathMap.get (this_path ++ p) ge_inst with
               | Some {|iclass:=class_name; ipath:=inst_path|} =>
-                  let* fd := find_fundef [class_name; str name] arity in
+                  let* fd := PathMap.get [class_name; str name] ge_func in
                   Some (Some inst_path, fd)
               | None => None
               end
@@ -1945,7 +1934,8 @@ Definition load_parser_state (p : path) (ge : genv_func) (state : @ParserState t
   match state with
   | MkParserState _ name body trans =>
       let body := block_app (block_of_list_statement body) (load_parser_transition p trans) in
-      add_fundef (p ++ [str name]) (FInternal nil body) ge
+      PathMap.set (p ++ [str name]) (FInternal nil body) ge
+
   end.
 
 Definition accept_state :=
@@ -2025,12 +2015,12 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := block_app init (process_locals locals) in
       let ge := fold_left (load_parser_state (p ++ [str name])) states ge in
-      let ge := add_fundef (p ++ [str name; "accept"]) accept_state ge in
-      let ge := add_fundef (p ++ [str name; "reject"]) reject_state ge in
+      let ge := PathMap.set (p ++ [str name; "accept"]) accept_state ge in
+      let ge := PathMap.set (p ++ [str name; "reject"]) reject_state ge in
       let method := MkExpression dummy_tags (ExpName (BareName !"start") (LInstance ["start"]))
                     empty_func_type Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
-      add_fundef (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init (BlockSingleton stmt))) ge
+      PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init (BlockSingleton stmt))) ge
   | DeclControl _ name type_params params _ locals apply =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
       let init := uninit_out_params [] out_params in
@@ -2039,22 +2029,22 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := block_app init (process_locals locals) in
-      add_fundef (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init apply)) ge
+      PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init apply)) ge
   | DeclFunction _ _ name type_params params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
       let init := uninit_out_params [str name] out_params in
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [str name; param])) params in
-      add_fundef (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) (block_app init body)) ge
+      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) (block_app init body)) ge
   | DeclExternFunction _ _ name _ p4params =>
       let params := map get_param_name_dir p4params in
-      add_fundef (p ++ [str name]) (FExternal "" (str name) params) ge
+      PathMap.set (p ++ [str name]) (FExternal "" (str name) params) ge
   | DeclExternObject _ name _ methods =>
       let add_method_prototype ge' method :=
         match method with
         | ProtoMethod _ _ mname _ p4params =>
             let params := map get_param_name_dir p4params in
-            add_fundef (p ++ [str name; str mname]) (FExternal (str name) (str mname) params) ge'
+            PathMap.set (p ++ [str name; str mname]) (FExternal (str name) (str mname) params) ge'
         | _ => ge
         end
       in fold_left add_method_prototype methods ge
@@ -2068,7 +2058,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
           map (map_fst (fun param => LGlobal [str name; param])) (params ++ ctrl_params)
         else
           map (map_fst (fun param => LInstance [str name; param])) (params ++ ctrl_params) in
-      add_fundef (p ++ [str name]) (FInternal (map (map_fst get_loc_path) combined_params) (block_app init body)) ge
+      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) combined_params) (block_app init body)) ge
   | DeclTable _ name keys actions entries default_action_opt _ _ =>
       let default_action :=
         match default_action_opt with
@@ -2080,7 +2070,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
                (map (unwrap_action_ref p ge) actions)
                (unwrap_action_ref p ge default_action)
                (option_map (map unwrap_table_entry) entries) in
-      add_fundef (p ++ [str name; "apply"]) table ge
+      PathMap.set (p ++ [str name; "apply"]) table ge
   | _ => ge
   end.
 
@@ -2229,7 +2219,7 @@ Definition gen_ge' (am_ge : genv) (prog : @program tags_t) : Result.result Exn.t
 Definition exec_module (ge: genv) (read_one_bit : option bool -> bool -> Prop) (this: path) (st: extern_state) (args: list Val) (st': extern_state) (rets: list Val) (sig: signal) : Prop :=
   match PathMap.get this (ge_inst ge) with
   | Some func_inst =>
-    match find_fundef ge [func_inst.(iclass); "apply"] (Zlength args) with
+    match PathMap.get [func_inst.(iclass); "apply"] (ge_func ge) with
     | Some func =>
       exists mem': mem,
           @exec_func ge read_one_bit [] (PathMap.empty, st) func []

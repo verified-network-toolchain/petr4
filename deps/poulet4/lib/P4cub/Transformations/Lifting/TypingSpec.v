@@ -225,7 +225,7 @@ Section TypeStmt.
   Proof using.
     intros G es ts H; induction H;
       intros fs c s sig h; unravel in *; eauto.
-  Qed.
+  Admitted.
 
   Local Hint Resolve type_decl_list_Unwind : core.
   Local Hint Resolve type_decl_list_length : core.

@@ -114,6 +114,20 @@ Proof.
   inv IHl; reflexivity.
 Qed.
 
+Lemma Forall2_map_comm_fwd :
+  forall (A B C : Type) (f : A -> B) (R : B -> C -> Prop) (l1 : list A) (l2 : list C),
+    Forall2 R (map f l1) l2 -> Forall2 (fun x y => R (f x) y) l1 l2.
+Proof.
+  induction l1; intros; inv H; constructor; auto.
+Qed.
+
+Lemma Forall2_map_comm_rev :
+  forall (A B C : Type) (f : A -> B) (R : B -> C -> Prop) (l1 : list A) (l2 : list C),
+    Forall2 (fun x y => R (f x) y) l1 l2 -> Forall2 R (map f l1) l2.
+Proof.
+  induction l1; intros; inv H; constructor; auto.
+Qed.
+
 Lemma Forall_nth_error : forall {A : Type} (P : A -> Prop) l n a,
     Forall P l -> nth_error l n = Some a -> P a.
 Proof.

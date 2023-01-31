@@ -147,7 +147,10 @@ Definition ienv : Set :=
        * Expr.params (** Types of expression arguments. *)).
 
 (** Available table names. *)
-Definition tbl_env : Set := list string.
+Definition tbl_env : Set :=
+  Clmt.t
+    string (** table name *)
+    nat      (** number of actions *).
 
 (** Statement context. *)
 Variant ctx : Set :=
@@ -184,11 +187,6 @@ Variant exit_ctx_ok : ctx -> Prop :=
     exit_ctx_ok (CAction aa eis)
   | exit_applyblk_ok {tbls} {aa} {eis} :
     exit_ctx_ok (CApplyBlock tbls aa eis).
-
-(** Evidence a table invocation is ok. *)
-Variant table_invoke_ok (tbls : tbl_env) : ctx -> Prop :=
-  | table_invoke_applyblk_ok {aa} {i} :
-    table_invoke_ok tbls (CApplyBlock tbls aa i).
 
 (** Evidence applying an instance is ok. *)
 Variant apply_instance_ok (i : ienv) : instance_sig -> ctx -> Prop :=

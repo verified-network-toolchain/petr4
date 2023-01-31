@@ -15,7 +15,14 @@ Section Is.
   Notation switch_case := (@StatementSwitchCase tags_t).
   Notation blk := (@Block tags_t).
   Notation init := (@Initializer tags_t).
-  
+
+  Inductive is_hdr_typ : typ -> Prop :=
+  | hdr_is_hdr xts :
+    is_hdr_typ (TypHeader xts)
+  | newtype_is_hdr X t :
+    is_hdr_typ t ->
+    is_hdr_typ (TypNewType X t).
+
   (** Allowed types for p4light expressions.
       Correlates to [uninit_sval_of_typ]. *)
   Inductive is_expr_typ : typ -> Prop :=
@@ -48,13 +55,14 @@ Section Is.
   | is_error :
       is_expr_typ TypError
   | is_header ts :
-      AList.key_unique ts = true ->
-      Forall (fun t => is_expr_typ (snd t)) ts ->
-      is_expr_typ (TypHeader ts)
+    AList.key_unique ts = true ->
+    Forall (fun t => is_expr_typ (snd t)) ts ->
+    is_expr_typ (TypHeader ts)
   | is_union ts :
-      AList.key_unique ts = true ->
-      Forall (fun t => is_expr_typ (snd t)) ts ->
-      is_expr_typ (TypHeaderUnion ts)
+    AList.key_unique ts = true ->
+    Forall is_hdr_typ (map snd ts) ->
+    Forall (fun t => is_expr_typ (snd t)) ts ->
+    is_expr_typ (TypHeaderUnion ts)
   | is_struct ts :
       AList.key_unique ts = true ->
       Forall (fun t => is_expr_typ (snd t)) ts ->
@@ -70,6 +78,14 @@ Section Is.
   | is_newtype X t :
       is_expr_typ t ->
       is_expr_typ (TypNewType X t).
+
+  Variant is_instantiatiable : typ -> Prop :=
+    | is_extern X :
+      is_instantiatiable (TypExtern X)
+    | is_parser ct :
+      is_instantiatiable (TypParser ct)
+    | is_control ct :
+      is_instantiatiable (TypControl ct).
 
   (** Well-formed p4light expressions. *)
   Inductive is_expr : expr -> Prop :=
@@ -124,6 +140,20 @@ Section Is.
       is_expr e3 ->
       is_pre_expr (ExpTernary e1 e2 e3).
 
+  (** Well-formed P4light calls. *)
+  (* TODO: builtins. *)
+  Variant is_pre_call : pre_expr -> Prop :=
+    | is_ExpFunctionCall e ts es :
+      is_expr e ->
+      Forall is_expr_typ ts ->
+      Forall (predop is_expr) es ->
+      is_pre_call (ExpFunctionCall e ts es).
+
+  Variant is_call : expr -> Prop :=
+    is_MkExpression_call i e t d :
+      is_pre_call e ->
+      is_call (MkExpression i e t d).
+
   (** Well-formed P4light statements. *)
   Inductive is_stmt : stmt -> Prop :=
     is_MkStatement i s t :
@@ -136,11 +166,11 @@ Section Is.
       Forall (predop is_expr) es ->
       is_pre_stmt (StatMethodCall e ts es)
   | is_StatAssignment lhs rhs :
-      is_expr lhs -> is_expr rhs ->
-      is_pre_stmt (StatAssignment lhs rhs)
+    is_expr lhs -> is_expr rhs \/ is_call rhs ->
+    is_pre_stmt (StatAssignment lhs rhs)
   | is_StatDirectApplication t ft args :
-      (* TODO: what to require? *)
-      is_pre_stmt (StatDirectApplication t ft args)
+    is_expr_typ t -> is_expr_typ ft -> Forall (predop is_expr) args ->
+    is_pre_stmt (StatDirectApplication t ft args)
   | is_StatConditional e s1 s2 :
       is_expr e -> is_stmt s1 -> predop is_stmt s2 ->
       is_pre_stmt (StatConditional e s1 s2)
@@ -200,7 +230,7 @@ Section IsInd.
 
   Section IsExprTypInd.
     Variable P : @P4Type tags_t -> Prop.
-  
+
     Hypothesis HBool : P TypBool.
     Hypothesis HString : P TypString.
     Hypothesis HInteger : P TypInteger.
@@ -232,6 +262,7 @@ Section IsInd.
         P (TypHeader ts).
     Hypothesis HUnion : forall ts,
         AList.key_unique ts = true ->
+        Forall is_hdr_typ (map snd ts) ->
         Forall (fun t => is_expr_typ (snd t)) ts ->
         Forall (fun t => P (snd t)) ts ->
         P (TypHeaderUnion ts).
@@ -249,7 +280,7 @@ Section IsInd.
     Hypothesis HName : forall X, P (TypTypeName X).
     Hypothesis HNewType : forall X t,
         is_expr_typ t -> P t -> P (TypNewType X t).
-    
+
     Definition my_is_expr_typ_ind
       : forall (t : P4Type), is_expr_typ t -> P t :=
       fix I t H :=
@@ -291,7 +322,7 @@ Section IsInd.
         | is_record _ U H  => HRecord _ U H (AL H)
         | is_error         => HError
         | is_header _ U H  => HHeader _ U H (AL H)
-        | is_union  _ U H  => HUnion  _ U H (AL H)
+        | is_union  _ U hdr H => HUnion  _ U hdr H (AL H)
         | is_struct _ U H  => HStruct _ U H (AL H)
         | is_name X        => HName X
         | is_newtype X _ H => HNewType X _ H (I _ H)

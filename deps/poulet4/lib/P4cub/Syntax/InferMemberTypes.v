@@ -55,11 +55,12 @@ Definition inf_transition  (transition : Parser.pt) :=
 Fixpoint inf_s  (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
-  | Stmt.Exit
-  | Stmt.Invoke _ => s
+  | Stmt.Exit          => s
   | Stmt.Return e      => Stmt.Return $ option_map inf_e e
   | Stmt.Transition e  => Stmt.Transition $ inf_transition e
   | (lhs `:= rhs)%stmt => (inf_e lhs `:= inf_e rhs)%stmt
+  | Stmt.Invoke e t
+    => Stmt.Invoke (option_map inf_e e) t
   | Stmt.Call fk args
     => Stmt.Call (inf_fun_kind fk) $ map inf_arg args
   | Stmt.Apply ci ext_args args =>
@@ -77,10 +78,11 @@ Definition inf_Cd  (d : Control.d) :=
       Control.Var og $ map_sum id inf_e te
   | Control.Action a cps dps body =>
       Control.Action a cps dps $ inf_s body
-  | Control.Table t key acts =>
+  | Control.Table t key acts def =>
       Control.Table
         t (map (fun '(e,mk) => (inf_e e, mk)) key)
-        $ map (fun '(a,args) => (a, map inf_arg args)) acts
+        (map (fun '(a,args) => (a, map inf_arg args)) acts)
+        $ option_map (fun '(x,es) => (x, map inf_e es)) def
   end.
 
 Definition inf_d  (d : TopDecl.d) : TopDecl.d :=

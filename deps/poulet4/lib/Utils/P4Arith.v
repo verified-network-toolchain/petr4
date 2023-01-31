@@ -254,28 +254,31 @@ Module BitArith.
   Definition concat (w1 w2 : N) (z1 z2 : Z) : Z :=
     mod_bound (w1 + w2) (shiftl z1 (Z.of_N w2) + (mod_bound w2 z2)).
 
-  Fixpoint lbool_to_val (bits: list bool) (order: Z) (res : Z) : Z :=
+  Fixpoint le_lbool_to_val (bits: list bool) (order: Z) (res : Z) : Z :=
     match bits with
     | [] => res
-    | false :: tl => lbool_to_val tl (Z.shiftl order 1) res
-    | true :: tl => lbool_to_val tl (Z.shiftl order 1) (res + order)
+    | false :: tl => le_lbool_to_val tl (Z.shiftl order 1) res
+    | true :: tl => le_lbool_to_val tl (Z.shiftl order 1) (res + order)
     end.
 
-  Lemma lbool_to_val_app: forall l1 l2 o r,
-      lbool_to_val (l1 ++ l2) o r =
-        lbool_to_val l2 (Z.shiftl o (Zlength l1)) (lbool_to_val l1 o r).
+  Definition lbool_to_val (bits: list bool) (order: Z) (res : Z) :=
+    le_lbool_to_val (rev bits) order res.
+
+  Lemma le_lbool_to_val_app: forall l1 l2 o r,
+      le_lbool_to_val (l1 ++ l2) o r =
+        le_lbool_to_val l2 (Z.shiftl o (Zlength l1)) (le_lbool_to_val l1 o r).
   Proof.
     induction l1; intros.
     - simpl. easy.
-    - rewrite <- app_comm_cons. cbn [lbool_to_val].
+    - rewrite <- app_comm_cons. cbn [le_lbool_to_val].
       destruct a; rewrite IHl1; f_equal; rewrite shiftl_shiftl by lia;
         f_equal; rewrite Zlength_cons; lia.
   Qed.
 
-  Lemma lbool_to_val_1_0: forall l o r,
-      lbool_to_val l o r = (lbool_to_val l 1 0) * o + r.
+  Lemma le_lbool_to_val_1_0: forall l o r,
+      le_lbool_to_val l o r = (le_lbool_to_val l 1 0) * o + r.
   Proof.
-    induction l; intros; cbn [lbool_to_val]. 1: now simpl. destruct a.
+    induction l; intros; cbn [le_lbool_to_val]. 1: now simpl. destruct a.
     - simpl shiftl at 2. rewrite add_0_l.
       rewrite IHl. rewrite (IHl 2 1). rewrite shiftl_mul_pow2 by lia. lia.
     - simpl shiftl at 2. rewrite IHl. rewrite (IHl 2 0).
@@ -284,48 +287,54 @@ Module BitArith.
 
   (* Convert from little-endian (list bool) to (width:nat, value:Z) *)
   Definition le_from_lbool (bits: list bool) : (N * Z) :=
-    (Z.to_N (Zlength bits), lbool_to_val bits 1 0).
+    (Z.to_N (Zlength bits), le_lbool_to_val bits 1 0).
   (**[]*)
 
   (* Convert from big-endian (list bool) to (width:nat, value:Z) *)
   Definition from_lbool (bits: list bool) : (N * Z) :=
-    (Z.to_N (Zlength bits), lbool_to_val (rev bits) 1 0).
+    (Z.to_N (Zlength bits), lbool_to_val bits 1 0).
   (**[]*)
 
+  Lemma le_lbool_to_val_lower : forall bits order res,
+      0 <= order ->
+      0 <= res ->
+      0 <= le_lbool_to_val bits order res.
+  Proof.
+    intro bits; induction bits as [| [|] bits IHbits];
+      intros order res Horder Hres;
+      unfold le_lbool_to_val; fold le_lbool_to_val; try lia; auto.
+    - apply IHbits; try lia.
+      rewrite shiftl_mul_pow2 by lia; lia.
+    - apply IHbits; try lia.
+      rewrite shiftl_mul_pow2 by lia; lia.
+  Qed.
 
   Lemma lbool_to_val_lower : forall bits order res,
       0 <= order ->
       0 <= res ->
       0 <= lbool_to_val bits order res.
-  Proof.
-    intro bits; induction bits as [| [|] bits IHbits];
-      intros order res Horder Hres;
-      unfold lbool_to_val; fold lbool_to_val; try lia; auto.
-    - apply IHbits; try lia.
-      rewrite shiftl_mul_pow2 by lia; lia.
-    - apply IHbits; try lia.
-      rewrite shiftl_mul_pow2 by lia; lia.
-  Qed.
-  
+  Proof. intros. unfold lbool_to_val. now apply le_lbool_to_val_lower. Qed.
+
   Lemma le_from_lbool_bound : forall bits,
       uncurry bound (le_from_lbool bits).
   Proof.
     intro bits; cbn. unfold bound; split.
-    - pose proof lbool_to_val_lower bits 1 0 as H; lia.
+    - pose proof le_lbool_to_val_lower bits 1 0 as H; lia.
     - unfold upper_bound.
       rewrite Z2N.id by apply Zlength_nonneg.
-      (* TODO: idk what lemma to prove... *)
-  Admitted.
+      induction bits; simpl. 1: lia. rewrite Zlength_cons, pow_succ_r by list_solve.
+      destruct a; rewrite le_lbool_to_val_1_0; lia.
+  Qed.
 
   Lemma from_lbool_bound : forall bits,
       uncurry bound (from_lbool bits).
   Proof.
-    unfold from_lbool.
+    unfold from_lbool, lbool_to_val.
     intros.
     rewrite <- Zlength_rev.
     apply le_from_lbool_bound.
   Qed.
-  
+
 End BitArith.
 
 (** * Signed Integers *)
@@ -582,30 +591,33 @@ Module IntArith.
   Definition concat (w1 w2 : N) (z1 z2 : Z) : Z :=
     mod_bound (pos_of_N (w1 + w2)) (shiftl z1 (Z.of_N w2) + (BitArith.mod_bound w2 z2)).
 
-  Fixpoint lbool_to_val (bits: list bool) (order: Z) (res: Z): Z :=
+  Fixpoint le_lbool_to_val (bits: list bool) (order: Z) (res: Z): Z :=
     match bits with
     | []
     | [false] => res
     | [true] => res - order
-    | false :: tl => lbool_to_val tl (Z.shiftl order 1) res
-    | true :: tl => lbool_to_val tl (Z.shiftl order 1) (res + order)
+    | false :: tl => le_lbool_to_val tl (Z.shiftl order 1) res
+    | true :: tl => le_lbool_to_val tl (Z.shiftl order 1) (res + order)
     end.
 
-  Lemma lbool_to_val_cons: forall a l o r,
+  Definition lbool_to_val (bits: list bool) (order: Z) (res: Z): Z :=
+    le_lbool_to_val (rev bits) order res.
+
+  Lemma le_lbool_to_val_cons: forall a l o r,
       l <> nil ->
-      lbool_to_val (a :: l) o r =
-        lbool_to_val l (Z.shiftl o 1) (r + if a then o else 0).
+      le_lbool_to_val (a :: l) o r =
+        le_lbool_to_val l (Z.shiftl o 1) (r + if a then o else 0).
   Proof.
-    intros. cbn [lbool_to_val]. destruct a.
+    intros. cbn [le_lbool_to_val]. destruct a.
     - destruct l; auto. exfalso; now apply H.
     - destruct l. 1: exfalso; now apply H. now rewrite Z.add_0_r.
   Qed.
 
-  Lemma lbool_to_val_1_0: forall l o r,
-      lbool_to_val l o r = lbool_to_val l 1 0 * o + r.
+  Lemma le_lbool_to_val_1_0: forall l o r,
+      le_lbool_to_val l o r = le_lbool_to_val l 1 0 * o + r.
   Proof.
     induction l; intros. 1: now simpl.
-    cbn [lbool_to_val]. destruct a, l; try lia;
+    cbn [le_lbool_to_val]. destruct a, l; try lia;
       replace (shiftl o 1) with (2 * o) by now unfold shiftl.
     - rewrite (IHl (2 * o) _ ). rewrite Z.add_0_l, shiftl_1_l, pow_1_r.
       rewrite (IHl 2 1). lia.
@@ -615,12 +627,12 @@ Module IntArith.
 
   (* Convert from little-endian (list bool) to (width:nat, value:Z) *)
   Definition le_from_lbool (bits: list bool) : (N * Z) :=
-    (Z.to_N (Zlength bits), lbool_to_val bits 1 0).
+    (Z.to_N (Zlength bits), le_lbool_to_val bits 1 0).
   (**[]*)
 
   (* Convert from big-endian (list bool) to (width:nat, value:Z) *)
   Definition from_lbool (bits: list bool) : (N * Z) :=
-    (Z.to_N (Zlength bits), lbool_to_val (rev bits) 1 0).
+    (Z.to_N (Zlength bits), lbool_to_val bits 1 0).
   (**[]*)
 
 End IntArith.
@@ -646,8 +658,15 @@ Definition le_to_lbool (width: N) (value: Z) : list bool :=
 Definition to_lbool (width: N) (value: Z) : list bool :=
   le_to_lbool' (N.to_nat width) value [].
 
+Lemma to_lbool_le_eq: forall width value,
+    le_to_lbool width value = List.rev (to_lbool width value).
+Proof. intros. unfold le_to_lbool, to_lbool. reflexivity. Qed.
+
 Definition to_loptbool (width: N) (value: Z) : list (option bool) :=
   map Some (to_lbool width value).
+
+Definition le_to_loptbool (width: N) (value: Z) : list (option bool) :=
+  map Some (le_to_lbool width value).
 
 Lemma length_to_lbool': forall w v r, length (le_to_lbool' w v r) = (w + length r)%nat.
 Proof.
@@ -702,7 +721,7 @@ Lemma div_2_mod_2_pow:
   forall v z : Z,
     0 <= z -> (v / 2) mod 2 ^ z * 2 + (if Z.odd v then 1 else 0) = v mod (2 * 2 ^ z).
 Proof.
-  intros v z H. rewrite (Z_div_mod_eq v 2) at 3 by lia. rewrite Zmod_odd.
+  intros v z H. rewrite (Z_div_mod_eq_full v 2) at 3. rewrite Zmod_odd.
   assert (0 < 2 ^ z) by (apply Z.pow_pos_nonneg; lia).
   rewrite Z.add_mod by lia. rewrite Z.mul_mod_distr_l by lia.
   destruct (Z.odd v).
@@ -713,7 +732,7 @@ Proof.
     rewrite Zplus_mod_idemp_l. rewrite Z.add_0_r. lia.
 Qed.
 
-Lemma bit_from_to_bool: forall w v,
+Lemma le_bit_from_to_bool: forall w v,
     BitArith.le_from_lbool (le_to_lbool w v) = (w, BitArith.mod_bound w v).
 Proof.
   intros. unfold BitArith.le_from_lbool. rewrite Zlength_le_to_lbool. f_equal. 1: lia.
@@ -721,11 +740,19 @@ Proof.
   rewrite <- Heqn in H. subst w. clear Heqn. revert v. induction n; intros.
   - simpl. rewrite bit_mod_bound_0. easy.
   - simpl le_to_lbool'. rewrite nil_le_to_lbool'. rewrite rev_app_distr.
-    rewrite BitArith.lbool_to_val_app. simpl Z.shiftl. simpl BitArith.lbool_to_val.
-    rewrite BitArith.lbool_to_val_1_0. rewrite IHn. unfold BitArith.mod_bound.
+    rewrite BitArith.le_lbool_to_val_app. simpl Z.shiftl. simpl BitArith.le_lbool_to_val.
+    rewrite BitArith.le_lbool_to_val_1_0. rewrite IHn. unfold BitArith.mod_bound.
     unfold BitArith.upper_bound. rewrite !nat_N_Z. rewrite Nat2Z.inj_succ.
     rewrite Z.pow_succ_r by lia. remember (Z.of_nat n).
     assert (0 <= z) by lia. now apply div_2_mod_2_pow.
+Qed.
+
+Lemma bit_from_to_bool: forall w v,
+    BitArith.from_lbool (to_lbool w v) = (w, BitArith.mod_bound w v).
+Proof.
+  intros. rewrite <- le_bit_from_to_bool.
+  unfold BitArith.le_from_lbool, BitArith.from_lbool, BitArith.lbool_to_val.
+  rewrite to_lbool_le_eq. f_equal. rewrite Zlength_rev. reflexivity.
 Qed.
 
 Lemma Z_odd_pow_2_S:
@@ -776,6 +803,18 @@ Lemma le_to_lbool_bit_mult: forall w v1 v2,
     le_to_lbool w (BitArith.mult_mod w v1 v2) = le_to_lbool w (v1 * v2).
 Proof. intros. unfold BitArith.mult_mod. now rewrite le_to_lbool_bit_mod. Qed.
 
+Lemma to_lbool_bit_plus: forall w v1 v2,
+    to_lbool w (BitArith.plus_mod w v1 v2) = to_lbool w (v1 + v2).
+Proof. intros. unfold BitArith.plus_mod. now rewrite to_lbool_bit_mod. Qed.
+
+Lemma to_lbool_bit_minus: forall w v1 v2,
+    to_lbool w (BitArith.minus_mod w v1 v2) = to_lbool w (v1 - v2).
+Proof. intros. unfold BitArith.minus_mod. now rewrite to_lbool_bit_mod. Qed.
+
+Lemma to_lbool_bit_mult: forall w v1 v2,
+    to_lbool w (BitArith.mult_mod w v1 v2) = to_lbool w (v1 * v2).
+Proof. intros. unfold BitArith.mult_mod. now rewrite to_lbool_bit_mod. Qed.
+
 Lemma Z_pow_double_ltb: forall (a m: Z) (b: bool),
     0 < m -> a <? m = (a * 2 + (if b then 1 else 0) <? 2 * m).
 Proof.
@@ -804,7 +843,7 @@ Proof.
   - apply Z.pow_pos_nonneg; lia.
 Qed.
 
-Lemma int_from_to_bool: forall w v,
+Lemma le_int_from_to_bool: forall w v,
     IntArith.le_from_lbool (le_to_lbool w v) =
       (w, if (w =? 0)%N then 0 else IntArith.mod_bound (pos_of_N w) v).
 Proof.
@@ -822,13 +861,22 @@ Proof.
       rewrite Z.pow_1_r, Z.sub_diag, Z.pow_0_r. rewrite Zmod_odd.
       destruct (Z.odd v); now simpl.
     + rewrite nil_le_to_lbool'. rewrite rev_app_distr. cbn [rev app].
-      rewrite IntArith.lbool_to_val_cons; auto.
-      * simpl Z.shiftl. rewrite Z.add_0_l. rewrite IntArith.lbool_to_val_1_0.
+      rewrite IntArith.le_lbool_to_val_cons; auto.
+      * simpl Z.shiftl. rewrite Z.add_0_l. rewrite IntArith.le_lbool_to_val_1_0.
         assert (S n <> O) by lia. specialize (IHn H). rewrite IHn.
         remember (Pos.of_nat (S n)). apply int_mod_bound_succ_div2.
       * intro. assert (Zlength (rev (le_to_lbool' (S n) (v / 2) [])) = 0). {
           rewrite H. apply Zlength_nil. }
         rewrite Zlength_rev, Zlength_to_lbool', Zlength_nil in H1. lia.
+Qed.
+
+Lemma int_from_to_bool: forall w v,
+    IntArith.from_lbool (to_lbool w v) =
+      (w, if (w =? 0)%N then 0 else IntArith.mod_bound (pos_of_N w) v).
+Proof.
+  intros. rewrite <- le_int_from_to_bool.
+  unfold IntArith.le_from_lbool, IntArith.from_lbool.
+  rewrite to_lbool_le_eq, Zlength_rev. reflexivity.
 Qed.
 
 Lemma le_to_lbool_int_mod: forall w v,
@@ -861,6 +909,15 @@ Proof.
     simpl. apply xorb_false_r.
 Qed.
 
+Lemma to_lbool_int_mod: forall w v,
+    to_lbool w (IntArith.mod_bound (pos_of_N w) v) = to_lbool w v.
+Proof.
+  intros. pose proof (le_to_lbool_int_mod w v).
+  rewrite !to_lbool_le_eq in H.
+  rewrite <- (rev_involutive (to_lbool _ _)). rewrite H.
+  rewrite rev_involutive. reflexivity.
+Qed.
+
 Lemma le_to_lbool_int_plus: forall w v1 v2,
     le_to_lbool w (IntArith.plus_mod (pos_of_N w) v1 v2) = le_to_lbool w (v1 + v2).
 Proof. intros. unfold IntArith.plus_mod. now rewrite le_to_lbool_int_mod. Qed.
@@ -873,13 +930,25 @@ Lemma le_to_lbool_int_mult: forall w v1 v2,
     le_to_lbool w (IntArith.mult_mod (pos_of_N w) v1 v2) = le_to_lbool w (v1 * v2).
 Proof. intros. unfold IntArith.mult_mod. now rewrite le_to_lbool_int_mod. Qed.
 
+Lemma to_lbool_int_plus: forall w v1 v2,
+    to_lbool w (IntArith.plus_mod (pos_of_N w) v1 v2) = to_lbool w (v1 + v2).
+Proof. intros. unfold IntArith.plus_mod. now rewrite to_lbool_int_mod. Qed.
+
+Lemma to_lbool_int_minus: forall w v1 v2,
+    to_lbool w (IntArith.minus_mod (pos_of_N w) v1 v2) = to_lbool w (v1 - v2).
+Proof. intros. unfold IntArith.minus_mod. now rewrite to_lbool_int_mod. Qed.
+
+Lemma to_lbool_int_mult: forall w v1 v2,
+    to_lbool w (IntArith.mult_mod (pos_of_N w) v1 v2) = to_lbool w (v1 * v2).
+Proof. intros. unfold IntArith.mult_mod. now rewrite to_lbool_int_mod. Qed.
+
 Lemma pos_N_nat: forall n, pos_of_N (N.of_nat n) = Pos.of_nat n.
 Proof.
   induction n; simpl; auto. destruct n. 1: now simpl. simpl in IHn. simpl. now f_equal.
 Qed.
 
 Lemma int_le_to_lbool_back: forall w v,
-    IntArith.lbool_to_val (le_to_lbool w v) 1 0 =
+    IntArith.le_lbool_to_val (le_to_lbool w v) 1 0 =
       if N.eqb w N0 then 0 else IntArith.mod_bound (pos_of_N w) v.
 Proof.
   intros. destruct (w =? 0)%N eqn:?H.
@@ -891,8 +960,8 @@ Proof.
     + simpl. unfold IntArith.mod_bound, IntArith.mod_amt, IntArith.upper_bound. simpl.
       unfold Z.pow_pos. simpl. rewrite Zmod_odd. destruct (Z.odd v); simpl; auto.
     + rewrite nil_le_to_lbool'. rewrite rev_app_distr. simpl rev at 1. cbn [app].
-      rewrite IntArith.lbool_to_val_cons.
-      * simpl Z.shiftl. rewrite Z.add_0_l. rewrite IntArith.lbool_to_val_1_0.
+      rewrite IntArith.le_lbool_to_val_cons.
+      * simpl Z.shiftl. rewrite Z.add_0_l. rewrite IntArith.le_lbool_to_val_1_0.
         rewrite IHn by lia. remember (Pos.of_nat (S n)). apply int_mod_bound_succ_div2.
       * intro. pose proof (Zlength_nil bool). rewrite <- H in H1.
         rewrite Zlength_rev in H1. rewrite Zlength_to_lbool' in H1.
@@ -900,29 +969,31 @@ Proof.
 Qed.
 
 Lemma int_to_lbool_back: forall w v,
-    IntArith.lbool_to_val (rev (to_lbool w v)) 1 0 =
+    IntArith.lbool_to_val (to_lbool w v) 1 0 =
       if N.eqb w N0 then 0 else IntArith.mod_bound (pos_of_N w) v.
 Proof.
-  apply int_le_to_lbool_back.
+  intros. rewrite <- int_le_to_lbool_back.
+  unfold IntArith.lbool_to_val. rewrite to_lbool_le_eq. reflexivity.
 Qed.
 
 Lemma bit_le_to_lbool_back: forall w v,
-    BitArith.lbool_to_val (le_to_lbool w v) 1 0 = BitArith.mod_bound w v.
+    BitArith.le_lbool_to_val (le_to_lbool w v) 1 0 = BitArith.mod_bound w v.
 Proof.
   intros. unfold le_to_lbool. rewrite <- Nnat.N2Nat.id at 2. remember (N.to_nat w).
   clear . revert v. induction n; intros; simpl.
   - unfold BitArith.mod_bound, BitArith.upper_bound. simpl. now rewrite Z.mod_1_r.
   - rewrite nil_le_to_lbool'. rewrite rev_app_distr. simpl rev at 1.
-    rewrite BitArith.lbool_to_val_app. simpl. rewrite BitArith.lbool_to_val_1_0.
+    rewrite BitArith.le_lbool_to_val_app. simpl. rewrite BitArith.le_lbool_to_val_1_0.
     rewrite IHn by lia. unfold BitArith.mod_bound, BitArith.upper_bound.
     rewrite N2Z.inj_pos. rewrite nat_N_Z. rewrite Zpos_P_of_succ_nat.
     rewrite Z.pow_succ_r by lia. apply div_2_mod_2_pow. lia.
 Qed.
 
 Lemma bit_to_lbool_back: forall w v,
-    BitArith.lbool_to_val (rev (to_lbool w v)) 1 0 = BitArith.mod_bound w v.
+    BitArith.lbool_to_val (to_lbool w v) 1 0 = BitArith.mod_bound w v.
 Proof.
-  apply bit_le_to_lbool_back.
+  intros. rewrite <- bit_le_to_lbool_back.
+  unfold IntArith.lbool_to_val. rewrite to_lbool_le_eq. reflexivity.
 Qed.
 
 (*

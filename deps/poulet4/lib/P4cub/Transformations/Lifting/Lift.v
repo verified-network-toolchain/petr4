@@ -262,8 +262,6 @@ Inductive Lift_s : Stmt.s -> Stmt.s -> Prop :=
   Lift_s Stmt.Skip Stmt.Skip
 | Lift_exit :
   Lift_s Stmt.Exit Stmt.Exit
-| Lift_invoke t :
-  Lift_s (Stmt.Invoke t) (Stmt.Invoke t)
 | Lift_return_none :
   Lift_s (Stmt.Return None) (Stmt.Return None)
 | Lift_return_some e e' es :
@@ -285,6 +283,13 @@ Inductive Lift_s : Stmt.s -> Stmt.s -> Prop :=
        (shift_list shift_e (Shifter 0 (length es1)) es2 ++ es1)
        (shift_e (Shifter 0 (length es2)) e1'
           `:= shift_e (Shifter (length es2) (length es1)) e2'))
+| Lift_invoke_none t :
+  Lift_s (Stmt.Invoke None t) (Stmt.Invoke None t)
+| Lift_invoke e e' t es :
+  Lift_e e e' es ->
+  Lift_s
+    (Stmt.Invoke (Some e) t)
+    (Unwind es (Stmt.Invoke (Some e') t))
 | Lift_call fk fk' fkes args args' argsess :
   Lift_fun_kind fk fk' fkes ->
   Forall3 Lift_arg args args' argsess ->
@@ -664,6 +669,8 @@ Section liftLift.
       unfold Expr.arg in *.
       rewrite harg in harg',hes; cbn in *.
       inv harg'; inv hes. auto.
+    - destruct lhs as [e |];
+        try destr_lift_e; eauto.
     - unfold lift_args in Heqp.
       destruct
         (split (shift_pairs shift_arg $ map lift_arg args))

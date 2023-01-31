@@ -2,6 +2,7 @@ Require Import Coq.ZArith.BinInt
   Poulet4.P4cub.Syntax.CubNotations
   Poulet4.P4light.Architecture.Target
   Poulet4.P4light.Syntax.Syntax
+  Poulet4.P4cub.Semantics.Climate
   RecordUpdate.RecordSet.
 From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.Value.Value.
@@ -9,7 +10,7 @@ From Poulet4.P4cub.Semantics.Dynamic Require Export
   BigStep.ExprUtil BigStep.ValEnvUtil BigStep.InstUtil
   BigStep.Value.Embed.
 Import Val.ValueNotations ExprNotations ParserNotations
-  Val.LValueNotations StmtNotations RecordSetNotations.
+  Val.LValueNotations StmtNotations RecordSetNotations Clmt.Notations.
 
 (** * Expression evaluation. *)
 
@@ -160,6 +161,12 @@ Variant ctx : Set :=
       (states : list Stmt.s)
       (available_parsers : inst_env).
 
+Variant actions_of_ctx : ctx -> aenv -> Prop :=
+  | actions_of_CAction a :
+    actions_of_ctx (CAction a) a
+  | actions_of_CApplyBlock te aa cs :
+    actions_of_ctx (CApplyBlock te aa cs) aa.
+
 (** Fetch the next state-block to evaluate. *)
 Definition get_state_block
            (strt : Stmt.s)
@@ -269,6 +276,15 @@ Definition arg_big_step (ϵ : list Val.v) : Expr.arg -> Val.argv -> Prop :=
 Definition args_big_step (ϵ : list Val.v) : Expr.args -> Val.argsv -> Prop :=
   Forall2 (arg_big_step ϵ).
 
+Variant eval_table_action
+  : option (string * list Expr.e) -> option (@action_ref Expr.e) -> bool -> string -> list Expr.e -> Prop :=
+  | eval_table_action_hit def a opt_ctrl_args ctrl_args :
+    (** Force control-plane arguments to be defined. *)
+    Forall2 (fun oe e => oe = Some e) opt_ctrl_args ctrl_args ->
+    eval_table_action def (Some (mk_action_ref a opt_ctrl_args)) true a ctrl_args
+  | eval_table_action_miss a ctrl_args :
+    eval_table_action (Some (a, ctrl_args)) None false a ctrl_args.
+
 Inductive stmt_big_step
   `{ext_sem : Extern_Sem} (Ψ : stmt_eval_env ext_sem)
   : list Val.v -> ctx -> Stmt.s -> list Val.v -> signal
@@ -315,14 +331,11 @@ Inductive stmt_big_step
     ⤋ ⧼ lv_update_signal olv sig (copy_out O vargs ϵ'' ϵ), Cont, ψ ⧽  
 | sbs_action_call
     ϵ ϵ' ϵ'' clos c ψ a ctrl_args data_args actions
-    vctrl_args vdata_args olv fun_clos act_clos body sig :
-  match c with
-  | CAction actions
-  | CApplyBlock _ actions _ => Some actions
-  | _ => None
-  end = Some actions ->
+    vctrl_args vdata_args olv act_clos body sig :
+  (** Get action from context. *)
+  actions_of_ctx c actions ->
   (** Lookup action. *)
-  actions a = Some (ADecl clos fun_clos act_clos body) ->
+  actions a = Some (ADecl clos act_clos body) ->
   (** Evaluate control-plane arguments. *)
   Forall2 (expr_big_step ϵ) ctrl_args vctrl_args ->
   (** Evaluate data-plane arguments. *)
@@ -330,7 +343,7 @@ Inductive stmt_big_step
   (** Copyin. *)
   copy_in vdata_args clos = Some ϵ' ->
   (** Evaluate the action body. *)
-  ⧼ Ψ <| functs := fun_clos |>, vctrl_args ++ ϵ', CAction act_clos,
+  ⧼ Ψ, vctrl_args ++ ϵ', CAction act_clos,
       body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽
     ⤋ ⧼ lv_update_signal olv sig (copy_out O vdata_args ϵ'' ϵ), Cont, ψ ⧽
@@ -367,11 +380,13 @@ Inductive stmt_big_step
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Method ext meth τs eo) args ⧽
     ⤋ ⧼ lv_update_signal olv sig (copy_out_from_args vargs vargs' ϵ), Cont, ψ ⧽
 | sbs_invoke
-    ϵ₁ ϵ₂ ϵ' t (tbls : tenv) acts insts pats light_sets
-    ψ (key : list (Expr.e * string)) actions vs light_vals arefs
-    a opt_ctrl_args ctrl_args data_args :
+    ϵ₁ ϵ₂ ϵ' eo lvo t (tbls : tenv) acts insts pats light_sets
+    ψ (key : list (Expr.e * string)) actions def vs light_vals arefs
+    hit a idx ctrl_args data_args :
+  (** Evaluate left hand expression *)
+  relop (lexpr_big_step (ϵ₁ ++ ϵ₂)) eo lvo ->
   (** Lookup table. *)
-  tbls t = Some (length ϵ₂, key, actions) ->
+  tbls t = Some (length ϵ₂, key, actions, def) ->
   (** Evaluate table key. *)
   Forall2 (expr_big_step ϵ₂) (map fst key) vs ->
   (** Evaluate table entries. *)
@@ -379,17 +394,28 @@ Inductive stmt_big_step
   (** Embed p4cub patterns in p4light value sets. *)
   Forall2 embed_pat_valset pats light_sets ->
   (** Get action reference from control-plane with control-plane arguments. *)
-  extern_match (combine light_vals (map snd key)) (combine light_sets arefs)
-  = Some (mk_action_ref a opt_ctrl_args) ->
+  eval_table_action
+    def
+    (extern_match (combine light_vals (map snd key)) (combine light_sets arefs))
+    hit a ctrl_args ->
   (** Find appropriate action data-plane arguments in table. *)
   Field.get a actions = Some data_args ->
-  (** Force control-plane arguments to be defined. *)
-  Forall2 (fun oe e => oe = Some e) opt_ctrl_args ctrl_args ->
+  (** Get index of action name in table declaration. *)
+  Field.get_index a actions = Some idx ->
   (** Evaluate action. *)
   ⧼ Ψ, ϵ₂, CApplyBlock tbls acts insts,
     Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽ ⤋ ⧼ ϵ', Cont, ψ ⧽ ->
   ⧼ Ψ, ϵ₁ ++ ϵ₂, CApplyBlock tbls acts insts,
-    Stmt.Invoke t ⧽ ⤋ ⧼ ϵ₁ ++ ϵ', Cont, ψ ⧽
+    Stmt.Invoke eo t ⧽
+    ⤋ ⧼ lv_update_signal
+          lvo
+          (Rtrn
+             (Some 
+             (Val.Lists
+                Expr.lists_struct
+                [Val.Bool hit; Val.Bool $ negb hit;
+                 Val.Bit (BinNat.N.of_nat (length actions)) (Z.of_nat idx)])))
+          (ϵ₁ ++ ϵ'), Cont, ψ ⧽
 | sbs_apply_control
     ϵ ϵ' ϵ'' tbls actions control_insts
     c ext_args args vargs sig ψ
@@ -426,10 +452,7 @@ Inductive stmt_big_step
   ⧼ Ψ, ϵ, CParserState n strt states parsers,
     Stmt.Apply p ext_args args ⧽ ⤋ ⧼ copy_out O vargs ϵ'' ϵ, sig, ψ ⧽
 | sbs_var ϵ ϵ' c og te v v' s sig ψ :
-  match te with
-  | inr e => ⟨ ϵ, e ⟩ ⇓ v
-  | inl τ => v_of_t τ = Some v
-  end ->
+  SumForall (fun τ => v_of_t τ = Some v) (fun e => ⟨ ϵ, e ⟩ ⇓ v) te ->
   ⧼ Ψ, v :: ϵ, c, s ⧽ ⤋ ⧼ v' :: ϵ', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stmt.Var og te s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽
 | sbs_seq_cont ϵ ϵ' ϵ'' c s₁ s₂ sig ψ ψ' :
@@ -448,4 +471,31 @@ where "⧼ Ψ , ϵ , c , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
   := (stmt_big_step Ψ ϵ c s ϵ' sig ψ) : type_scope.
 
 Local Close Scope stmt_scope.
+Local Open Scope climate_scope.
+
+Variant ctrl_big_step
+  (tbls : tenv) (acts : aenv) (ϵ : list Val.v)
+  : Control.d -> list Val.v -> aenv -> tenv -> Prop :=
+  | cbs_var x te v :
+    SumForall (fun τ => v_of_t τ = Some v) (fun e => ⟨ ϵ, e ⟩ ⇓ v) te ->
+    ctrl_big_step tbls acts ϵ (Control.Var x te) (v :: ϵ) acts tbls
+  | cbs_action a ctrl_params data_params body :
+    ctrl_big_step
+      tbls acts ϵ (Control.Action a ctrl_params data_params body)
+      ϵ (a ↦ ADecl ϵ acts body ,, acts) tbls
+  | cbs_table t key actions def :
+    ctrl_big_step
+      tbls acts ϵ (Control.Table t key actions def)
+      ϵ acts (t ↦ (length ϵ, key, actions, def) ,, tbls).
+
+(*Check FoldLeft.*)
+
+(* can instance args be used in control declarations outside of apply block?
+   I don't think so.
+   I think it only has constructor args for ctrl decls.
+   Need to fix typing def probs. *)
+
+(*Definition ctrls_big_step*)
+
 Local Close Scope value_scope.
+Local Close Scope climate_scope.

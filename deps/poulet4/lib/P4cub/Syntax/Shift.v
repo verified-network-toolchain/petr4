@@ -166,13 +166,14 @@ Fixpoint shift_s
   (sh : shifter) (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
-  | Stmt.Invoke _
   | Stmt.Exit => s
   | Stmt.Return oe
     => Stmt.Return $ option_map (shift_e sh) oe
   | Stmt.Transition e
     => Stmt.Transition $ shift_transition sh e
   | e1 `:= e2 => shift_e sh e1 `:= shift_e sh e2
+  | Stmt.Invoke e t
+    => Stmt.Invoke (option_map (shift_e sh) e) t
   | Stmt.Call fk args
     => Stmt.Call (shift_fun_kind sh fk) $ map (shift_arg sh) args
   | Stmt.Apply x eas args
@@ -193,10 +194,11 @@ Definition shift_ctrl_decl
   match d with
   | Control.Var x te => Control.Var x $ map_sum id (shift_e sh) te
   | Control.Action a cps dps s => Control.Action a cps dps $ shift_s sh s
-  | Control.Table t key argss =>
+  | Control.Table t key argss def =>
       Control.Table
         t (map (fun '(e, mk) => (shift_e sh e, mk)) key)
         (map (fun '(a, args) => (a, map (shift_arg sh) args)) argss)
+        $ option_map (fun '(a, es) => (a, map (shift_e sh) es)) def
   end.
 
 Fixpoint shift_ctrl_decls
@@ -250,6 +252,8 @@ Section Shift0.
       unfold shext, smother, RecordSet.set; unravel;
       f_equal; auto.
     - destruct e; unravel;
+        autorewrite with core; reflexivity.
+    - destruct lhs; unravel;
         autorewrite with core; reflexivity.
     - destruct expr; unravel;
         autorewrite with core; reflexivity.
@@ -322,13 +326,14 @@ Local Open Scope stmt_scope.
 Fixpoint rename_s (ρ : nat -> nat) (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
-  | Stmt.Invoke _
   | Stmt.Exit => s
   | Stmt.Return oe
     => Stmt.Return $ option_map (rename_e ρ) oe
   | Stmt.Transition e
     => Stmt.Transition $ rename_transition ρ e
   | e1 `:= e2 => rename_e ρ e1 `:= rename_e ρ e2
+  | Stmt.Invoke e t
+    => Stmt.Invoke (option_map (rename_e ρ) e) t
   | Stmt.Call fk args
     => Stmt.Call fk $ map (rename_arg ρ) args
   | Stmt.Apply x eas args
@@ -404,11 +409,11 @@ Fixpoint esub_s (σ : nat -> Expr.t -> String.string -> Expr.e) (s : Stmt.s) : S
   match s with
   | Stmt.Skip
   | Stmt.Return None
-  | Stmt.Invoke _
   | Stmt.Exit => s
   | Stmt.Return (Some e) => Stmt.Return $ Some $ esub_e σ e
   | Stmt.Transition e => Stmt.Transition $ esub_transition σ e
   | e₁ `:= e₂ => esub_e σ e₁ `:= esub_e σ e₂
+  | Stmt.Invoke e t => Stmt.Invoke (option_map (esub_e σ) e) t
   | Stmt.Call fk args => Stmt.Call (esub_fun_kind σ fk) $ List.map (esub_arg σ) args
   | Stmt.Apply inst eargs args => Stmt.Apply inst eargs $ map (esub_arg σ) args
   | Stmt.Var og te s => Stmt.Var og (map_sum id (esub_e σ) te) $ esub_s (exts σ) s

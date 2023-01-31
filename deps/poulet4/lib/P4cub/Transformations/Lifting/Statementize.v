@@ -152,8 +152,8 @@ Local Open Scope stmt_scope.
 Fixpoint lift_s (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
-  | Stmt.Invoke _
   | Stmt.Exit
+  | Stmt.Invoke None _
   | Stmt.Return None => s
   | Stmt.Return (Some e)
     => let '(e, le) := lift_e e in
@@ -168,6 +168,9 @@ Fixpoint lift_s (s : Stmt.s) : Stmt.s :=
         (shift_list shift_e (Shifter 0 (length le1)) le2 ++ le1)
         (shift_e (Shifter 0 (length le2)) e1
            `:= shift_e (Shifter (length le2) (length le1)) e2)
+  | Stmt.Invoke (Some e) t
+    => let '(e, le) := lift_e e in
+      Unwind le $ Stmt.Invoke (Some e) t
   | Stmt.Call fk args
     => let '(fk,lfk) := lift_fun_kind fk in
       let '(args,largs) := lift_args args in
@@ -205,18 +208,34 @@ Definition lift_control_decl (cd : Control.d) : list Control.d * nat :=
       (List.map (Control.Var "" ∘ inr) es ++ [Control.Var x $ inr e], List.length es)
   | Control.Action a cps dps body
     => ([Control.Action a cps dps $ lift_s body], 0)
-  | Control.Table t key acts =>
+  | Control.Table t key acts def =>
       let '(es,mks) := List.split key in
       let '(acts,argss) := List.split acts in
       let '(es,ees) := lift_e_list es in
       let '(argss,argsss) := lift_args_list argss in
+      let '(def,defes) :=
+        omap_effect
+          []
+          (fun '(a,es) => map_fst (pair a) $ lift_e_list es)
+          def in
       (List.map (Control.Var "" ∘ inr) argsss
          ++ List.map (Control.Var "" ∘ inr)
          (List.map (shift_e (Shifter 0 $ length argsss)) ees)
+         ++ List.map (Control.Var "" ∘ inr)
+         (List.map (shift_e (Shifter 0 (length es + length argsss))) defes)
          ++ [Control.Table
                t
-               (List.combine (map (shift_e $ Shifter (length ees) $ length argsss) es) mks)
-               (List.combine acts $ map (shift_list shift_arg $ Shifter 0 $ length ees) argss)],
+               (List.combine
+                  (map (shift_e $ Shifter 0 $ length defes)
+                     $ map (shift_e $ Shifter (length ees) $ length argsss) es) mks)
+               (List.combine acts
+                  $ map
+                  (shift_list shift_arg
+                     $ Shifter 0 (length defes + length ees)) argss)
+                  (option_map
+                     (fun '(a, es) =>
+                        (a, map (shift_e $ Shifter (length defes) (length ees + length argss)) es))
+                     def)],
         List.length ees + List.length argsss)
   end.
 

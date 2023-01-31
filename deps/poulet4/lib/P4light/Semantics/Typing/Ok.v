@@ -229,6 +229,7 @@ with StatementPreT_ok
     Δ ⊢ok`ˢ StatAssignment e₁ e₂
 | StatDirectApplication_ok t t' es :
     Δ ⊢ok t ->
+    Δ ⊢ok t' ->
     Forall (predop (Expression_ok Δ)) es ->
     Δ ⊢ok`ˢ StatDirectApplication t t' es
 | StatConditional_ok e s₁ s₂ :
@@ -306,93 +307,93 @@ Section OkBoomerInd.
       (Q : list string -> @ControlType tags_t -> Prop)
       (R : list string -> @FunctionType tags_t -> Prop)
       (S : list string -> @P4Parameter tags_t -> Prop).
-    
+
     Hypothesis HBool : forall Δ, P Δ TypBool.
-    
+
     Hypothesis HInteger : forall Δ, P Δ TypInteger.
-    
+
     Hypothesis HInt : forall Δ w, P Δ (TypInt w).
-    
+
     Hypothesis HBit : forall Δ w, P Δ (TypBit w).
-    
+
     Hypothesis HVarbit : forall Δ w, P Δ (TypVarBit w).
-    
+
     Hypothesis HArray : forall Δ t n,
         Δ ⊢ok t -> P Δ t -> P Δ (TypArray t n).
-    
+
     Hypothesis HTuple : forall Δ ts,
         Forall (fun t => Δ ⊢ok t) ts ->
         Forall (P Δ) ts ->
         P Δ (TypTuple ts).
-    
+
     Hypothesis HList : forall Δ ts,
         Forall (fun t => Δ ⊢ok t) ts ->
         Forall (P Δ) ts ->
         P Δ (TypList ts).
-    
+
     Hypothesis HRecord : forall Δ ts,
         Forall (fun t => Δ ⊢ok snd t) ts ->
         Forall (fun t => P Δ (snd t)) ts ->
         P Δ (TypRecord ts).
-    
+
     Hypothesis HSet : forall Δ t,
         Δ ⊢ok t -> P Δ t -> P Δ (TypSet t).
-    
+
     Hypothesis HError : forall Δ, P Δ TypError.
-    
+
     Hypothesis HMatchKind : forall Δ, P Δ TypMatchKind.
-    
+
     Hypothesis HVoid : forall Δ, P Δ TypVoid.
-    
+
     Hypothesis HHeader : forall Δ ts,
         Forall (fun t => Δ ⊢ok snd t) ts ->
         Forall (fun t => P Δ (snd t)) ts ->
         P Δ (TypHeader ts).
-    
+
     Hypothesis HUnion : forall Δ ts,
         Forall (fun t => Δ ⊢ok snd t) ts ->
         Forall (fun t => P Δ (snd t)) ts ->
         P Δ (TypHeaderUnion ts).
-    
+
     Hypothesis HStruct : forall Δ ts,
         Forall (fun t => Δ ⊢ok snd t) ts ->
         Forall (fun t => P Δ (snd t)) ts ->
         P Δ (TypStruct ts).
-    
+
     Hypothesis HEnum : forall Δ X t mems,
         predop (fun τ => remove_str (P4String.str X) Δ ⊢ok τ) t ->
         predop (P (remove_str (P4String.str X) Δ)) t ->
         P Δ (TypEnum X t mems).
-    
+
     Hypothesis HName : forall Δ X,
         List.In (P4String.str X) Δ ->
         P Δ (TypTypeName X).
-    
+
     Hypothesis HNewType : forall Δ X τ,
         remove_str (P4String.str X) Δ ⊢ok τ ->
         P (remove_str (P4String.str X) Δ) τ ->
         P Δ (TypNewType X τ).
-    
+
     Hypothesis HControl : forall Δ ct,
         ControlType_ok Δ ct -> Q Δ ct -> P Δ (TypControl ct).
-    
+
     Hypothesis HParser : forall Δ pt,
         ControlType_ok Δ pt -> Q Δ pt -> P Δ (TypParser pt).
-    
+
     Hypothesis HExtern : forall Δ X, P Δ (TypExtern X).
-    
+
     Hypothesis HFunction : forall Δ ft,
         FunctionType_ok Δ ft -> R Δ ft -> P Δ (TypFunction ft).
-    
+
     Hypothesis HAction : forall Δ ds cs,
         Forall (P4Parameter_ok Δ) ds ->
         Forall (S Δ) ds ->
         Forall (P4Parameter_ok Δ) cs ->
         Forall (S Δ) cs ->
         P Δ (TypAction ds cs).
-    
+
     Hypothesis HTable : forall Δ X, P Δ (TypTable X).
-    
+
     Hypothesis HPackage : forall Δ Xs Ys params,
         Forall
           (P4Parameter_ok
@@ -402,13 +403,13 @@ Section OkBoomerInd.
           (S (remove_all Δ (map P4String.str Xs)))
           params ->
         P Δ (TypPackage Xs Ys params).
-    
+
     Hypothesis HSpecialized : forall Δ τ τs,
         Forall (fun τ => Δ ⊢ok τ) τs ->
         Forall (P Δ) τs ->
         Δ ⊢ok τ -> P Δ τ ->
         P Δ (TypSpecializedType τ τs).
-    
+
     Hypothesis HConstructor : forall Δ Xs Ys params τ,
         Forall
           (P4Parameter_ok (remove_all Δ (map P4String.str Xs)))
@@ -418,7 +419,7 @@ Section OkBoomerInd.
         remove_all Δ (map P4String.str Xs) ⊢ok τ ->
         P (remove_all Δ (map P4String.str Xs)) τ ->
         P Δ (TypConstructor Xs Ys params τ).
-    
+
     Hypothesis HControlType : forall Δ Xs params,
         Forall
           (P4Parameter_ok
@@ -428,7 +429,7 @@ Section OkBoomerInd.
           (S (remove_all Δ (map P4String.str Xs)))
           params ->
         Q Δ (MkControlType Xs params).
-    
+
     Hypothesis HFunctionType : forall Δ Xs params k τ,
         Forall
           (P4Parameter_ok (remove_all Δ (map P4String.str Xs)))
@@ -439,11 +440,11 @@ Section OkBoomerInd.
         remove_all Δ (map P4String.str Xs) ⊢ok τ ->
         P (remove_all Δ (map P4String.str Xs)) τ ->
         R Δ (MkFunctionType Xs params k τ).
-    
+
     Hypothesis HP4Parameter : forall Δ b d τ n x,
         Δ ⊢ok τ -> P Δ τ ->
         S Δ (MkParameter b d τ n x).
-    
+
     (** Custom induction principles for the [_ok] rules. *)
     Fixpoint
       my_P4Type_ok_ind

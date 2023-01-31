@@ -92,12 +92,13 @@ Section Sub.
   Fixpoint tsub_s (s : Stmt.s) : Stmt.s :=
     match s with
     | Stmt.Skip
-    | Stmt.Invoke _
     | Stmt.Exit => s
     | Stmt.Return e => Stmt.Return $ option_map tsub_e e
     | Stmt.Transition e => Stmt.Transition $ tsub_transition e
     | (lhs `:= rhs)%stmt
       => (tsub_e lhs `:= tsub_e rhs)%stmt
+    | Stmt.Invoke e t
+      => Stmt.Invoke (option_map tsub_e e) t
     | Stmt.Call fk args
       => Stmt.Call (tsub_fun_kind fk) $ map tsub_arg args
     | Stmt.Apply ci ext_args args =>
@@ -143,10 +144,11 @@ Definition tsub_Cd (σ : nat -> Expr.t) (d : Control.d) :=
       Control.Action
         a (map_snd (tsub_t σ) cps)
         (map_snd (tsub_param σ) dps) $ tsub_s σ body
-  | Control.Table t key acts =>
+  | Control.Table t key acts def =>
       Control.Table
         t (List.map (fun '(e,mk) => (tsub_e σ e, mk)) key)
-        $ List.map (fun '(a,args) => (a, map (tsub_arg σ) args)) acts
+        (List.map (fun '(a,args) => (a, map (tsub_arg σ) args)) acts)
+        $ option_map (fun '(a,es) => (a, map (tsub_e σ) es)) def
   end.
 
 Definition tsub_d (σ : nat -> Expr.t) (d : TopDecl.d) : TopDecl.d :=

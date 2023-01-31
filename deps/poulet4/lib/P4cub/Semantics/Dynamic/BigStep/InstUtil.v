@@ -8,7 +8,8 @@ Definition tenv : Set :=
     string (** table name. *)
     (nat (** number of variables in scope. Tables have dynamic scope. *)
      * list (Expr.e * string) (** table key. *)
-     * list (string * Expr.args)) (** actions. *).
+     * list (string * Expr.args) (** actions. *)
+     * option (string * list Expr.e)) (** default action. *).
 
 (** Function declarations and closures. *)
 Inductive fdecl: Set :=
@@ -22,9 +23,7 @@ Definition fenv: Set := Clmt.t string fdecl.
 Inductive adecl: Set :=
 | ADecl
     (clos : list Val.v) (** value closure *)
-    (fs : fenv) (** function closure *)
     (actions : Clmt.t string adecl) (** action closure *)
-    (* TODO: needs De Bruijn extern instance closure env. *)
     (body : Stmt.s) (** action body *).
 
 (** Action names to closures. *)

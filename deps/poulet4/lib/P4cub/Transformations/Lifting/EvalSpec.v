@@ -202,6 +202,7 @@ Section StatementLifting.
   Context `{ext_sem : Extern_Sem}.
 
   Local Hint Constructors stmt_big_step : core.
+  Local Hint Constructors SumForall : core.
 
   (** Specification of [unwind_vars]. *)
   Lemma eval_decl_list_Unwind : forall ϵ es vs,
@@ -251,9 +252,11 @@ Section StatementLifting.
     - admit.
     - admit.
     - admit.
+    - admit.
     - econstructor; eauto.
       eapply IHhs; cbn; eauto.
-    - pose proof Lift_e_good _ _ _ H _ _ H4 as (vs & hvs & hv).
+    - inv H.
+      pose proof Lift_e_good _ _ _ H1 _ _ H4 as (vs & hvs & hv).
       eapply eval_decl_list_Unwind; eauto.
       apply sbs_var with (v := v) (v' := v'); auto.
       replace (v :: vs ++ ϵ) with ([v] ++ vs ++ ϵ) by reflexivity.

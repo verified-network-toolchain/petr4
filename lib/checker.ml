@@ -2658,17 +2658,19 @@ and type_statements env ctx statements =
     in
     (next_typ, stmt_typed :: stmts, env)
   in
-  List.fold_left ~f:fold ~init:(StmUnit, [], env) statements
+  let st_typ, stmts_typed, env' =
+    List.fold_left ~f:fold ~init:(StmUnit, [], env) statements in
+  st_typ, List.rev stmts_typed, env'
 
-and rev_list_to_block info: P4light.coq_Statement list -> P4light.coq_Block =
-  let f block stmt: P4light.coq_Block = BlockCons (stmt, block) in
-  let init: P4light.coq_Block = BlockEmpty info in
-  List.fold_left ~f ~init
+and list_to_block info: P4light.coq_Statement list -> P4light.coq_Block =
+  let f stmt block = BlockCons (stmt, block) in
+  let init = BlockEmpty info in
+  List.fold_right ~f ~init
 
 and type_block env ctx stmt_info block =
   let env' = Checker_env.push_scope env in
   let typ, stmts, env' = type_statements env' ctx (snd block).statements in
-  let block = rev_list_to_block stmt_info stmts in
+  let block = list_to_block stmt_info stmts in
   MkStatement (stmt_info, StatBlock block, typ), env
 
 (* Section 11.4

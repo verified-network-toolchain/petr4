@@ -111,7 +111,7 @@ Proof.
   f_equal.
   - match_some_inv; some_inv.
     rewrite repeat_length; lia.
-  - pose proof sequence_length _ _ Heqo as Hlen.
+  - pose proof Option.sequence_length _ _ Heqo as Hlen.
     rewrite map_length in Hlen.
     pose proof Forall_specialize_Forall2
          _ _ _ _ H _ (eq_sym Hlen) as h.

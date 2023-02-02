@@ -711,6 +711,24 @@ Section InterpreterSafe.
         eapply IHl; eauto using List.in_combine_l.
   Qed.
 
+  Lemma in_combine_map:
+    forall A B C (f: A -> B) xs (ys: list C) x y,
+      List.In (x, y) (List.combine xs ys) ->
+      List.In (f x, y) (List.combine (List.map f xs) ys).
+  Proof.
+    induction xs; intros.
+    - simpl.
+      tauto.
+    - simpl in *.
+      destruct ys; auto.
+      inversion H.
+      + inversion H0; subst.
+        apply in_eq.
+      + apply in_cons.
+        apply IHxs.
+        apply H0.
+  Qed.
+
   Lemma in_combine_f:
     forall A B (f: A -> B) xs x y,
       List.In (x, y) (List.combine xs (List.map f xs)) ->
@@ -725,21 +743,6 @@ Section InterpreterSafe.
       + eapply IHxs; eauto.
   Qed.
 
-  Lemma sequence_length :
-    forall {A : Type} (m : Type -> Type) (M : Monad m) (cs : list (m A)) (vs: list A),
-      (forall A (x y : A), mret x = mret y -> x = y) ->
-      Monad.sequence cs = Monad.mret vs ->
-      length vs = length cs.
-  Proof.
-    induction cs.
-    intros.
-    - cbn in *.
-      eapply H in H0.
-      subst.
-      reflexivity.
-    - intros.
-  Admitted.
-
   Lemma interp_exprs_safe:
     forall exprs this st vals,
       Interpreter.interp_exprs ge this st exprs = Ok vals ->
@@ -750,21 +753,18 @@ Section InterpreterSafe.
     simpl in *.
     repeat simpl_result_all.
     econstructor.
-    - eapply Forall2_forall.
+    - eapply Result.sequence_Forall2 in Hw.
+      eapply Forall2_forall in Hw.
+      destruct Hw.
+      eapply Forall2_forall.
       split.
-      + eapply eq_trans.
-        symmetry.
-        eapply map_length.
-        symmetry.
-        eapply sequence_length; try eapply Hw.
-        admit.
+      + erewrite <- map_length.
+        eauto.
       + intros.
-        inversion H; subst.
-        assert (List.In u exprs)
-          by eauto using List.in_combine_l.
-        assert (List.In v w)
-          by eauto using List.in_combine_r.
-        admit.
+        subst.
+        eapply interp_expr_safe.
+        eapply H1.
+        now apply in_combine_map.
     - unfold svals_to_vals.
       inversion H.
       eapply Forall2_forall.
@@ -775,7 +775,7 @@ Section InterpreterSafe.
         eapply in_combine_f in H1.
         subst.
         eapply sval_to_val_interp.
-  Admitted.
+  Qed.
 
   Lemma interp_match_safe:
     forall this m vset,

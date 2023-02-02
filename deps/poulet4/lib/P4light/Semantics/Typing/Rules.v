@@ -528,10 +528,10 @@ Section Soundness.
              repeat rewrite map_snd_map.
              repeat rewrite map_id.
              rewrite map_fst_combine by
-                 (apply sequence_length in Hesrs;
+                 (apply Option.sequence_length in Hesrs;
                   autorewrite with core in *; auto).
              rewrite map_snd_combine by
-                 (apply sequence_length in Hesrs;
+                 (apply Option.sequence_length in Hesrs;
                   autorewrite with core in *; auto).
              rewrite Forall2_eq, <- Forall2_map_both; auto.
       - intros H; inv H.

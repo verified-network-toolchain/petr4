@@ -56,6 +56,7 @@ let packet_equal (port_exp, pkt_exp) (port, pkt) =
       Char.equal char_exp char || Char.equal char_exp '*'
   in
   Int.equal (Int.of_string port_exp) (Int.of_string port) &&
+  Int.equal (String.length pkt_exp) (String.length pkt) &&
   String.for_alli ~f:matches_exp pkt
 
 let convert_qualified name =

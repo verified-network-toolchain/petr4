@@ -516,19 +516,20 @@ Section InterpreterSafe.
       + inversion H.
         constructor.
       + discriminate.
-    - destruct dirs; simpl in H; try discriminate.
+    - unfold Interpreter.interp_args in H.
+      destruct (PeanoNat.Nat.eqb (length (a::exps)) (length dirs)) eqn:? in H;
+        [|discriminate].
+      destruct dirs;
+        [discriminate|].
+      cbn in H.
       repeat simpl_result_all.
-  Admitted.
-  (*
       destruct w.
       repeat simpl_result_all.
       destruct w.
-      inversion H.
-      subst.
+      inversion H; subst.
       econstructor; eauto using interp_arg_safe.
       destruct (Semantics.is_continue s); reflexivity.
   Qed.
-*)
 
   Lemma interp_isValid_safe:
     (forall a v,

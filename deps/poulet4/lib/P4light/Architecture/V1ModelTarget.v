@@ -730,6 +730,15 @@ Definition interp_prog
     | _ => error (Exn.Other "interp_prog: failure in parser")
     end
   in
+  (* hang on to the suffix of the input packet that wasn't parsed so
+     we can append it to the emitted stuff later in the pipeline *)
+  let* pkt_body :=
+    from_opt (let* p := PathMap.get ["packet_in"] s2 in
+              match p with
+              | ObjPin body => Some body
+              | _ => None
+              end)
+             (Exn.Other "interp_prog: failure recovering packet body") in
   let* (s3, outs3) := expect_result_null (run_module ["main"; "vr"] s2 [hdr2; meta2]) in
   let* (hdr3, meta3) :=
     match outs3 with
@@ -760,7 +769,7 @@ Definition interp_prog
   let* pkt := from_opt (PathMap.get ["packet_out"] s7)
                        (Exn.Other "interp_prog: failure recovering packet") in
   match pkt with
-  | ObjPout pout => mret (s7, 0%Z, pout)
+  | ObjPout pout => mret (s7, 0%Z, pout ++ pkt_body)%list
   | _ => error (Exn.Other "interp_prog: failure recovering packet")
   end.
 

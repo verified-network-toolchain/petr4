@@ -685,6 +685,38 @@ Definition initialize_val_of_type (typ: P4Type) : result Exn.t Val :=
                     (Exn.Other "V1Model: uninit_sval_of_typ") in
   mret (interp_sval_to_val sv).
 
+Definition get_portlike (std_meta: Val) (fname: string) : result Exn.t Val :=
+  match std_meta with
+  | ValBaseStruct fields =>
+      from_opt (AList.get fields fname)
+               (Exn.Other ("get_portlike: could not find " ++ fname))
+  | _ => error (Exn.Other "get_portlike: expected struct")
+  end.
+
+Definition get_port_int (std_meta: Val) : result Exn.t Z :=
+  let* vport := get_portlike std_meta "egress_port" in
+  match vport with
+  | ValBaseBit bits =>
+      ok (snd (BitArith.from_lbool bits))
+  | _ => error (Exn.Other "get_portlike: port not bits")
+  end.
+
+Definition get_egress_spec (std_meta: Val) : result Exn.t Val :=
+  get_portlike std_meta "egress_spec".
+
+Definition set_port_by_spec (std_meta: Val) : result Exn.t Val :=
+  let* spec := get_egress_spec std_meta in
+  match std_meta with
+  | ValBaseStruct fields =>
+      let* fields' :=
+        from_opt (AList.set fields "egress_port" spec)
+                 (Exn.Other "set_port_by_spec: egress_port field missing")
+      in
+      ok (ValBaseStruct fields')
+  | _ =>
+      error (Exn.Other "set_port_by_spec: std_meta not a struct")
+  end.
+
 Definition interp_prog
            (arch_type_args : list P4Type)
            (run_module: path -> extern_state -> list Val -> result Exn.t (extern_state * list Val * signal))
@@ -751,12 +783,14 @@ Definition interp_prog
     | [hdr4; meta4; standard_metadata4] => mret (hdr4, meta4, standard_metadata4)
     | _ => error (Exn.Other "interp_prog: failure in ingress")
     end in
+  let* standard_metadata4 := set_port_by_spec standard_metadata4 in
   let* (s5, outs5) := expect_result_null (run_module ["main"; "eg"] s4 [hdr4; meta4; standard_metadata4]) in
   let* (hdr5, meta5, standard_metadata5) :=
     match outs5 with
     | [hdr5; meta5; standard_metadata5] => mret (hdr5, meta5, standard_metadata5)
     | _ => error (Exn.Other "interp_prog: failure in egress")
     end in
+  let* port := get_port_int standard_metadata5 in
   let* (s6, outs6) := expect_result_null (run_module ["main"; "ck"] s5 [hdr5; meta5]) in
   let* (hdr6, meta6) :=
     match outs6 with
@@ -769,7 +803,7 @@ Definition interp_prog
   let* pkt := from_opt (PathMap.get ["packet_out"] s7)
                        (Exn.Other "interp_prog: failure recovering packet") in
   match pkt with
-  | ObjPout pout => mret (s7, 0%Z, pout ++ pkt_body)%list
+  | ObjPout pout => mret (s7, port, pout ++ pkt_body)%list
   | _ => error (Exn.Other "interp_prog: failure recovering packet")
   end.
 

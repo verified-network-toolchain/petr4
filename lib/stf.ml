@@ -41,7 +41,7 @@ let rec run_test
         match evaler prog packet (int_of_string port) st with
         | Ok ((st', port), pkt) ->
           let fixed = pkt |> Util.bits_to_string |> Util.hex_of_string |> strip_spaces |> String.lowercase in
-          (Bigint.to_string port, fixed) :: results, st'
+          results @ [(Bigint.to_string port, fixed)], st'
         | Error e ->
           failwith (Exn.to_string e)
       in
@@ -49,7 +49,10 @@ let rec run_test
     | Expect (port, None) ->
       failwith "unimplemented stf statement: Expect w/ no pkt"
     | Expect (port, Some packet) ->
-      run_test prog tl results ((port, strip_spaces packet |> String.lowercase) :: expected) st
+      let expected_pkt =
+        (port, strip_spaces packet |> String.lowercase)
+      in
+      run_test prog tl results (expected @ [expected_pkt]) st
     | Add (tbl_name, priority, match_list, (action_name, args), id) ->
       failwith "unimplemented stf statement: Add"
          (*

@@ -117,10 +117,21 @@ let eq_opt ~f o1 o2 =
   | Some v1, Some v2 -> f v1 v2
   | _ -> false
 
+let rec repeat (n: int) (a: 'a) : 'a list =
+  if n > 0
+  then a :: repeat (n - 1) a
+  else []
+
+let pad8 (bits: bool list) =
+  let gap = 8 - List.length bits in
+  if gap > 0
+  then bits @ repeat gap false
+  else bits
+
 let rec pos_int_to_rev_bits' (acc: bool list) (k: int) : bool list =
   assert (k >= 0);
   if k = 0
-  then acc
+  then pad8 acc
   else if k mod 2 = 0
        then pos_int_to_rev_bits' (false :: acc) (k / 2)
        else pos_int_to_rev_bits' (true :: acc)  ((k - 1) / 2)

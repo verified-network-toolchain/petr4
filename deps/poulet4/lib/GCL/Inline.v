@@ -378,7 +378,7 @@ Definition make_match (tags : tags_t) symb_key key read_modality :=
     let valid_headers := boolify headers tags in
     (symb_key,
      (* ISeq (inline_assert (orr dont_care valid_headers) tags) (assume match_mask tags) tags*)
-     ifte dont_care (assume match_eq tags) (ISkip tags))
+     ifte dont_care (ISkip tags) (assume match_eq tags))
    end.
 
 Definition realize_symbolic_key (symb_var : string) (key_type : E.t) (key : E.e tags_t) (mk : E.matchkind) (tags : tags_t) :=
@@ -722,10 +722,11 @@ with inline (gas : nat)
                  let* s := inline gas unroll ctx body in
                  let string_params := string_list_of_params params in
                  let act_id := BinNat.N.of_nat i in
-                 let+ (s', _) := action_param_renamer tbl_name act_id string_params s in
+                 let* (s', _) := action_param_renamer tbl_name act_id string_params s in
                  let e_params : list (E.e tags_t) :=
                    F.fold (fun param_name parg acc =>
-                             List.cons (E.EVar (param_type parg) (rename_string tbl_name act_id param_name string_params) tags) acc) params [] in
+                             let param_name' := rename_string tbl_name act_id param_name string_params in
+                             List.cons (E.EVar (param_type parg) param_name' tags) acc) params [] in
                  let+ (s', _) := action_param_renamer tbl_name (BinNat.N.of_nat i) (string_list_of_params params) s in
                  let set_action_run :=
                      IAssign act_type
@@ -738,8 +739,8 @@ with inline (gas : nat)
                end
              in
              let* acts := fold_lefti act_to_gcl (ok []) action_names in
-             let+ named_acts := zip action_names acts in
-             let (assumes, keys') := normalize_keys tbl_name keys tags in
+             let* named_acts := zip action_names acts in
+             let+ (assumes, keys') := normalize_keys tbl_name keys tags in
              let invocation := IInvoke tbl_name keys' named_acts tags in
              ISeq assumes invocation tags
            | _ =>

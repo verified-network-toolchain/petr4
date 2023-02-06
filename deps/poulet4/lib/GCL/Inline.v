@@ -93,7 +93,7 @@ Inductive t : Type :=
 | IExit (i : tags_t)                              (* exit statement *)
 | IInvoke (x : string)
           (keys : list (E.t * E.e tags_t * E.matchkind))
-          (actions : list (string * t))
+          (actions : list (string * (list (E.e tags_t) * t)))
           (i : tags_t)
 | ISetValidity (hdr: E.e tags_t ) (val : bool) (i : tags_t) (*set the header indicated by hdr to valid (if val is true) or invalid (if val is false) *)
 | IHeaderStackOp (hdr_stck_name : string) (typ : E.t) (op : ST.hsop) (size : positive) (i : tags_t)
@@ -207,7 +207,7 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
   | IExit _ => (c,η)
   | IInvoke x keys actions i =>
     let keys' := List.map (fun '(t, m,k) => (t, subst_e η m, k)) keys in
-    let actions' := List.map (fun '(s,a) => (s, fst(subst_t η a))) actions in
+    let actions' := List.map (fun '(s,(params, a)) => (s, (params, fst(subst_t η a)))) actions in
     (IInvoke x keys' actions' i, η)
 
   | IExternMethodCall extn method ar i =>
@@ -450,6 +450,14 @@ Definition init_parser (states : F.fs string (Parser.state_block tags_t)) (tags 
          states
          (ISeq (set_state_flag "accept" false tags) (set_state_flag "reject" false tags) tags).
 
+Definition param_type (param : paramarg Expr.t Expr.t) : Expr.t :=
+  match param with
+  | PAIn t => t
+  | PAOut t => t
+  | PAInOut t => t
+  | PADirLess t => t
+  end.
+
 Fixpoint inline_parser  (gas : nat)
                         (unroll : nat)
                         (tags : tags_t)
@@ -610,13 +618,13 @@ with inline (gas : nat)
          | ST.SExit i =>
            ok (IExit i)
 
-         | ST.SInvoke tbl_name i =>
+         | ST.SInvoke tbl_name tags =>
            let* tdecl := from_opt (find_table tags_t ctx tbl_name) "could not find table in environment" in
            match tdecl with
            | CD.CDTable _ tbl _ =>
              let keys := List.map (fun '(e,k) => (t_of_e e, e, k)) (Control.table_key tbl) in
-             let actions := Control.table_actions tbl in
-             let act_size := Nat.max (PeanoNat.Nat.log2_up (List.length actions)) 1 in
+             let action_names := Control.table_actions tbl in
+             let act_size := Nat.max (PeanoNat.Nat.log2_up (List.length action_names)) 1 in
              let act_sizeN := BinNat.N.of_nat act_size in
              let act_type := E.TBit act_sizeN in
              let act_to_gcl := fun i a acc_res =>
@@ -625,22 +633,26 @@ with inline (gas : nat)
                match act with
                | CD.CDAction _ params body tags =>
                  let* s := inline gas unroll ctx body in
-                 let+ (s', _) := action_param_renamer tbl_name a (string_list_of_params params) s in
+                 let string_params := string_list_of_params params in
+                 let+ (s', _) := action_param_renamer tbl_name a string_params s in
+                 let e_params : list (E.e tags_t) :=
+                   F.fold (fun param_name parg acc =>
+                             List.cons (E.EVar (param_type parg) (rename_string tbl_name a param_name string_params) tags) acc) params [] in
                  let set_action_run :=
                      IAssign act_type
                      (E.EVar act_type ("_return$" ++ tbl_name ++ ".action_run") tags)
                      (E.EBit act_sizeN (BinInt.Z.of_nat i) tags) tags
                  in
-                 (ISeq set_action_run s' tags) :: acc
+                 (e_params, ISeq set_action_run s' tags) :: acc
                | _ =>
                  error "[ERROR] expecting action when `find`ing action, got something else"
                end
              in
-             let* acts := fold_lefti act_to_gcl (ok []) actions in
-             let+ named_acts := zip actions acts in
-             let (assumes, keys') := normalize_keys tbl_name keys i in
-             let invocation := IInvoke tbl_name keys' named_acts i in
-             ISeq assumes invocation i
+             let* acts := fold_lefti act_to_gcl (ok []) action_names in
+             let+ named_acts := zip action_names acts in
+             let (assumes, keys') := normalize_keys tbl_name keys tags in
+             let invocation := IInvoke tbl_name keys' named_acts tags in
+             ISeq assumes invocation tags
            | _ =>
              error "[ERROR] expecting table when getting table, got something else"
            end
@@ -676,12 +688,6 @@ Definition elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : 
   | _,_ => ok (Inline.IAssign ltyp lhs rhs i)
   end.
 
-Definition res_snd { A B : Type } (p : A * result B ) : result (A * B) :=
-  match p with
-  | (_, Error _ s) => error s
-  | (a, Ok _ b) => ok (a, b)
-  end.
-
 Definition elaborate_tuple_literal
            (param : string)
            (ctor : E.e tags_t -> paramarg (E.e tags_t) (E.e tags_t))
@@ -715,10 +721,10 @@ Fixpoint elim_tuple (c : Inline.t) : result t :=
   | IExit _ => ok c
   | IInvoke x keys actions i =>
     (** TODO do we need to eliminate tuples in keys??*)
-    let+ actions := List.fold_right (fun '(name, act) acc =>
+    let+ actions := List.fold_right (fun '(name, (params, act)) acc =>
                      let* act := elim_tuple act in
                      let+ acc := acc in
-                     (name, act) :: acc) (ok []) actions in
+                     (name, (params, act)) :: acc) (ok []) actions in
     IInvoke x keys actions i
   | IExternMethodCall extern method arrow tags =>
     let arrow := elaborate_arrowE arrow in
@@ -770,8 +776,8 @@ Fixpoint elaborate_headers (c : Inline.t) : result Inline.t :=
 | IReturnFruit _ _ _ => ok c
 | IExit _ => ok c
 | IInvoke x keys actions i =>
-  let opt_actions := map_snd elaborate_headers actions in
-  let+ actions' := rred (List.map res_snd opt_actions) in
+  let opt_actions := List.map (fun '(name, (params, act)) => (name, (params, elaborate_headers act))) actions in
+  let+ actions' := rred (List.map (fun '(name, params_act) => res_snd (name, res_snd params_act)) opt_actions) in
   IInvoke x keys actions' i
 | IExternMethodCall extern method arrow tags =>
   let arrow := elaborate_arrowE arrow in
@@ -878,10 +884,10 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
   | IExit _ => ok c
   | IInvoke x keys actions i =>
     (* TODO: Do something with keys? *)
-    let rec_act_call := fun acc_opt '(nm, act) =>
+    let rec_act_call := fun acc_opt '(nm, (params, act)) =>
         let* acc := acc_opt in
         let+ act' := elaborate_header_stacks act in
-        (nm, act') :: acc
+        (nm, (params, act')) :: acc
     in
     let+ actions' := fold_left rec_act_call actions (ok []) in
     IInvoke x keys (rev actions') i
@@ -974,8 +980,8 @@ Fixpoint elaborate_structs (c : Inline.t) : result Inline.t :=
   | IReturnFruit _ _ _ => ok c
   | IExit _ => ok c
   | IInvoke x keys actions i =>
-    let opt_actions := map_snd elaborate_structs actions in
-    let+ actions' := rred (List.map res_snd opt_actions) in
+    let opt_actions := List.map (fun '(name, (params, act)) => res_snd (name, res_snd (params, elaborate_structs act))) actions in
+    let+ actions' := rred opt_actions in
     IInvoke x keys actions' i
   | IExternMethodCall extern method arrow tags =>
     let arrow := elaborate_arrowE arrow in
@@ -1021,10 +1027,10 @@ Fixpoint eliminate_slice_assignments (c : t) : result t :=
   | IReturnFruit _ _ _ => ok c
   | IExit _ => ok c
   | IInvoke tbl keys actions i =>
-    let+ actions' := F.fold (fun name act acts =>
+    let+ actions' := F.fold (fun name '(params, act) acts =>
              let* act' := eliminate_slice_assignments act in
              let+ acts' := acts in
-             (name, act') :: acts') actions (ok []) in
+             (name, (params, act')) :: acts') actions (ok []) in
     IInvoke tbl keys actions' i
   | ISetValidity  _ _ _  => ok c
   | IHeaderStackOp _ _ _ _ _ => ok c
@@ -1124,9 +1130,9 @@ Fixpoint assert_headers_valid_before_use (c : t) : result t :=
   | IExit _ => ok c
   | IInvoke t ks acts tags =>
   (* Assume keys have been normalized, so dont to check them*)
-    let+ acts' := rred (List.map (fun '(a,c) =>
+    let+ acts' := rred (List.map (fun '(a,(ps, c)) =>
                   let+ c' := assert_headers_valid_before_use c in
-                  (a, c')) acts) in
+                  (a, (ps,c'))) acts) in
     IInvoke t ks acts' tags
   | ISetValidity  _ _ _  => ok c
   | IHeaderStackOp _ _ _ _ _ =>

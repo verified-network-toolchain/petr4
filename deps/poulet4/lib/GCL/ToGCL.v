@@ -158,7 +158,7 @@ Section ToGCL.
 
   Section Instr.
 
-    Variable instr : (string -> tags_t -> list (nat * BitVec.t * E.matchkind) -> list (string * target) -> result target).
+    Variable instr : (string -> tags_t -> list (nat * BitVec.t * E.matchkind) -> list (string * (list BV.t * target)) -> result target).
 
     Definition pos := GCL.pos.
     Fixpoint scopify (ctx : ctx) (e : E.e tags_t) : E.e tags_t :=
@@ -642,6 +642,8 @@ Section ToGCL.
                   GCL.subst_rvalue lvalue_subst BV.subst_bv Form.subst_bv param bv_expr g'
                 end) (ok g) s.
 
+    Print union_map_snd.
+
     Fixpoint inline_to_gcl (c : ctx) (arch : model) (s : Inline.t tags_t) : result (target * ctx) :=
       match s with
       | Inline.ISkip _ i =>
@@ -683,7 +685,11 @@ Section ToGCL.
         ok (GCL.GAssign (E.TBit (BinNat.N.of_nat 1)) "exit" (BV.bit (Some 1) 1), update_exit c true)
 
       | Inline.IInvoke _ tbl keys actions i =>
-        let* actions' := union_map_snd (fst >>=> inline_to_gcl c arch) actions in
+        let* actions' := rred (map (fun '(name, (params, act)) =>
+                                      let* bv_params := rred (List.map to_rvalue params) in
+                                      let+ (gcl_act,_) := inline_to_gcl c arch act in
+                                      (name, (bv_params, gcl_act))) actions)
+        in
         let* keys' := rred (map (fun '(t,e,mk) =>
                                    let~ w := width_of_type (tbl @@ " key") t over ("[inline_to_gcl] failed getting width of table key. Table: " @@ tbl ) in
                                    let~ e' := to_rvalue e over "failed converting keys to rvalue" in
@@ -701,6 +707,7 @@ Section ToGCL.
         let+ header := to_lvalue e in
         let hvld := header @@ ".is_valid" in
         let vld_bit := if v then 1 else 0 in
+
         (GCL.GAssign (E.TBit (BinNat.N.of_nat 1)) hvld (BV.BitVec vld_bit (Some 1)), c)
       | Inline.IHeaderStackOp _ stck _ _ _ _ =>
         error ("Tried to translate a header stack operation on " @@ stck @@ " to GCL. This should've been eliminated during the inlining phase.")

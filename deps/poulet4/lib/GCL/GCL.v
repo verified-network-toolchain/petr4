@@ -1,3 +1,4 @@
+
 Set Warnings "-custom-entry-overridden".
 From Coq Require Import Program.Basics Arith.EqNat.
 From Poulet4 Require Export P4cub.Syntax.AST
@@ -175,7 +176,7 @@ Section GCL.
   | GExternAssn (x : lvalue) (e : string) (args : list (form + rvalue))
   | GTable (tbl : string)
            (keys : list (rvalue * E.matchkind))
-           (actions : list (string * t)).
+           (actions : list (string * ((list BitVec.t) * t))).
 
   Definition g_sequence {L R F : Type} : list (@t L R F) -> @t L R F :=
     fold_right GSeq GSkip.
@@ -215,7 +216,7 @@ Section GCL.
       GExternAssn (l param phi x) e (List.map (either_map (f param phi) (r param phi)) args)
     | GTable tbl keys actions =>
       GTable tbl (List.map (fun '(key, kind) => (r param phi key, kind)) keys)
-        (List.map (fun '(x,act) => (x, subst_form l r f param phi act)) actions)
+        (List.map (fun '(x,(params, act)) => (x, (params, subst_form l r f param phi act))) actions)
     end.
 
   Fixpoint subst_rvalue
@@ -240,7 +241,7 @@ Section GCL.
       GExternAssn (l param e x) ext (List.map (either_map (f param e) (r param e)) args)
     | GTable x keys actions =>
       GTable x (List.map (fun '(key, kind) => (r param e key, kind)) keys)
-        (List.map (fun '(x,act) => (x, subst_rvalue l r f param e act)) actions)
+        (List.map (fun '(x, (params, act)) => (x, (params, subst_rvalue l r f param e act))) actions)
     end.
 
 End GCL.

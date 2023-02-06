@@ -99,7 +99,7 @@ Section Optimizer.
   Definition optimize_tm (t: tm) : R.result error tm :=
     tm_from_string (ExternalOptimizer (to_string t)).
 
-  Fixpoint e_to_tm (e: E.e) : R.result string tm :=
+  Fixpoint e_to_tm (e: Inline.E.e) : R.result string tm :=
     match e with
     | E.Bool b       => mret (TBool b)
     | E.Bit w n      => mret (TInt {|iwidth:=w; ivalue:=n|})
@@ -158,11 +158,42 @@ Section Optimizer.
         R.error "t_to_tm: extern calls unimplemented"
     end.
 
-  Fixpoint tm_to_t (e : tm) : R.result string Inline.t.
-  Admitted.
-
-  Fixpoint tm_to_e (e : tm) : R.result string Inline.t.
-  Admitted.
+  Set Printing All.
+  Fixpoint tm_to_t (e : tm) : R.result string Inline.t :=
+    match e with
+    | TIf e1 c1 c2 =>
+        let* e1' := tm_to_e e1 in
+        let* t1 := tm_to_t c1 in
+        let+ t2 := tm_to_t c2 in
+        Inline.IConditional E.TBool e1' t1 t2
+    | TSeq c1 c2 =>
+        let* t1 := tm_to_t c1 in
+        let+ t2 := tm_to_t c2 in
+        Inline.ISeq t1 t2
+    | TNop => mret Inline.ISkip
+    | TSet x e =>
+        let+ e' := tm_to_e e in
+        Inline.IAssign E.TBool (E.Var E.TBool x 0) e'
+    | _ => Result.error "tm is not a command"
+    end
+    with tm_to_e (e : tm) : R.result string Inline.E.e :=
+      match e with
+      | TBool b => mret (Inline.E.Bool b)
+      | TInt i => mret (E.Bit (iwidth i) (ivalue i))
+      | TAnd e1 e2 =>
+          let* e1' := tm_to_e e1 in
+          let+ e2' := tm_to_e e2 in
+          E.Bop E.TBool E.And e1' e2'
+      | TNot e1 =>
+          let+ e1' := tm_to_e e1 in
+          E.Uop E.TBool E.Not e1'
+      | TEq e1 e2 =>
+          let* e1' := tm_to_e e1 in
+          let+ e2' := tm_to_e e2 in
+          E.Bop E.TBool E.Eq e1' e2'
+      | TVar s => mret (Inline.E.Var E.TBool s 0)
+      | _ => Result.error "tm is not an expression"
+      end.
 
   Definition optimize_inline_t (t: Inline.t) : R.result string Inline.t :=
     let* tprog := t_to_tm t in

@@ -270,26 +270,9 @@ Variant type_ctrldecl (Γ : ctrl_type_env)
 where "Γ '⊢ᵪ' d '⊣' result"
   := (type_ctrldecl Γ d result) : type_scope.
 
-(** * Toplevel-declaration typing. *)
-
-(* TODO: add packages to [ienv]. *)
-Record top_type_env : Set :=
-  mk_top_type_env
-    { tfuncts : fenv (** available function signatures. *)
-    ; cnstrs : constructor_env (** available constructors. *)
-    ; insts_env : ienv (** available instances for parsers, controls, externs. *) }.
-
-Global Instance eta_top_type_env : Settable _ :=
-  settable! mk_top_type_env
-  < tfuncts ; cnstrs ; insts_env >.
-
-Reserved Notation "Γ₁ '⊢ₜ' d ⊣ Γ₂"
-         (at level 80, no associativity).
-
 Local Open Scope climate_scope.
 
 Definition type_ctrl
-           (params : Expr.params)
            (Γ : list Expr.t)
            (fs : fenv)
            (cis : ienv)
@@ -308,10 +291,26 @@ Definition type_ctrl
            end)
     ctrl
     {| ctype_vars := 0
-    ; ctypes := bind_all params Γ
+    ; ctypes := Γ
     ; cfuncts := fs
     ; cinsts := cis
     ; actns := ∅ ; tbls := ∅ |}.
+
+(** * Toplevel-declaration typing. *)
+
+(* TODO: add packages to [ienv]. *)
+Record top_type_env : Set :=
+  mk_top_type_env
+    { tfuncts : fenv (** available function signatures. *)
+    ; cnstrs : constructor_env (** available constructors. *)
+    ; insts_env : ienv (** available instances for parsers, controls, externs. *) }.
+
+Global Instance eta_top_type_env : Settable _ :=
+  settable! mk_top_type_env
+  < tfuncts ; cnstrs ; insts_env >.
+
+Reserved Notation "Γ₁ '⊢tp' d ⊣ Γ₂"
+         (at level 80, no associativity).
 
 (** Top-level declaration typing. *)
 Inductive type_topdecl (Γ : top_type_env)
@@ -336,7 +335,7 @@ Inductive type_topdecl (Γ : top_type_env)
   Forall2
     (type_expr 0 [])
     expr_cargs expr_cparams ->
-  Γ ⊢ₜTopDecl.Instantiate
+  Γ ⊢tp TopDecl.Instantiate
     control_decl_name instance_name [] cargs expr_cargs
     ⊣ Γ <| insts_env :=
     insts_bind_other
@@ -362,7 +361,7 @@ Inductive type_topdecl (Γ : top_type_env)
   Forall2
     (type_expr 0 [])
     expr_cargs expr_cparams ->
-  Γ ⊢ₜTopDecl.Instantiate
+  Γ ⊢tp TopDecl.Instantiate
     parser_decl_name instance_name [] cargs expr_cargs
     ⊣ Γ <| insts_env :=
       insts_bind_other
@@ -390,7 +389,7 @@ Inductive type_topdecl (Γ : top_type_env)
   Forall2
     (type_expr 0 [])
     expr_cargs expr_cparams ->
-  Γ ⊢ₜTopDecl.Instantiate
+  Γ ⊢tp TopDecl.Instantiate
     package_decl_name instance_name [] cargs expr_cargs
     ⊣ Γ (* TODO: represent package types in [ienv] *)
 | type_instantiate_extern
@@ -414,10 +413,10 @@ Inductive type_topdecl (Γ : top_type_env)
   Forall2
     (type_expr 0 [])
     expr_cargs (map (tsub_t (gen_tsub τs)) expr_cparams) ->
-  Γ ⊢ₜ TopDecl.Instantiate extern_decl_name extern_name τs cargs expr_cargs
+  Γ ⊢tp TopDecl.Instantiate extern_decl_name extern_name τs cargs expr_cargs
     ⊣ Γ <| insts_env := (* TODO: sub [τs] into methods *)
          insts_bind_externs
-           extern_name methods Γ.(insts_env) |>
+         extern_name methods Γ.(insts_env) |>   
 | type_control
     control_name cparams expr_cparams extern_params params
     control_decls apply_blk Γ' sig insts :
@@ -426,11 +425,11 @@ Inductive type_topdecl (Γ : top_type_env)
      to instance envrionment when checking control body. *)
   insts = cbind_all (insts_env Γ) cparams ->
   type_ctrl
-    params expr_cparams (tfuncts Γ) insts control_decls Γ' ->
+    expr_cparams (tfuncts Γ) insts control_decls Γ' ->
   `⧼ 0, bind_all params expr_cparams,
       tfuncts Γ, CApplyBlock (tbls Γ') (actns Γ') insts ⧽
     ⊢ apply_blk ⊣ sig ->
-  Γ ⊢ₜ
+  Γ ⊢tp
     TopDecl.Control
     control_name cparams expr_cparams extern_params
     params control_decls apply_blk
@@ -450,7 +449,7 @@ Inductive type_topdecl (Γ : top_type_env)
        `⧼ 0, bind_all params expr_cparams, tfuncts Γ,
            CParserState (List.length states) insts ⧽ ⊢ state ⊣ Trans)
     (start_state :: states) ->
-  Γ ⊢ₜ TopDecl.Parser
+  Γ ⊢tp TopDecl.Parser
     parser_decl_name cparams expr_cparams extern_params params
     start_state states
     ⊣ Γ <| cnstrs :=
@@ -461,7 +460,7 @@ Inductive type_topdecl (Γ : top_type_env)
 | type_extern
     extern_name type_params cparams expr_cparams methods :
   (* TODO: check types as [t_ok] *)
-  Γ ⊢ₜ TopDecl.Extern extern_name type_params cparams expr_cparams methods
+  Γ ⊢tp TopDecl.Extern extern_name type_params cparams expr_cparams methods
     ⊣ Γ <| cnstrs :=
               extern_name
                 ↦ ExternType
@@ -471,15 +470,15 @@ Inductive type_topdecl (Γ : top_type_env)
   good_signal arrow sig ->
   `⧼ type_params, bind_all (paramargs arrow) [], tfuncts Γ,
       CFunction (rtrns arrow) ⧽ ⊢ body ⊣ sig ->
-  Γ ⊢ₜ TopDecl.Funct
+  Γ ⊢tp TopDecl.Funct
     function_name type_params arrow body
     ⊣ Γ <| tfuncts := function_name ↦ (type_params,arrow) ,, tfuncts Γ |>
 where
-"Γ₁ '⊢ₜ' d ⊣ Γ₂"
+"Γ₁ '⊢tp' d ⊣ Γ₂"
   := (type_topdecl Γ₁ d Γ₂).
 
 Local Close Scope climate_scope.
 
 Definition type_prog
   : TopDecl.prog -> top_type_env -> top_type_env -> Prop :=
-  FoldLeft (fun d Γ Γ' => Γ ⊢ₜ d ⊣ Γ').
+  FoldLeft (fun d Γ Γ' => Γ ⊢tp d ⊣ Γ').

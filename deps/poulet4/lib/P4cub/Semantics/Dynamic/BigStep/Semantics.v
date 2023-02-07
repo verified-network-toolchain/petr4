@@ -9,8 +9,10 @@ From Poulet4.P4cub.Semantics.Dynamic Require Import
 From Poulet4.P4cub.Semantics.Dynamic Require Export
   BigStep.ExprUtil BigStep.ValEnvUtil BigStep.InstUtil
   BigStep.Value.Embed.
+From RecordUpdate Require Import RecordSet.
 Import Val.ValueNotations ExprNotations ParserNotations
-  Val.LValueNotations StmtNotations RecordSetNotations Clmt.Notations.
+  Val.LValueNotations StmtNotations RecordSetNotations
+  Clmt.Notations RecordSetNotations.
 
 (** * Expression evaluation. *)
 
@@ -154,12 +156,12 @@ Variant ctx : Set :=
   | CApplyBlock
       (tables : tenv)
       (available_actions : aenv)
-      (available_controls : inst_env)
+      (available_controls : inst_env Val.v)
   | CParserState
       (parser_arg_length : nat)
       (start : Stmt.s)
       (states : list Stmt.s)
-      (available_parsers : inst_env).
+      (available_parsers : inst_env Val.v).
 
 Variant actions_of_ctx : ctx -> aenv -> Prop :=
   | actions_of_CAction a :
@@ -341,9 +343,9 @@ Inductive stmt_big_step
   (** Evaluate data-plane arguments. *)
   args_big_step ϵ data_args vdata_args ->
   (** Copyin. *)
-  copy_in vdata_args clos = Some ϵ' ->
+  copy_in vdata_args ϵ = Some ϵ' ->
   (** Evaluate the action body. *)
-  ⧼ Ψ, vctrl_args ++ ϵ', CAction act_clos,
+  ⧼ Ψ, vctrl_args ++ ϵ' ++ clos, CAction act_clos,
       body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽
     ⤋ ⧼ lv_update_signal olv sig (copy_out O vdata_args ϵ'' ϵ), Cont, ψ ⧽
@@ -413,40 +415,40 @@ Inductive stmt_big_step
              (Some 
              (Val.Lists
                 Expr.lists_struct
-                [Val.Bool hit; Val.Bool $ negb hit;
+                [Val.Bool hit; Val.Bool (negb hit);
                  Val.Bit (BinNat.N.of_nat (length actions)) (Z.of_nat idx)])))
           (ϵ₁ ++ ϵ'), Cont, ψ ⧽
 | sbs_apply_control
-    ϵ ϵ' ϵ'' tbls actions control_insts
+    ϵ ϵ' ϵ'' eps_clos tbls actions control_insts
     c ext_args args vargs sig ψ
     fun_clos inst_clos tbl_clos action_clos apply_block :
   (** Lookup control instance. *)
   control_insts c
   = Some (ControlInst
             fun_clos inst_clos tbl_clos
-            action_clos apply_block) ->
+            action_clos eps_clos apply_block) ->
   (** Evaluate arguments. *)
   args_big_step ϵ args vargs ->
   (** Copyin. *)
   copy_in vargs ϵ = Some ϵ' ->
   (** Evaluate control apply block. *)
-  ⧼ Ψ <| functs := fun_clos |>, ϵ', CApplyBlock tbl_clos action_clos inst_clos,
+  ⧼ Ψ <| functs := fun_clos |>, ϵ' ++ eps_clos, CApplyBlock tbl_clos action_clos inst_clos,
       apply_block ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, CApplyBlock tbls actions control_insts,
     Stmt.Apply c ext_args args ⧽ ⤋ ⧼ copy_out O vargs ϵ'' ϵ, Cont, ψ ⧽
 | sbs_apply_parser
-    ϵ ϵ' ϵ'' n strt states parsers ψ p
+    ϵ ϵ' ϵ'' eps_clos n strt states parsers ψ p
     ext_args args vargs
     fun_clos prsr_clos strt_clos states_clos final sig :
   (** Lookup parser instance. *)
-  parsers p = Some (ParserInst fun_clos prsr_clos strt states) ->
+  parsers p = Some (ParserInst fun_clos prsr_clos eps_clos strt states) ->
   (** Evaluate arguments. *)
   args_big_step ϵ args vargs ->
   (** Copyin. *)
   copy_in vargs ϵ = Some ϵ' ->
   parser_signal final sig ->
   (** Evaluate parser state machine. *)
-  ⧼ Ψ <| functs := fun_clos |>, ϵ',
+  ⧼ Ψ <| functs := fun_clos |>, ϵ' ++ eps_clos,
       CParserState (length args) strt_clos states_clos prsr_clos,
       strt ⧽ ⤋ ⧼ ϵ'', final, ψ ⧽ ->
   ⧼ Ψ, ϵ, CParserState n strt states parsers,
@@ -473,29 +475,131 @@ where "⧼ Ψ , ϵ , c , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
 Local Close Scope stmt_scope.
 Local Open Scope climate_scope.
 
+Record ctrl_bs_env : Set :=
+  mk_ctrl_bs_env
+    { cbs_tables  : tenv;
+      cbs_actions : aenv;
+      cbs_epsilon : list Val.v }.
+
+Global Instance eta_ctrl_bs_env : Settable _ :=
+  settable! mk_ctrl_bs_env
+  < cbs_tables ; cbs_actions ; cbs_epsilon >.
+
 Variant ctrl_big_step
-  (tbls : tenv) (acts : aenv) (ϵ : list Val.v)
-  : Control.d -> list Val.v -> aenv -> tenv -> Prop :=
+  (cbs_env : ctrl_bs_env)
+  : Control.d -> ctrl_bs_env -> Prop :=
   | cbs_var x te v :
-    SumForall (fun τ => v_of_t τ = Some v) (fun e => ⟨ ϵ, e ⟩ ⇓ v) te ->
-    ctrl_big_step tbls acts ϵ (Control.Var x te) (v :: ϵ) acts tbls
+    SumForall
+      (fun τ => v_of_t τ = Some v)
+      (fun e => ⟨ cbs_epsilon cbs_env, e ⟩ ⇓ v)
+      te ->
+    ctrl_big_step
+      cbs_env (Control.Var x te)
+      (cbs_env <| cbs_epsilon := v :: cbs_epsilon cbs_env |>)
   | cbs_action a ctrl_params data_params body :
     ctrl_big_step
-      tbls acts ϵ (Control.Action a ctrl_params data_params body)
-      ϵ (a ↦ ADecl ϵ acts body ,, acts) tbls
+      cbs_env (Control.Action a ctrl_params data_params body)
+      (cbs_env
+         <| cbs_actions :=
+         a ↦ ADecl (cbs_epsilon cbs_env) (cbs_actions cbs_env) body ,, cbs_actions cbs_env |>)
   | cbs_table t key actions def :
     ctrl_big_step
-      tbls acts ϵ (Control.Table t key actions def)
-      ϵ acts (t ↦ (length ϵ, key, actions, def) ,, tbls).
+      cbs_env (Control.Table t key actions def)
+      (cbs_env
+         <| cbs_tables :=
+         t ↦ (length (cbs_epsilon cbs_env), key, actions, def) ,, cbs_tables cbs_env |>).
 
-(*Check FoldLeft.*)
+Definition ctrls_big_step
+  : list Control.d -> ctrl_bs_env -> ctrl_bs_env -> Prop :=
+  FoldLeft
+    (fun cd env env' => ctrl_big_step env cd env').
 
-(* can instance args be used in control declarations outside of apply block?
-   I don't think so.
-   I think it only has constructor args for ctrl decls.
-   Need to fix typing def probs. *)
+Record top_bs_env : Set :=
+  mk_top_bs_env
+    { top_functs : fenv;
+      top_insts  : inst_env Val.v;
+      top_decls  : top_decl_env Val.v }.
 
-(*Definition ctrls_big_step*)
+Global Instance eta_top_bs_env : Settable _ :=
+  settable! mk_top_bs_env
+  < top_functs ; top_insts ; top_decls >.
+
+Variant top_big_step
+  (tbs_env : top_bs_env)
+  : TopDecl.d -> top_bs_env -> Prop :=
+  | tbs_control c cparams ecparams extparams params body s :
+    top_big_step
+      tbs_env
+      (TopDecl.Control c cparams ecparams extparams params body s)
+      (tbs_env
+         <| top_decls :=
+         c ↦ ControlDecl
+           (top_functs tbs_env) (top_insts tbs_env) (map fst cparams) body s ,, top_decls tbs_env |>)
+  | tbs_parser p cparams ecparams extparams params strt states :
+    top_big_step
+      tbs_env
+      (TopDecl.Parser p cparams ecparams extparams params strt states)
+      (tbs_env
+         <| top_decls :=
+         p ↦ ParserDecl
+           (top_functs tbs_env) (top_insts tbs_env) (map fst cparams) strt states ,, top_decls tbs_env |>)
+  | tbs_extern ext TS cparams ecparams methods :
+    top_big_step
+      tbs_env
+      (TopDecl.Extern ext TS cparams ecparams methods)
+      (tbs_env
+         <| top_decls :=
+         ext ↦ ExternDecl (top_functs tbs_env) (top_insts tbs_env) (map fst cparams) ,, top_decls tbs_env |>)
+  | tbs_funct f TS arrow body :
+    top_big_step
+      tbs_env
+      (TopDecl.Funct f TS arrow body)
+      (tbs_env <| top_functs := f ↦ FDecl (top_functs tbs_env) body ,, top_functs tbs_env |>)
+  | tbs_instantiate_control c x cargs es cparams local_decls apply_blk vs cbs_env cfs cinsts :
+    top_decls tbs_env c = Some (ControlDecl cfs cinsts cparams local_decls apply_blk) ->
+    Forall2 (expr_big_step []) es vs ->
+    ctrls_big_step
+      local_decls
+      {| cbs_tables  := ∅
+      ; cbs_actions := ∅
+      ; cbs_epsilon  := vs |}
+      cbs_env ->
+    top_big_step
+      tbs_env
+      (TopDecl.Instantiate c x [] cargs es)
+      (tbs_env
+         <| top_insts :=
+         x ↦ ControlInst
+           cfs (bind_constructor_args cparams cargs (top_insts tbs_env) cinsts)
+           (cbs_tables cbs_env) (cbs_actions cbs_env) vs apply_blk ,, top_insts tbs_env |>)
+  | tbs_instantiate_parser p x cargs es pfs pinsts cparams strt states vs :
+    top_decls tbs_env p = Some (ParserDecl pfs pinsts cparams strt states) ->
+    Forall2 (expr_big_step []) es vs ->
+    top_big_step
+      tbs_env
+      (TopDecl.Instantiate p x [] cargs es)
+      (tbs_env
+         <| top_insts :=
+         x ↦ ParserInst
+           pfs (bind_constructor_args cparams cargs (top_insts tbs_env) pinsts)
+           vs strt states ,, top_insts tbs_env |>)
+  | tbs_instantiate_extern ext x τs cargs es extfs extinsts cparams vs :
+    (* TODO:
+       - Contructor args epislon needed in instance.
+       - What to do with constructor instance args? Add them to instance closure? *)
+    top_decls tbs_env ext = Some (ExternDecl extfs extinsts cparams) ->
+    Forall2 (expr_big_step []) es vs ->
+    top_big_step
+      tbs_env
+      (TopDecl.Instantiate ext x τs cargs es)
+      (tbs_env
+         <| top_insts :=
+         x ↦ ExternInst
+           extfs
+           (bind_constructor_args cparams cargs (top_insts tbs_env) extinsts)
+           vs
+           ,, top_insts tbs_env |>).
+      
 
 Local Close Scope value_scope.
 Local Close Scope climate_scope.

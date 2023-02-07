@@ -1,6 +1,6 @@
 From Poulet4.P4cub Require Import
   Syntax.AST Semantics.Climate Semantics.Dynamic.BigStep.Value.Syntax.
-Import String.
+Import String Clmt.Notations.
   
 (** Table environment. *)
 Definition tenv : Set :=
@@ -30,7 +30,7 @@ Inductive adecl: Set :=
 Definition aenv: Set := Clmt.t string adecl.
 
 Section Inst.
-  Variable V : Set. (** values. *)
+  Context {V : Set}. (** values. *)
 
   (** Instances and environment. *)
   Inductive inst: Set :=
@@ -39,39 +39,60 @@ Section Inst.
       (insts : Clmt.t string inst) (** instance closure *)
       (tbls : tenv) (** table closure *)
       (actions : aenv) (** action closure *)
+      (epsilon : list V) (** constructor args *)
       (apply_blk : Stmt.s)  (** control instance apply block *)
   | ParserInst
       (fs : fenv) (** function closure *)
       (insts : Clmt.t string inst) (** instance closure *)
+      (epsilon : list V) (** constructor args *)
       (strt : Stmt.s) (** start state *)
       (states : list Stmt.s) (** other states *)
   | ExternInst
       (fs : fenv) (** function closure *)
       (insts : Clmt.t string inst) (** instance closure *)
+      (epsilon : list V) (** constructor args *)
   (* TODO: what else? *).
   
   Definition inst_env: Set := Clmt.t string inst.
+
+  Definition bind_constructor_args
+    (cparams : list string)
+    (cargs : TopDecl.constructor_args)
+    (instance_site closure : inst_env) : inst_env :=
+    List.fold_right
+      (fun '(param, arg) cls =>
+         match instance_site arg with
+         | None => cls
+         | Some inst => (param ↦ inst ,, cls)%climate
+         end)
+      closure
+      (List.combine cparams cargs).
 
   (** Closures for control,parser, & extern declarations.
       For instantiable declarations. *)
   Inductive top_decl_closure : Set :=
   | ControlDecl
-      (decls : Clmt.t string top_decl_closure) (** control declaration closure *)
       (fs : fenv) (** function closure *)
       (insts : inst_env) (** control instance closure *)
-      (body : Control.d) (** declarations inside control *)
+      (cparams : list string) (** constructor param names *)
+      (body : list Control.d) (** declarations inside control *)
       (apply_block : Stmt.s) (** apply block *)
   | ParserDecl
-      (decls : Clmt.t string top_decl_closure) (** parser declaration closure *)
       (fs : fenv) (** function closure *)
       (insts : inst_env) (** parser instance closure *)
+      (cparams : list string) (** constructor param names *)
       (strt : Stmt.s) (** start state *)
       (states : list Stmt.s) (** parser states *)
   | ExternDecl
-      (decls : Clmt.t string top_decl_closure)
       (fs : fenv) (** function closure *)
       (insts : Clmt.t string inst) (** instance closure *)
+      (cparams : list string) (** constructor param names *)
   (** function closure *).
 
   Definition top_decl_env: Set := Clmt.t string top_decl_closure.
 End Inst.
+
+Arguments inst : clear implicits.
+Arguments inst_env : clear implicits.
+Arguments top_decl_closure : clear implicits.
+Arguments top_decl_env : clear implicits.

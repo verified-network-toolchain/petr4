@@ -216,9 +216,6 @@ Section Embed.
       (w `S z)%expr
       (ExpInt
          {| P4Int.tags:=i; P4Int.value:=z; P4Int.width_signed:=Some (Npos w,true) |}).
-
-  (* Fixpoint interpret_embed_expr (e : Expr.e) : EXPR :=
-    MkExpression i (interpret_embed_pre_expr e) t d *)
   
   Definition interpret_embed_pre_expr (e : Expr.e) : option ExpressionPreT :=
     match e with 

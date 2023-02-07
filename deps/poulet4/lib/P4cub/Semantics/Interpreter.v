@@ -359,8 +359,6 @@ Section Parser.
     let^ patterns := map_monad interpret_match matches in
     (Parser.Lists patterns, action).
 
-  Search (List.length (List.map _ ?l) = List.length ?l).
-
   Lemma interpret_table_entry_sound :
     forall entry pat action,
       interpret_table_entry entry = Some (pat, action) -> table_entry_big_step entry pat action.

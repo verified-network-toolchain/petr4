@@ -17,11 +17,7 @@ let evaler
     (port : int)
     (st : st)
   : (Exn.t, (st * Bigint.t) * bool list) R.result =
-  let pkt_in = pkt_in
-               |> String.lowercase
-               |> Cstruct.of_hex
-               |> Cstruct.to_string
-               |> Util.string_to_bits in
+  let pkt_in = pkt_in |> Util.string_to_bits in
   let port = Bigint.of_int port in
   Eval.v1_interp prog st port pkt_in
 
@@ -40,7 +36,8 @@ let rec run_test
       let results', st' =
         match evaler prog packet (int_of_string port) st with
         | Ok ((st', port), pkt) ->
-          let fixed = pkt |> Util.bits_to_string |> Util.hex_of_string |> strip_spaces |> String.lowercase in
+          let fixed = pkt
+                      |> Util.bits_to_string in
           results @ [(Bigint.to_string port, fixed)], st'
         | Error e ->
           failwith (Exn.to_string e)
@@ -50,7 +47,7 @@ let rec run_test
       failwith "unimplemented stf statement: Expect w/ no pkt"
     | Expect (port, Some packet) ->
       let expected_pkt =
-        (port, strip_spaces packet |> String.lowercase)
+        (port, strip_spaces packet |> String.uppercase)
       in
       run_test prog tl results (expected @ [expected_pkt]) st
     | Add (tbl_name, priority, match_list, (action_name, args), id) ->

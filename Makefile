@@ -18,7 +18,7 @@ WEB_EXAMPLES+=examples/checker_tests/good/switch_ebpf.p4
 WEB_EXAMPLES+=examples/checker_tests/good/union-valid-bmv2.p4
 WEB_EXAMPLES+=stf-test/custom-stf-tests/register.p4
 
-.PHONY: all deps build claims clean test test-stf web
+.PHONY: all deps build claims clean test test-stf web stf-errors
 
 all: build
 
@@ -63,3 +63,6 @@ web: build
 	mkdir -p html_build/p4
 	cp $(WEB_EXAMPLES) html_build/p4
 	cd web && dune build ./web.bc.js --profile release && cp ../_build/default/web/web.bc.js ../html_build/ && cd ..
+
+stf-errors:
+	cat _build/_tests/Stf-tests/* | grep '\[failure\]' | sed 's/^ *//' | sort | uniq

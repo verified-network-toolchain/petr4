@@ -93,7 +93,7 @@ Section CTKEval.
     (gf: @genv_func tags_t)
     (gt: @genv_typ tags_t)
     (gs: genv_senum)
-    (gi: genv_inst)
+    (gi: @genv_inst tags_t)
     (ee: @extern_env tags_t expr (@extern_sem tags_t expr T))
     (rob: option bool -> bool -> Prop) (st: @state tags_t T).
   

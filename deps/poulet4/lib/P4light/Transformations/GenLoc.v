@@ -99,7 +99,7 @@ Section Transformer.
     | BareName name =>
         match IdentMap.get (P4String.str name) e with
         | Some loc => loc
-        | None => NoLocator
+        | None => LGlobal ["missing_" ++ name.(P4String.str)]%string
         end
     | QualifiedName path name =>
         LGlobal (clear_list (path ++ [name]))
@@ -202,7 +202,7 @@ Section Transformer.
       | StatEmpty => mret (MkStatement tags stmt typ, e)
       | StatReturn oexpr =>
         let oexpr' := option_map (transform_expr e) oexpr in
-        mret (MkStatement tags (StatReturn oexpr) typ, e)
+        mret (MkStatement tags (StatReturn oexpr') typ, e)
       | StatSwitch expr cases =>
         let expr' := transform_expr e expr in
         let* cases' := sequence (map (transform_ssc e ns) cases) in
@@ -391,7 +391,7 @@ Section Transformer.
     | DeclAction tags name data_params ctrl_params body =>
       let inner_monad := (
         let* e' := declare_params LCurScope e [P4String.str name] data_params in
-        let* e'' := declare_params LCurScope e [P4String.str name] ctrl_params in
+        let* e'' := declare_params LCurScope e' [P4String.str name] ctrl_params in
         let* body' := transform_blk LCurScope e'' [P4String.str name] body in
         mret body'
       ) in
@@ -450,7 +450,7 @@ Section Transformer.
         let used_list := concat
               (map (fun ps => summarize_blk (list_statement_to_block default_tag (get_parser_state_statements ps))) states) in
         let* _ := put_state (fun l => used_list ++ l) in
-        let* states' := sequence (map (transform_psrst e) states) in
+        let* states' := sequence (map (transform_psrst e''') states) in
         mret (locals', states')
       ) in
       let* (locals', states') := with_empty_state inner_scope_monad in

@@ -395,7 +395,7 @@ Section Properties.
   Proof.
     unfold copy_in.
     intros.
-    apply sequence_length in H.
+    apply Option.sequence_length in H.
     simpl in H.
     unfold pipeline in H.
     rewrite map_length in H.

@@ -342,6 +342,12 @@ Section AList.
   Definition all_values {A B} (hold_one_value : A -> B -> Prop) :
     AList K A R -> AList K B R -> Prop :=
     Forall2 (fun a b => fst a = fst b /\ hold_one_value (snd a) (snd b)).
+
+  Definition keys (c : AList K V R) : list K :=
+    List.map fst c.
+
+  Definition map_values {W} (f : V -> W) (c : AList K V R) : AList K W R :=
+    List.map (fun '(k, v) => (k, f v)) c.
 End AList.
 
 Definition StringAList V := AList String.string V eq.

@@ -34,9 +34,9 @@ Section Interpreter.
       if (next =? 0)%N
       then uninit_sval_of_typ None (@TypBit tags_t 32)
       else Some (ValBaseBit (to_loptbool 32 (Z.of_N (next - 1)))).
-    
+
     (* This function implements the get_member relation from the
-     b ig-step semantics. *)
+       big-step semantics. *)
     Definition find_member (v: Sval) (member: string) : result Exn.t Sval :=
       match v with
       | ValBaseStruct fields
@@ -50,7 +50,13 @@ Section Interpreter.
           else if string_dec member "lastIndex"
                then from_opt (last_index_of_next next)
                              (Exn.Other "failure in last_index_of_next")
-               else error (Exn.Other "find_member: member not a property of a stack")
+               else if string_dec member "last"
+                    then from_opt (get_last_of_stack headers next)
+                                  (Exn.Other "failure in get_last_of_stack")
+                    else if string_dec member "next"
+                         then from_opt (get_next_of_stack headers next)
+                                       (Exn.Other "failure in get_next_of_stack")
+                         else error (Exn.Other ("find_member: " ++ member ++ " not a property of a stack"))
       | _ => error (Exn.Other "find_member called on a bad value (not a struct, union, header, or stack")
       end.
 
@@ -465,17 +471,21 @@ Section Interpreter.
 
     Equations interp_isValid (sv: Sval) : result Exn.t bool :=
       { interp_isValid (ValBaseHeader fields valid_bit) :=
-        mret (bit_init valid_bit);
+            mret (bit_init valid_bit);
         interp_isValid (ValBaseUnion fields) :=
-        let* valids := interp_isValid_fields fields in
-        mret (List.fold_left orb valids false);
-        interp_isValid _ := error (Exn.Other "interp_isValid") }
+            let* valids := interp_isValid_fields fields in
+            mret (List.fold_left orb valids false);
+        interp_isValid ValBaseNull :=
+            error (Exn.Other "interp_isValid passed a ValBaseNull");
+        interp_isValid _ :=
+            error (Exn.Other "interp_isValid") }
     where interp_isValid_fields (fields: list (string * Sval)) : result Exn.t (list bool) :=
       { interp_isValid_fields (f :: rest) :=
-        let* f_valid := interp_isValid (snd f) in
-        let* rest_valid := interp_isValid_fields rest in
-        mret (f_valid :: rest_valid);
-        interp_isValid_fields nil := mret nil }.
+            let* f_valid := interp_isValid (snd f) in
+            let* rest_valid := interp_isValid_fields rest in
+            mret (f_valid :: rest_valid);
+        interp_isValid_fields nil :=
+            mret nil }.
 
     Definition interp_builtin (this: path) (st: state) (lv: Lval) (name: ident) (args: list Sval) : result Exn.t (state * signal) :=
       if name =? "isValid"
@@ -537,6 +547,7 @@ Section Interpreter.
 
     Definition interp_arg (this: path) (st: state) (exp: option (@Expression tags_t)) (dir: direction) : result Exn.t (argument * signal) :=
       match exp, dir with
+      | Some expr, Directionless
       | Some expr, Typed.In =>
           let* v := interp_expr_det this st expr in
           let sv := eval_val_to_sval v in
@@ -552,20 +563,38 @@ Section Interpreter.
           let v := interp_sval_val sv in
           let sv' := eval_val_to_sval v in
           mret ((Some sv', Some lv), sig)
-      | _, _ => error (Exn.Other "interp_arg")
+      | None, Typed.In =>
+          error (Exn.Other ("No argument passed for in parameter in scope: "
+                              ++ Exn.path_to_string this))
+      | None, Typed.InOut =>
+          error (Exn.Other ("No argument passed for inout parameter in scope: "
+                              ++ Exn.path_to_string this))
+      | None, Directionless => 
+          error (Exn.Other ("No argument passed for directionless parameter in scope: "
+                              ++ Exn.path_to_string this))
       end.
 
     Fixpoint interp_args (this: path) (st: state) (exps: list (option (@Expression tags_t))) (dirs: list direction) : result Exn.t (list argument * signal) :=
-      match exps, dirs with
-      | nil, nil =>
-          mret (nil, SContinue)
-      | exp :: exps, dir :: dirs =>
-          let* (arg, sig) := interp_arg this st exp dir in
-          let* (args, sig') := interp_args this st exps dirs in
-          let ret_sig := if is_continue sig then sig' else sig in
-          mret (arg :: args, ret_sig)
-      | _, _ => error (Exn.Other "interp_args")
-      end.
+      let expslen := List.length exps in
+      let dirslen := List.length dirs in
+      if Nat.eqb expslen dirslen
+      then match exps, dirs with
+           | nil, nil =>
+               mret (nil, SContinue)
+           | exp :: exps, dir :: dirs =>
+               let* (arg, sig) := interp_arg this st exp dir in
+               let* (args, sig') := interp_args this st exps dirs in
+               let ret_sig := if is_continue sig then sig' else sig in
+               mret (arg :: args, ret_sig)
+           | _, _ => error (Exn.Other ("interp_args: length mismatch in scope: "
+                                         ++ Exn.path_to_string this))
+           end
+      else error (Exn.Other ("interp_args: length mismatch in scope: "
+                               ++ Exn.path_to_string this
+                               ++ ". Had " ++ string_of_nat expslen
+                               ++ " exps and "
+                               ++ string_of_nat dirslen
+                               ++ " dirs.")).
 
     Fixpoint interp_write_options (st: state) (args: list (option Lval)) (vals: list Sval) : result Exn.t state :=
       match args, vals with
@@ -631,14 +660,20 @@ Section Interpreter.
               match interp_sval_val condsv with
               | ValBaseBool b =>
                   interp_stmt this st fuel (if b then tru else fls)
-              | _ => error (Exn.Other "interp_stmt")
+              | ValBaseNull =>
+                  error (Exn.Other "interp_stmt conditional: expected bool, got null")
+              | _ =>
+                  error (Exn.Other "interp_stmt conditional: expected bool")
               end
           | MkStatement tags (StatConditional cond tru None) typ =>
               let* condsv := interp_expr this st cond in
               match interp_sval_val condsv with
               | ValBaseBool b =>
                   interp_stmt this st fuel (if b then tru else empty_statement)
-              | _ => error (Exn.Other "interp_stmt")
+              | ValBaseNull =>
+                  error (Exn.Other "interp_stmt conditional: expected bool, got null")
+              | _ =>
+                  error (Exn.Other "interp_stmt conditional: expected bool")
               end
           | MkStatement tags (StatBlock block) typ =>
               interp_block this st fuel block
@@ -654,10 +689,11 @@ Section Interpreter.
           | MkStatement tags (StatSwitch expr cases) typ =>
               let* sv := interp_expr this st expr in
               match interp_sval_val sv with
-              | ValBaseString s =>
+              | ValBaseEnumField _ s =>
                   let block := match_switch_case s cases in
                   interp_block this st fuel block
-              | _ => error (Exn.Other "interp_stmt")
+              | ValBaseNull => error (Exn.Other "interp_stmt switch: expected enum, got null")
+              | _ => error (Exn.Other "interp_stmt switch: expected enum")
               end
           | MkStatement tags (StatVariable typ' name (Some e) loc) typ =>
               if is_call e
@@ -683,7 +719,8 @@ Section Interpreter.
               mret (st', SContinue)
           | MkStatement tags (StatConstant typ' name e loc) typ =>
               mret (st, SContinue)
-          | _ => error (Exn.Other "interp_stmt")
+          | MkStatement _ (StatInstantiation _ _ _ _) _ =>
+              error (Exn.Other "interp_stmt called on instantiation stmt")
           end
       end
     with interp_block
@@ -761,9 +798,9 @@ Section Interpreter.
                        let* args' := from_opt (exec_func_copy_out params s'')
                                               (Exn.Other "interp_func: error in exec_func_copy_out") in
                        mret (s'', args', sig')
-                   | _ :: _ => error (Exn.Other "interp_func")
+                   | _ :: _ => error (Exn.Other "interp_func: type args")
                    end
-               | FTable name keys actions (Some default_action) const_entries =>
+               | FTable name keys actions default_action const_entries =>
                    match typ_args, args with
                    | nil, nil =>
                        let* action_ref := interp_table_match obj_path s name keys const_entries in
@@ -783,12 +820,10 @@ Section Interpreter.
                        let* (s', call_sig) := interp_call obj_path s fuel action in
                        match call_sig with
                        | SReturn ValBaseNull => mret (s', nil, retv)
-                       | _ => error (Exn.Other "interp_func")
+                       | _ => error (Exn.Other "interp_func: did not return null")
                        end
-                   | _, _ => error (Exn.Other "interp_func")
+                   | _, _ => error (Exn.Other "interp_func: type args or args provided to a table call")
                    end
-               | FTable name keys actions None const_entries =>
-                   error (Exn.Other "interp_func")
                | FExternal class_name name =>
                    let (m, es) := s in
                    let argvs := List.map interp_sval_val args in
@@ -805,7 +840,7 @@ Section Interpreter.
       let* func_inst := from_opt (PathMap.get this (ge_inst ge))
                                  (Exn.Other "object not found in ge_inst") in
       let* func := from_opt (PathMap.get [func_inst.(iclass); "apply"] (ge_func ge))
-                            (Exn.Other "apply method for module not found in ge_func") in
+                            (Exn.Other ("apply method for module " ++ Exn.path_to_string this ++ " (arity: " ++ string_of_nat (length args) ++ ") not found in ge_func")) in
       let st' : state := (PathMap.empty, st) in
       let sargs := List.map eval_val_to_sval args in
       let* (st, rets, sig) := interp_func this st' fuel func [] sargs in 
@@ -814,6 +849,7 @@ Section Interpreter.
 
   Definition interp (fuel: Fuel) (prog: @program tags_t) (st: extern_state) (in_port: Z) (pkt: list bool) : result Exn.t (extern_state * Z * (list bool)) :=
     let* ge := gen_ge prog in
-    interp_prog (interp_module ge fuel) st in_port pkt.
+    let* type_args := get_main_type_args ge target_main_name in
+    interp_prog type_args (interp_module ge fuel) st in_port pkt.
 
 End Interpreter.

@@ -49,13 +49,14 @@ let unimplemented_stmt = function
   | _ -> true
 
 let packet_equal (port_exp, pkt_exp) (port, pkt) =
-  let (=) = Char.equal in
-  let rec iter i =
-    i >= String.length pkt_exp ||
-    ((pkt_exp.[i] = pkt.[i] || pkt_exp.[i] = '*') && iter (i + 1))
-    in
-    Int.((port_exp |> Int.of_string) = (port |> Int.of_string)) &&
-    iter 0
+  let matches_exp idx char =
+    if idx >= String.length pkt_exp
+    then false
+    else let char_exp = pkt_exp.[idx] in
+      Char.equal char_exp char || Char.equal char_exp '*'
+  in
+  Int.equal (Int.of_string port_exp) (Int.of_string port) &&
+  String.for_alli ~f:matches_exp pkt
 
 let convert_qualified name =
   match String.rindex name '.' with 

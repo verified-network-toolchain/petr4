@@ -81,6 +81,8 @@ Section InterpreterSafe.
     - cbn in H0;
         destruct (string_dec name "size");
         [|destruct (string_dec name "lastIndex")];
+        [| |destruct (string_dec name "last")];
+        [| | |destruct (string_dec name "next")];
         subst.
       + apply ok_Ok_inj in H0; subst.
         constructor.
@@ -89,6 +91,10 @@ Section InterpreterSafe.
         econstructor.
         destruct (i =? 0)%N;
           [auto | congruence].
+      + apply from_opt_Ok in H0.
+        now econstructor.
+      + apply from_opt_Ok in H0.
+        now econstructor.
       + now apply error_not_ok in H0.
     Unshelve.
     exact tags_t.
@@ -493,6 +499,7 @@ Section InterpreterSafe.
         assert (w = w0) by congruence.
         subst.
         econstructor; eauto using interp_lexpr_safe, interp_read_safe.
+      + econstructor; eauto using interp_expr_det_safe.
     - destruct dir; try discriminate.
       inversion H.
       econstructor; eauto.
@@ -509,13 +516,17 @@ Section InterpreterSafe.
       + inversion H.
         constructor.
       + discriminate.
-    - destruct dirs; simpl in H; try discriminate.
+    - unfold Interpreter.interp_args in H.
+      destruct (PeanoNat.Nat.eqb (length (a::exps)) (length dirs)) eqn:? in H;
+        [|discriminate].
+      destruct dirs;
+        [discriminate|].
+      cbn in H.
       repeat simpl_result_all.
       destruct w.
       repeat simpl_result_all.
       destruct w.
-      inversion H.
-      subst.
+      inversion H; subst.
       econstructor; eauto using interp_arg_safe.
       destruct (Semantics.is_continue s); reflexivity.
   Qed.
@@ -700,6 +711,24 @@ Section InterpreterSafe.
         eapply IHl; eauto using List.in_combine_l.
   Qed.
 
+  Lemma in_combine_map:
+    forall A B C (f: A -> B) xs (ys: list C) x y,
+      List.In (x, y) (List.combine xs ys) ->
+      List.In (f x, y) (List.combine (List.map f xs) ys).
+  Proof.
+    induction xs; intros.
+    - simpl.
+      tauto.
+    - simpl in *.
+      destruct ys; auto.
+      inversion H.
+      + inversion H0; subst.
+        apply in_eq.
+      + apply in_cons.
+        apply IHxs.
+        apply H0.
+  Qed.
+
   Lemma in_combine_f:
     forall A B (f: A -> B) xs x y,
       List.In (x, y) (List.combine xs (List.map f xs)) ->
@@ -714,21 +743,6 @@ Section InterpreterSafe.
       + eapply IHxs; eauto.
   Qed.
 
-  Lemma sequence_length :
-    forall {A : Type} (m : Type -> Type) (M : Monad m) (cs : list (m A)) (vs: list A),
-      (forall A (x y : A), mret x = mret y -> x = y) ->
-      Monad.sequence cs = Monad.mret vs ->
-      length vs = length cs.
-  Proof.
-    induction cs.
-    intros.
-    - cbn in *.
-      eapply H in H0.
-      subst.
-      reflexivity.
-    - intros.
-  Admitted.
-
   Lemma interp_exprs_safe:
     forall exprs this st vals,
       Interpreter.interp_exprs ge this st exprs = Ok vals ->
@@ -739,21 +753,18 @@ Section InterpreterSafe.
     simpl in *.
     repeat simpl_result_all.
     econstructor.
-    - eapply Forall2_forall.
+    - eapply Result.sequence_Forall2 in Hw.
+      eapply Forall2_forall in Hw.
+      destruct Hw.
+      eapply Forall2_forall.
       split.
-      + eapply eq_trans.
-        symmetry.
-        eapply map_length.
-        symmetry.
-        eapply sequence_length; try eapply Hw.
-        admit.
+      + erewrite <- map_length.
+        eauto.
       + intros.
-        inversion H; subst.
-        assert (List.In u exprs)
-          by eauto using List.in_combine_l.
-        assert (List.In v w)
-          by eauto using List.in_combine_r.
-        admit.
+        subst.
+        eapply interp_expr_safe.
+        eapply H1.
+        now apply in_combine_map.
     - unfold svals_to_vals.
       inversion H.
       eapply Forall2_forall.
@@ -764,7 +775,7 @@ Section InterpreterSafe.
         eapply in_combine_f in H1.
         subst.
         eapply sval_to_val_interp.
-  Admitted.
+  Qed.
 
   Lemma interp_match_safe:
     forall this m vset,

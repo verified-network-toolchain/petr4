@@ -1,0 +1,86 @@
+val_typ ::= bit<k>
+         |  unit
+         |  struct {val_typ_i}
+         |  sum {val_typ_i}
+         |  X
+
+Externs should NOT be declared in the language but instead live in some kind of
+signature.
+extern_def ::=
+  extern E<bound T> { extern_constr_typ; extern_method_typ }
+extern_constr_typ ::=
+  (val_typ_i)
+extern_method_typ ::=
+  <T>(dir_i val_typ_i)
+
+Packages should also live in some kind of signature.
+package_def ::=
+  (func_typ_i)
+
+P4:
+table t {
+  key = {x; y.f}
+  actions = {a1(1), a2(2), nop}
+  rules = { 
+    0, 1 ==> a2(2, 2)
+    0, 2 ==> a1(1, 1)
+    _, _ ==> nop()
+  }
+}
+becomes:
+table t (in struct{bit<32>; bit<32>},
+         out sum{bit<8>; bit<8>; unit})
+  { {32w0, 32w1} ==> 1(8w2)
+    {32w0, 32w2} ==> 0(8w1)
+    {_,    _   } ==> 2(tt) }
+
+func a1(...) {
+  return
+}
+
+func a2(...) {
+  return
+}
+
+func nop() {
+  return
+}
+
+func main() {
+  sum {bit<8>; bit<8>} result = {8w0; 8w0};
+  t(x, y.f, t_result);
+  case (t_result) {
+    0(x)  => a1(1, x)
+    1(x)  => a2(2, x)
+    2(tt) => nop()
+  }
+} 
+
+with the following grammar
+table_inst ::= table t (in val_typ, out sum_typ result) {rule_i}
+rule ::= pat: val
+func ::= func f (dir_i val_typ_i x_i) { stmt }
+
+inst ::= table_inst
+      |  extern_inst
+      |  func
+      |  parser
+
+decl ::= let x = inst in d
+      |  Package(x_i) main
+
+Then there has to be an expression and statement language. But to me that feels
+like a parameter to this whole setup.
+
+action f(dir typ x) {
+  stmt
+}
+
+(t_i) {
+  f_i
+}
+
+parser P()() {
+}
+control C()() {
+}

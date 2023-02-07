@@ -14,7 +14,7 @@ Module Exn.
   Open Scope string_scope.
   Inductive t :=
   | GlobalVarsNotInState (var : list string)
-  | LocNotFoundInState (var : Locator)
+  | LocNotFoundInState (var : Locator) (msg: string)
   | TypeNameNotFound (type_name: string)
   | NameNotFoundInIEnv (name: string)
   | NameNotFoundInClassEnv (name: string)
@@ -45,8 +45,8 @@ Module Exn.
           ++ loc_to_string (LGlobal p)
           ++ " in a Semantics.state. "
           ++ "Global variables are stored in the genv."
-    | LocNotFoundInState l =>
-        "Couldn't find " ++ loc_to_string l ++ " in a Semantics.state."
+    | LocNotFoundInState l msg =>
+        "Couldn't find " ++ loc_to_string l ++ " in a Semantics.state. " ++ msg
     | TypeNameNotFound t =>
         "Couldn't find the type name " ++ t ++ " in a genv_typ."
     | NameNotFoundInIEnv name =>
@@ -170,9 +170,16 @@ End ExternSemOfSeparableExternSem. *)
 
 Class Target := {
   extern_sem :> ExternSem;
-  exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
-      extern_state -> list bool -> extern_state -> list bool -> Prop;
-  interp_prog : (path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * signal)) ->
+    target_main_name: string;
+    exec_prog : list (@P4Type tags_t) ->
+                (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
+                extern_state ->
+                list bool ->
+                extern_state ->
+                list bool ->
+                Prop;
+    interp_prog : list (@P4Type tags_t) ->
+                  (path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * signal)) ->
       extern_state -> Z -> list bool -> Result.result Exn.t (extern_state * Z * list bool);
 }.
 

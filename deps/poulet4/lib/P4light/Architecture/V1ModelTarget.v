@@ -111,7 +111,7 @@ Inductive register_read_sem : extern_func_sem :=
       BitArith.from_lbool indexb = (REG_INDEX_WIDTH, index) ->
       (if ((-1 <? index) && (index <? size))
        then output = Znth index content
-       else output = ValBaseBit (to_lbool w 0))(*uninit_sval_of_typ None (TypBit w)) = Some output)*) ->
+       else output = ValBaseBit (to_lbool w 0)) ->
       register_read_sem e s p nil [ValBaseBit indexb] s [output] SReturnNull.
 
 Definition register_read : extern_func := {|
@@ -146,7 +146,8 @@ Definition extract (typ: Typed.P4Type) (pkt: list bool) : option (Val * signal *
   | inl v =>
       Some (v, SReturnNull, pkt')
   | inr (Reject err) =>
-      Some (ValBaseNull, SReject (Packet.error_to_string err), pkt')
+      let* v := ValueUtil.zero_init_val_of_typ typ in
+      Some (v, SReject (Packet.error_to_string err), pkt')
   | inr (TypeError s) =>
       None
   end.
@@ -157,7 +158,8 @@ Definition extract2 (typ: Typed.P4Type) (n: nat) (pkt: list bool) : option (Val 
   | inl v =>
       Some (v, SReturnNull, pkt')
   | inr (Reject err) =>
-      Some (ValBaseNull, SReject (Packet.error_to_string err), pkt')
+      let* v := ValueUtil.zero_init_val_of_typ typ in
+      Some (v, SReject (Packet.error_to_string err), pkt')
   | inr (TypeError s) =>
       None
   end.
@@ -169,7 +171,7 @@ Inductive packet_in_extract_sem : extern_func_sem :=
       packet_in_extract_sem e s p [typ] []
             (PathMap.set p (ObjPin pin') s)
           [v] sig
-  | exec_packet_in_extract2 : forall e s p pin typ len v sig pin',
+ | exec_packet_in_extract2 : forall e s p pin typ len v sig pin',
       PathMap.get p s = Some (ObjPin pin) ->
       extract2 typ len pin = Some (v, sig, pin') ->
       packet_in_extract_sem e s p [typ] [ValBaseBit (to_lbool 32%N (Z.of_nat len))]
@@ -186,14 +188,20 @@ Definition packet_in_extract_interp : extern_func_interp :=
       end in
     let* pin_obj :=
       from_opt (PathMap.get this st)
-               (Exn.LocNotFoundInState (LGlobal this)) in
+               (Exn.LocNotFoundInState
+                  (LGlobal this)
+                  "Called from packet_in_extract_interp.") in
     match pin_obj with
     | ObjPin pin =>
-        let* (v, sig, pin') := from_opt (extract typ pin)
-                                        (Exn.Other "failure in extract") in
-        mret (PathMap.set this (ObjPin pin') st,
-              [v],
-              sig)
+        match args with
+        | [] =>
+            let* (v, sig, pin') := from_opt (extract typ pin)
+                                            (Exn.Other "failure in extract") in
+            mret (PathMap.set this (ObjPin pin') st,
+                   [v],
+                   sig)
+        | _ => error (Exn.Other ("packet_in_extract_interp: varbit extract unimplemented"))
+        end
     | _ => error (Exn.Other ("packet_in_extract_interp: expected an ObjPin for packet_in at path " ++ Exn.path_to_string this))
     end.
 
@@ -232,7 +240,9 @@ Definition packet_out_emit_interp : extern_func_interp :=
       end in
     let* pout_obj :=
       from_opt (PathMap.get this st)
-               (Exn.LocNotFoundInState (LGlobal this)) in
+               (Exn.LocNotFoundInState
+                  (LGlobal this)
+                  "Called from packet_out_emit_interp.") in
     match pout_obj with
     | ObjPout pout =>
         match emit v pout with
@@ -625,10 +635,28 @@ Instance V1ModelExternSem : ExternSem := Build_ExternSem
   extern_set_entries
   extern_match.
 
-Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
-    extern_state -> list bool -> extern_state -> list bool -> Prop :=
-  | exec_prog_intro : forall (module_sem : _ -> _ -> _ -> _ -> _ -> _ -> Prop) s0 pin s7 pout s1 s2 s3 s4 s5 s6
-      meta1 standard_metadata1 hdr2 meta2 standard_metadata2 hdr3 meta3 hdr4 meta4 standard_metadata4 hdr5 meta5 standard_metadata5 hdr6 meta6,
+(* package V1Switch<H, M>(...) *)
+Definition get_hdr_and_meta type_args : option (P4Type * P4Type) :=
+  match type_args with
+  | [hdr; meta] => Some (hdr, meta)
+  | _ => None
+  end.
+
+Inductive exec_prog
+          (arch_type_args : list P4Type)
+          (module_sem: path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop)
+          : extern_state -> list bool -> extern_state -> list bool -> Prop :=
+| exec_prog_intro : forall hdr_type meta_type smeta1
+                           s0 pin s7 pout s1 s2 s3 s4 s5 s6
+                           meta1 standard_metadata1
+                           hdr2 meta2 standard_metadata2
+                           hdr3 meta3
+                           hdr4 meta4 standard_metadata4
+                           hdr5 meta5 standard_metadata5
+                           hdr6 meta6,
+      get_hdr_and_meta arch_type_args = Some (hdr_type, meta_type) ->
+      uninit_sval_of_typ (Some false) meta_type = Some smeta1 ->
+      sval_to_val read_ndetbit smeta1 meta1 ->
       PathMap.set ["packet_in"] (ObjPin pin) s0 = s1 ->
       module_sem ["main"; "p"] s1 [meta1; standard_metadata1] s2 [hdr2; meta2; standard_metadata2] SReturnNull ->
       module_sem ["main"; "vr"] s2 [hdr2; meta2] s3 [hdr3; meta3] SReturnNull ->
@@ -637,7 +665,7 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
       module_sem ["main"; "ck"] s5 [hdr5; meta5] s6 [hdr6; meta6] SReturnNull ->
       module_sem ["main"; "dep"] s6 [hdr6] s7 nil SReturnNull ->
       PathMap.get ["packet_out"] s7 = Some (ObjPout pout) ->
-      exec_prog module_sem s0 pin s7 pout.
+      exec_prog arch_type_args module_sem s0 pin s7 pout.
 
 Definition expect_result_null (r: result Exn.t (extern_state * list Val * signal)) : result Exn.t (extern_state * list Val) :=
   let* '(st, outs, sig) := r in
@@ -651,14 +679,24 @@ Definition expect_result_null (r: result Exn.t (extern_state * list Val * signal
 Definition set_std_meta_error (std: Val) (err: string) : Val :=
   std.
 
+Definition initialize_val_of_type (typ: P4Type) : result Exn.t Val :=
+  let* sv :=
+    Result.from_opt (uninit_sval_of_typ (Some false) typ)
+                    (Exn.Other "V1Model: uninit_sval_of_typ") in
+  mret (interp_sval_to_val sv).
+
 Definition interp_prog
+           (arch_type_args : list P4Type)
            (run_module: path -> extern_state -> list Val -> result Exn.t (extern_state * list Val * signal))
            (s0: extern_state)
            (port: Z)
            (pin: list bool)
   : result Exn.t (extern_state * Z * list bool) :=
+  let* '(hdr_type, meta_type) :=
+    Result.from_opt (get_hdr_and_meta arch_type_args)
+                    (Exn.Other "V1Model: get_hdr_and_meta") in
+  let* meta1 := initialize_val_of_type meta_type in
   let s1 := PathMap.set ["packet_in"] (ObjPin pin) s0 in
-  let hdr1 : Val := ValBaseNull in
   let standard_metadata1 :=
     ValBaseStruct [
         ("ingress_port", ValBaseBit (repeat false 9));
@@ -679,7 +717,6 @@ Definition interp_prog
         ("priority", ValBaseBit (repeat false 3))
       ]
   in
-  let meta1 := ValBaseHeader [] false in
   let* (s2, hdr2, meta2, standard_metadata2) :=
     let* ret := run_module ["main"; "p"] s1
                            [meta1;
@@ -727,6 +764,6 @@ Definition interp_prog
   | _ => error (Exn.Other "interp_prog: failure recovering packet")
   end.
 
-Instance V1Model : Target := Build_Target _ exec_prog interp_prog.
+Instance V1Model : Target := Build_Target _ "main" exec_prog interp_prog.
 
 End V1Model.

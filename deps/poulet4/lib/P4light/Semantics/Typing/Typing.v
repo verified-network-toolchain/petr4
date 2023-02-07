@@ -173,7 +173,7 @@ Section TypingDefs.
 
   (** Typing analogue to [lookup_func]. *)
   Definition lookup_func_typ
-             (this : path) (gf : gamma_func) (gi : genv_inst)
+             (this : path) (gf : gamma_func) (gi : @genv_inst tags_t)
              '(MkExpression _ func _ _ : expr)
     : option (option path * closure) :=
     match func with

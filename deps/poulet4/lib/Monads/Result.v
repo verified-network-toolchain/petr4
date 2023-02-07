@@ -246,3 +246,36 @@ Proof.
   intros; induction l as [| a l ih]; cbn; auto.
   rewrite ih; reflexivity.
 Qed.
+
+Lemma sequence_length :
+  forall {Err A : Type} lmao (la : list A),
+    sequence lmao = Ok (Err := Err) la ->
+    length lmao = length la.
+Proof.
+  intros Err A lmao.
+    induction lmao as [| [ama |] lmao IHlmao];
+    intros [| a la] H; simpl in *;
+    autounfold with * in *;
+      try discriminate; auto.
+  - destruct (sequence lmao);
+      simpl in *; inversion H.
+  - destruct (sequence lmao) as [la' |] eqn:Heqlmao;
+      simpl in *; inversion H; subst;
+        f_equal; auto.
+Qed.
+
+Lemma sequence_Forall2 : forall {Err A : Type} lmao (la : list A),
+    sequence lmao = Ok (Err := Err) la ->
+    Forall2 (fun mao a => mao = Ok a) lmao la.
+Proof.
+  intros Err A lmao;
+    induction lmao as [| [ama |] lmao IHlmao];
+    intros [| a la] H; simpl in *;
+      autounfold with * in *;
+      try discriminate; auto.
+  - destruct (sequence lmao);
+      simpl in *; inversion H.
+  - destruct (sequence lmao) as [la' |] eqn:Heqlmao;
+      simpl in *; inversion H; subst;
+        f_equal; auto.
+Qed.

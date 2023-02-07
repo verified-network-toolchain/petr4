@@ -170,6 +170,15 @@ Section ValueUtil.
   Definition svals_to_vals (read_one_bit : option bool -> bool -> Prop) :=
     Forall2 (sval_to_val read_one_bit).
 
+  Definition determinize_bit (b : option bool) : bool :=
+    match b with
+    | Some b => b
+    | None => false
+    end.
+
+  Definition interp_sval_to_val (v: Sval) : Val :=
+    ValueBaseMap (determinize_bit) v.
+
   Definition val_to_sval :=
     exec_val read_detbit.
 
@@ -247,6 +256,10 @@ Section ValueUtil.
       TypControl, TypParser, TypExtern, TypFunction, TypAction,
       TypTable, TypPackage, TypSpecializedType, TypConstructor
   *)
+
+  Definition zero_init_val_of_typ (typ: P4Type) : option Val :=
+    let* sv := uninit_sval_of_typ (Some false) typ in
+    mret (interp_sval_to_val sv).
 
   (* The definition of uninit_sval_of_sval follows val_to_sval instead of uninit_sval_of_typ.
     The discrepancies between uninit_sval_of_sval and uninit_sval_of_typ:

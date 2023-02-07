@@ -1,4 +1,7 @@
 Require Export Poulet4.Monads.Monad.
+Require Import Coq.Lists.List.
+
+Import ListNotations.
 
 Open Scope monad.
 Open Scope list_scope.
@@ -23,6 +26,8 @@ Fixpoint reduce_option {A : Type} (acts: list (option A)) (f : A -> A -> A) (bas
   | Some x :: xs => reduce_option xs f (f x base)
   end.
 
+Definition guard (b : bool) : option unit := if b then Some tt else None.
+
 Global Hint Unfold option_bind : core.
 
 Lemma sequence_length :
@@ -42,7 +47,14 @@ Proof.
         f_equal; auto.
 Qed.
 
-Require Import Lists.List.
+Lemma sequence_nil :
+  forall (A : Type) (l : list (option A)),
+    sequence l = Some [] <-> l = [].
+Proof.
+  split; destruct l; cbn; unfold option_bind in *; 
+  intros; auto; destruct o; try discriminate. 
+  destruct (sequence l); discriminate.
+Qed.
 
 Lemma sequence_Forall2 : forall {A : Type} lmao (la : list A),
     sequence lmao = Some la ->

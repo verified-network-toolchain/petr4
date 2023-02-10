@@ -667,9 +667,9 @@ with inline (gas : nat)
                match pdecl with
                | TD.TPParser _ _ _ _ start states tags =>
                  let+ parser := inline_parser gas unroll tags ctx ["start"] "start" start states in
-                 let init := init_parser states tags in
-                 ISeq init  parser tags
-               (* error ("found parser " ++ inst ++ " of type " ++ pname ++ " [TODO] translate the parser!") *)
+                 (* let init := init_parser states tags in *)
+                 (* ISeq init  parser tags *)
+                 parser
                | _ =>
                  error ("expected `" ++ pname ++ "` to be a parser declaration, but it was something else")
                end
@@ -1163,6 +1163,9 @@ Fixpoint assert_headers_valid_before_use (c : t) : result t :=
     let  asserts := assertify headers tags in
     ISeq asserts c tags
   | IExit _ => ok c
+
+
+
   | IInvoke t ks acts tags =>
   (* Assume keys have been normalized, so dont to check them*)
     let+ acts' := rred (List.map (fun '(a,(ps, c)) =>
@@ -1177,7 +1180,7 @@ Fixpoint assert_headers_valid_before_use (c : t) : result t :=
     (*We skip extract, because we dont read the bits*)
     (*We skip assume, because theyre only introduced in tables at this point in the pipeline. *)
     (*if orb (String.eqb method "extract") (String.eqb method "assume") then ok c else*)
-    if String.eqb method "extract" then ok c else
+    if String.eqb method "extract" || String.eqb method "hopen" || String.eqb method "hclose" then ok c else
     let paramargs := paramargs args in
     let+ headers := List.fold_left (fun acc_hdrs '(param, arg)  =>
                    let* acc_hdrs := acc_hdrs in

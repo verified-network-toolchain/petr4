@@ -649,9 +649,12 @@ Section ToP4cub.
     | ExpErrorMember str =>
       ok (E.EError (Some (P4String.str str)) i)
     | ExpExpressionMember expr name =>
-      let* cub_type := translate_exp_type i (get_type_of_expr expr) in
-      let+ cub_expr := translate_expression expr in
-      E.EExprMember cub_type (P4String.str name) cub_expr i
+      let* cub_expr := translate_expression expr in
+      if String.eqb (P4String.str name) "is_valid" || String.eqb (P4String.str name) "isValid" then
+        ok (E.EUop E.TBool E.IsValid cub_expr i)
+      else
+        let+ cub_type := translate_exp_type i (get_type_of_expr expr) in
+        E.EExprMember cub_type (P4String.str name) cub_expr i
     | ExpTernary cond tru fls =>
       error "Ternary expressions should have been hoisted by a previous pass"
     | ExpFunctionCall func type_args args =>

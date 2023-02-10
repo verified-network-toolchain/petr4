@@ -52,7 +52,6 @@ Section Transformer.
     P4String.Build_t _ default_tag ("t'" ++ (N_to_string n))%string.
 
   (* Eval vm_compute in (N_to_tempvar 123412341234).*)
-
   (* transform_exp turns an expression to a list of statements and a side-effect-free expression. *)
   Fixpoint transform_exp (nameIdx: N) (exp: @Expression tags_t):
     (list (P4String * (@Expression tags_t)) * (@Expression tags_t) * N) :=
@@ -123,6 +122,34 @@ Section Transformer.
       let '(l3, e3, n3) := transform_exp n2 fls in
       (* Qinshi: This is incorrect. l2/l3 is only evaluated when the boolean is true/false. *)
       (l1 ++ l2 ++ l3, MkExpression tag (ExpTernary e1 e2 e3) typ dir, n3)
+    | ExpFunctionCall (MkExpression tag (ExpExpressionMember expr name) etyp dir) [] [] =>
+      if String.eqb (P4String.str name) "isValid" then
+        (nil, MkExpression tag (ExpExpressionMember expr name) TypBool dir, nameIdx)
+      else
+        (* There are evaluation order issues here, also in bin_op, List, Record, etc. *)
+        let type_args := [] in
+        let args := [] in
+        let '(l0, e0, n0) :=
+            let '(l1, e1, n1) := transform_exp nameIdx expr in
+            (l1, MkExpression tag (ExpExpressionMember e1 name) typ dir, n1)
+        in
+        let '(l1, e1, n1) :=
+            ((fix transform_lopt (idx: N) (l: list (option (@Expression tags_t))):
+               (list (P4String * (@Expression tags_t)) *
+                (list (option (@Expression tags_t))) * N) :=
+                match l with
+                | nil => (nil, nil, idx)
+                | None :: rest =>
+                  let '(l2, e2, n2) := transform_lopt idx rest in
+                  (l2, None :: e2, n2)
+                | Some exp :: rest =>
+                  let '(l2, e2, n2) := transform_exp idx exp in
+                  let '(l3, e3, n3) := transform_lopt n2 rest in
+                  (l2 ++ l3, Some e2 :: e3, n3)
+                end) n0 args) in
+        (l0 ++ l1 ++ [(N_to_tempvar n1,
+                       MkExpression tag (ExpFunctionCall e0 type_args e1) typ dir)],
+         MkExpression tag (ExpName (BareName (N_to_tempvar n1)) NoLocator) typ InOut, add1 n1)
     | ExpFunctionCall func type_args args =>
       (* There are evaluation order issues here, also in bin_op, List, Record, etc. *)
       let '(l0, e0, n0) := transform_exp nameIdx func in

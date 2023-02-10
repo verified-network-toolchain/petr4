@@ -583,7 +583,10 @@ Section ToGCL.
       | E.EExprMember expr_type mem arg i =>
         let* lv := to_lvalue arg in
         let~ w := (width_of_type mem expr_type) over ("failed getting type of " @@ mem) in
-        ok (GCL.isone (BV.BVVar lv w))
+        if Nat.eqb w 1 then
+          ok (GCL.isone (BV.BVVar (lv @@ "." @@ mem) 1))
+        else
+          error ("Got type of " @@ mem @@ "but it's type width wasn't 0")
       | E.EError _ _ =>
         error "errors are not formulae"
       | E.EHeaderStack _ _ _ _ =>

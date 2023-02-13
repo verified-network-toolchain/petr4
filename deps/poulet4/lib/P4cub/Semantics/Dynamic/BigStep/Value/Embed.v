@@ -216,6 +216,75 @@ Section Embed.
       (w `S z)%expr
       (ExpInt
          {| P4Int.tags:=i; P4Int.value:=z; P4Int.width_signed:=Some (Npos w,true) |}).
+  
+  Definition interpret_embed_pre_expr (e : Expr.e) : option ExpressionPreT :=
+    match e with 
+    | Expr.Bool b => mret (ExpBool b)
+    | (w `W n)%expr =>
+      mret (ExpInt {|
+        P4Int.tags := dummy_tags;
+        P4Int.value := n;
+        P4Int.width_signed := Some (w, false) 
+      |})
+    | (w `S z)%expr =>
+      mret (ExpInt {|
+        P4Int.tags := dummy_tags; 
+        P4Int.value := z; 
+        P4Int.width_signed := Some (Npos w, true)
+      |})
+    | _ => None
+    end.
+
+  Definition interpret_embed_expr (e : Expr.e) : option EXPR :=
+    let^ e := interpret_embed_pre_expr e in
+    (* garbage values for tags, type, and direction *)
+    MkExpression dummy_tags e TypBool Directionless.
+
+  Lemma interpret_embed_expr_sound :
+    forall e e', interpret_embed_expr e = Some e' -> embed_expr e e'.
+  Proof.
+    intros. destruct e; try discriminate; inv H; constructor; constructor.
+  Qed.
+
+  Lemma interpret_embed_expr_complete :
+    forall e, interpret_embed_expr e = None -> ~exists e', embed_expr e e'.
+  Proof.
+    unfold "~". intros. destruct e; inv H; inv H0; inv H; inv H0.
+  Qed.
+
+  Definition unembed_expr (e : EXPR) : option Expr.e :=
+    let 'MkExpression _ e _ _ := e in
+    match e with
+    | ExpBool b => mret (Expr.Bool b)
+    | ExpInt {| P4Int.value := n; P4Int.width_signed := Some (w, false) |} => mret (w `W n)%expr
+    | ExpInt {| P4Int.value := z; P4Int.width_signed := Some (Npos w, true)|} => mret (w `S z)%expr
+    | _ => None
+    end.
+
+  Lemma unembed_expr_sound :
+    forall e e', unembed_expr e' = Some e -> embed_expr e e'.
+  Proof.
+    unfold unembed_expr. intros. destruct e', expr; try discriminate.
+    - constructor. inv H. constructor.
+    - destruct t, width_signed; try discriminate.
+      destruct p, b, n; try discriminate; 
+      inv H; do 2 constructor.
+  Qed.
+
+  Lemma unembed_expr_complete :
+    forall e e', embed_expr e e' -> unembed_expr e' = Some e.
+  Proof.
+    intros. inv H. inv H0; auto.
+    destruct w; constructor.
+  Qed.
+
+  Lemma unembed_expr_adequate :
+    forall e e', unembed_expr e' = Some e <-> embed_expr e e'.
+  Proof.
+    split.
+    - apply unembed_expr_sound.
+    - apply unembed_expr_complete.
+  Qed.
 
   Inductive embed_pat_valset : Parser.pat -> ValueSet (tags_t:=tags_t) -> Prop :=
   | embed_pat_wild :

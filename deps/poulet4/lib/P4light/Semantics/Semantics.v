@@ -965,14 +965,16 @@ Inductive exec_write : state -> Lval -> Sval -> state -> Prop :=
 
 Definition argument : Type := (option Sval) * (option Lval).
 
-Definition get_arg_directions (func : @Expression tags_t) : list direction :=
+Definition get_arg_directions (func : @Expression tags_t) : Result.result Exn.t (list direction) :=
   match func with
   | MkExpression _ _ (TypFunction (MkFunctionType _ params _ _)) _ =>
-      map get_param_dir params
+      mret (map get_param_dir params)
   | MkExpression _ _ (TypAction data_params ctrl_params) _ =>
-      map get_param_dir data_params ++ map (fun _ => In) ctrl_params
-  | _ => nil (* impossible *)
+      mret (map get_param_dir data_params ++ map (fun _ => In) ctrl_params)
+  | _ =>
+      Result.error (Exn.Other ("get_arg_directions: passed type that is not a function type"))
   end.
+    
 
 (* given expression and direction, evaluate to argument. *)
 (* in -> (Some _, None) *)
@@ -1362,9 +1364,9 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
        3. call the function by exec_funcall;
        4. write back out parameters.
   *)
-  | exec_call_func : forall this_path s1 tags func targs args typ dir argvals obj_path fd outvals s2 s3 s4 s5 sig sig' ret_s ret_sig,
+  | exec_call_func : forall this_path s1 tags func dirs targs args typ dir argvals obj_path fd outvals s2 s3 s4 s5 sig sig' ret_s ret_sig,
       is_builtin_func func = false ->
-      let dirs := get_arg_directions func in
+      get_arg_directions func = Result.Ok dirs ->
       exec_args read_one_bit this_path s1 args dirs argvals sig ->
       lookup_func this_path func = Some (obj_path, fd) ->
       s2 = (if is_some obj_path then set_memory PathMap.empty s1 else s1) ->

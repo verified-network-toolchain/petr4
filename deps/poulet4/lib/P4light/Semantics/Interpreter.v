@@ -767,7 +767,7 @@ Section Interpreter.
                                  else interp_builtin this st lv (str fname) (extract_invals argvals)
                         | _, _ => error (Exn.Other "interp_call")
                         end
-                   else let dirs := get_arg_directions func in
+                   else let* dirs := get_arg_directions func in
                         let* (argvals, sig) := interp_args this st args dirs in
                         let* (obj_path, fd) := from_opt (lookup_func ge this func)
                                                         (Exn.Other ("interp_stmt: lookup_func could not find "

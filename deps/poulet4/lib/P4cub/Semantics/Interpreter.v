@@ -170,7 +170,7 @@ Section Expr.
 
     Fixpoint interpret_lexpr (e : Expr.e) : option Val.lv :=
       match e with
-      | Expr.Var _ _ x => mret (Val.Var x)
+      | Expr.Var _ _ x => mret $ Val.Var x
       | Expr.Slice hi lo e => interpret_lexpr e >>| Val.Slice hi lo
       | Expr.Member _ x e => interpret_lexpr e >>| Val.Member x
       | Expr.Index _ e1 e2 =>
@@ -271,12 +271,17 @@ Section Parser.
 
   Definition interpret_pre_match (e : @MatchPreT unit) : option Parser.pat :=
     match e with
-    | MatchDontCare => mret (Parser.Wild)
+    | MatchDontCare => mret $ Parser.Wild
     | MatchMask l1 l2 =>
         let* (w1, n1) := to_bit =<< interpret_expr [] =<< unembed_expr l1 in
         let* (w2, n2) := to_bit =<< interpret_expr [] =<< unembed_expr l2 in
         guard (N.eqb w1 w2) ;;
         mret $ Parser.Mask (w1 PW n1) (w2 PW n2)
+    | MatchRange l1 l2 =>
+        let* (w1, n1) := to_bit =<< interpret_expr [] =<< unembed_expr l1 in
+        let* (w2, n2) := to_bit =<< interpret_expr [] =<< unembed_expr l2 in
+        guard (N.eqb w1 w2) ;;
+        mret $ Parser.Range (w1 PW n1) (w2 PW n2)
     | _ => None
     end.
 
@@ -297,40 +302,63 @@ Section Parser.
       cbn in *. apply N.eqb_eq in Heqb. subst.
       inv H1. apply unembed_expr_sound in Heqo, Heqo1.
       apply interpret_expr_sound in Heqo0, Heqo2. econstructor; eauto.
+    - inv H. unfold option_bind in *.
+      destruct (unembed_expr lo) eqn:?; try discriminate.
+      destruct (interpret_expr [] e) eqn:?; try discriminate.
+      unfold to_bit in *.
+      destruct v; try discriminate.
+      destruct (unembed_expr hi) eqn:?; try discriminate.
+      destruct (interpret_expr [] e0) eqn:?; try discriminate.
+      destruct v; try discriminate.
+      destruct (width =? width0)%N eqn:?; try discriminate.
+      cbn in *. apply N.eqb_eq in Heqb. subst.
+      inv H1. apply unembed_expr_sound in Heqo, Heqo1.
+      apply interpret_expr_sound in Heqo0, Heqo2. econstructor; eauto.
   Qed.
 
   Lemma interpret_pre_match_complete :
-    forall e, interpret_pre_match e = None -> ~exists pat, pre_match_big_step e pat.
+    forall e pat, pre_match_big_step e pat -> interpret_pre_match e = Some pat.
   Proof.
-    unfold "~". intros. destruct e; try (inv H; inv H0; inv H); unfold option_bind in *.
-    - apply interpret_expr_complete in H5, H7.
-      apply unembed_expr_complete in H3, H4.
-      destruct (unembed_expr expr); try discriminate.
-      destruct (unembed_expr mask); try discriminate.
-      inv H3. inv H4. 
-      destruct (interpret_expr [] e₁) eqn:?; try discriminate.
-      destruct (interpret_expr [] e₂) eqn:?; try discriminate.
-      unfold to_bit in *. destruct v; try discriminate.
-      destruct v0; try discriminate.
-      destruct (guard (width =? width0)%N) eqn:?; try discriminate.
-      inv H5. inv H7. unfold guard in *.
-      assert (N.eqb w w).
-      { apply N.eqb_eq. reflexivity. }
-      replace (w =? w)%N with true in Heqo1. discriminate.
-    - apply interpret_expr_complete in H5, H7.
-      apply unembed_expr_complete in H3, H4.
-      destruct (unembed_expr expr); try discriminate.
-      destruct (unembed_expr mask); try discriminate.
-      inv H3. inv H4. 
-      destruct (interpret_expr [] e₁) eqn:?; try discriminate.
-      destruct (interpret_expr [] e₂) eqn:?; try discriminate.
-      unfold to_bit in *. destruct v; try discriminate.
-      destruct v0; try discriminate.
-      destruct (guard (width =? width0)%N) eqn:?; try discriminate.
-      inv H5. inv H7. unfold guard in *.
-      assert (N.eqb w w).
-      { apply N.eqb_eq. reflexivity. }
-      replace (w =? w)%N with true in Heqo1. discriminate.
+    intros. inv H.
+    - auto.
+    - apply unembed_expr_complete in H0, H1.
+      apply interpret_expr_complete in H2, H3.
+      cbn. unfold option_bind.
+      destruct (unembed_expr l₁) eqn:?; try discriminate.
+      destruct (unembed_expr l₂) eqn:?; try discriminate.
+      inv H0. inv H1.
+      destruct (interpret_expr [] e₁); try discriminate.
+      destruct (interpret_expr [] e₂); try discriminate.
+      inv H2. inv H3.
+      destruct (to_bit (w) VW (n₁)%value) eqn:?; try discriminate. destruct p.
+      destruct (to_bit (w) VW (n₂)%value) eqn:?; try discriminate. destruct p.
+      cbn in *. inv Heqo1. inv Heqo2.
+      assert ((n0 =? n0)%N = true).
+      { rewrite N.eqb_eq. reflexivity. }
+      replace ((n0 =? n0)%N) with true. cbn. f_equal.
+    - apply unembed_expr_complete in H0, H1.
+      apply interpret_expr_complete in H2, H3.
+      cbn. unfold option_bind.
+      destruct (unembed_expr l₁) eqn:?; try discriminate.
+      destruct (unembed_expr l₂) eqn:?; try discriminate.
+      inv H0. inv H1.
+      destruct (interpret_expr [] e₁); try discriminate.
+      destruct (interpret_expr [] e₂); try discriminate.
+      inv H2. inv H3.
+      destruct (to_bit (w) VW (n₁)%value) eqn:?; try discriminate. destruct p.
+      destruct (to_bit (w) VW (n₂)%value) eqn:?; try discriminate. destruct p.
+      cbn in *. inv Heqo1. inv Heqo2.
+      assert ((n0 =? n0)%N = true).
+      { rewrite N.eqb_eq. reflexivity. }
+      replace ((n0 =? n0)%N) with true. cbn. f_equal.
+  Qed.
+
+  Lemma interpret_pre_match_adequate :
+    forall e pat, interpret_pre_match e = Some pat <-> pre_match_big_step e pat.
+  Proof.
+    split.
+    - apply interpret_pre_match_sound.
+    - apply interpret_pre_match_complete.
   Qed.
 
   Close Scope pat_scope.
@@ -347,11 +375,17 @@ Section Parser.
   Qed.
 
   Lemma interpret_match_complete :
-    forall e, interpret_match e = None -> ~exists pat, match_big_step e pat.
+    forall e pat, match_big_step e pat -> interpret_match e = Some pat.
   Proof.
-    unfold "~", interpret_match. intros. destruct e, tags.
-    inv H0. inv H1. apply interpret_pre_match_complete in H.
-    apply H. exists x. assumption.
+    intros. inv H. apply interpret_pre_match_complete in H0. auto.
+  Qed.
+
+  Lemma interpret_match_adequate :
+    forall e pat, interpret_match e = Some pat <-> match_big_step e pat.
+  Proof.
+    split.
+    - apply interpret_match_sound.
+    - apply interpret_match_complete.
   Qed.
 
   Definition interpret_table_entry {tags_t : Type} (entry : @table_entry unit tags_t) : option (Parser.pat * action_ref) :=
@@ -377,43 +411,24 @@ Section Parser.
   Qed.
 
   Lemma interpret_table_entry_complete :
-    forall entry,
-      interpret_table_entry entry = None -> ~exists pat action, table_entry_big_step entry pat action.
+    forall entry pat action,
+      table_entry_big_step entry pat action -> interpret_table_entry entry = Some (pat, action).
   Proof.
-    unfold "~", interpret_table_entry. cbn. unfold option_bind.
-    destruct entry. intros.
-    destruct (map_monad interpret_match matches) eqn:?; try discriminate.
-    inv H0. inv H1. inv H0. generalize dependent pats. induction matches; intros.
-    - discriminate.
-    - destruct pats; inv H5. inv H3. inv H0; cbn in *; unfold option_bind in *.
-      + destruct (sequence (map interpret_match matches)) eqn:?; 
-        try discriminate. eauto.
-      + apply interpret_expr_complete in H3, H4.
-        apply unembed_expr_complete in H1, H2.
-        destruct (unembed_expr l₂); try discriminate.
-        destruct (unembed_expr l₁); try discriminate.
-        inv H1. inv H2.
-        destruct (interpret_expr [] e₁); try discriminate.
-        destruct (interpret_expr [] e₂); try discriminate.
-        inv H3. inv H4.
-        assert (N.eqb w w).
-        { apply N.eqb_eq. reflexivity. }
-        cbn in *. replace (N.eqb w w) with true in Heqo. cbn in *.
-        destruct (sequence (map interpret_match matches)) eqn:?;
-        try discriminate. eauto.
-      + apply interpret_expr_complete in H3, H4.
-        apply unembed_expr_complete in H1, H2.
-        destruct (unembed_expr l₂); try discriminate.
-        destruct (unembed_expr l₁); try discriminate.
-        inv H1. inv H2.
-        destruct (interpret_expr [] e₁); try discriminate.
-        destruct (interpret_expr [] e₂); try discriminate.
-        inv H3. inv H4.
-        assert (N.eqb w w).
-        { apply N.eqb_eq. reflexivity. }
-        cbn in *. replace (N.eqb w w) with true in Heqo. cbn in *.
-        destruct (sequence (map interpret_match matches)) eqn:?;
-        try discriminate. eauto.
+    intros. inv H. cbn. unfold option_bind. induction H0.
+    - auto.
+    - destruct (map_monad interpret_match l) eqn:?; try discriminate.
+      inv IHForall2. cbn. unfold option_bind. apply interpret_match_complete in H.
+      destruct (interpret_match x); try discriminate. inv H.
+      unfold map_monad, "∘" in *. rewrite Heqo. f_equal.
+  Qed.
+
+  Lemma interpret_table_entry_adequate :
+    forall entry pat action,
+      interpret_table_entry entry = Some (pat, action) <-> table_entry_big_step entry pat action.
+  Proof.
+    split.
+    - apply interpret_table_entry_sound.
+    - apply interpret_table_entry_complete.
   Qed.
 
 End Parser.

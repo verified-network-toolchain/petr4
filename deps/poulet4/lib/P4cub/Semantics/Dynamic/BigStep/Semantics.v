@@ -207,7 +207,7 @@ Variant pre_match_big_step : @MatchPreT unit -> Parser.pat -> Prop :=
     embed_expr e₂ l₂ ->
     ⟨ [], e₁ ⟩ ⇓ w VW n₁ ->
     ⟨ [], e₂ ⟩ ⇓ w VW n₂ ->
-    pre_match_big_step (MatchMask l₁ l₂) (Parser.Range (w PW n₁) (w PW n₂)).
+    pre_match_big_step (MatchRange l₁ l₂) (Parser.Range (w PW n₁) (w PW n₂)).
 
 Close Scope pat_scope.
 

@@ -258,28 +258,25 @@ Notation "σ '†mp'"
   := (sub_typs_MethodPrototype σ)
        (at level 11, right associativity) : sub_scope.
 
-Definition
-  sub_typs_MatchPreT {tags_t}
-  (σ : substitution tags_t) (m : MatchPreT) : MatchPreT :=
-  match m with
-  | MatchDontCare    => MatchDontCare
-  | MatchMask  e₁ e₂ => MatchMask  (σ †e e₁) (σ †e e₂)
-  | MatchRange e₁ e₂ => MatchRange (σ †e e₁) (σ †e e₂)
-  | MatchCast  τ  e  => MatchCast  (σ †t τ)  (σ †e e)
+Fixpoint sub_typs_ValueSet {tags_t}
+  (σ : substitution tags_t) (vs : @ValueSet tags_t) : @ValueSet tags_t :=
+  match vs with
+  | ValSetSingleton _
+  | ValSetMask _ _
+  | ValSetRange _ _
+  | ValSetLpm _ _
+  | ValSetUniversal => vs
+  | ValSetProd vss => ValSetProd (map (sub_typs_ValueSet σ) vss)
+  | ValSetValueSet n mss vss =>
+      ValSetValueSet
+        n
+        (map (map (map_Match (sub_typs_P4Type σ) (sub_typs_ValueSet σ))) mss)
+        (map (sub_typs_ValueSet σ) vss)
   end.
 
-Notation "σ '†match_pre'"
-  := (sub_typs_MatchPreT σ)
-       (at level 11, right associativity) : sub_scope.
-
-Definition
-  sub_typs_Match {tags_t}
-  (σ : substitution tags_t) '(MkMatch i m τ : Match) : Match :=
-  MkMatch i (σ †match_pre m) (σ †t τ).
-
-Notation "σ '†match'"
-  := (sub_typs_Match σ)
-       (at level 11, right associativity) : sub_scope.
+Definition sub_typs_Match_P4Type_ValueSet {tags_t : Type}
+  (σ : substitution tags_t) : @Match tags_t P4Type ValueSet -> @Match tags_t P4Type ValueSet :=
+  map_Match (@sub_typs_P4Type tags_t σ) (sub_typs_ValueSet σ).
 
 Definition
   sub_typs_TablePreActionRef {tags_t}
@@ -313,7 +310,7 @@ Notation "σ '†tk'"
 Definition
   sub_typs_TableEntry {tags_t}
   (σ : substitution tags_t) '(MkTableEntry i ms tar : TableEntry)
-  : TableEntry := MkTableEntry i (lmap (σ †match) ms) (σ †tar tar).
+  : TableEntry := MkTableEntry i (lmap (sub_typs_Match_P4Type_ValueSet σ) ms) (σ †tar tar).
 
 Notation "σ '†te'"
   := (sub_typs_TableEntry σ)
@@ -397,7 +394,7 @@ where "σ '†init'" := (sub_typs_Initializer σ).
 Definition
   sub_typs_ParserCase {tags_t}
   (σ : substitution tags_t) '(MkParserCase i ms x : ParserCase)
-  : ParserCase := MkParserCase i (lmap (σ †match) ms) x.
+  : ParserCase := MkParserCase i (lmap (sub_typs_Match_P4Type_ValueSet σ) ms) x.
 
 Notation "σ '†pc'"
   := (sub_typs_ParserCase σ)

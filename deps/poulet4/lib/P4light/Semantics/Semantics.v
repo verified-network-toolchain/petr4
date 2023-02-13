@@ -8,7 +8,7 @@ Require Import Coq.Strings.String Coq.Bool.Bool
 Require Poulet4.Monads.Result.
 From Poulet4.Utils Require Import Utils Maps AList P4Arith.
 Require Export Poulet4.P4light.Architecture.Target
-        VST.zlist.Zlist Poulet4.P4light.Syntax.Value.
+  VST.zlist.Zlist Poulet4.P4light.Syntax.Value Poulet4.P4light.Syntax.BigValue.
 From Poulet4.P4light.Syntax Require Export ValueUtil SyntaxUtil.
 From Poulet4.P4light.Syntax Require Import P4String P4Int P4Notations.
 From Poulet4.P4light.Semantics Require Import Ops.
@@ -648,23 +648,18 @@ Definition add_entry (s : state) (table : path) (entry : table_entry) : state :=
 Definition empty_state : state := (PathMap.empty, PathMap.empty).
 
 Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
-                     path -> @Match tags_t -> ValSet -> Prop :=
+                     path -> @Match tags_t (@P4Type tags_t) ValSet -> ValSet -> Prop :=
   | exec_match_dont_care : forall this tag typ,
       exec_match read_one_bit this (MkMatch tag MatchDontCare typ) ValSetUniversal
   | exec_match_mask : forall expr exprv mask maskv this tag typ,
-                      exec_expr_det read_one_bit this empty_state expr exprv ->
-                      exec_expr_det read_one_bit this empty_state mask maskv ->
                       exec_match read_one_bit this
                       (MkMatch tag (MatchMask expr mask) typ)
                       (ValSetMask exprv maskv)
   | exec_match_range : forall lo lov hi hiv this tag typ,
-                        exec_expr_det read_one_bit this empty_state lo lov ->
-                        exec_expr_det read_one_bit this empty_state hi hiv ->
                         exec_match read_one_bit this
                         (MkMatch tag (MatchRange lo hi) typ)
                         (ValSetRange lov hiv)
   | exec_match_cast : forall newtyp expr oldv newv this tag typ real_typ,
-                      exec_expr_det read_one_bit this empty_state expr oldv ->
                       get_real_type (ge_typ ge) newtyp = Some real_typ ->
                       Ops.eval_cast_set real_typ oldv = Some newv ->
                       exec_match read_one_bit this
@@ -675,8 +670,8 @@ Definition exec_matches (read_one_bit : option bool -> bool -> Prop) (this : pat
   Forall2 (exec_match read_one_bit this).
 
 Inductive exec_table_entry (read_one_bit : option bool -> bool -> Prop) :
-                           path -> table_entry ->
-                           (@table_entry_valset tags_t (@Expression tags_t)) -> Prop :=
+                           path -> @table_entry tags_t ValueSet ->
+                           (@table_entry_valset tags_t ValueSet) -> Prop :=
   | exec_table_entry_intro : forall this ms svs action entryvs,
                              exec_matches read_one_bit this ms svs ->
                              (if (List.length svs =? 1)%nat

@@ -1,6 +1,6 @@
-From Coq Require Import ZArith.BinInt Lists.List Strings.String.
+From Coq Require Import ZArith.BinInt ZArith.ZArith Lists.List Strings.String.
 Import ListNotations.
-From Poulet4 Require Import Utils.AList P4light.Syntax.Syntax Utils.ForallMap.
+From Poulet4 Require Import Utils.AList (*P4light.Syntax.Syntax*) Utils.ForallMap.
 From Poulet4.P4light.Syntax Require P4String P4Int Typed.
 
 Section Value.
@@ -23,75 +23,6 @@ Section Value.
   | ValBaseStack (headers: list (@ValueBase bit)) (next: N)
   | ValBaseEnumField (typ_name: string) (enum_name: string)
   | ValBaseSenumField (typ_name: string) (value: (@ValueBase bit)).
-
-  Inductive ValueLvalue :=
-  | ValLeftName (loc: Syntax.Locator)
-  | ValLeftMember (expr: ValueLvalue) (name: string)
-  | ValLeftBitAccess (expr: ValueLvalue) (msb: N) (lsb: N)
-  | ValLeftArrayAccess (expr: ValueLvalue) (idx: Z).
-
-  Context {tags_t : Type}.
-
-  Inductive ValueSet:=
-  | ValSetSingleton (value: (@ValueBase bool))
-  | ValSetUniversal
-  | ValSetMask (value: (@ValueBase bool)) (mask: (@ValueBase bool))
-  | ValSetRange (lo: (@ValueBase bool)) (hi: (@ValueBase bool))
-  | ValSetProd (_: list ValueSet)
-  | ValSetLpm (nbits: N) (value: (@ValueBase bool))
-  | ValSetValueSet (size: N) (members: list (list (@Syntax.Match tags_t))) (sets: list ValueSet).
-
-  Definition ValueLoc := string.
-
-  Inductive ValueTable :=
-  | MkValTable (name: string) (keys: list (@Syntax.TableKey tags_t))
-               (actions: list (@Syntax.TableActionRef tags_t))
-               (default_action: @Syntax.TableActionRef tags_t)
-               (const_entries: list (@Syntax.TableEntry tags_t)).
-
-
-  Definition Env_env binding := list (StringAList binding).
-
-  Inductive Env_EvalEnv :=
-  | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env (@Typed.P4Type tags_t)) (namespace: string).
-
-  Inductive ValueFunctionImplementation :=
-  | ValFuncImplUser (scope: Env_EvalEnv) (body: (@Syntax.Block tags_t))
-  | ValFuncImplExtern (name: string) (caller: option (ValueLoc * string))
-  | ValFuncImplBuiltin (name: string) (caller: ValueLvalue).
-
-  Inductive ValueObject :=
-  | ValObjParser (scope: Env_EvalEnv)
-                 (constructor_params: list (@Typed.P4Parameter tags_t))
-                 (params: list (@Typed.P4Parameter tags_t)) (locals: list (@Syntax.Declaration tags_t))
-                 (states: list (@Syntax.ParserState tags_t))
-  | ValObjTable (_: ValueTable)
-  | ValObjControl (scope: Env_EvalEnv)
-                  (constructor_params: list (@Typed.P4Parameter tags_t))
-                  (params: list (@Typed.P4Parameter tags_t)) (locals: list (@Syntax.Declaration tags_t))
-                  (apply: (@Syntax.Block tags_t))
-  | ValObjPackage (args: StringAList ValueLoc)
-  | ValObjRuntime (loc: ValueLoc) (obj_name: string)
-  | ValObjFun (params: list (@Typed.P4Parameter tags_t)) (impl: ValueFunctionImplementation)
-  | ValObjAction (scope: Env_EvalEnv) (params: list (@Typed.P4Parameter tags_t))
-                 (body: (@Syntax.Block tags_t))
-  | ValObjPacket (bits: list bool).
-
-  Inductive ValueConstructor :=
-  | ValConsParser (scope: Env_EvalEnv) (constructor_params: list (@Typed.P4Parameter tags_t))
-                  (params: list (@Typed.P4Parameter tags_t)) (locals: list (@Syntax.Declaration tags_t))
-                  (states: list (@Syntax.ParserState tags_t))
-  | ValConsTable (_: ValueTable)
-  | ValConsControl (scope: Env_EvalEnv) (constructor_params: list (@Typed.P4Parameter tags_t))
-                   (params: list (@Typed.P4Parameter tags_t)) (locals: list (@Syntax.Declaration tags_t))
-                   (apply: (@Syntax.Block tags_t))
-  | ValConsPackage (params: list (@Typed.P4Parameter tags_t)) (args: StringAList ValueLoc)
-  | ValConsExternObj (_: StringAList (list (@Typed.P4Parameter tags_t))).
-
-  Inductive Value (bit : Type) :=
-  | ValBase (_: @ValueBase bit)
-  | ValObj (_: ValueObject)
-  | ValCons (_: ValueConstructor).
 
   Section ValBaseInd.
     Variable bit : Type.
@@ -243,14 +174,23 @@ Section Value.
              rewrite combine_split by auto;
              f_equal; rewrite H; reflexivity).
   Qed.
-
-  Inductive signal : Type :=
- | SContinue : signal
- | SReturn : (@ValueBase bool) -> signal
- | SExit
- (* parser's states include accept and reject *)
- | SReject : string -> signal.
-
-  Definition SReturnNull := SReturn ValBaseNull.
-
 End Value.
+
+Fixpoint width_of_val {bit : Type} (v: @ValueBase bit) : N :=
+  let fix fields_width (fields: StringAList ValueBase) : N :=
+      match fields with
+      | nil => N.of_nat O
+      | (id, v) :: rest => (width_of_val v + fields_width rest)%N
+      end in
+  match v with
+  | ValBaseNull => N.of_nat O
+  | ValBaseBool _ => 1
+  | ValBaseBit bits
+  | ValBaseInt bits
+  | ValBaseVarbit _ bits => Z.to_N (Zlength bits)
+  | ValBaseTuple vs => List.fold_right N.add (0)%N (List.map width_of_val vs)
+  | ValBaseStruct fields
+  | ValBaseHeader fields _ => fields_width fields
+  | ValBaseSenumField _ v => width_of_val v
+  | _ => N.of_nat O
+  end.

@@ -294,7 +294,9 @@ Section Transformer.
       MkTableActionRef tags action' typ
     end.
 
-  Definition transform_match (e: env) (mt: @Match tags_t): @Match tags_t :=
+  Definition transform_match
+    (e: env)
+    (mt: @Match tags_t (@P4Type tags_t) (@Expression tags_t)): @Match tags_t P4Type Expression :=
     match mt with
     | MkMatch tags expr typ =>
       match expr with
@@ -313,20 +315,12 @@ Section Transformer.
       end
     end.
 
-  Definition transform_psrcase (e: env) (pc: @ParserCase tags_t): @ParserCase tags_t :=
-    match pc with
-    | MkParserCase tags matches next =>
-      let matches' := map (transform_match e) matches in
-      MkParserCase tags matches next
-    end.
-
   Definition transform_psrtrans (e: env) (pt: @ParserTransition tags_t): @ParserTransition tags_t :=
     match pt with
     | ParserDirect _ _ => pt
     | ParserSelect tags exprs cases =>
       let exprs' := transform_exprs e exprs in
-      let cases' := map (transform_psrcase e) cases in
-      ParserSelect tags exprs' cases'
+      ParserSelect tags exprs' cases
     end.
 
   Definition transform_psrst (e: env) (ps: @ParserState tags_t): monad (@ParserState tags_t) :=
@@ -341,9 +335,8 @@ Section Transformer.
   Definition transform_tblenty (e: env) (te: @TableEntry tags_t): @TableEntry tags_t :=
     match te with
     | MkTableEntry tags matches action =>
-      let matches' := map (transform_match e) matches in
       let action' := transform_tar e action in
-      MkTableEntry tags matches' action'
+      MkTableEntry tags matches action'
     end.
 
   Definition transform_tblprop (e: env) (tp: @TableProperty tags_t): @TableProperty tags_t :=

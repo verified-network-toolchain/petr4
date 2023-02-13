@@ -7,6 +7,7 @@ Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
 Require Import Poulet4.P4light.Syntax.Value.
+Require Import Poulet4.P4light.Syntax.BigValue.
 Require Import Poulet4.P4light.Syntax.ValueUtil.
 Require Import Poulet4.P4light.Syntax.Syntax.
 From Poulet4.P4light.Syntax Require Import
@@ -384,7 +385,7 @@ Inductive ValSetT :=
 | VSTRange (lo: Val) (hi: Val)
 | VSTProd (_: list ValSetT)
 | VSTLpm (nbits: N) (value: Val)
-| VSTValueSet (size: N) (members: list (list (@Match tags_t))) (sets: list ValSetT).
+| VSTValueSet (size: N) (members: list (list (@Match tags_t P4Type ValSetT))) (sets: list ValSetT).
 
 Fixpoint valset_to_valsett (vs : ValSet) :=
   match vs with
@@ -394,7 +395,11 @@ Fixpoint valset_to_valsett (vs : ValSet) :=
   | ValSetRange lo hi => VSTRange lo hi
   | ValSetProd sets => VSTProd (List.map valset_to_valsett sets)
   | ValSetLpm nbits value => VSTLpm nbits value
-  | ValSetValueSet size members sets => VSTValueSet size members (List.map valset_to_valsett sets)
+  | ValSetValueSet size members sets =>
+      VSTValueSet
+        size
+        (List.map (List.map (map_Match id valset_to_valsett)) members)
+        (List.map valset_to_valsett sets)
   end.
 
 Definition extern_get_entries (es : extern_state) (p : path) : list table_entry :=

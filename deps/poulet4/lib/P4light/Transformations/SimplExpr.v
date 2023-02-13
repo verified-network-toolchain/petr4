@@ -340,42 +340,13 @@ Section Transformer.
       let (l2, n2) := transform_list' f n1 rest in (l1 ++ l2, n2)
     end.
 
-  Definition transform_match (nameIdx: N) (mt: @Match tags_t):
-    (list (@Declaration tags_t) * (@Match tags_t) * N) :=
-    match mt with
-    | MkMatch tags expr typ =>
-      match expr with
-      | MatchDontCare => (nil, mt, nameIdx)
-      | MatchMask expr mask =>
-        let '(l1, e1, n1) := transform_exp nameIdx expr in
-        let '(l2, e2, n2) := transform_exp n1 mask in
-        (map expr_to_decl (l1 ++ l2), MkMatch tags (MatchMask e1 e2) typ, n2)
-      | MatchRange lo hi =>
-        let '(l1, e1, n1) := transform_exp nameIdx lo in
-        let '(l2, e2, n2) := transform_exp n1 hi in
-        (map expr_to_decl (l1 ++ l2), MkMatch tags (MatchRange e1 e2) typ, n2)
-      | MatchCast typ' expr =>
-        let '(l1, e1, n1) := transform_exp nameIdx expr in
-        (map expr_to_decl l1, MkMatch tags (MatchCast typ' e1) typ, n1)
-      end
-    end.
-
-  Definition transform_psrcase (nameIdx: N) (pc: @ParserCase tags_t):
-    (list (@Declaration tags_t) * (@ParserCase tags_t) * N) :=
-    match pc with
-    | MkParserCase tags matches next =>
-      let '(l1, m1, n1) := transform_list transform_match nameIdx matches in
-      (l1, MkParserCase tags m1 next, n1)
-    end.
-
   Definition transform_psrtrans (nameIdx: N) (pt: @ParserTransition tags_t):
     (list (@Declaration tags_t) * (@ParserTransition tags_t) * N) :=
     match pt with
     | ParserDirect _ _ => (nil, pt, nameIdx)
     | ParserSelect tags exprs cases =>
       let '(l1, e1, n1) := transform_exprs nameIdx exprs in
-      let '(l2, c2, n2) := transform_list transform_psrcase n1 cases in
-      (map expr_to_decl l1 ++ l2, ParserSelect tags e1 c2, n2)
+      (map expr_to_decl l1, ParserSelect tags e1 cases, n1)
     end.
 
   Definition transform_psrst (nameIdx: N) (ps: @ParserState tags_t):
@@ -386,7 +357,7 @@ Section Transformer.
       let '(l2, t2, n2) := transform_psrtrans n1 transition in
       (l2, MkParserState tags name l1 t2, n2)
     end.
-
+  
   Definition transform_tblkey (nameIdx: N) (tk: @TableKey tags_t):
     (list (@Declaration tags_t) * (@TableKey tags_t) * N) :=
     match tk with
@@ -424,9 +395,8 @@ Section Transformer.
     (list (@Declaration tags_t) * (@TableEntry tags_t) * N) :=
     match te with
     | MkTableEntry tags matches action =>
-      let '(l1, e1, n1) := transform_list transform_match nameIdx matches in
-      let '(l2, e2, n2) := transform_tar n1 action in
-      (l1 ++ l2, MkTableEntry tags e1 e2, n2)
+      let '(l1, e1, n1) := transform_tar nameIdx action in
+      (l1, MkTableEntry tags matches e1, n1)
     end.
 
   Definition transform_tblprop (nameIdx: N) (tp: @TableProperty tags_t):

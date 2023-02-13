@@ -1,6 +1,7 @@
 Require Import String.
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
+Require Poulet4.Utils.P4Arith.
 From Poulet4 Require Import
      P4light.Transformations.SimplExpr
      P4light.Transformations.InlineTypeDecl
@@ -8,6 +9,7 @@ From Poulet4 Require Import
      Utils.Util.ListUtil.
 From Poulet4 Require Export
      P4light.Syntax.Syntax
+     P4light.Syntax.Value
      P4cub.Syntax.Syntax
      P4cub.Syntax.Substitution
      P4cub.Syntax.InferMemberTypes
@@ -1274,7 +1276,9 @@ Section ToP4cub.
     let '(MkExpression tags pre_expr typ dir) := e in
     translate_pre_expr_to_pattern pre_expr.
 
-  Definition translate_match (m : Match) : result string Parser.pat :=
+  Definition translate_match {U}
+    (translate_expression_to_pattern : U -> result string Parser.pat)
+    (m : @Match tags_t (@P4Type tags_t) U) : result string Parser.pat :=
     let '(MkMatch tags pre_match typ) := m in
     match pre_match with
     | MatchDontCare => ok Parser.Wild
@@ -1287,11 +1291,65 @@ Section ToP4cub.
         let+ p_hi := translate_expression_to_pattern hi in
         Parser.Mask p_lo p_hi
     | MatchCast typ m =>
-        translate_pre_expr_to_pattern (ExpCast typ m)
+        translate_expression_to_pattern m
+          (*translate_pre_expr_to_pattern (ExpCast typ m)*)
     end.
-    
-  Definition translate_matches : list Match -> result string (list Parser.pat) :=
-    rred ∘ (List.map translate_match).
+  
+  Fixpoint translate_Value_to_pat (v : @ValueBase bool) : result string Parser.pat :=
+    match v with
+    | ValBaseNull
+    | ValBaseBool _
+    | ValBaseInteger _
+    | ValBaseVarbit _ _
+    | ValBaseString _
+    | ValBaseError _
+    | ValBaseMatchKind _
+    | ValBaseEnumField _ _
+    | ValBaseSenumField _ _ => error "bad pattern"
+    | ValBaseBit bits =>
+        let (w, n) := P4Arith.BitArith.from_lbool bits in
+        ok $ Parser.Bit w n
+    | ValBaseInt bits =>
+        let (w, z) := P4Arith.IntArith.from_lbool bits in
+        match w with
+        | N0 => error "int with size 0"
+        | Npos p => ok $ Parser.Int p z
+        end
+    | ValBaseTuple vs
+    | ValBaseStack vs _ =>
+        sequence (List.map translate_Value_to_pat vs) >>| Parser.Lists
+    | ValBaseStruct vs
+    | ValBaseHeader vs _
+    | ValBaseUnion vs =>
+        sequence (List.map (fun '(_, v) => translate_Value_to_pat v) vs) >>| Parser.Lists
+    end.
+  
+  Fixpoint translate_ValueSet_to_pat (vs : @ValueSet tags_t) : result string Parser.pat :=
+    match vs with
+    | ValSetSingleton v => translate_Value_to_pat v
+    | ValSetUniversal   => ok Parser.Wild
+    | ValSetMask v1 v2 =>
+        let* v1 := translate_Value_to_pat v1 in
+        let+ v2 := translate_Value_to_pat v2 in
+        Parser.Mask v1 v2
+    | ValSetRange v1 v2 =>
+        let* v1 := translate_Value_to_pat v1 in
+        let+ v2 := translate_Value_to_pat v2 in
+        Parser.Range v1 v2
+    | ValSetProd vss =>
+        sequence (List.map translate_ValueSet_to_pat vss) >>| Parser.Lists
+    | ValSetLpm _ _ => error "TODO: how to compile ValSetLpm"
+    | ValSetValueSet _ _ _ => error "TODO: how to compile ValSetValueSet"
+    end.
+
+  Definition translate_match_ValueSet :
+    @Match tags_t (@P4Type tags_t) (@ValueSet tags_t) -> result string Parser.pat :=
+    translate_match translate_ValueSet_to_pat.
+  
+  Definition translate_matches :
+    list (@Match tags_t (@P4Type tags_t) (@ValueSet tags_t)) ->
+    result string (list Parser.pat) :=
+    rred ∘ (List.map translate_match_ValueSet).
 
   Definition
     translate_parser_case

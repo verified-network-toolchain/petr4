@@ -3,7 +3,7 @@ Require Import Coq.Numbers.BinNums.
 Require Import Coq.Strings.String.
 
 From Poulet4.P4light.Syntax Require Import
-     Info Typed P4String P4Int.
+  Info Typed P4String P4Int Value.
 Require Import Poulet4.Utils.Utils.
 
 Section Syntax.
@@ -81,15 +81,30 @@ Section Syntax.
   with Expression :=
   | MkExpression (tags: tags_t) (expr: ExpressionPreT) (typ: @P4Type tags_t) (dir: direction).
 
-  Variant MatchPreT :=
-  | MatchDontCare
-  | MatchMask (expr: Expression) (mask: Expression)
-  | MatchRange (lo: Expression) (hi: Expression)
-  | MatchCast (typ: @P4Type tags_t) (expr: Expression).
+  Section Match.
+    Context {T VS : Type}.
+    
+    Variant MatchPreT :=
+      | MatchDontCare
+      | MatchMask (expr: VS) (mask: VS)
+      | MatchRange (lo: VS) (hi: VS)
+      | MatchCast (typ: T) (expr: VS).
 
-  Variant Match :=
-  | MkMatch (tags: tags_t) (expr: MatchPreT) (typ: @P4Type tags_t).
+    Variant Match :=
+      | MkMatch (tags: tags_t) (expr: MatchPreT) (typ: T).
+  End Match.
+  Global Arguments MatchPreT : clear implicits.
+  Global Arguments Match : clear implicits.
 
+  Inductive ValueSet :=
+  | ValSetSingleton (value: (@ValueBase bool))
+  | ValSetUniversal
+  | ValSetMask (value: (@ValueBase bool)) (mask: (@ValueBase bool))
+  | ValSetRange (lo: (@ValueBase bool)) (hi: (@ValueBase bool))
+  | ValSetProd (_: list ValueSet)
+  | ValSetLpm (nbits: N) (value: (@ValueBase bool))
+  | ValSetValueSet (size: N) (members: list (list (Match (@P4Type tags_t) ValueSet))) (sets: list ValueSet).
+        
   Variant TablePreActionRef :=
   | MkTablePreActionRef (name: @Typed.name tags_t)
                         (args: list (option Expression)).
@@ -103,7 +118,7 @@ Section Syntax.
                (match_kind: P4String).
 
   Variant TableEntry :=
-  | MkTableEntry (tags: tags_t)  (matches: list Match)
+  | MkTableEntry (tags: tags_t)  (matches: list (Match (@P4Type tags_t) ValueSet))
                  (action: TableActionRef).
 
   Variant TableProperty :=
@@ -162,6 +177,23 @@ Section Syntax.
   | InitInstantiation (tags: tags_t)  (typ: @P4Type tags_t)
                       (args: list Expression) (name: P4String) (init: list Initializer).
 
+  Section MatchMap.
+    Context {A B U V : Type}.
+    Variable f : A -> B.
+    Variable g : U -> V.
+
+    Definition map_MatchPreT (m : MatchPreT A U) : MatchPreT B V :=
+      match m with
+      | MatchDontCare => MatchDontCare
+      | MatchMask u1 u2 => MatchMask (g u1) (g u2)
+      | MatchRange u1 u2 => MatchRange (g u1) (g u2)
+      | MatchCast a u => MatchCast (f a) (g u)
+      end.
+
+    Definition map_Match '(MkMatch i m a : Match A U) : Match B V :=
+      MkMatch i (map_MatchPreT m) (f a).
+  End MatchMap.
+  
   Section statement_rec.
     Context
       {PStatementSwitchCase: StatementSwitchCase -> Type}
@@ -330,7 +362,7 @@ Section Syntax.
   End statement_rec.
 
   Variant ParserCase :=
-  | MkParserCase (tags: tags_t) (matches: list Match) (next: P4String).
+    | MkParserCase (tags: tags_t) (matches: list (Match (@P4Type tags_t) ValueSet)) (next: P4String).
 
   Variant ParserTransition :=
   | ParserDirect (tags: tags_t) (next: P4String)

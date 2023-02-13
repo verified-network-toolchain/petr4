@@ -80,38 +80,13 @@ Section InlineConstants.
     Definition subst_exprs : list (@Expression tags_t) -> list (@Expression tags_t) :=
       List.map subst_expr.
 
-    (** Maps [subst_expr] over a [MatchPreT] *)
-    Definition subst_match_pre (match_pre : @MatchPreT tags_t) :  @MatchPreT tags_t :=
-      match match_pre with
-      | MatchDontCare => MatchDontCare
-      | MatchMask e mask => MatchMask (subst_expr e) (subst_expr mask)
-      | MatchRange lo hi => MatchRange (subst_expr lo) (subst_expr hi)
-      | MatchCast type expr => MatchCast type (subst_expr expr)
-      end.
-
-    (** Maps [subst_expr] over a [Match] *)
-    Definition subst_match (mtch : @Match tags_t) : @Match tags_t :=
-      let 'MkMatch tags e type := mtch in
-      MkMatch tags (subst_match_pre e) type.
-
-    (** Maps [subst_expr] over a list of [Match]es *)
-    Definition subst_matches : list (@Match tags_t) -> list (@Match tags_t) := 
-      List.map subst_match.
-
-    (** Maps [subst_expr] over a [ParserCase] *)
-    Definition subst_parser_case (case : @ParserCase tags_t) : @ParserCase tags_t :=
-      let 'MkParserCase tags matches next := case in
-      let matches' := subst_matches matches in
-      MkParserCase tags matches' next.
-
     (** Maps [subst_expr] over a [ParserTransition] *)
     Definition subst_parser_transition (trans : @ParserTransition tags_t) : @ParserTransition tags_t :=
       match trans with
       | ParserDirect _ _ => trans
       | ParserSelect tags es cases =>
         let es' := subst_exprs es in
-        let cases' := List.map subst_parser_case cases in
-        ParserSelect tags es' cases'
+        ParserSelect tags es' cases
       end.
 
     (** [subst_method_call fn types args] maps [subst_expr] over
@@ -171,9 +146,8 @@ Section InlineConstants.
         over [MkTableEntry tags matches action] *)
     Definition subst_table_entry entry :=
       let 'MkTableEntry tags matches action := entry in
-      let matches' := subst_matches matches in
       let action' := subst_table_action_ref action in
-      MkTableEntry tags matches' action'.
+      MkTableEntry tags matches action'.
 
     (** [subst_table_property (MkTableProperty tags const name value)] maps
         [subst_expr] over [MkTableProperty tags const name value] *)

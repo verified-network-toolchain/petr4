@@ -2,16 +2,16 @@ Require Import Coq.Strings.String
         Coq.ZArith.ZArith Coq.Lists.List
         VST.zlist.Zlist
         Poulet4.P4light.Syntax.Value Poulet4.Monads.Option.
-From Poulet4.Utils Require Import AList ForallMap.
+From Poulet4.Utils Require Import AList ForallMap P4Arith.
 From Poulet4.P4light.Syntax Require Import
-     Typed P4String SyntaxUtil P4Notations.
+  Syntax Typed P4String SyntaxUtil P4Notations.
 Import ListNotations.
 
 Section ValueUtil.
   Context {tags_t: Type}.
   Notation Val := (@ValueBase bool).
   Notation Sval := (@ValueBase (option bool)).
-
+  
   Inductive read_ndetbit : option bool -> bool -> Prop :=
   | read_none : forall b, read_ndetbit None b
   | read_some : forall b, read_ndetbit (Some b) b.
@@ -279,6 +279,72 @@ Section ValueUtil.
     | ValBaseStack vs next => ValBaseStack (List.map (uninit_sval_of_sval hvalid) vs) next
     | ValBaseSenumField typ_name v =>  ValBaseSenumField typ_name (uninit_sval_of_sval hvalid v)
     | _ => v
+    end.
+
+  Notation ValSet := (@ValueSet tags_t).
+  Notation Expr := (@Expression tags_t).
+  Notation Typ := (@P4Type tags_t).
+  Context {inhabitant_tags_t : Inhabitant tags_t}.
+  Definition dummy_tags := @default tags_t _.
+
+  Fixpoint P4Type_of_Value {Bits} (v : @ValueBase Bits) : Typ :=
+    match v with
+    | ValBaseNull        => TypVoid
+    | ValBaseBool _      => TypBool
+    | ValBaseInteger _   => TypInteger
+    | ValBaseBit bits    => TypBit (Z.to_N (Zlength bits))
+    | ValBaseInt bits    => TypInt (Z.to_N (Zlength bits))
+    | ValBaseVarbit w _  => TypVarBit w
+    | ValBaseString _    => TypString
+    | ValBaseTuple vs    => TypTuple (List.map P4Type_of_Value vs)
+    | ValBaseError _     => TypError
+    | ValBaseMatchKind _ => TypMatchKind
+    | ValBaseStruct xvs  =>
+        TypStruct
+          (List.map
+             (fun '(x, v) =>
+                (P4String.Build_t _ dummy_tags x, P4Type_of_Value v)) xvs)
+    | ValBaseHeader xvs _ =>
+        TypHeader
+          (List.map
+             (fun '(x, v) =>
+                (P4String.Build_t _ dummy_tags x, P4Type_of_Value v)) xvs)
+    | ValBaseUnion xvs  =>
+        TypHeaderUnion
+          (List.map
+             (fun '(x, v) =>
+                (P4String.Build_t _ dummy_tags x, P4Type_of_Value v)) xvs)
+    | ValBaseStack (v :: _) n => TypArray (P4Type_of_Value v) n
+    | ValBaseStack []      n => TypArray TypBool n
+    | ValBaseEnumField X mem => TypEnum (P4String.Build_t _ dummy_tags X) None [P4String.Build_t _ dummy_tags mem]
+    | ValBaseSenumField X v  => TypEnum (P4String.Build_t _ dummy_tags X) (Some (P4Type_of_Value v)) []
+    end.
+  
+  Fixpoint Expression_of_Value (v : Val) : Expr :=
+    MkExpression dummy_tags
+      match v with
+      | ValBaseNull      => ExpDontCare
+      | ValBaseBool b    => ExpBool b
+      | ValBaseInteger z => ExpInt (P4Int.Build_t _ dummy_tags z None)
+      | ValBaseBit bits  =>
+          let '(w, n) := BitArith.from_lbool bits in
+          ExpInt (P4Int.Build_t _ dummy_tags n (Some (w, false)))
+      | ValBaseInt bits  =>
+          let '(w, n) := IntArith.from_lbool bits in
+          ExpInt (P4Int.Build_t _ dummy_tags n (Some (w, true)))
+      | ValBaseVarbit max_width bits =>
+          let (_, n) := BitArith.from_lbool bits in
+          ExpInt (P4Int.Build_t _ dummy_tags n (Some (max_width, false)))
+      | ValBaseString s => ExpString (P4String.Build_t _ dummy_tags s)
+      | ValBaseTuple vs => ExpList (List.map Expression_of_Value vs)
+      | ValBaseError s  => ExpErrorMember (P4String.Build_t _ dummy_tags s)
+      | ValBaseMatchKind s => ExpMatchKind (P4String.Build_t _ dummy_tags s)
+      end
+      (P4Type_of_Value v).
+  
+  Fixpoint Expression_of_ValueSet (vs : ValSet) : Expr :=
+    match vs with
+    | ValSetSingleton v =>
     end.
 
 End ValueUtil.

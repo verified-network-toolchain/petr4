@@ -27,8 +27,8 @@ Notation ident := string.
 Notation path := (list ident).
 Notation P4Type := (@P4Type tags_t).
 Notation Val := (@ValueBase bool).
-Notation ValSet := ValueSet.
-Notation table_entry := (@table_entry tags_t Expression).
+Notation ValSet := (@ValueSet tags_t).
+Notation table_entry := (@table_entry tags_t P4Type Expression ValSet).
 Notation action_ref := (@action_ref Expression).
 
 Global Instance Inhabitant_Val : Inhabitant Val := ValBaseNull.

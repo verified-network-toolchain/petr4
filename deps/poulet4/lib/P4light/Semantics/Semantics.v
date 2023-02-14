@@ -127,7 +127,7 @@ Variant fundef :=
       (keys : list (@TableKey tags_t))
       (actions : list (@Expression tags_t))
       (default_action : @Expression tags_t)
-      (entries : option (list (@table_entry tags_t (@Expression tags_t))))
+      (entries : option (list (@table_entry tags_t (@P4Type tags_t) (@Expression tags_t) (@ValueSet tags_t))))
   | FExternal
       (class : ident)
       (name : ident).
@@ -317,7 +317,7 @@ Definition eval_p4int_val (n: P4Int) : Val :=
   | Some (w, false) => ValBaseBit (to_lbool w (P4Int.value n))
   end.
 
-Context {target : @Target tags_t (@Expression tags_t)}.
+Context {target : @Target tags_t (@P4Type tags_t) (@Expression tags_t) (@ValueSet tags_t) Val}.
 
 Definition state : Type := mem * extern_state.
 
@@ -670,8 +670,8 @@ Definition exec_matches (read_one_bit : option bool -> bool -> Prop) (this : pat
   Forall2 (exec_match read_one_bit this).
 
 Inductive exec_table_entry (read_one_bit : option bool -> bool -> Prop) :
-                           path -> @table_entry tags_t ValueSet ->
-                           (@table_entry_valset tags_t ValueSet) -> Prop :=
+                           path -> @table_entry tags_t (@P4Type tags_t) (@Expression tags_t) ValueSet ->
+                           (@table_entry_valset (@Expression tags_t) ValueSet) -> Prop :=
   | exec_table_entry_intro : forall this ms svs action entryvs,
                              exec_matches read_one_bit this ms svs ->
                              (if (List.length svs =? 1)%nat

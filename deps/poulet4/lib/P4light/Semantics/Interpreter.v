@@ -26,7 +26,7 @@ Section Interpreter.
   Notation path := (list ident).
   Notation P4Int := (P4Int.t tags_t).
 
-  Context {target : @Target tags_t (@Expression tags_t)}.
+  Context {target : @Target tags_t (@P4Type tags_t) (@Expression tags_t) (@ValueSet tags_t) Val}.
   Section WithGE.
     Variable (ge : genv).
     
@@ -409,23 +409,18 @@ Section Interpreter.
       | _ => false
       end.
 
-  Definition interp_match (this: path) (m: @Match tags_t) : result Exn.t ValSet :=
+  Definition interp_match (this: path) (m: @Match tags_t (@P4Type tags_t) ValSet) : result Exn.t ValSet :=
     match m with
     | MkMatch _ MatchDontCare _ =>
       mret ValSetUniversal
     | MkMatch  _ (MatchMask expr mask) typ =>
-      let* exprv := interp_expr_det this empty_state expr in
-      let* maskv := interp_expr_det this empty_state mask in
-      mret (ValSetMask exprv maskv)
+      mret (ValSetMask expr mask)
     | MkMatch _ (MatchRange lo hi) _ =>
-      let* lov := interp_expr_det this empty_state lo in
-      let* hiv := interp_expr_det this empty_state hi in
-      mret (ValSetRange lov hiv)
+      mret (ValSetRange lo hi)
     | MkMatch _ (MatchCast newtyp expr) _ =>
-      let* oldv := interp_expr_det this empty_state expr in
       let* real_typ := from_opt (get_real_type ge newtyp)
                                 (Exn.Other "interp_match: failure in get_real_type") in
-      from_opt (Ops.eval_cast_set real_typ oldv)
+      from_opt (Ops.eval_cast_set real_typ expr)
                (Exn.Other "interp_match: failure in eval_cast_set")
     end.
 

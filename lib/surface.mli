@@ -283,7 +283,7 @@ and Table : sig
 
   type entry = pre_entry info
  
-  (** [property] represents a table property, which come in four flavors. *)
+  (** [property] represents a table property. *)
   type pre_property =
       Key of 
         { keys: key list }
@@ -293,7 +293,9 @@ and Table : sig
       (** Actions *)
     | Entries of
         { entries: entry list }
-    (** Entries *)
+      (** Entries *)
+    | DefaultAction of action_ref
+      (** Default actions *)
     | Custom of
         { annotations: Annotation.t list;
           const: bool;

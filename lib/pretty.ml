@@ -579,6 +579,9 @@ end = struct
     | Entries { entries } ->
       Format.fprintf fmt "@[<4>const entries = {@\n%a@]@\n}"
         (format_list_nl format_entry) entries
+    | DefaultAction action ->
+       Format.fprintf fmt "@[<4>default_action = {@\n%a@]@\n}"
+         format_action_ref action
     | Custom { annotations; const; name; value } ->
       Annotation.format_ts fmt annotations;
       Format.fprintf fmt "@[%s%a = %a;@]"

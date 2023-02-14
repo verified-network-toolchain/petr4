@@ -3332,33 +3332,14 @@ and type_table_actions env ctx key_types actions =
   let action_names = List.map ~f:(fun a -> (snd a).name) actions in
   List.zip_exn action_names action_typs
 
-and type_table_entries env ctx entries key_typs action_map =
+and type_table_entry env ctx key_typs action_map (entry_info, entry: Table.entry) : P4light.coq_TableEntry =
   let expr_ctx = expr_ctxt_of_decl_ctxt ctx in
-  let type_table_entry (entry_info, entry: Table.entry) : P4light.coq_TableEntry =
-    let matches_typed = check_match_product env expr_ctx entry.matches key_typs in
-    match List.Assoc.find action_map ~equal:P4name.name_eq (snd entry.action).name with
-    | None ->
-      failwith "Entry must call an action in the table."
-    | Some (Poulet4.Syntax.MkTableActionRef (action_info, action,
-                                             TypAction (data_params, ctrl_params))) ->
-      let type_arg (param: coq_P4Parameter) (arg_info, arg: Argument.t) =
-        begin match arg with
-          (* Direction handling probably is incorrect here. *)
-          | Expression {value = exp} ->
-            Some (cast_expression env expr_ctx (type_of_param param) exp)
-          | _ -> failwith "Actions in entries only support positional arguments."
-        end in
-      let args_typed = List.map2_exn ~f:type_arg ctrl_params (snd entry.action).args in
-      let pre_action_ref : P4light.coq_TablePreActionRef =
-        MkTablePreActionRef ((snd entry.action).name, args_typed)
-      in
-      let action_ref_typed : P4light.coq_TableActionRef =
-        MkTableActionRef (action_info, pre_action_ref, TypAction (data_params, ctrl_params))
-      in
-      MkTableEntry (entry_info, matches_typed, action_ref_typed)
-    | _ -> failwith "Table actions must have action types."
-  in
-  List.map ~f:type_table_entry entries
+  let matches_typed = check_match_product env expr_ctx entry.matches key_typs in
+  let action_ref_typed = type_action_ref env ctx action_map entry.action in
+  MkTableEntry (entry_info, matches_typed, action_ref_typed)
+
+and type_table_entries env ctx entries key_typs action_map =
+  List.map ~f:(type_table_entry env ctx key_typs action_map) entries
 
 (* syntactic equality of expressions *)
 and expr_eq env (expr1: P4light.coq_Expression) (expr2: P4light.coq_Expression) : bool =
@@ -3418,15 +3399,23 @@ and expr_eq env (expr1: P4light.coq_Expression) (expr2: P4light.coq_Expression) 
     -> List.equal (expr_eq env) e1 e2
   | _ -> false
 
-and type_default_action
-    env ctx (action_map : (P4name.t * P4light.coq_TableActionRef) list)
-    action_expr : P4light.coq_TableActionRef =
+and expr_of_action_ref ((info, aref) : Table.action_ref) =
+  let open Expression in
+  let func = aref.name in
+  (info, FunctionCall { func = (P4name.name_info func, Name func);
+                        type_args = [];
+                        args = aref.args })
+
+and type_action_ref env ctx
+    (action_map : (P4name.t * P4light.coq_TableActionRef) list)
+    action_ref : P4light.coq_TableActionRef =
   let expr_ctx: P4light.coq_ExprContext = ExprCxTableAction in
+  let action_expr = expr_of_action_ref action_ref in
   let action_expr_typed = type_expression env expr_ctx action_expr in
   match preexpr_of_expr action_expr_typed with
   | ExpFunctionCall (MkExpression (_, (ExpName (action_name, _)), _, _), [], args) ->
     begin match List.Assoc.find ~equal:P4name.name_eq action_map action_name with
-      | None -> failwith "couldn't find default action in action_map"
+      | None -> failwith "couldn't find action in action_map"
       | Some (MkTableActionRef (_, MkTablePreActionRef (_, prop_args), _)) ->
         (* compares the longest prefix that
          * the default args are equal to the property args, and then
@@ -3440,7 +3429,7 @@ and type_default_action
            |> List.for_all
              ~f:begin fun e ->
                match compile_time_eval_expr env e with
-               | None -> failwith "default action argument is not compile-time known"
+               | None -> failwith "action argument is not compile-time known"
                (* is there a way to convert from values to expressions?
                 * this seems wasteful... *)
                | Some _ -> true
@@ -3449,18 +3438,23 @@ and type_default_action
           MkTableActionRef (fst action_expr,
                             MkTablePreActionRef (action_name, args),
                             fst @@ Checker_env.find_type_of action_name env)
-        else failwith "default action's prefix of arguments do not match those of that in table actions property"
+        else failwith "action's arguments do not match the table actions property"
     end
   | ExpName (action_name, _) ->
      let acts = List.map ~f:(fun (n, a) -> P4name.name_only n, a) action_map in
      let act = P4name.name_only action_name in
     if not @@ List.Assoc.mem ~equal:(=) acts act
-    then failwith "couldn't find default action in action_map";
+    then failwith "couldn't find action in action_map";
     MkTableActionRef (fst action_expr,
                       MkTablePreActionRef (action_name, []),
                       type_of_expr action_expr_typed)
   | e ->
-    failwith "couldn't type default action as functioncall"
+    failwith "couldn't type action as functioncall"
+
+and type_default_action
+    env ctx (action_map : (P4name.t * P4light.coq_TableActionRef) list)
+    action_expr : P4light.coq_TableActionRef =
+  type_action_ref env ctx action_map action_expr
 
 and keys_actions_ok keys actions =
   match keys with
@@ -3534,10 +3528,10 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
           | None -> failwith "entries with no keys?"
         end
     end
-  | Custom { name = {str = "default_action";_}; value; _ } :: rest ->
+  | DefaultAction act :: rest ->
     begin match default_typed with
       | None ->
-        let default_typed = type_default_action env ctx action_map value in
+        let default_typed = type_default_action env ctx action_map act in
         type_table' env ctx info annotations
           name
           key_types

@@ -3448,7 +3448,7 @@ and type_default_action
         then
           MkTableActionRef (fst action_expr,
                             MkTablePreActionRef (action_name, args),
-                            type_of_expr action_expr_typed)
+                            fst @@ Checker_env.find_type_of action_name env)
         else failwith "default action's prefix of arguments do not match those of that in table actions property"
     end
   | ExpName (action_name, _) ->

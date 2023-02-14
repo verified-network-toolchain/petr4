@@ -1961,8 +1961,8 @@ Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) 
             | BareName id => LInstance [str id]
             | QualifiedName p id => LGlobal (clear_list (p ++ [id]))
             end in
-          let func := MkExpression dummy_tags (ExpName name loc) dummy_type Directionless in
-          MkExpression dummy_tags (ExpFunctionCall func nil args) typ Directionless
+          let func := MkExpression dummy_tags (ExpName name loc) typ Directionless in
+          MkExpression dummy_tags (ExpFunctionCall func nil args) dummy_type Directionless
       end
   end.
 

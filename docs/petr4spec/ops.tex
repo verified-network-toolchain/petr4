@@ -20,14 +20,22 @@
 \newcommand*{\ruleNameS}{\ruleName\rS}
 \newcommand*{\ruleNameD}{\ruleName\rD}
 
+\newcommand*{\enumWellT}{\rn{Enum}\rT}
+\newcommand*{\serenumWellT}{\rn{SerializableEnum}\rT}
+\newcommand*{\serenumTypedefWellT}{\rn{SerializableEnum}\rSep\rn{Typedef}\rT}
+\newcommand*{\headerTypWellT}{\rn{Header}\rT}
+
 \newcommand*{\boolT}{\rn{Bool}\rT}
 \newcommand*{\stringT}{\rn{String}\rT}
 \newcommand*{\intT}{\rn{(InfinitPrecision)Integer}\rT}
-\newcommand*{\varbitT}{\rn{Varbit}\rT}
+\newcommand*{\varbitT}{\rn{Varbit}\rSep\rT}
+\newcommand*{\varbitExpT}{\rn{Varbit}\rSep\rn{Exp}\rT}
 \newcommand*{\errT}{\rn{Error}\rT}
 \newcommand*{\voidT}{\rn{Void}\rT}
 \newcommand*{\matchKindT}{\rn{MatchKind}\rT}
 \newcommand*{\enumOneT}{\rn{Enum}\rT}
+\newcommand*{\intWidthExpT}{\rn{SignedInt}\rSep\rn{Exp}\rT}
+\newcommand*{\bitWidthExpT}{\rn{BitString}\rSep\rn{Exp}\rT}
 \newcommand*{\intWidthT}{\rn{SignedInt}\rT}
 \newcommand*{\bitWidthT}{\rn{BitString}\rT}
 \newcommand*{\arrayT}{\rn{Array}\rT}
@@ -138,6 +146,8 @@
 \newcommand*{\controlTypD}{\rn{ControlType}\rD}
 \newcommand*{\parserTypD}{\rn{ParserType}\rD}
 \newcommand*{\packageTypD}{\rn{PackageType}\rD}
+\newcommand*{\externD}{\rn{Extern}\rD}
+\newcommand*{\typespD}{\rn{TypeSpecialization}\rD}
 
 %stuff here and there:
 %TODO: fix mathit in the followings:
@@ -161,6 +171,7 @@
 \newcommand{\insertToVarEnv}[3]{\varEnv[{#1} : ({#2}, {#3}) ]}
 \newcommand{\insertsToVarEnv}[3]{\varEnv[\overline{{#1} : ({#2}, {#3}) }]}
 \newcommand{\insertToTypEnv}[2]{\typEnv[{#1} = {#2}]}
+\newcommand{\insertToTypParEnv}[1]{\typParEnv[{#1}]}
 \newcommand{\insertsToTypEnv}[2]{\typEnv[\overline{{#1} = {#2}}]}
 \newcommand{\insertsToConstEnv}[2]{\constEnv[\overline{{#1} = {#2}}]}
 %% \newcommand{\insertToTypEnv}[1]{\typEnv[{#1} \ \mathsf{var}]}
@@ -196,9 +207,9 @@
 \newcommand{\expenvWithCtxt}[5]{\constEnv, \varEnv, \typEnv, {#1} \vdash {#2} \leadsto {#3}, {#4}, {#5}}
 \newcommand{\coerceBinArgsEnv}[3]{\env, \ctxt \vdash {#1} \twoheadrightarrow ({#2}), ({#3})}
 \newcommand{\binOpEnv}[7]{\env \vdash {#1}, ({#4}, {#5}), ({#6}, {#7}) : {#2}, {#3}}
-\newcommand{\typWellFormed}[1]{\typEnv, \externEnv \vdash {#1}}
+\newcommand{\typWellFormed}[1]{\typEnv, \typParEnv, \externEnv, \typSynEnv \vdash {#1}}
 \newcommand{\typNotWellFormed}[1]{\typEnv, \externEnv \nvdash {#1}}
-\newcommand{\typWellFormedWithEnv}[2]{{#1}, \externEnv \vdash {#2}}
+\newcommand{\typWellFormedWithEnv}[3]{{#1}, {#2}, \externEnv \vdash {#3}}
 \newcommand{\typEqEnv}[3]{ {#2} ==_{\env,{#1}} {#3}} %%todo: fix env
 %context. type of expression. type of returned name.exp
 \newcommand{\fieldAccessEnv}[4]{\env, {#1} \vdash {#2}, {#3} : {#4}}
@@ -289,6 +300,7 @@
 \newcommand{\typeEqs}{\Delta}
 \newcommand{\anyTyp}{a}
 \newcommand{\typEnv}{\Delta}
+\newcommand{\typParEnv}{\Upsilon}
 \newcommand{\typSynEnv}{\Theta}
 \newcommand{\varEnv}{\Gamma}
 \newcommand{\constEnv}{\Sigma}
@@ -446,7 +458,7 @@
 \newcommand{\valSetDcl}[3]{{#1}\, {#3}:{#2}}
 \newcommand{\actionDcl}[3]{\mathsf{action}\ {#1}\, ({#2})\, \{{#3}\}}
 \newcommand{\tableDcl}[2]{\mathsf{table}\ {#1}\, \{{#2}\}}
-\newcommand{\headerDcl}[2]{\mathsf{header}\ {#1}\, \{{#2}\}}
+\newcommand{\headerDcl}[4]{\mathsf{header}\ {#1} \langle {\overline{#2}} \rangle\, \{\overline{{#3} : {#4}}\}}
 \newcommand{\headerUnionDcl}[2]{\mathsf{header\_union}\ {#1}\, \{{#2}\}}
 \newcommand{\structDcl}[2]{\mathsf{struct}\ {#1}\, \{{#2}\}}
 \newcommand{\errDcl}[1]{\mathsf{error}\ \{ {#1} \}}
@@ -582,7 +594,7 @@
 %% \newcommand{\bitStringTyp}[1]{\bitWidthTyp {#1}}
 \newcommand{\setTyp}[1]{\mathsf{set}\langle{#1}\rangle}
 \newcommand{\errTyp}{\mathsf{error}}
-\newcommand{\varBitTyp}[1]{\mathsf{varbit}\langle{#1}\rangle}
+\newcommand{\varbitTyp}[1]{\mathsf{varbit}\langle{#1}\rangle}
 \newcommand{\matchKindTyp}{\mathsf{match\_kind}}
 \newcommand{\voidTyp}{\mathsf{void}}
 \newcommand{\arrayTyp}[2]{{#1}[{#2}]}
@@ -603,9 +615,9 @@
 \newcommand{\recordTyps}[2]{\mathsf{record} \recordTypStructureClose {#1} {#2}}
 \newcommand{\headerUnionTyp}[2]{\mathsf{header\_union} \recordTypStructureOpen {#1} {#2}}
 \newcommand{\headerUnionTyps}[2]{\mathsf{header\_union} \recordTypStructureClose {#1} {#2}}
-\newcommand{\headerTyp}[2]{\mathsf{header}\recordTypStructureOpen {#1} {#2}}
+\newcommand{\headerTyp}[3]{\mathsf{header} \langle{\overline{#1}}\rangle\recordTypStructureOpen {#2} {#3}}
 \newcommand{\structTyp}[2]{\mathsf{struct} \recordTypStructureOpen {#1} {#2}}
-\newcommand{\headerTyps}[2]{\mathsf{header} \recordTypStructureClose {#1} {#2}}
+\newcommand{\headerTyps}[3]{\mathsf{header} \langle{\overline{#1}}\rangle\recordTypStructureClose {#2} {#3}}
 %% \newcommand{\headerTypp}[2]{\mathsf{header} \recordTypp {#1} {#2}}
 %% \newcommand{\structTypp}[2]{\mathsf{struct} \recordTypp {#1} {#2}}
 \newcommand{\structTypDef}{\mathsf{struct} \recordTypStructureOpen 1 n}

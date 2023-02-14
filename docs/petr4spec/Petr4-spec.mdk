@@ -350,7 +350,7 @@ In this section, we provide the signatures used throughout this document includi
 In the following we present P4 syntax. Note that we omitted annotations and meta-information since they are not required for type checking. Some notes about the syntax follows:
 
 - Surface types are the types that a developer can use and write down while writing a P4 program. The surface type presented is parametrized by a type variable and it instantiates to $\surfaceTyp \exp$ for the types that a programers writes in their P4 program.
-  + Note that similar to P4 we categorize $\errTyp$ and $\matchKindTyp$ types as surface types, even though they are declared by a P4 program/library. The reason behind this is the need to have arguments of these types, such as the example below which is taken from P4 spec:
+  + Note that similar to P4, we categorize $\errTyp$ and $\matchKindTyp$ types as surface types, however, their members are declared by a P4 program/library. The reason behind this is the need to have arguments of these types, such as the example below which is taken from P4 spec:
 
 ~ Begin P4Example
 extern void verify(in bool condition, in error err);
@@ -379,7 +379,7 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\stringTyp$ | $\qquad \text{strings}$ |
 |   | $\vert$ | $\intWidthTyp \atyp$ | $\qquad \text{fixed-width signed integers}$ |
 |   | $\vert$ | $\bitWidthTyp \atyp$ | $\qquad \text{fixed-width unsigned integers}$ |
-|   | $\vert$ | $\varBitTyp \atyp$ | $\qquad \text{variable-width integers with a maximum width}$ |
+|   | $\vert$ | $\varbitTyp \atyp$ | $\qquad \text{variable-width integers with a maximum width}$ |
 |   | $\vert$ | $\typName$ | $\qquad \text{type identifier}$ |
 |   | $\vert$ | $\spcTyp {\typName} {\argTyp}$ | $\qquad \text{specialized type}$ |
 |   | $\vert$ | $\stackTyp {\surfaceTyp \atyp} \atyp$ | $\qquad \text{header stacks}$ |
@@ -591,7 +591,7 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\valSetDcl {\surfaceTyp \exp}\exp \var$ | $\qquad \text{parser value sets}$ |
 |   | $\vert$ | $\actionDcl \var {\prmDefs {\surfaceTyp \exp}} \stmts$ | $\qquad \text{actions}$ |
 |   | $\vert$ | $\tableDcl \var \props$ | $\qquad \text{tables}$ |
-|   | $\vert$ | $\headerDcl \typName \fieldTyps$ | $\qquad \text{header types}$ |
+|   | $\vert$ | $\headerDcl \typName \typParam \field {\surfaceTyp \width}$ | $\qquad \text{header types}$ |
 |   | $\vert$ | $\headerUnionDcl \typName \fieldTyps$ | $\qquad \text{header union types}$ |
 |   | $\vert$ | $\structDcl \typName \fieldTyps$ | $\qquad \text{struct types}$ |
 |   | $\vert$ | $\errDcl \fields$ | $\qquad \text{error types}$ |
@@ -647,7 +647,7 @@ Two judgments are provided for types of P4 expressions:
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\declaredTyp$ | $::=$ |$\headerTyps \field \typ$ | $\qquad \text{headers}$ |
+| $\declaredTyp$ | $::=$ |$\headerTyps \typParam \field \typ$ | $\qquad \text{headers}$ |
 |   | $\vert$ | $\headerUnionTyps \field \typ$ | $\qquad \text{header unions}$ |
 |   | $\vert$ | $\structTyps \field \typ$ | $\qquad \text{structs}$ |
 |   | $\vert$ | $\enumTypDef$ | $\qquad \text{serializable enums}$ |
@@ -686,16 +686,18 @@ Two judgments are provided for types of P4 expressions:
 
 ## Type Well-Formed Judgment { #sec-type-well-formed }
 
+This judgment is overloaded and it checks if a surface type and more generally a type is well-formed or not. This judgment is used to check if a surface type is well-formed when it is used in expressions or if a type is well-formed when it is declrade. Specifically, it has two forms $\typWellFormed {\surfaceTyp \exp}$ and $\typWellFormed {\typ}$ which state that the type $\surfaceTyp \exp$ and $\typ$, respectively, are well-formed under the type environment $\typEnv$ and extern environment $\externEnv$. In other words, this judgment checks that types are syntactically correct.
 
-This judgment checks if a surface type is well-formed or not. 
-It has the form $\typWellFormed {\surfaceTyp \exp}$ which states that the type $\surfaceTyp \exp$
-is well-formed under the type environment $\typEnv$ and extern environment $\externEnv$, that is, the type is syntactically correct. 
+### Surface Types Well-Formedness { #sec-surface-typ-well-formed }
 
-``TODO: this still needs work. have to go through the rest to see what we need exactly here.``
+``todo: rewrite explanation``
 
-### Base Types { #sec-base-t }
+At first glance, it might seem redundant to define this judgment for both $\surfaceTyp \exp$ and $\typ$. However, it is important to note that although $\surfaceTyp \exp$ is a subset of $\typ$ for most part, there are exceptions to that: when $\typ$ instantiates $\atyp$ in $\surfaceTyp \atyp$ definition to $\width$ while $\surfaceTyp \exp$ instantiates it to $\exp$. For example, $\intWidthTyp {(3 + 2)}$ is legal instance of type $\surfaceTyp \exp$ but it isn't a legal instance of type $\typ$ while $\intWidthTyp 2$ is a legal instance of both types $\surfaceTyp \exp$ and $\typ$. Thus, we need to define it for both type categories.
 
-The following base types are well-formed unconditionally since there is not any room for an error while constructing a value of these types. For example, the $\boolTyp$ only has two constructors $\mathit{true}$ and $\mathit{false}$ which do not take any argument so there is no room to construct a value incorrectly.
+#### Base Types { #sec-base-t }
+
+Some of the base types are well-formed unconditionally since there is not any room for an error while constructing a value of these types. For example, the $\boolTyp$ only has two constructors $\mathit{true}$ and $\mathit{false}$ which do not take any argument so there is no room to construct a value incorrectly.
+
 
 ~ Begin InfRule
 
@@ -735,81 +737,86 @@ The following base types are well-formed unconditionally since there is not any 
 \and
 
   \inferrule
-     {\expenv \exp {\VVal \exp} \integerTyp \less  \\
-     \compileTimeEval {\VVal \exp} = \width \\
-     1 < \width} % p4 spec has this
-     %% { }
-     { \typWellFormed {\intWidthTyp \exp} }
+     {1 < \width}
+     { \typWellFormed {\intWidthTyp \width} }
      \quad (\intWidthT)
 
 \and
 
   \inferrule
-     {\expenv \exp {\VVal \exp} \integerTyp \less  \\
-     \compileTimeEval {\VVal \exp} = \width \\
-     0 \leq \width} % p4 spec has this
-     % { 0 \leq \width} % p4 spec has this
-     %% { }
-     { \typWellFormed {\bitWidthTyp \exp} }
+     {0 \leq \width} % p4 spec has this
+     { \typWellFormed {\bitWidthTyp \width} }
      \quad (\bitWidthT)
 
 \and
 
   \inferrule
-     { \expenv \exp {\VVal \exp} \integerTyp \less  \\
-     \compileTimeEval {\VVal \exp} = \width \\
-     0 \leq \width}
-     { \typWellFormed {\varBitTyp \exp} }
+     {0 \leq \width}
+     { \typWellFormed {\varbitTyp \width} }
      \quad (\varbitT)
 
-
-~ End InfRule
-
-### Stack Type { #sec-stack-t }
-
-An array type has a specific type and size.
-The rule $\arrayT$ states that under environment $\env$, an array is well-formed if its
-type is well-formed and it follows the nesting rules of P4.
-
-- $\isValidNestedTyp \typ$ checks whether the nested type $\typ$ is valid, that is,
-it checks if all the subtypes in the type $\typ$ can actually be inner types of $\typ$ based on [P4's description of type nesting rules][sec7-2-7].
-
-[sec7-2-7]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html#sec-type-nesting 
-
-~ Begin InfRule
+\and
 
   \inferrule
-     { \typWellFormed \typ \\
-       \isValidNestedTyp {\arrayTyp \typ \size}}
-     { \typWellFormed {\arrayTyp \typ \size} }
-     \quad (\arrayT)
+     {\expenv \exp {\VVal \exp} \integerTyp \less  \\
+     \compileTimeEval {\VVal \exp} = \width \\\\
+     1 < \width} % p4 spec has this
+     %% { }
+     { \typWellFormed {\intWidthTyp \exp} }
+     \quad (\intWidthExpT)
+
+\and
+
+  \inferrule
+     {\expenv \exp {\VVal \exp} \integerTyp \less  \\
+     \compileTimeEval {\VVal \exp} = \width \\\\
+     0 \leq \width} % p4 spec has this
+     % { 0 \leq \width} % p4 spec has this
+     %% { }
+     { \typWellFormed {\bitWidthTyp \exp} }
+     \quad (\bitWidthExpT)
+
+\and
+
+  \inferrule
+     { \expenv \exp {\VVal \exp} \integerTyp \less  \\
+     \compileTimeEval {\VVal \exp} = \width \\\\
+     0 \leq \width}
+     { \typWellFormed {\varbitTyp \exp} }
+     \quad (\varbitExpT)
+
+% \and
+
+%   \inferrule
+%      {1 < \width} 
+%      { \typWellFormed {\intWidthTyp \width} }
+%      \quad (\intWidthT)
+
+% \and
+
+%   \inferrule
+%      {0 \leq \width} 
+%      { \typWellFormed {\bitWidthTyp \width} }
+%      \quad (\bitWidthT)
+
+% \and
+
+%   \inferrule
+%      { 0 \leq \width}
+%      { \typWellFormed {\varbitTyp \width} }
+%      \quad (\varbitT)
 
 ~ End InfRule
 
-### Tuple Type { #sec-tuple-t }
-
-Each element of a tuple can have a distinct type so a tuple type is simply a list of types. Note that lists also have a tuple type. The rule $\tupleT$ states that under
-environment $\env$, a tuple type is well-formed if all its types are well-formed and it
-follows the nesting typing rules of P4. 
+#### Type Identifier { #sec-identifier-t }
 
 ~ Begin InfRule
 
-  \mprset {vskip=0.7ex}
-  {\inferrule
-     { \typWellFormed {\surfaceTyps \exp} \\
-        \isValidNestedTyp {\tupleTyps {\surfaceTyp \exp}}}
-     { \typWellFormed {\tupleTyps {\surfaceTyp \exp}} }
-     \quad (\tupleT)}
-
-  % \inferrule[List]
-  %    { 1 \leq i \leq n. \typWellFormed {\typ_i} \\
-  %      1 \leq i \leq n.  \isValidNestedTyp {\listTyp {\typ_1} {\typ_n}} {\typ_i}}
-  %    { \typWellFormed {\listTyp {\typ_1} {\typ_n}} }
-
 ~ End InfRule
 
+#### Specialized Type { #sec-specialized-t }
 
-### Specialized Type { #sec-specialized-t }
+``todo: make sure it covers both \surfacetyp \exp and \typ``
 
 An specialized type specifies the types of parameters in a generic type, the underlying generic type in an specialized type is called the base type. An specialized type is necessary when the compiler cannot infer type arguments.
 
@@ -838,6 +845,269 @@ The rule $\specializedExternT$ states that the specialization of an extern type 
         |\params| = |\typs|}
      { \typWellFormed {\spcTyp \typName {\typs}} }
      \quad (\specializedRestT)}
+
+~ End InfRule
+
+#### Stack Type { #sec-stack-t }
+
+``todo: make sure it covers both \surfacetyp \exp and \typ``
+
+An array type has a specific type and size.
+The rule $\arrayT$ states that under environment $\env$, an array is well-formed if its
+type is well-formed and it follows the nesting rules of P4.
+
+- $\isValidNestedTyp \typ$ checks whether the nested type $\typ$ is valid, that is,
+it checks if all the subtypes in the type $\typ$ can actually be inner types of $\typ$ based on [P4's description of type nesting rules][sec7-2-7]. 
+
+[sec7-2-7]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html#sec-type-nesting 
+
+~ Begin InfRule
+
+  \inferrule
+     { \typWellFormed \typ \\
+       \isValidNestedTyp {\arrayTyp \typ \size}}
+     { \typWellFormed {\arrayTyp \typ \size} }
+     \quad (\arrayT)
+
+~ End InfRule
+
+#### Tuple Type { #sec-tuple-t }
+
+``todo: make sure it covers both \surfacetyp \exp and \typ``
+
+Each element of a tuple can have a distinct type so a tuple type is simply a list of types. Note that lists also have a tuple type. The rule $\tupleT$ states that under
+environment $\env$, a tuple type is well-formed if all its types are well-formed and it
+follows the nesting typing rules of P4. 
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+  {\inferrule
+     { \typWellFormed {\surfaceTyps \exp} \\
+        \isValidNestedTyp {\tupleTyps {\surfaceTyp \exp}}}
+     { \typWellFormed {\tupleTyps {\surfaceTyp \exp}} }
+     \quad (\tupleT)}
+
+  % \inferrule[List]
+  %    { 1 \leq i \leq n. \typWellFormed {\typ_i} \\
+  %      1 \leq i \leq n.  \isValidNestedTyp {\listTyp {\typ_1} {\typ_n}} {\typ_i}}
+  %    { \typWellFormed {\listTyp {\typ_1} {\typ_n}} }
+
+~ End InfRule
+
+### Declared Types Well-Formedness { #sec-declared-typ-well-formed }
+
+``todo: figure these out: why is extern not in declared types? why is match kind in synthesized types? add type syn env to explanation of the judgment.``
+
+#### Well-Formed Enum Type
+
+```done```
+
+An enum is well-formed if its fields are distinct. Additionally, if it is a serializable enum its underlying type must either be a fixed-length integer or a name representing a fixed-length integer.
+
+- $\distinct \fields$ checks that fields in $\fields$ are all distinct.
+- $\isConstant \exp$ checks whether the expression $\exp$ is a constant or not.  
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\distinct \fields}
+      {\typWellFormed \enumTypNoTypDef}
+    \quad (\enumWellT)}
+
+\and
+
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\widthInt {\surfaceTyp \exp} = \exp \\
+       \isConstant \exp \\
+       \distinct \fields}
+      {\typWellFormed \enumTypDef}
+    \quad (\serenumWellT)}
+
+\and
+
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\lookupTypSynEnv {\VVal \typName} = \surfaceTyp \exp \\
+       \typWellFormed \enumTypDef
+      }
+      {\typWellFormed {\enumTyp {\VVal \typName} \typName \fields}}
+    \quad (\serenumTypedefWellT)}
+
+~ End InfRule
+
+
+#### Well-Formed Header Type
+
+```done..only have to add the nesting rules for instantiation of generic header```
+
+A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function which for a header type the inner types can be one of the followings:
+
+- $\bitWidthTyp \width$
+- $\intWidthTyp \width$
+- $\integerTyp$
+- $\boolTyp$
+- $\enumTypDef$
+- a struct or nested struct type that has the same properties, that is, it must contain only the above subtypes. 
+
+Note that for a generic header, the rule checks that the fields only refer to type parameters that are defined in the header. Later when the header is instantiated the specialized type rule checks if the header is instantiated correctly based on the nesting rules above.
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\distinct \fields \\
+       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps \width} \\\\
+       \isValidNestedTyp {\headerTyps  \typParam \field {\surfaceTyp \width}}}
+      { \typWellFormed {\headerTyps  \typParam \field {\surfaceTyp \width}}}}
+    \quad (\headerTypWellT)
+
+~ End InfRule
+
+#### Well-Formed Header Union Type
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {}
+    {}
+    \quad (\}
+
+~ End InfRule
+
+#### Well-Formed Struct Type
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {}
+    {}
+    \quad (\}
+
+~ End InfRule
+
+#### Well-Formed Parser Type
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {}
+    {}
+    \quad (\}
+
+~ End InfRule
+
+#### Well-Formed Control Type
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {}
+    {}
+    \quad (\}
+
+~ End InfRule
+
+#### Well-Formed Package Type
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {}
+    {}
+    \quad (\}
+
+~ End InfRule
+
+### Synthesized Types Well-Formedness { #sec-synthesized-typ-well-formed }
+
+#### Well-Formed Function Type
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {}
+    {}
+    \quad (\}
+
+~ End InfRule
+
+#### Well-Formed Set Type
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {}
+    {}
+    \quad (\}
+
+~ End InfRule
+
+#### Well-Formed Extern Type
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {}
+    {}
+    \quad (\}
+
+~ End InfRule
+
+#### Well-Formed Record Type
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {}
+    {}
+    \quad (\}
+
+~ End InfRule
+
+#### Well-Formed Newtype Type
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {}
+    {}
+    \quad (\}
+
+~ End InfRule
+
+#### Well-Formed Action Type
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {}
+    {}
+    \quad (\}
+
+~ End InfRule
+
+#### Well-Formed Constructor Type
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {}
+    {}
+    \quad (\}
+
+~ End InfRule
+
+#### Well-Formed Table Type
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {}
+    {}
+    \quad (\}
 
 ~ End InfRule
 
@@ -1378,10 +1648,11 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
    * $\boolTyp$
    * $\bitWidthTyp \width$
    * $\intWidthTyp \width$
-   * $\varBitTyp \width$
+   * $\varbitTyp \width$
    * $\integerTyp$
    * $\enumTypDef$
    * $\enumTypNoTypDef$
+   * $\headerTyps \typParam \field {\surfaceTyp \width}$
 - $\concatCond {\typ_1} {\typ_2}$ is a helper function that determines the type of a concatenation expression based on type of its left operand:
   + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
     $\concatCond {\typ_1} {\typ_2} = \bitWidthTyp {\width_1 + \width_2}$
@@ -1469,8 +1740,6 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
        }
      { \expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} \boolTyp \dir }}
      % { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2} }
-
-\and
 
 % \mprset {vskip =0.7ex}
 %   {\inferrule[\rn{EqualityChecks}\rSep\rn{InsertImplicitCast}\rE($\ops=\ \intoOp{==}, \intoOp{!=}$)]
@@ -1799,6 +2068,20 @@ meaning that it applies for both explicit and implicit casts. However, note that
 \and
 
   \inferrule
+     { }
+     { \implCast \integerTyp {\bitWidthTyp \width}}
+     \quad (\rn{ArbitraryPrecisionIntToUnsignedInt}\rAE)
+
+\and
+
+  \inferrule
+     { }
+     { \implCast  \integerTyp {\intWidthTyp \width}}
+     \quad (\rn{ArbitraryPrecisionIntToSignedInt}\rAE)
+
+\and
+
+  \inferrule
   { \lookupTypSynEnv \typName = \typ}
   { \explCast \typName \typ }
   \quad (\rn{TypedefToOriginal}\rAE)
@@ -1830,6 +2113,13 @@ meaning that it applies for both explicit and implicit casts. However, note that
 
 \and
 
+  \inferrule
+     { }
+     % \typEqEnv \emp {\surfaceTyp \exp} {\VVal {\surfaceTyp \exp}}}
+     { \implCast {\enumTypDef} {\VVal {\surfaceTyp \exp}}}
+     \quad (\rn{EnumToUnderlyingType}\rAE)
+
+\and
 
   \inferrule
      { \typEqEnv \emp {\surfaceTyp \exp} {\VVal {\surfaceTyp \exp}}}
@@ -1843,28 +2133,6 @@ meaning that it applies for both explicit and implicit casts. However, note that
      % \typEqEnv \emp {\surfaceTyp \exp} {\VVal {\surfaceTyp \exp}}}
      { \explCast {\surfaceTyp \exp} {\enumTyp { {\surfaceTyp \exp}} {\typName} {\fields}}}
      \quad (\rn{TypeToEnumWithUndrlyingType}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     { \implCast \integerTyp {\bitWidthTyp \width}}
-     \quad (\rn{ArbitraryPrecisionIntToUnsignedInt}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     { \implCast  \integerTyp {\intWidthTyp \width}}
-     \quad (\rn{ArbitraryPrecisionIntToSignedInt}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     % \typEqEnv \emp {\surfaceTyp \exp} {\VVal {\surfaceTyp \exp}}}
-     { \implCast {\enumTypDef} {\VVal {\surfaceTyp \exp}}}
-     \quad (\rn{EnumToUnderlyingType}\rAE)
 
   % \inferrule
   %    { (\typEqEnv \emp {\VVal \typ} {\newTypeTyp \typVar { \typ}})}
@@ -1917,35 +2185,35 @@ meaning that it applies for both explicit and implicit casts. However, note that
 
   \inferrule
      {\castenv \ {\typs} {\overline {\VVal \typ}} }
-     {\castenv \  {\listTyps {\typ}} {\headerTyps \field {\VVal \typ}}}
+     {\castenv \  {\listTyps {\typ}} {\headerTyps \typParam \field {\VVal \typ}}}
      \quad (\rn{TupleToHeader}\rAE\rSep\rn{1})
 
 \and
 
   \inferrule
      {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
-     {\castenv \ {\listTyps \typ} {\headerTyps \field {\VVal \typ}}}
+     {\castenv \ {\listTyps \typ} {\headerTyps \typParam \field {\VVal \typ}}}
      \quad (\rn{TupleToHeader}\rAE\rSep\rn{2})
 
 
   % \inferrule
   %    {\explCast {\typs} {\overline {\VVal \typ}} }
-  %    {\explCast {\listTyps {\typ}} {\headerTyps \field {\VVal \typ}}}
+  %    {\explCast {\listTyps {\typ}} {\headerTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{ListToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{1})
 
   % \inferrule
   %    {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
-  %    {\explCast {\listTyps \typ} {\headerTyps \field {\VVal \typ}}}
+  %    {\explCast {\listTyps \typ} {\headerTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{ListToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\implCast {\typ} {\overline {\VVal \typ}}}
-  %    {\implCast {\listTyps \typ} {\headerTyps \field {\VVal \typ} }}
+  %    {\implCast {\listTyps \typ} {\headerTyps \typParam \field {\VVal \typ} }}
   %    \quad (\rn{ListToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{1})
 
   % \inferrule
   %    {\typEqEnv \emp {\tupleTyps {\typ}} {\tupleTyps { {\VVal \typ}}}}
-  %    {\implCast {\listTyps \typ} {\headerTyps \field {\VVal \typ} }}
+  %    {\implCast {\listTyps \typ} {\headerTyps \typParam \field {\VVal \typ} }}
   %    \quad (\rn{ListToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{2})
 
 \and
@@ -1986,35 +2254,35 @@ meaning that it applies for both explicit and implicit casts. However, note that
 
   \inferrule
      {\castenv \ {\typs} {\overline {\VVal \typ}}}
-     {\castenv \ {\recordTyps \field \typ} {\headerTyps \field {\VVal \typ}}}
+     {\castenv \ {\recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
      \quad (\rn{RecordToHeader}\rAE\rSep\rn{1})
 
 \and
 
 \inferrule
      {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
-     {\castenv \ {\recordTyps \field \typ} {\headerTyps \field {\VVal \typ}}}
+     {\castenv \ {\recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
      \quad (\rn{RecordToHeader}\rAE\rSep\rn{2})
 
 
   % \inferrule
   %    {\explCast {\typs} {\overline {\VVal \typ}}}
-  %    {\explCast {\recordTyps \field \typ} {\headerTyps \field {\VVal \typ}}}
+  %    {\explCast {\recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{1})
 
   % \inferrule
   %    {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
-  %    {\explCast {\recordTyps \field \typ} {\headerTyps \field {\VVal \typ}}}
+  %    {\explCast {\recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\implCast {\typs} {\overline {\VVal \typ}}}
-  %    {\implCast {\recordTyps \field \typ} {\headerTyps \field {\VVal \typ}}}
+  %    {\implCast {\recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{1})
 
   % \inferrule
   %    {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
-  %    {\implCast {\recordTyps \field \typ} {\headerTyps \field {\VVal \typ}}}
+  %    {\implCast {\recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{2})
 
 \and
@@ -2053,22 +2321,22 @@ meaning that it applies for both explicit and implicit casts. However, note that
 
   % \inferrule
   %    {\explCast {\typs} {\overline {\VVal \typ}}}
-  %    {\explCast {\headerTyps \field \typ } {\headerTyps \field {\VVal \typ}}}
+  %    {\explCast {\headerTyps \typParam \field \typ } {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
   %    \quad (\rn{HeaderToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{1})
 
   % \inferrule
-  %    {\typEqEnv \emp {\headerTyps \field \typ} {\headerTyps \field {\VVal \typ}}}
-  %    {\explCast {\headerTyps \field \typ } {\headerTyps \field {\VVal \typ}}}
+  %    {\typEqEnv \emp {\headerTyps \typParam \field \typ} {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
+  %    {\explCast {\headerTyps \typParam \field \typ } {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
   %    \quad (\rn{HeaderToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\implCast \typs {\overline {\VVal \typ}}}
-  %    {\implCast {\headerTyps \field \typ} {\headerTyps \field {\VVal \typ}}}
+  %    {\implCast {\headerTyps \typParam \field \typ} {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
   %    \quad (\rn{HeaderToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{1})
 
   % \inferrule
-  %    {\typEqEnv \emp {\headerTyps \field \typ} {\headerTyps \field {\VVal \typ}}}
-  %    {\implCast {\headerTyps \field \typ} {\headerTyps \field {\VVal \typ}}}
+  %    {\typEqEnv \emp {\headerTyps \typParam \field \typ} {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
+  %    {\implCast {\headerTyps \typParam \field \typ} {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
   %    \quad (\rn{HeaderToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{2})
 
   % \inferrule
@@ -2671,8 +2939,11 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 ## Enum Type declaration { #sec-enum-typ-decl }
 ```done```
 
-
 - Note that $\typMem \typName \field $ in the rules below is a name and not an expression. We are overloading the syntax of type membership since from the context it is clear whether it represents an expression or a string.
+- $\isConstant \exp$ checks whether the expression $\exp$ is a constant or not.  
+- $\valMatchTyp {\surfaceTyp \exp, \exp}$ checks if one of the followings holds:
+  + $\exp$ has the type $\surfaceTyp \exp$
+  + an implicit cast can be inserted for $\exp$ so that it has the type $\surfaceTyp \exp$
 
 ~ Begin InfRule
 
@@ -2686,50 +2957,179 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
 \and
 
-  \inferrule
-     { \widthInt {\surfaceTyp \exp} = \exp \\
-       \isConstant \exp \\\\
+  \mprset{vskip=0.7ex}
+  {\inferrule
+     { \typWellFormed \enumTypDef \\
+       % \widthInt {\surfaceTyp \exp} = \exp \\
+       % \isConstant \exp \\\\
        \compTimeKnown {\exps}\\\\
        \valMatchTyp {\overline {\surfaceTyp \exp, \exp}}\\\\
        \VVal \typEnv = \insertToTypEnv \typName {\enumTypDef}\\\\
        \VVal \varEnv = \insertsToVarEnv {\typMem \typName \field} \enumTypDef \less\\\\
        \VVal \constEnv = \insertsToConstEnv {\typMem \typName \field} {\enumVal \typName \field}
        }
-     { \dclenv {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv }
+     { \dclenv {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv }}
      \quad (\serEnumD)
 
 \and
 
-  \inferrule
+  \mprset{vskip=0.7ex}
+  {\inferrule
      { \lookupTypSynEnv {\VVal \typName} = \surfaceTyp \exp \\
        \dclenv {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv
        }
-     { \dclenv {\serEnumDcl {\VVal \typName} \typName \field \exp} {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}
+     { \dclenv {\serEnumDcl {\VVal \typName} \typName \field \exp} {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
      \quad (\serEnumTypdefD)
 
 ~ End InfRule
 
 ## Header Type Declaration { #sec-header-typ-decl }
 
+```done```
+
+~ Begin InfRule
+% \headerDcl \typName \fieldTyps
+
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {\typWellFormed {\headerTyps  \typParam \field {\surfaceTyp \width}}\\\\
+     \VVal \typEnv = \insertToTypEnv \typName {\headerTyps  \typParam \field {\surfaceTyp \width}}
+    }
+    % {}}
+    {\dclenv {\headerDcl \typName \typParam \field {\surfaceTyp \width}} {\headerDcl \typName \typParam \field {\surfaceTyp \width}} {\varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
+  \quad (\headerD)
+
+~ End InfRule 
+
+
 ## Header Stack Type Declaration { #sec-header-stack-typ-decl }
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {}
+    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+  \quad (header stack d)
+~ End InfRule 
 
 ## Struct Type Declaration { #sec-struct-typ-decl }
 
+~ Begin InfRule
+% \structDcl \typName \fieldTyps
+
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {}
+    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+  \quad (\structD)
+
+~ End InfRule 
+
 ## Header Union Type Declaration { #sec-header-union-typ-decl }
+
+~ Begin InfRule
+%\headerUnionDcl \typName \fieldTyps
+
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {}
+    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+  \quad (\headerUnionD)
+
+~ End InfRule 
 
 ## Parser Type Declaration { #sec-parser-typ-decl }
 
+~ Begin InfRule
+% \parserTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}
+
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {}
+    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+  \quad (\parserTypD)
+
+~ End InfRule 
+
 ## Package Type Declaration { #sec-package-typ-decl }
+
+~ Begin InfRule
+% \packageTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}
+
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {}
+    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+  \quad (\packageTypD)
+
+~ End InfRule 
 
 ## Control Type Declaration { #sec-control-typ-decl }
 
+~ Begin InfRule
+% \controlTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}
+
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {}
+    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+  \quad (\controlTypD)
+
+~ End InfRule 
+
 ## Error Type Declaration { #sec-error-typ-decl }
+
+~ Begin InfRule
+% \errDcl \fields
+
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {}
+    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+  \quad (\errD)
+
+~ End InfRule 
 
 ## Match Kind Type Declaration { #sec-match-kind-typ-decl }
 
+~ Begin InfRule
+% \matchkindDcl \fields
+
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {}
+    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+  \quad (\matchkindD)
+
+~ End InfRule 
+
 ## Extern Declaration { #sec-extern-decl }
 
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {}
+    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+  \quad (\externD)
+
+~ End InfRule 
+
 ## Type Specialization { #sec-typ-esp }
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {}
+    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+  \quad (\typespD)
+
+~ End InfRule 
+
+
+
 # References    { #sec-references }
 
 ~ Bibliography { caption:"00" }

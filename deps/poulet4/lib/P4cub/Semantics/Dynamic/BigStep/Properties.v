@@ -209,7 +209,7 @@ Section Properties.
 
   Lemma lexpr_expr_big_step : forall ϵ e lv v,
       l⟨ ϵ, e ⟩ ⇓ lv -> ⟨ ϵ, e ⟩ ⇓ v -> lv_lookup ϵ lv = Some v.
-  Proof.
+  Proof using.
     intros eps e lv v helv; generalize dependent v.
     induction helv; intros V hv; inv hv; unravel; auto.
     - rewrite (IHhelv _ H4).
@@ -243,12 +243,12 @@ Section Properties.
                          data_args)
                     (map (paramarg_map id (shift_lv c))
                        vdata_args).
-  Proof.
+  Proof using.
     unfold args_big_step, arg_big_step.
     intros.
     destruct c; simpl in *; subst.
-    eapply Forall2_map_l with (lc := data_args).
-    eapply Forall2_map_r with (lc := vdata_args).
+    erewrite Forall2_map_l with (la := data_args).
+    erewrite <- Forall2_map_r with (lc := vdata_args).
     eapply sublist.Forall2_impl; try eassumption.
     intros.
     inversion H; subst; constructor; eauto.
@@ -262,7 +262,7 @@ Section Properties.
       copy_in
         (map (paramarg_map id (shift_lv c)) vargs)
         (us ++ vs ++ eps) = Some eps'.
-  Proof.
+  Proof using.
     intros.
     revert H1.
     unfold copy_in, pipeline.
@@ -270,11 +270,11 @@ Section Properties.
     rewrite !map_map.
     intro.
     apply Forall2_sequence_iff.
-    apply Forall2_map_l with (lc := vargs).
+    rewrite Forall2_map_l with (la := vargs).
     apply Forall2_sequence_iff in H1.
-    apply Forall2_map_l with (lc := vargs) in H1.
+    rewrite Forall2_map_l with (la := vargs) in H1.
     eapply sublist.Forall2_impl; try eassumption.
-    intros.
+    intros. unravel in *.
     destruct a; simpl in *; auto;
       now rewrite shift_lv_lookup.
   Qed.
@@ -286,7 +286,7 @@ Section Properties.
         l = xs ++ ys /\
         length xs = n /\
         length ys = m.
-  Proof.
+  Proof using.
     intros.
     exists (firstn n l).
     exists (skipn n l).
@@ -307,7 +307,7 @@ Section Properties.
       copy_out_argv n (paramarg_map id (shift_lv c) varg)
                eps''
                (us ++ vs ++ eps) = us' ++ vs ++ eps'.
-  Proof.
+  Proof using.
     intros.
     destruct varg as [v | lv | lv]; cbn in *.
     - apply sublist.app_eq_len_eq in H2; eauto.
@@ -333,7 +333,7 @@ Section Properties.
       copy_out n (map (paramarg_map id (shift_lv c)) vargs)
                eps''
                (us ++ vs ++ eps) = us' ++ vs ++ eps'.
-  Proof.
+  Proof using.
     induction vargs; intros.
     - simpl in *.
       apply sublist.app_eq_len_eq in H2; eauto.
@@ -362,7 +362,7 @@ Section Properties.
         (copy_out 0 (map (paramarg_map id (shift_lv c)) vargs)
            eps'' (us ++ vs ++ eps))
       = us' ++ vs ++ eps'.
-  Proof.
+  Proof using.
     unfold lv_update_signal.
     intros.
     destruct olv; simpl in *.
@@ -392,7 +392,7 @@ Section Properties.
     forall vargs l eps,
       copy_in vargs l = Some eps ->
       length eps = length vargs.
-  Proof.
+  Proof using.
     unfold copy_in.
     intros.
     apply Option.sequence_length in H.
@@ -507,7 +507,7 @@ Section Properties.
                           (us ++ vs ++ eps)))
         by eauto using shift_lv_update_signal.
       eapply sbs_action_call; try eassumption.
-      + eapply Forall2_map_l with (lc := ctrl_args).
+      + erewrite Forall2_map_l with (la := ctrl_args).
         eauto using sublist.Forall2_impl, shift_e_eval.
       + eapply shift_args_eval; cbn; auto.
       + (* possible bug with clos *)

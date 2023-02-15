@@ -317,7 +317,7 @@ Definition eval_p4int_val (n: P4Int) : Val :=
   | Some (w, false) => ValBaseBit (to_lbool w (P4Int.value n))
   end.
 
-Context {target : @Target tags_t (@P4Type tags_t) (@Expression tags_t) (@ValueSet tags_t) Val}.
+Context {target : @Target tags_t (@P4Type tags_t) (@Expression tags_t) (@ValueSet tags_t) Val signal}.
 
 Definition state : Type := mem * extern_state.
 
@@ -651,14 +651,14 @@ Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
                      path -> @Match tags_t (@P4Type tags_t) ValSet -> ValSet -> Prop :=
   | exec_match_dont_care : forall this tag typ,
       exec_match read_one_bit this (MkMatch tag MatchDontCare typ) ValSetUniversal
-  | exec_match_mask : forall expr exprv mask maskv this tag typ,
+  | exec_match_mask : forall expr mask this tag typ,
                       exec_match read_one_bit this
                       (MkMatch tag (MatchMask expr mask) typ)
-                      (ValSetMask exprv maskv)
-  | exec_match_range : forall lo lov hi hiv this tag typ,
+                      (ValSetMask expr mask)
+  | exec_match_range : forall lo hi this tag typ,
                         exec_match read_one_bit this
                         (MkMatch tag (MatchRange lo hi) typ)
-                        (ValSetRange lov hiv)
+                        (ValSetRange lo hi)
   | exec_match_cast : forall newtyp expr oldv newv this tag typ real_typ,
                       get_real_type (ge_typ ge) newtyp = Some real_typ ->
                       Ops.eval_cast_set real_typ oldv = Some newv ->

@@ -1,4 +1,5 @@
 Require Import Coq.Arith.PeanoNat.
+From RecordUpdate Require Import RecordSet.
 From Poulet4 Require Import P4cub.Syntax.Syntax
   P4cub.Semantics.Climate Utils.ForallMap
   P4cub.Syntax.Shift.
@@ -6,7 +7,7 @@ From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.Value.Syntax BigStep.Semantics BigStep.IndPrincip
      BigStep.Value.Typing BigStep.Determinism.
 Import AllCubNotations Val.ValueNotations
-  Val.LValueNotations Nat.
+  Val.LValueNotations Nat RecordSetNotations.
 
 Ltac len_app :=
   match goal with
@@ -182,6 +183,8 @@ Section Properties.
     - destruct (lv_lookup (rs ++ eps) lv) as [[] |]; auto.
   Qed.
 
+  Local Hint Resolve shift_lv_update : core.
+  Local Hint Rewrite shift_lv_update : core.
   Local Hint Resolve lv_update_length : core.
   Local Hint Rewrite lv_update_length : core.
   
@@ -209,7 +212,7 @@ Section Properties.
 
   Lemma lexpr_expr_big_step : forall ϵ e lv v,
       l⟨ ϵ, e ⟩ ⇓ lv -> ⟨ ϵ, e ⟩ ⇓ v -> lv_lookup ϵ lv = Some v.
-  Proof.
+  Proof using.
     intros eps e lv v helv; generalize dependent v.
     induction helv; intros V hv; inv hv; unravel; auto.
     - rewrite (IHhelv _ H4).
@@ -243,7 +246,7 @@ Section Properties.
                          data_args)
                     (map (paramarg_map id (shift_lv c))
                        vdata_args).
-  Proof.
+  Proof using.
     unfold args_big_step, arg_big_step.
     intros.
     destruct c; simpl in *; subst.
@@ -254,6 +257,8 @@ Section Properties.
     inversion H; subst; constructor; eauto.
   Qed.
 
+  Local Hint Resolve shift_args_eval : core.
+
   Lemma shift_copy_in :
     forall c us vs vargs eps eps',
       cutoff c = length us ->
@@ -262,7 +267,7 @@ Section Properties.
       copy_in
         (map (paramarg_map id (shift_lv c)) vargs)
         (us ++ vs ++ eps) = Some eps'.
-  Proof.
+  Proof using.
     intros.
     revert H1.
     unfold copy_in, pipeline.
@@ -279,6 +284,8 @@ Section Properties.
       now rewrite shift_lv_lookup.
   Qed.
 
+  Local Hint Resolve shift_copy_in : core.
+
   Lemma split_by_length:
     forall A (l: list A) m n,
       length l = n + m ->
@@ -286,7 +293,7 @@ Section Properties.
         l = xs ++ ys /\
         length xs = n /\
         length ys = m.
-  Proof.
+  Proof using.
     intros.
     exists (firstn n l).
     exists (skipn n l).
@@ -307,7 +314,7 @@ Section Properties.
       copy_out_argv n (paramarg_map id (shift_lv c) varg)
                eps''
                (us ++ vs ++ eps) = us' ++ vs ++ eps'.
-  Proof.
+  Proof using.
     intros.
     destruct varg as [v | lv | lv]; cbn in *.
     - apply sublist.app_eq_len_eq in H2; eauto.
@@ -333,7 +340,7 @@ Section Properties.
       copy_out n (map (paramarg_map id (shift_lv c)) vargs)
                eps''
                (us ++ vs ++ eps) = us' ++ vs ++ eps'.
-  Proof.
+  Proof using.
     induction vargs; intros.
     - simpl in *.
       apply sublist.app_eq_len_eq in H2; eauto.
@@ -349,6 +356,8 @@ Section Properties.
       eapply IHvargs; eauto || congruence.
   Qed.
 
+  Local Hint Resolve shift_copy_out : core.
+
   Lemma shift_lv_update_signal :
     forall olv sig vargs c us eps eps' us' vs eps'',
       cutoff c = length us ->
@@ -362,7 +371,7 @@ Section Properties.
         (copy_out 0 (map (paramarg_map id (shift_lv c)) vargs)
            eps'' (us ++ vs ++ eps))
       = us' ++ vs ++ eps'.
-  Proof.
+  Proof using.
     unfold lv_update_signal.
     intros.
     destruct olv; simpl in *.
@@ -388,11 +397,13 @@ Section Properties.
     - eauto using shift_copy_out.
   Qed.
 
+  Local Hint Resolve shift_lv_update_signal : core.
+
   Lemma length_copy_in :
     forall vargs l eps,
       copy_in vargs l = Some eps ->
       length eps = length vargs.
-  Proof.
+  Proof using.
     unfold copy_in.
     intros.
     apply Option.sequence_length in H.
@@ -489,11 +500,8 @@ Section Properties.
              |}) olv) in *.      
       replace (us' ++ vs ++ eps')
         with (lv_update_signal olv' sig (copy_out 0 vargs' ϵ'' (us ++ vs ++ eps))).
-      eapply sbs_funct_call; eauto.
-      + inversion H0; subst; cbn in *; constructor.
-        eauto using shift_lv_eval.
-      + eauto using shift_args_eval.
-      + eauto using shift_copy_in.
+      eapply sbs_funct_call; eauto using shift_args_eval, shift_copy_in.
+      + inversion H0; subst; cbn in *; constructor; eauto.
       + subst vargs' olv'.
         erewrite shift_lv_update_signal; eauto.
     - set (ct := {| cutoff := _; amt := _ |}).
@@ -504,22 +512,30 @@ Section Properties.
                 (copy_out 0
                           (map (paramarg_map id (shift_lv ct)) vdata_args)
                           ϵ''
-                          (us ++ vs ++ eps)))
-        by eauto using shift_lv_update_signal.
-      eapply sbs_action_call; try eassumption.
-      + eapply Forall2_map_l with (lc := ctrl_args).
-        eauto using sublist.Forall2_impl, shift_e_eval.
-      + eapply shift_args_eval; cbn; auto.
-      + (* possible bug with clos *)
-        admit.
+                          (us ++ vs ++ eps))) by eauto.
+      eapply sbs_action_call; try eassumption; eauto 3.
+      eapply Forall2_map_l with (lc := ctrl_args).
+      eauto using sublist.Forall2_impl, shift_e_eval.
     - (* method call case, will be a repeat of the other call cases *)
       admit.
     - (* invoke case, will be a repeat of the other call cases *)
       admit.
-    - (* another invoke case, will be a repeat *)
-      admit. 
+    - set (ct := {| cutoff := _; amt := _ |}).
+      replace (us' ++ vs ++ eps')
+        with (copy_out 0
+                (map (paramarg_map id (shift_lv ct)) vargs)
+                ϵ''
+                (us ++ vs ++ eps)) by eauto.
+      econstructor; eauto.
     - (* parser case... *)
-      admit.
+      set (ct := {| cutoff := _; amt := _ |}).
+      replace (us' ++ vs ++ eps')
+        with (copy_out 0
+                (map (paramarg_map id (shift_lv ct)) vargs)
+                ϵ''
+                (us ++ vs ++ eps)) by eauto.
+      econstructor; eauto.
+      rewrite map_length. eauto.
     - econstructor; eauto.
       + inv H; simpl in *; eauto.
       + instantiate (1:=v').

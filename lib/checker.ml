@@ -3531,7 +3531,7 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
   | DefaultAction act :: rest ->
     begin match default_typed with
       | None ->
-        let default_typed = type_default_action env ctx action_map act in
+        let default_typed = type_default_action env ctx action_map act.action in
         type_table' env ctx info annotations
           name
           key_types

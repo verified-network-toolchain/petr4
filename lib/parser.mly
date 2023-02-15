@@ -1087,9 +1087,12 @@ tableProperty:
 | info1 = CONST ENTRIES ASSIGN L_BRACE entries = entriesList info2 = R_BRACE
     { (P4info.merge info1 info2,
        Table.Entries { entries = entries }) }
+| info1 = CONST DEFAULT_ACTION ASSIGN act = actionRef info2 = SEMICOLON
+    { (P4info.merge info1 info2,
+       Table.DefaultAction {action = act; const = true}) }
 | info1 = DEFAULT_ACTION ASSIGN act = actionRef info2 = SEMICOLON
     { (P4info.merge info1 info2,
-       Table.DefaultAction act) }
+       Table.DefaultAction {action = act; const = false}) }
 | annos = optAnnotations
     info1 = CONST n = nonTableKwName ASSIGN v = initialValue info2 = SEMICOLON
     { (P4info.merge info1 info2,

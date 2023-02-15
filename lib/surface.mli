@@ -294,7 +294,9 @@ and Table : sig
     | Entries of
         { entries: entry list }
       (** Entries *)
-    | DefaultAction of action_ref
+    | DefaultAction of
+        { action: action_ref;
+          const: bool }
       (** Default actions *)
     | Custom of
         { annotations: Annotation.t list;

@@ -71,7 +71,7 @@ Notation path := (list ident).
 (* Because the entries can refer to constructor parameters, we need to refer the arguments as expressions. *)
 (* Maybe we can just use the definition in Syntax.v. *)
 
-Context {Types Expression Pattern Val : Type}.
+Context {Types Expression Pattern Val Signal : Type}.
 
 Inductive action_ref :=
   mk_action_ref (action : ident) (args : list (option Expression)).
@@ -86,16 +86,16 @@ Class ExternSem := {
   extern_env := PathMap.t extern_env_object;
   extern_object : Type;
   extern_state := PathMap.t extern_object;
-  AbsMet := extern_state -> list Val -> extern_state -> list Val -> signal -> Prop;
+  AbsMet := extern_state -> list Val -> extern_state -> list Val -> Signal -> Prop;
   (* Allocation should be a function; calling may be fine as a relation. *)
   construct_extern : extern_env -> extern_state -> ident (* class *) -> list Types -> path
       -> list (path + Val) -> (extern_env * extern_state);
   extern_set_abstract_method : extern_env -> path -> AbsMet -> extern_env;
   exec_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path
-      -> list Types -> list Val -> extern_state -> list Val -> signal -> Prop;
+      -> list Types -> list Val -> extern_state -> list Val -> Signal -> Prop;
   (* runnable version of exec_extern *)
   interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path
-      -> list Types -> list Val -> Result.result Exn.t (extern_state * list Val * signal);
+      -> list Types -> list Val -> Result.result Exn.t (extern_state * list Val * Signal);
   interp_extern_safe :
     forall env st class method this targs args st' retvs sig,
       interp_extern env st class method this targs args = Result.Ok (st', retvs, sig) ->
@@ -111,7 +111,7 @@ Class SeparableExternSem := {
   (* extern_empty : extern_state := IdentMap.empty; *)
   (* Allocation should be a function; calling may be fine as a relation. *)
   ses_alloc_extern : ident (* class *) -> list Types -> list Val -> ses_extern_object;
-  ses_exec_extern : ident (* class *) -> ident (* method *) -> ses_extern_object -> list Types -> list Val -> ses_extern_object -> list Val -> signal -> Prop;
+  ses_exec_extern : ident (* class *) -> ident (* method *) -> ses_extern_object -> list Types -> list Val -> ses_extern_object -> list Val -> Signal -> Prop;
   (* ses_extern_get_entries : extern_state -> path -> list table_entry; *)
   ses_extern_match : list (Val * ident (* match_kind *)) -> list table_entry_valset -> option action_ref (* action *)
 }.
@@ -121,7 +121,7 @@ Context (ses : SeparableExternSem).
 
 (* Definition extern_state' : Type := @PathMap.t tags_t ses_extern_object * @PathMap.t tags_t (list table_entry).
 
-Inductive exec_extern' : extern_state' -> ident (* class *) -> ident (* method *) -> path -> list Types -> list Val -> extern_state' -> list Val -> signal -> Prop :=
+Inductive exec_extern' : extern_state' -> ident (* class *) -> ident (* method *) -> path -> list Types -> list Val -> extern_state' -> list Val -> Signal -> Prop :=
   | exec_extern_intro : forall s class method targs p args s' args' vret obj obj',
       PathMap.get p (fst s) = Some obj ->
       ses_exec_extern class method obj targs args obj' args' vret ->
@@ -151,14 +151,14 @@ Class Target := {
   extern_sem :> ExternSem;
     target_main_name: string;
     exec_prog : list Types ->
-                (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
+                (path -> extern_state -> list Val -> extern_state -> list Val -> Signal -> Prop) ->
                 extern_state ->
                 list bool ->
                 extern_state ->
                 list bool ->
                 Prop;
     interp_prog : list Types ->
-                  (path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * signal)) ->
+                  (path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * Signal)) ->
       extern_state -> Z -> list bool -> Result.result Exn.t (extern_state * Z * list bool);
 }.
 

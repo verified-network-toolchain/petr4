@@ -8,7 +8,7 @@ From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.Value.Value.
 From Poulet4.P4cub.Semantics.Dynamic Require Export
   BigStep.ExprUtil BigStep.ValEnvUtil BigStep.InstUtil
-  BigStep.Value.Embed.
+  (*BigStep.Value.Embed*).
 From RecordUpdate Require Import RecordSet.
 Import Val.ValueNotations ExprNotations ParserNotations
   Val.LValueNotations StmtNotations RecordSetNotations
@@ -194,36 +194,25 @@ Notation light_set := (@ValueSet unit).
 
 Open Scope pat_scope.
 
-(* TODO: cast case. *)
-Variant pre_match_big_step : @MatchPreT unit -> Parser.pat -> Prop :=
-  | bs_DontCare :
-    pre_match_big_step MatchDontCare Parser.Wild
-  | bs_Mask l₁ l₂ e₁ e₂ n₁ n₂ w :
-    embed_expr e₁ l₁ ->
-    embed_expr e₂ l₂ ->
-    ⟨ [], e₁ ⟩ ⇓ w VW n₁ ->
-    ⟨ [], e₂ ⟩ ⇓ w VW n₂ ->
-    pre_match_big_step (MatchMask l₁ l₂) (Parser.Mask (w PW n₁) (w PW n₂))
-  | bs_Range l₁ l₂ e₁ e₂ n₁ n₂ w :
-    embed_expr e₁ l₁ ->
-    embed_expr e₂ l₂ ->
-    ⟨ [], e₁ ⟩ ⇓ w VW n₁ ->
-    ⟨ [], e₂ ⟩ ⇓ w VW n₂ ->
-    pre_match_big_step (MatchRange l₁ l₂) (Parser.Range (w PW n₁) (w PW n₂)).
+Definition pat_of_pre_match (m : @MatchPreT Expr.t Parser.pat) : Parser.pat :=
+  match m with
+  | MatchDontCare    => Parser.Wild
+  | MatchMask p1 p2  => Parser.Mask p1 p2
+  | MatchRange p1 p2 => Parser.Range p1 p2
+  | MatchCast _ p    => p
+  end.
 
 Close Scope pat_scope.
 
-Variant match_big_step : @Match unit -> Parser.pat -> Prop :=
-  | bs_MkMatch τ m p :
-    pre_match_big_step m p -> match_big_step (MkMatch tt m τ) p.
+Definition pat_of_match {tags_t : Type} '(MkMatch _ m _ : @Match tags_t Expr.t Parser.pat) : Parser.pat :=
+  pat_of_pre_match m.
 
-Variant table_entry_big_step
-  : table_entry (tags_t:=unit) (Expression:=Expr.e) -> Parser.pat -> action_ref -> Prop :=
-  | bs_mk_table_entry mtchs pats aref :
-    Forall2 match_big_step mtchs pats ->
-    table_entry_big_step (mk_table_entry mtchs aref) (Parser.Lists pats) aref.
+Variant table_entry_big_step {tags_t : Type}
+  : table_entry (tags_t:=tags_t) (Types:=Expr.t) (Expression:=Expr.e) (Pattern:=Parser.pat) -> Parser.pat -> action_ref -> Prop :=
+  | bs_mk_table_entry mtchs aref :
+    table_entry_big_step (mk_table_entry mtchs aref) (Parser.Lists (map pat_of_match mtchs)) aref.
 
-Notation Extern_Sem := (ExternSem (tags_t:=unit) (Expression:=Expr.e)).
+Notation Extern_Sem := (ExternSem (tags_t:=unit) (Types:=Expr.t) (Expression:=Expr.e) (Pattern:=Parser.pat) (Val:=Val.v) (Signal:=signal)).
 
 Section StmtEvalEnv.
   Variable ext_sem : Extern_Sem.
@@ -279,7 +268,7 @@ Definition args_big_step (ϵ : list Val.v) : Expr.args -> Val.argsv -> Prop :=
   Forall2 (arg_big_step ϵ).
 
 Variant eval_table_action
-  : option (string * list Expr.e) -> option (@action_ref Expr.e) -> bool -> string -> list Expr.e -> Prop :=
+  : option (String.string * list Expr.e) -> option (@action_ref Expr.e) -> bool -> String.string -> list Expr.e -> Prop :=
   | eval_table_action_hit def a opt_ctrl_args ctrl_args :
     (** Force control-plane arguments to be defined. *)
     Forall2 (fun oe e => oe = Some e) opt_ctrl_args ctrl_args ->
@@ -351,8 +340,7 @@ Inductive stmt_big_step
     ⤋ ⧼ lv_update_signal olv sig (copy_out O vdata_args ϵ'' ϵ), Cont, ψ ⧽
 | sbs_method_call
     ϵ c ψ ext meth τs args
-    eo vargs vargs' olv sig
-    light_typs light_in_vals light_out_vals light_sig :
+    eo vargs vargs' olv sig :
   (** Invariant for cub arguments. *)
   Forall2
     (rel_paramarg eq (fun _ _ => True))
@@ -361,29 +349,23 @@ Inductive stmt_big_step
   relop (lexpr_big_step ϵ) eo olv ->
   (** Evaluate arguments. *)
   args_big_step ϵ args vargs ->
-  (** Embed type arguments in p4light. *)
-  Forall2 (P4Cub_to_P4Light (dummy_tags:=tt) (string_list:=[])) τs light_typs ->
-  (** Embed in-arguments in p4light. *)
-  Forall2
-    Embed
-    (List.flat_map
-       (fun v => match v with PAIn v => [v] | _ => [] end)
-       vargs) light_in_vals ->
   (** Evaluate the extern. *)
   exec_extern
     (extrn_env Ψ) (extrn_state Ψ)
-    ext meth [] light_typs light_in_vals ψ light_out_vals light_sig ->
-  (** Out-values back to p4cub. *)
-  Forall2
-    Embed
+    ext meth [] τs
+    (List.flat_map
+       (fun v => match v with PAIn v => [v] | _ => [] end)
+       vargs)
+    ψ
     (List.flat_map
        (fun v => match v with PAOut v | PAInOut v => [v] | _ => [] end)
-       vargs') light_out_vals ->
+       vargs')
+    sig ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Method ext meth τs eo) args ⧽
     ⤋ ⧼ lv_update_signal olv sig (copy_out_from_args vargs vargs' ϵ), Cont, ψ ⧽
 | sbs_invoke
-    ϵ₁ ϵ₂ ϵ' eo lvo t (tbls : tenv) acts insts pats light_sets
-    ψ (key : list (Expr.e * string)) actions def vs light_vals arefs
+    ϵ₁ ϵ₂ ϵ' eo lvo t (tbls : tenv) acts insts pats
+    ψ (key : list (Expr.e * String.string)) actions def vs arefs
     hit a idx ctrl_args data_args :
   (** Evaluate left hand expression *)
   relop (lexpr_big_step (ϵ₁ ++ ϵ₂)) eo lvo ->
@@ -392,13 +374,11 @@ Inductive stmt_big_step
   (** Evaluate table key. *)
   Forall2 (expr_big_step ϵ₂) (map fst key) vs ->
   (** Evaluate table entries. *)
-  Forall3 table_entry_big_step (extern_get_entries ψ []) pats arefs ->
-  (** Embed p4cub patterns in p4light value sets. *)
-  Forall2 embed_pat_valset pats light_sets ->
+  ForallMap.Forall3 table_entry_big_step (extern_get_entries ψ []) pats arefs ->
   (** Get action reference from control-plane with control-plane arguments. *)
   eval_table_action
     def
-    (extern_match (combine light_vals (map snd key)) (combine light_sets arefs))
+    (extern_match (combine vs (map snd key)) (combine pats arefs))
     hit a ctrl_args ->
   (** Find appropriate action data-plane arguments in table. *)
   Field.get a actions = Some data_args ->

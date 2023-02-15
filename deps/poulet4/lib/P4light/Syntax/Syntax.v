@@ -177,6 +177,9 @@ Section Syntax.
   | InitInstantiation (tags: tags_t)  (typ: @P4Type tags_t)
                       (args: list Expression) (name: P4String) (init: list Initializer).
 
+  Definition ExpressionPreT_of_Expression
+    '(MkExpression _ e _ _ : Expression) : ExpressionPreT := e.
+  
   Section MatchMap.
     Context {A B U V : Type}.
     Variable f : A -> B.

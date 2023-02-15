@@ -319,6 +319,17 @@ Section ValueUtil.
     | ValBaseEnumField X mem => TypEnum (P4String.Build_t _ dummy_tags X) None [P4String.Build_t _ dummy_tags mem]
     | ValBaseSenumField X v  => TypEnum (P4String.Build_t _ dummy_tags X) (Some (P4Type_of_Value v)) []
     end.
+
+  Fixpoint P4Type_of_ValueSet (vs : ValSet) : Typ :=
+    match vs with
+    | ValSetSingleton v => P4Type_of_Value v
+    | ValSetUniversal   => TypVoid
+    | ValSetMask  v1 _
+    | ValSetRange v1 _  => P4Type_of_Value v1
+    | ValSetProd vs     => TypTuple (List.map P4Type_of_ValueSet vs)
+    | ValSetLpm _ v     => P4Type_of_Value v
+    | ValSetValueSet _ _ vs => TypTuple (List.map P4Type_of_ValueSet vs) (* TODO: wrong I think... *)
+    end.
   
   Fixpoint Expression_of_Value (v : Val) : Expr :=
     MkExpression dummy_tags
@@ -336,17 +347,31 @@ Section ValueUtil.
           let (_, n) := BitArith.from_lbool bits in
           ExpInt (P4Int.Build_t _ dummy_tags n (Some (max_width, false)))
       | ValBaseString s => ExpString (P4String.Build_t _ dummy_tags s)
-      | ValBaseTuple vs => ExpList (List.map Expression_of_Value vs)
+      | ValBaseTuple vs
+      | ValBaseStack vs _ => ExpList (List.map Expression_of_Value vs)
       | ValBaseError s  => ExpErrorMember (P4String.Build_t _ dummy_tags s)
-      | ValBaseMatchKind s => ExpMatchKind (P4String.Build_t _ dummy_tags s)
+      | ValBaseMatchKind s => ExpString (P4String.Build_t _ dummy_tags s) (* TODO: idk what to do here *)
+      | ValBaseStruct xvs
+      | ValBaseHeader xvs _ (* TODO: idk what to do here *)
+      | ValBaseUnion xvs =>
+          ExpRecord
+            (List.map
+               (fun '(x, v) =>
+                  (P4String.Build_t _ dummy_tags x, Expression_of_Value v)) xvs)
+      | ValBaseEnumField X member => ExpTypeMember (P4String.Build_t _ dummy_tags X) (P4String.Build_t _ dummy_tags member)
+      | ValBaseSenumField X _ => ExpTypeMember (P4String.Build_t _ dummy_tags X) (P4String.Build_t _ dummy_tags X) (* TODO: idk what to do here *)
       end
-      (P4Type_of_Value v).
+      (P4Type_of_Value v) In.
   
-  Fixpoint Expression_of_ValueSet (vs : ValSet) : Expr :=
-    match vs with
-    | ValSetSingleton v =>
-    end.
-
+  (*Fixpoint Expression_of_ValueSet (vs : ValSet) : Expr :=
+    MkExpression
+      dummy_tags
+      match vs with
+      | ValSetSingleton v => ExpressionPreT_of_Expression (Expression_of_Value v)
+      | ValSetUniversal   => ExpDontCare
+      | ValSetMask v1 v2  =>
+    end.*)
+  
 End ValueUtil.
 
 Local Hint Unfold read_detbit : core.

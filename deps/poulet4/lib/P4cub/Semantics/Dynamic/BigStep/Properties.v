@@ -11,9 +11,23 @@ Import AllCubNotations Val.ValueNotations
 
 Ltac len_app :=
   match goal with
-| hlen: length ?l1 = length ?l2, happ: ?l1 ++ _ = ?l2 ++ _
-  |- _ => pose proof sublist.app_eq_len_eq happ hlen as [? ?]; subst
+  | hlen: length ?l1 = length ?l2, happ: ?l1 ++ _ = ?l2 ++ _
+    |- _ => pose proof sublist.app_eq_len_eq happ hlen as [? ?]; subst
   end.
+
+Ltac app_inv_head_solve :=
+  match goal with
+  | h: ?x ++ _ = ?x ++ _ |- _ => apply app_inv_head in h; subst
+  end.
+
+Ltac app_inv_tail_solve :=
+  match goal with
+  | h: _ ++ ?x = _ ++ ?x |- _ => apply app_inv_tail in h; subst
+  end.
+
+Local Hint Extern 3 => len_app : core.
+Local Hint Extern 2 => app_inv_head_solve : core.
+Local Hint Extern 2 => app_inv_tail_solve : core.
 
 Variant ctx_cuttoff (m : nat) : ctx -> Prop :=
   | ctx_cuttoff_action aa :
@@ -79,6 +93,39 @@ Section Properties.
   Qed.
 
   Local Hint Resolve shift_e_eval : core.
+
+  Lemma e_eval_shift : forall e v us vs ϵ,
+      ⟨ us ++ vs ++ ϵ,
+        shift_e
+          (Shifter (length us) (length vs)) e ⟩ ⇓ v ->
+      ⟨ us ++ ϵ, e ⟩ ⇓ v.
+  Proof using.
+    intro e; induction e using custom_e_ind;
+      intros v us vs eps h; inv h; cbn in *; eauto.
+    - unfold shift_var, cutoff, amt in * |-.
+      destruct (le_lt_dec (Datatypes.length us) x)
+        as [husx | husx].
+      + rewrite nth_error_app2 in H3 by lia.
+        rewrite <- Nat.add_sub_assoc in H3 by lia.
+        rewrite nth_error_app3 in H3.
+        constructor.
+        rewrite nth_error_app2 by assumption.
+        assumption.
+      + rewrite nth_error_app1 in H3 by assumption.
+        constructor.
+        rewrite nth_error_app1 by assumption.
+        assumption.
+    - constructor.
+      rewrite Forall2_forall_nth_error in *.
+      rewrite Forall_forall in * |-.
+      destruct H3 as [hlen h].
+      rewrite map_length in hlen.
+      split; try assumption.
+      intros n e v hnthe hnthv.
+      eauto using nth_error_In, map_nth_error.
+  Qed.
+    
+  Local Hint Resolve e_eval_shift : core.
   Local Hint Constructors parser_expr_big_step : core.
 
   Lemma shift_trans_eval : forall us ϵ p st,
@@ -91,6 +138,15 @@ Section Properties.
 
   Local Hint Resolve shift_trans_eval : core.
 
+  Lemma trans_eval_shift : forall p st us vs ϵ,
+      p⟨ us ++ vs ++ ϵ , shift_transition (Shifter (length us) (length vs)) p ⟩ ⇓ st ->
+      p⟨ us ++ ϵ , p ⟩ ⇓ st.
+  Proof using.
+    intros [lbl | e lbl cases] st us vs eps h; cbn in h; inv h; eauto.
+  Qed.
+
+  Local Hint Resolve trans_eval_shift : core.
+  
   Fixpoint shift_lv (sh : shifter) (lv : Val.lv) : Val.lv :=
   match lv with
   | Val.Var x => Val.Var $ shift_var sh x
@@ -129,6 +185,23 @@ Section Properties.
   Qed.
 
   Local Hint Resolve shift_lv_eval : core.
+
+  Lemma lv_eval_shift : forall e lv us vs ϵ,
+      l⟨ us ++ vs ++ ϵ,
+          shift_e
+            (Shifter (length us) (length vs)) e ⟩
+        ⇓ shift_lv (Shifter (length us) (length vs)) lv ->
+      l⟨ us ++ ϵ, e ⟩ ⇓ lv.
+  Proof using.
+    intro e; induction e using custom_e_ind;
+      intros [] us vs eps h; cbn in *; inv h; eauto.
+    unfold shift_var, cutoff, amt in * |-.
+    destruct (le_lt_dec (length us) x) as [husx | husx];
+      destruct (le_lt_dec (length us) x0) as [husx0 | husx0]; subst; try lia; auto.
+    assert (x0 = x) by lia; subst; auto.
+  Qed.
+
+  Local Hint Resolve lv_eval_shift : core.
 
   Lemma shift_lv_lookup : forall lv rs us ϵ,
       lv_lookup (rs ++ us ++ ϵ) (shift_lv (Shifter (length rs) (length us)) lv)
@@ -169,14 +242,10 @@ Section Properties.
       + rewrite nth_update_app1 in * by lia.
         replace (length us + x - length rs)
           with (length us + (x - length rs)) by lia.
-        rewrite nth_update_app3.
-        pose proof sublist.app_eq_len_eq hlv hrs as [hrs' heps]; subst.
-        reflexivity.
+        rewrite nth_update_app3. auto.
       + rewrite nth_update_app2 in * by lia.
         assert (length (nth_update x v rs) = length rs') as hup.
-      { rewrite nth_update_length. assumption. }
-      pose proof sublist.app_eq_len_eq hlv hup as [hrs' heps]; subst.
-      reflexivity.
+        { rewrite nth_update_length. assumption. } auto.
     - destruct v; auto.
       destruct (lv_lookup (rs ++ eps) lv) as [[] |]; auto.
     - destruct (lv_lookup (rs ++ eps) lv) as [[] |]; auto.
@@ -185,6 +254,39 @@ Section Properties.
 
   Local Hint Resolve shift_lv_update : core.
   Local Hint Rewrite shift_lv_update : core.
+
+  Lemma lv_update_shift : forall lv v rs ϵ rs' ϵ' us,
+      length rs = length rs' ->
+      lv_update (shift_lv (Shifter (length rs) (length us)) lv) v (rs ++ us ++ ϵ)
+      = rs' ++ us ++ ϵ' ->
+      lv_update lv v (rs ++ ϵ) = rs' ++ ϵ'.
+  Proof using.
+    intro lv; induction lv;
+      intros v rs eps rs' eps' us hrs h; cbn in *.
+    - unfold shift_var,cutoff,amt in * |-.
+      destruct (le_lt_dec (length rs) x) as [hrsx | hrsx].
+      + rewrite app_assoc in h.
+        assert (husrsx : length rs + length us <= length us + x) by lia.
+        rewrite <- app_length in husrsx.
+        rewrite nth_update_app1 by assumption.
+        rewrite nth_update_app1 in h by assumption.
+        rewrite <- app_assoc in h. len_app. app_inv_head_solve.
+        f_equal.
+        rewrite app_length.
+        f_equal. lia.
+      + rewrite nth_update_app2 in h |- * by assumption.
+        rewrite <- nth_update_length with (n:=x) (a:=v) (l:=rs) in hrs. auto.
+    - destruct v; unravel in *; auto.
+      rewrite shift_lv_lookup in h.
+      destruct (lv_lookup (rs ++ eps) lv) as [[] |]; cbn in *; eauto.
+    - rewrite shift_lv_lookup in h.
+      destruct (lv_lookup (rs ++ eps) lv) as [[] |]; cbn in *; eauto.
+    - rewrite shift_lv_lookup in h.
+      destruct (lv_lookup (rs ++ eps) lv) as [[] |]; cbn in *; eauto.
+  Qed.
+
+  Local Hint Resolve lv_update_shift : core.
+  Local Hint Rewrite lv_update_shift : core.
   Local Hint Resolve lv_update_length : core.
   Local Hint Rewrite lv_update_length : core.
   
@@ -236,28 +338,46 @@ Section Properties.
 
   Local Hint Constructors relop : core.
   Local Hint Constructors stmt_big_step : core.
+  Local Hint Constructors rel_paramarg : core.
 
-  Lemma shift_args_eval : forall us eps c data_args vdata_args vs,
+  Lemma shift_args_eval : forall us eps c args vargs vs,
       cutoff c = length us ->
       amt c = length vs ->
-      args_big_step (us ++ eps) data_args vdata_args ->
+      args_big_step (us ++ eps) args vargs ->
       args_big_step (us ++ vs ++ eps)
-                    (map (shift_arg c)
-                         data_args)
-                    (map (paramarg_map id (shift_lv c))
-                       vdata_args).
+                    (map (shift_arg c) args)
+                    (map (paramarg_map id (shift_lv c)) vargs).
   Proof using.
     unfold args_big_step, arg_big_step.
     intros.
     destruct c; simpl in *; subst.
-    eapply Forall2_map_l with (lc := data_args).
-    eapply Forall2_map_r with (lc := vdata_args).
+    eapply Forall2_map_l with (lc := args).
+    eapply Forall2_map_r with (lc := vargs).
     eapply sublist.Forall2_impl; try eassumption.
-    intros.
-    inversion H; subst; constructor; eauto.
+    intros; inv H; unravel; eauto.
   Qed.
 
   Local Hint Resolve shift_args_eval : core.
+
+  Lemma args_eval_shift : forall us eps c args vargs vs,
+      cutoff c = length us ->
+      amt c = length vs ->
+      args_big_step (us ++ vs ++ eps)
+        (map (shift_arg c) args)
+        (map (paramarg_map id (shift_lv c)) vargs) ->
+      args_big_step (us ++ eps) args vargs.
+  Proof using.
+    unfold args_big_step, arg_big_step.
+    intros us eps c args vargs vs hcut hamt h.
+    destruct c; simpl in *; subst.
+    eapply Forall2_map_l with (lc := args) in h.
+    eapply Forall2_map_r with (lc := vargs) in h.
+    revert h.
+    eapply sublist.Forall2_impl; try eassumption.
+    intros [] [] h; inv h; eauto.
+  Qed.
+
+  Local Hint Resolve args_eval_shift : core.
 
   Lemma shift_copy_in :
     forall c us vs vargs eps eps',
@@ -286,6 +406,29 @@ Section Properties.
 
   Local Hint Resolve shift_copy_in : core.
 
+  Lemma copy_in_shift :
+    forall c us vs vargs eps eps',
+      cutoff c = length us ->
+      amt c = length vs ->
+      copy_in
+        (map (paramarg_map id (shift_lv c)) vargs)
+        (us ++ vs ++ eps) = Some eps' ->
+      copy_in vargs (us ++ eps) = Some eps'.
+  Proof using.
+    intros c us vs vargs eps eps' hcut hamt h.
+    unfold copy_in, pipeline in *.
+    destruct c; cbn in *; subst.
+    rewrite !map_map in h.
+    rewrite <- Forall2_sequence_iff in h |- *.
+    rewrite <- Forall2_map_l with (lc := vargs) in h |- *.
+    revert h.
+    eapply sublist.Forall2_impl; try eassumption.
+    intros [] v h; unravel in *;
+      try rewrite shift_lv_lookup in h; auto.
+  Qed.
+
+  Local Hint Resolve copy_in_shift : core.
+  
   Lemma split_by_length:
     forall A (l: list A) m n,
       length l = n + m ->
@@ -305,6 +448,25 @@ Section Properties.
       lia.
   Qed.
 
+  Lemma split_by_length3:
+    forall A (l: list A) m n o,
+      length l = n + m + o ->
+      exists xs ys zs,
+        l = xs ++ ys ++ zs /\
+        length xs = n /\
+        length ys = m /\
+        length zs = o.  
+  Proof using.
+    intros A l m n o h.
+    exists (firstn n l), (firstn m (skipn n l)), (skipn (n + m) l).
+    do 2 rewrite firstn_length.
+    do 2 rewrite skipn_length.
+    repeat split; try lia.
+    rewrite <- sublist.skipn_skipn.
+    do 2 rewrite firstn_skipn.
+    reflexivity.
+  Qed.
+  
   Lemma shift_copy_out_argv :
     forall varg c us vs eps eps'' eps' us' n,
       cutoff c = Datatypes.length us ->
@@ -330,7 +492,7 @@ Section Properties.
       + apply sublist.app_eq_len_eq in H2; eauto.
         intuition congruence.
   Qed.
-  
+
   Lemma shift_copy_out :
     forall vargs c us vs eps eps'' eps' us' n,
       cutoff c = Datatypes.length us ->
@@ -341,23 +503,60 @@ Section Properties.
                eps''
                (us ++ vs ++ eps) = us' ++ vs ++ eps'.
   Proof using.
-    induction vargs; intros.
-    - simpl in *.
-      apply sublist.app_eq_len_eq in H2; eauto.
-      intuition congruence.
-    - simpl in *.
-      pose proof (copy_out_argv_length a n eps'' (us ++ eps)).
-      rewrite app_length in *.
-      apply split_by_length in H3.
-      destruct H3 as [? [? [? [? ?]]]].
-      rewrite H3 in *.
-      eapply shift_copy_out_argv in H3; eauto.
-      rewrite H3.
-      eapply IHvargs; eauto || congruence.
+    induction vargs; intros; unravel in *; auto.
+    pose proof (copy_out_argv_length a n eps'' (us ++ eps)).
+    rewrite app_length in *.
+    apply split_by_length in H3.
+    destruct H3 as [? [? [? [? ?]]]].
+    rewrite H3 in *.
+    eapply shift_copy_out_argv in H3; eauto.
+    rewrite H3.
+    eapply IHvargs; eauto || congruence.
   Qed.
 
   Local Hint Resolve shift_copy_out : core.
 
+  Lemma copy_out_argv_shift :
+    forall varg c us vs eps eps'' eps' us' n,
+      cutoff c = Datatypes.length us ->
+      amt c = Datatypes.length vs ->
+      length us = length us' ->
+      copy_out_argv n (paramarg_map id (shift_lv c) varg)
+               eps''
+               (us ++ vs ++ eps) = us' ++ vs ++ eps' ->
+      copy_out_argv n varg eps'' (us ++ eps) = us' ++ eps'.
+  Proof using.
+    intros varg c us vs eps eps'' eps' us' n hcut hamt hus h.
+    destruct c; unravel in *; subst.
+    destruct varg; unravel in *; auto;
+      destruct (nth_error eps'' n) as [v |]; eauto.
+  Qed.
+
+  Local Hint Resolve copy_out_argv_shift : core.
+
+  Lemma copy_out_shift :
+    forall vargs c us vs eps eps'' eps' us' n,
+      cutoff c = Datatypes.length us ->
+      amt c = Datatypes.length vs ->
+      length us = length us' ->
+      copy_out n (map (paramarg_map id (shift_lv c)) vargs)
+               eps''
+               (us ++ vs ++ eps) = us' ++ vs ++ eps' ->
+      copy_out n vargs eps'' (us ++ eps) = us' ++ eps'.
+  Proof using.
+    induction vargs; intros; unravel in *; auto.
+    pose proof (copy_out_argv_length (paramarg_map id (shift_lv c) a) n eps'' (us ++ vs ++ eps)).
+    repeat rewrite app_length in *.
+    rewrite Nat.add_assoc in H3.
+    apply split_by_length3 in H3.
+    destruct H3 as [? [? [? [? [? [? ?]]]]]].
+    (*rewrite H3 in *
+    eapply copy_out_argv_shift in H3; eauto.
+    rewrite H3.
+    eapply IHvargs; eauto || congruence.*)
+    (* TODO: may be easier to prove by generalizing to a vs' *)
+  Admitted.
+  
   Lemma shift_lv_update_signal :
     forall olv sig vargs c us eps eps' us' vs eps'',
       cutoff c = length us ->

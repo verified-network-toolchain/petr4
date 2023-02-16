@@ -2335,13 +2335,16 @@ and cast_ok ?(explicit = false) env original_type new_type =
      cast_ok ~explicit env typ t
   | t, NewType { name; typ } ->
      cast_ok ~explicit env t typ
+  (* list --> tuple. section 8.11*)
   | List types1, Tuple types2 ->
      type_equality env [] (Tuple types1) (Tuple types2)
+  (* list --> header/struct. section 8.12 of p4 spec. *)
   | List types1, Header rec2
   | List types1, Struct rec2 ->
      let types2 = List.map ~f:(fun f -> f.typ) rec2.fields in
      casts_ok ~explicit env types1.types types2 ||
        type_equality env [] (Tuple types1) (Tuple {types = types2})
+  (* record --> header and record --> struct is required to allow a statment such as x = (type) exp where type is the name of struct or header and exp is an expression of record type. section 8.13 of P4 spec v1.2.3*)
   | Record rec1, Header rec2
   | Record rec1, Struct rec2 ->
      let types1 = List.map ~f:(fun f -> f.typ) rec1.fields in

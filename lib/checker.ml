@@ -2691,11 +2691,14 @@ and type_return env ctx stmt_info expr =
     | StmtCxParserState -> failwith "return in parser state not allowed"
   in
   let (stmt, typ) : P4light.coq_StatementPreT * coq_P4Type =
-    match expr with
-    | None -> StatReturn None, TypVoid
-    | Some e ->
-      let e_typed = cast_expression env expr_ctx ret_typ e in
-      StatReturn (Some e_typed), type_of_expr e_typed
+    match expr, ret_typ with
+    | None, TypVoid ->
+       StatReturn None, TypVoid
+    | None, non_void ->
+       failwith "Returned nothing when something expected"
+    | Some e, ret_typ ->
+       let e_typed = cast_expression env expr_ctx ret_typ e in
+       StatReturn (Some e_typed), type_of_expr e_typed
   in
   MkStatement (stmt_info, stmt, StmVoid), env
 
@@ -2868,7 +2871,7 @@ and type_initializers env ctx instance_type (inits: Surface.Statement.t list): P
       begin match List.find ~f:(fun decl -> P4string.eq name (fst decl)) decls_abst with
       | Some (name, decl_type) ->
         let init_type = TypFunction (MkFunctionType (t_params, params_typed, FunExtern, return_type)) in
-          assert_type_equality env' name.tags decl_type init_type
+        assert_type_equality env' name.tags decl_type init_type
       | None -> ()
       end;
       num_absts + 1
@@ -2892,8 +2895,9 @@ and type_instantiation env ctx info annotations typ args name init_block : P4lig
   end;
   let inits_typed, num_absts =
     begin match init_block with
-      | Some init_block -> type_initializers env ctx instance_type (snd init_block).statements
-      | None -> [], 0
+    | Some init_block ->
+       type_initializers env ctx instance_type (snd init_block).statements
+    | None -> [], 0
     end in
   begin match instance_type with
   | TypExtern extern_name

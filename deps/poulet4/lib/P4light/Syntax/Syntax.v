@@ -86,7 +86,7 @@ Section Syntax.
     
     Variant MatchPreT :=
       | MatchDontCare
-      | MatchMask (expr: VS) (mask: VS)
+      | MatchMask (expr: VS) (mask: VS) (** should be values (ValueBase) here or an int specifically. *)
       | MatchRange (lo: VS) (hi: VS)
       | MatchCast (typ: T) (expr: VS).
 

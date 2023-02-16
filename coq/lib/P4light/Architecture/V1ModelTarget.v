@@ -764,6 +764,6 @@ Definition interp_prog
   | _ => error (Exn.Other "interp_prog: failure recovering packet")
   end.
 
-Instance V1Model : Target := Build_Target _ "main" exec_prog interp_prog.
+Instance V1Model : Target := Build_Target V1ModelExternSem "main" exec_prog interp_prog.
 
 End V1Model.

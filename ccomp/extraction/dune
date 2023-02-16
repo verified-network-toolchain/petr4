@@ -71,11 +71,9 @@
    Zbool
    Zpower
    )
- (libraries zarith bignum)
-)
+ (libraries zarith bignum))
 (library 
   (name poulet4_Ccomp)
   (public_name poulet4_Ccomp)
   (libraries bignum zarith str)
-  (ocamlc_flags (:standard -w -33))
-  )
+  (flags (:standard -w -33)))

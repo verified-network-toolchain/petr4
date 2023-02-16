@@ -1,5 +1,6 @@
 (lang dune 2.8)
 (using menhir 2.0)
+(using coq 0.2)
 (name petr4)
 
 (generate_opam_files true)
@@ -9,7 +10,15 @@
  (version 0.1.2)
  (synopsis     "Petr4: Formal Semantics for the P4 Programming Language")
  (maintainers  "jnfoster@cs.cornell.edu")
- (authors      "Ryan Doenges" "Mina Tahmasbi Arashloo" "Santiago Bautista" "Alexander Chang" "Newton Ni" "Samwise Parkinson" "Rudy Peterson" "Alaia Solko-Breslin" "Amanda Xu" "Nate Foster")
+ (authors      "Ryan Doenges"
+               "Mina Tahmasbi Arashloo"
+               "Santiago Bautista" "Alexander Chang"
+               "Newton Ni"
+               "Samwise Parkinson"
+               "Rudy Peterson"
+               "Alaia Solko-Breslin"
+               "Amanda Xu"
+               "Nate Foster")
  (homepage     "https://github.com/verified-network-toolchain/petr4")
  (bug_reports  "https://github.com/verified-network-toolchain/petr4")
  (license      "Apache-2.0")
@@ -37,6 +46,50 @@
    js_of_ocaml-ppx
    (p4pp (>= "0.1.11"))
    odoc
-   (coq (and (<= "8.15.2" ) :build))
- )
-)
+   (coq (and (<= "8.15.2" ) :build))))
+
+(package
+ (name poulet4)
+ (version 0.1.0)
+ (synopsis     "Poulet4: Petr4 in Coq")
+ (maintainers  "jnfoster@cs.cornell.edu")
+ (authors      "Ryan Doenges"
+               "Rudy Peterson"
+               "Qinshi Wang"
+               "Molly Pan"
+               "Shengyi Wang"
+               "John Chen"
+               "Eric Hayden Campbell"
+               "Parisa Ataei"
+               "Andrew Appel"
+               "Nate Foster" )
+ (homepage     "https://github.com/verified-network-toolchain/petr4")
+ (bug_reports  "https://github.com/verified-network-toolchain/petr4")
+ (license      "Apache-2.0")
+ (depends
+   bignum
+  (dune :build)
+  (coq (and (<= "8.15.2") :build))
+  (coq-equations :build)
+  (coq-record-update :build)
+  (coq-compcert :build)
+  (coq-vst-zlist :build)))
+
+(package
+ (name poulet4_Ccomp)
+ (version 0.1.0)
+ (synopsis "Poulet4-Ccompiler: P4 to C Compiler in Coq")
+ (maintainers "jnfoster@cs.cornell.edu")
+ (authors "John Chen"
+          "Nate Foster"
+          "Natalie Isak")
+ (homepage     "https://github.com/verified-network-toolchain/petr4")
+ (bug_reports  "https://github.com/verified-network-toolchain/petr4")
+ (license      "Apache-2.0")
+ (depends
+   bignum
+   poulet4
+   zarith
+   coq-compcert
+   (coq :build)
+   (coq-equations :build)))

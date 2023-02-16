@@ -20,7 +20,7 @@ opam update
 opam pin add --no-action p4pp https://github.com/cornell-netlab/p4pp.git
 opam pin add --no-action coq-vst-zlist https://github.com/PrincetonUniversity/VST.git
 
-opam install . deps/poulet4 deps/poulet4_Ccomp/extraction --deps-only --no-checksums
+opam install . --deps-only --no-checksums
 
 make
 make install

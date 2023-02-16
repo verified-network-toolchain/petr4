@@ -54,6 +54,11 @@ jobs:
         run: ./.github/scripts/build-poulet4-macos.sh
         shell: bash
 
-      - name: Run Tests
+      - name: test-frontend
+        run: ./.github/scripts/test-frontend.sh
+        shell: bash
+
+      - name: test-gcl-compiler
         run: ./.github/scripts/test-gcl-compiler.sh
         shell: bash
+

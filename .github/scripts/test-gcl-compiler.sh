@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 # directory for programs we EXpect to PASS
 EXPASS="./examples/compile_tests"

@@ -40,10 +40,6 @@ ctest: build install
 claims: build
 	@test/claims.py
 
-ci-test: build
-	#dune exec -- bin/test.exe
-	cd test && dune exec -- ./test.exe test -q
-
 test-stf: build
 	dune exec -- bin/test.exe
 

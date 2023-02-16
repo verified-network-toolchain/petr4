@@ -1,2 +1,7 @@
 extraction/*.ml
 extraction/*.mli
+
+!extraction/Camlcoq.ml
+!extraction/PrintAST.ml
+!extraction/PrintCsyntax.ml
+!extraction/PrintClight.ml

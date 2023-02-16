@@ -1,5 +1,6 @@
 (coq.extraction
  (prelude Extract)
+ (theories Poulet4)
  (extracted_modules
    AST
    AST0
@@ -72,6 +73,7 @@
    Zpower
    )
  (libraries zarith bignum))
+
 (library 
   (name poulet4_Ccomp)
   (public_name poulet4_Ccomp)

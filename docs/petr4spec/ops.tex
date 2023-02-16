@@ -24,6 +24,7 @@
 \newcommand*{\serenumWellT}{\rn{SerializableEnum}\rT}
 \newcommand*{\serenumTypedefWellT}{\rn{SerializableEnum}\rSep\rn{Typedef}\rT}
 \newcommand*{\headerTypWellT}{\rn{Header}\rT}
+\newcommand*{\headerUnionTypWellT}{\rn{HeaderUnion}\rT}
 
 \newcommand*{\boolT}{\rn{Bool}\rT}
 \newcommand*{\stringT}{\rn{String}\rT}
@@ -332,6 +333,7 @@
 \newcommand{\var}{x}
 \newcommand{\typVar}{X}
 \newcommand{\typName}{t}
+\newcommand{\typNames}{\overline \typName}
 \newcommand{\typVars}{\overline \typVar}
 \newcommand{\atyp}{at}
 \newcommand{\atyps}{\overline \atyp}
@@ -459,7 +461,7 @@
 \newcommand{\actionDcl}[3]{\mathsf{action}\ {#1}\, ({#2})\, \{{#3}\}}
 \newcommand{\tableDcl}[2]{\mathsf{table}\ {#1}\, \{{#2}\}}
 \newcommand{\headerDcl}[4]{\mathsf{header}\ {#1} \langle {\overline{#2}} \rangle\, \{\overline{{#3} : {#4}}\}}
-\newcommand{\headerUnionDcl}[2]{\mathsf{header\_union}\ {#1}\, \{{#2}\}}
+\newcommand{\headerUnionDcl}[4]{\mathsf{header\_union}\ {#1}\, \langle {\overline{#2}} \rangle\, \{\overline{{#3} : {#4}}\}}
 \newcommand{\structDcl}[2]{\mathsf{struct}\ {#1}\, \{{#2}\}}
 \newcommand{\errDcl}[1]{\mathsf{error}\ \{ {#1} \}}
 \newcommand{\matchkindDcl}[1]{\mathsf{match\_kind}\ \{{#1}\}}
@@ -508,7 +510,8 @@
 \newcommand{\isNumOrEnum}[1]{\mathit{is\_num\_or\_enum}({#1})}
 %% \newcommand{\isArray}[1]{\mathit{is\_array}({#1})}
 \newcommand{\getEnum}[1]{\mathit{get\_enum}({#1})}
-\newcommand{\isConstant}[1]{\mathit{is\_constant} ({#1})}
+%% \newcommand{\isConstant}[1]{\mathit{is\_constant} ({#1})}
+%% - $\isConstant \exp$ checks whether the expression $\exp$ is a constant or not.  
 \newcommand{\isInstantiation}[1]{\mathit{is\_instantiation} ({#1})}
 \newcommand{\isVariable}[1]{\mathit{is\_variable} ({#1})}
 \newcommand{\compileTimeEval}[1]{\llbracket{#1}\rrbracket_{\constEnv, \typEnv}}
@@ -566,7 +569,7 @@
 \newcommand{\lastIndex}{\mathsf{lastIndex}}
 \renewcommand{\next}{\mathsf{next}}
 \newcommand{\last}{\mathsf{last}}
-
+\newcommand{\isHeader}[1]{\mathit{is\_header}({#1})}
 
 %kinds
 \newcommand{\builtin}{\mathsf{builtin}}
@@ -614,7 +617,7 @@
 %% \newcommand{\recordTyps}{\mathsf{record} \recordTypStructureClose \field \typ}
 \newcommand{\recordTyps}[2]{\mathsf{record} \recordTypStructureClose {#1} {#2}}
 \newcommand{\headerUnionTyp}[2]{\mathsf{header\_union} \recordTypStructureOpen {#1} {#2}}
-\newcommand{\headerUnionTyps}[2]{\mathsf{header\_union} \recordTypStructureClose {#1} {#2}}
+\newcommand{\headerUnionTyps}[3]{\mathsf{header\_union}\langle{\overline{#1}}\rangle \recordTypStructureClose {#2} {#3}}
 \newcommand{\headerTyp}[3]{\mathsf{header} \langle{\overline{#1}}\rangle\recordTypStructureOpen {#2} {#3}}
 \newcommand{\structTyp}[2]{\mathsf{struct} \recordTypStructureOpen {#1} {#2}}
 \newcommand{\headerTyps}[3]{\mathsf{header} \langle{\overline{#1}}\rangle\recordTypStructureClose {#2} {#3}}

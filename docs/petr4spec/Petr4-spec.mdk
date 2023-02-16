@@ -592,7 +592,7 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\actionDcl \var {\prmDefs {\surfaceTyp \exp}} \stmts$ | $\qquad \text{actions}$ |
 |   | $\vert$ | $\tableDcl \var \props$ | $\qquad \text{tables}$ |
 |   | $\vert$ | $\headerDcl \typName \typParam \field {\surfaceTyp \width}$ | $\qquad \text{header types}$ |
-|   | $\vert$ | $\headerUnionDcl \typName \fieldTyps$ | $\qquad \text{header union types}$ |
+|   | $\vert$ | $\headerUnionDcl \typName \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{header union types}$ |
 |   | $\vert$ | $\structDcl \typName \fieldTyps$ | $\qquad \text{struct types}$ |
 |   | $\vert$ | $\errDcl \fields$ | $\qquad \text{error types}$ |
 |   | $\vert$ | $\matchkindDcl \fields$ | $\qquad \text{match kind types}$ |
@@ -647,8 +647,8 @@ Two judgments are provided for types of P4 expressions:
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\declaredTyp$ | $::=$ |$\headerTyps \typParam \field \typ$ | $\qquad \text{headers}$ |
-|   | $\vert$ | $\headerUnionTyps \field \typ$ | $\qquad \text{header unions}$ |
+| $\declaredTyp$ | $::=$ |$\headerTyps \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{headers}$ |
+|   | $\vert$ | $\headerUnionTyps \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{header unions}$ |
 |   | $\vert$ | $\structTyps \field \typ$ | $\qquad \text{structs}$ |
 |   | $\vert$ | $\enumTypDef$ | $\qquad \text{serializable enums}$ |
 |   | $\vert$ | $\enumTypNoTypDef$ | $\qquad \text{enums}$ |
@@ -906,7 +906,6 @@ follows the nesting typing rules of P4.
 An enum is well-formed if its fields are distinct. Additionally, if it is a serializable enum its underlying type must either be a fixed-length integer or a name representing a fixed-length integer.
 
 - $\distinct \fields$ checks that fields in $\fields$ are all distinct.
-- $\isConstant \exp$ checks whether the expression $\exp$ is a constant or not.  
 
 ~ Begin InfRule
 
@@ -921,7 +920,8 @@ An enum is well-formed if its fields are distinct. Additionally, if it is a seri
   \mprset {vskip = 0.7ex}
     {\inferrule
       {\widthInt {\surfaceTyp \exp} = \exp \\
-       \isConstant \exp \\
+       % \isConstant \exp \\
+       \compTimeKnown \exp\\\\
        \distinct \fields}
       {\typWellFormed \enumTypDef}
     \quad (\serenumWellT)}
@@ -945,11 +945,11 @@ An enum is well-formed if its fields are distinct. Additionally, if it is a seri
 
 A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function which for a header type the inner types can be one of the followings:
 
-- $\bitWidthTyp \width$
-- $\intWidthTyp \width$
+- $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
+- $\intWidthTyp \exp$ and $\compTimeKnown \exp$
 - $\integerTyp$
 - $\boolTyp$
-- $\enumTypDef$
+- $\enumTypDef$ and $\compTimeKnown \exp$
 - a struct or nested struct type that has the same properties, that is, it must contain only the above subtypes. 
 
 Note that for a generic header, the rule checks that the fields only refer to type parameters that are defined in the header. Later when the header is instantiated the specialized type rule checks if the header is instantiated correctly based on the nesting rules above.
@@ -959,21 +959,32 @@ Note that for a generic header, the rule checks that the fields only refer to ty
   \mprset {vskip = 0.7ex}
     {\inferrule
       {\distinct \fields \\
-       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps \width} \\\\
-       \isValidNestedTyp {\headerTyps  \typParam \field {\surfaceTyp \width}}}
-      { \typWellFormed {\headerTyps  \typParam \field {\surfaceTyp \width}}}}
+       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps \exp} \\\\
+       \isValidNestedTyp {\headerTyps  \typParam \field {\surfaceTyp \exp}}}
+      { \typWellFormed {\headerTyps  \typParam \field {\surfaceTyp \exp}}}}
     \quad (\headerTypWellT)
 
 ~ End InfRule
 
 #### Well-Formed Header Union Type
 
+```done..except for generic..```
+
+A header union can have zero or more fields of type header. Note that in order for the fields to have a header type they must use a type name.
+
+- $\isHeader \typ$ checks if the type $\typ$ is a header. 
+
 ~ Begin InfRule
 
   \mprset {vskip = 0.7ex}
-    {}
-    {}
-    \quad (\}
+    {\inferrule
+      {\distinct \fields \\
+       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\typNames} \\\\
+       % \lookupTypEnv \typName = \headerTyps {\whatevs} \whatevs \whatevs\\
+       \lookupTypEnv \typNames = \typs \\
+       \isHeader \typs}
+      { \typWellFormed {\headerUnionTyps  \typParam \field {\typName}}}}
+    \quad (\headerUnionTypWellT)
 
 ~ End InfRule
 
@@ -1652,7 +1663,7 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
    * $\integerTyp$
    * $\enumTypDef$
    * $\enumTypNoTypDef$
-   * $\headerTyps \typParam \field {\surfaceTyp \width}$
+   * $\headerTyps \typParam \field {\surfaceTyp \exp}$
 - $\concatCond {\typ_1} {\typ_2}$ is a helper function that determines the type of a concatenation expression based on type of its left operand:
   + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
     $\concatCond {\typ_1} {\typ_2} = \bitWidthTyp {\width_1 + \width_2}$
@@ -2368,6 +2379,8 @@ meaning that it applies for both explicit and implicit casts. However, note that
 
 ## Membership Rules { #sec-mem-e }
 
+```typeMember rule is correct for enums and done.```
+
 A membership expression denoted by a dot, that is, $a.\name$ looks if $\name$ exists in $a$. And it can be a type, error, or expression membership depending on what $a$ is.
 An expression member looks up a _member_ in an expression.
 The member could be a field in
@@ -2940,7 +2953,6 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 ```done```
 
 - Note that $\typMem \typName \field $ in the rules below is a name and not an expression. We are overloading the syntax of type membership since from the context it is clear whether it represents an expression or a string.
-- $\isConstant \exp$ checks whether the expression $\exp$ is a constant or not.  
 - $\valMatchTyp {\surfaceTyp \exp, \exp}$ checks if one of the followings holds:
   + $\exp$ has the type $\surfaceTyp \exp$
   + an implicit cast can be inserted for $\exp$ so that it has the type $\surfaceTyp \exp$
@@ -2992,11 +3004,11 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
   \mprset {vskip = 0.7ex}
   {\inferrule
-    {\typWellFormed {\headerTyps  \typParam \field {\surfaceTyp \width}}\\\\
-     \VVal \typEnv = \insertToTypEnv \typName {\headerTyps  \typParam \field {\surfaceTyp \width}}
+    {\typWellFormed {\headerTyps  \typParam \field {\surfaceTyp \exp}}\\\\
+     \VVal \typEnv = \insertToTypEnv \typName {\headerTyps  \typParam \field {\surfaceTyp \exp}}
     }
     % {}}
-    {\dclenv {\headerDcl \typName \typParam \field {\surfaceTyp \width}} {\headerDcl \typName \typParam \field {\surfaceTyp \width}} {\varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
+    {\dclenv {\headerDcl \typName \typParam \field {\surfaceTyp \exp}} {\headerDcl \typName \typParam \field {\surfaceTyp \exp}} {\varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
   \quad (\headerD)
 
 ~ End InfRule 
@@ -3018,23 +3030,25 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 ~ Begin InfRule
 % \structDcl \typName \fieldTyps
 
-  \mprset {vskip = 0.7ex}
-  {\inferrule
-    {}
-    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
-  \quad (\structD)
+  % \mprset {vskip = 0.7ex}
+  % {\inferrule
+  %   {}
+  %   {\dclenv {\headerUnionDcl \typName \typParam \field {\surfaceTyp \exp}} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+  % \quad (\structD)
 
 ~ End InfRule 
 
 ## Header Union Type Declaration { #sec-header-union-typ-decl }
 
+```done```
+
 ~ Begin InfRule
-%\headerUnionDcl \typName \fieldTyps
 
   \mprset {vskip = 0.7ex}
   {\inferrule
-    {}
-    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+    {\typWellFormed {\headerUnionTyps  \typParam \field {\surfaceTyp \exp}}\\\\
+     \VVal \typEnv = \insertToTypEnv \typName {\headerUnionTyps  \typParam \field {\surfaceTyp \exp}}}
+    {\dclenv {\headerUnionDcl \typName \typParam \field {\surfaceTyp \exp}} {\headerUnionDcl \typName \typParam \field {\surfaceTyp \exp}} { \varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
   \quad (\headerUnionD)
 
 ~ End InfRule 

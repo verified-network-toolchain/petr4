@@ -32,18 +32,6 @@ let excluded_good_files = example_path ["checker_tests"; "excluded/good"] |> get
 let bad_files = example_path ["checker_tests"; "bad"] |> get_files
 let excluded_bad_files = example_path ["checker_tests"; "excluded/bad"] |> get_files
 
-(* This is a hack, sorry! *)
-let known_failures =
-  ["default-control-argument.p4";
-   "cast-call.p4";
-   "issue1803_same_table_name.p4";
-   "issue1672-bmv2.p4";
-   "table-entries-optional-2-bmv2.p4";
-   "control-verify.p4";
-   "div1.p4";
-   "table-entries-lpm-2.p4";
-   "default-control-argument.p4"]
-
 let good_test f file () =
   Alcotest.(check bool) (Printf.sprintf "good/%s" file) true
     (f ["../examples"] (example_path ["checker_tests"; "good"; file]))
@@ -55,11 +43,6 @@ let bad_test f file () =
 let excl_test file () =
   Alcotest.(check bool) (Printf.sprintf "excluded %s" file) true true
 
-let classify_test name =
-  if List.mem ~equal:String.equal known_failures name
-  then `Slow
-  else `Quick
-
 let () =
   let open Alcotest in
   run "Tests" [
@@ -70,9 +53,7 @@ let () =
     "parser-pos", (Stdlib.List.map (fun name ->
         test_case name `Quick (good_test parser_test name)) (good_files@bad_files));
     "typing-pos", (Stdlib.List.map (fun name ->
-        let speed = classify_test name in
-        test_case name speed (good_test typecheck_test name)) good_files);
+        test_case name `Quick (good_test typecheck_test name)) good_files);
     "typing-neg", (Stdlib.List.map (fun name ->
-        let speed = classify_test name in
-        test_case name speed (bad_test typecheck_test name)) bad_files);
+        test_case name `Quick (bad_test typecheck_test name)) bad_files);
   ]

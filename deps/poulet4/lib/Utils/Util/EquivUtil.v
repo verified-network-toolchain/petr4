@@ -89,6 +89,12 @@ Ltac destruct_if :=
     => destruct trm as [? | ?] eqn:?; unravel in *
   end.
 
+Ltac destruct_if_hyp :=
+  match goal with
+    h: context [if ?trm then _ else _] |- _
+    => destruct trm as [? | ?] eqn:?; unravel in *
+  end.
+
 (** * Useful Functions And Lemmas *)
 
 Lemma ex_equiv_dec_refl :

@@ -1366,6 +1366,7 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
       is_builtin_func func = false ->
       let dirs := get_arg_directions func in
       exec_args read_one_bit this_path s1 args dirs argvals sig ->
+      lookup_func this_path func = Some (obj_path, fd) ->
       s2 = (if is_some obj_path then set_memory PathMap.empty s1 else s1) ->
       exec_func read_one_bit (force this_path obj_path) s2 fd targs (extract_invals argvals) s3 outvals sig' ->
       s4 = (if is_some obj_path then set_memory (get_memory s1) s3 else s3) ->

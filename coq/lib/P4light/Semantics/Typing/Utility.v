@@ -118,12 +118,13 @@ Section Util.
   | BTMul t :
       numeric t ->
       binary_type Mul t t t
-  | BTDivBit w :
-      binary_type Div (TypBit w) (TypBit w) (TypBit w)
+  (* Div and Mod is not allowed for bit<w>, see Ops.v. *)
+  (* | BTDivBit w :
+      binary_type Div (TypBit w) (TypBit w) (TypBit w) *)
   | BTDivInteger :
       binary_type Div TypInteger TypInteger TypInteger
-  | BTModBit w :
-      binary_type Mod (TypBit w) (TypBit w) (TypBit w)
+  (* | BTModBit w :
+      binary_type Mod (TypBit w) (TypBit w) (TypBit w) *)
   | BTModInteger :
       binary_type Mod TypInteger TypInteger TypInteger
   | BTLe t :

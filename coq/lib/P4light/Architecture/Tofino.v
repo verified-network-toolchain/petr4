@@ -1,5 +1,6 @@
 (* Semantics for the Tofino target. *)
 (* It is incomplete. Expand it to fit your needs. *)
+Require Import Poulet4.Monads.ExportAll.
 Require Import Strings.String.
 Require Import Coq.Bool.Bool.
 Require Import Coq.ZArith.BinInt.
@@ -9,6 +10,7 @@ Require Import Coq.Program.Program.
 Require Import Poulet4.P4light.Syntax.Value.
 Require Import Poulet4.P4light.Syntax.ValueUtil.
 Require Import Poulet4.P4light.Syntax.Syntax.
+Require Poulet4.P4light.Semantics.Extract.
 From Poulet4.P4light.Syntax Require Import
      Typed P4Int SyntaxUtil P4Notations.
 From Poulet4.P4light.Semantics Require Import Ops.
@@ -250,22 +252,43 @@ Definition regaction_execute : extern_func := {|
   ef_sem := regaction_execute_sem
 |}.
 
-Axiom extract : forall (pin : list bool) (typ : P4Type), Val * list bool.
-Axiom extract2 : forall (pin : list bool) (typ : P4Type) (len : Z), Val * list bool.
+Definition extract (typ: Typed.P4Type) (pkt: list bool) : option (Val * signal * list bool) :=
+  let (res, pkt') := Extract.extract (tags_t:=tags_t) typ pkt in
+  match res with
+  | inl v =>
+      Some (v, SReturnNull, pkt')
+  | inr (Reject err) =>
+      let* v := ValueUtil.zero_init_val_of_typ typ in
+      Some (v, SReject (Packet.error_to_string err), pkt')
+  | inr (TypeError s) =>
+      None
+  end.
+
+Definition extract2 (typ: Typed.P4Type) (n: nat) (pkt: list bool) : option (Val * signal * list bool) :=
+  let (res, pkt') := Extract.var_extract (tags_t:=tags_t) typ n pkt in
+  match res with
+  | inl v =>
+      Some (v, SReturnNull, pkt')
+  | inr (Reject err) =>
+      let* v := ValueUtil.zero_init_val_of_typ typ in
+      Some (v, SReject (Packet.error_to_string err), pkt')
+  | inr (TypeError s) =>
+      None
+  end.
 
 Inductive packet_in_extract_sem : extern_func_sem :=
-  | exec_packet_in_extract : forall e s p pin typ v pin',
+| exec_packet_in_extract : forall e s p pin typ v sig pin',
       PathMap.get p s = Some (ObjPin pin) ->
-      extract pin typ = (v, pin') ->
+      extract typ pin = Some (v, sig, pin') ->
       packet_in_extract_sem e s p [typ] []
             (PathMap.set p (ObjPin pin') s)
-          [v] SReturnNull
-  | exec_packet_in_extract2 : forall e s p pin typ len v pin',
+          [v] sig
+ | exec_packet_in_extract2 : forall e s p pin typ len v sig pin',
       PathMap.get p s = Some (ObjPin pin) ->
-      extract2 pin typ len = (v, pin') ->
-      packet_in_extract_sem e s p [typ] [ValBaseBit (to_lbool 32%N len)]
+      extract2 typ len pin = Some (v, sig, pin') ->
+      packet_in_extract_sem e s p [typ] [ValBaseBit (to_lbool 32%N (Z.of_nat len))]
             (PathMap.set p (ObjPin pin') s)
-          [v] SReturnNull.
+          [v] sig.
 
 Definition packet_in_extract : extern_func := {|
   ef_class := "packet_in";
@@ -273,12 +296,14 @@ Definition packet_in_extract : extern_func := {|
   ef_sem := packet_in_extract_sem
 |}.
 
-Axiom emit : forall (pout : list bool) (v : Val), list bool.
+Definition emit (v : Val) : Packet (list bool) :=
+  Extract.emit v;;
+  get_state.
 
 Inductive packet_out_emit_sem : extern_func_sem :=
-  | exec_packet_out_emit : forall e s p pout typ v pout',
+  | exec_packet_out_emit : forall e s p pout typ v pout' x,
       PathMap.get p s = Some (ObjPout pout) ->
-      emit pout v = pout' ->
+      emit v pout = (inl pout', x) ->
       packet_out_emit_sem e s p [typ] [v]
             (PathMap.set p (ObjPout pout') s)
           [] SReturnNull.
@@ -573,15 +598,16 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry_val
   | sa :: _ => Some (snd sa)
   end.
 
-Definition interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list (P4Type ) -> list Val -> Result.result Exn.t (extern_state * list Val * signal).
-Admitted.
+Definition interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list (P4Type) -> list Val -> Result.result Exn.t (extern_state * list Val * signal) :=
+  (fun _ _ _ _ _ _ _ => Result.Error (Exn.Other "Tofino.interp_extern is not implemented")).
 
 Definition interp_extern_safe :
   forall env st class method this targs args st' retvs sig,
     interp_extern env st class method this targs args = Result.Ok (st', retvs, sig) ->
     exec_extern env st class method this targs args st' retvs sig.
 Proof.
-Admitted.
+  inversion 1.
+Qed.
 
 Instance TofinoExternSem : ExternSem := Build_ExternSem
   env_object
@@ -610,8 +636,8 @@ Inductive exec_prog (type_args : list P4Type) : (path -> extern_state -> list Va
       exec_prog type_args module_sem s0 pin s7 pout.
 
 Definition interp_prog (type_args : list P4Type) : (path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * signal)) ->
-                         extern_state -> Z -> list bool -> Result.result Exn.t (extern_state * Z * list bool).
-Admitted.
+                         extern_state -> Z -> list bool -> Result.result Exn.t (extern_state * Z * list bool) :=
+  (fun _ _ _ _ => Result.Error (Exn.Other "Tofino.interp_prog is not implemented")).
 
 Instance Tofino : Target := Build_Target _ "main" exec_prog interp_prog.
 

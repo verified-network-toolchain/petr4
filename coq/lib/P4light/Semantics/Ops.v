@@ -115,15 +115,16 @@ Section Ops.
     | BitAnd    => Some (ValBaseBit (to_lbool w (BitArith.bit_and w n1 n2)))
     | BitXor    => Some (ValBaseBit (to_lbool w (BitArith.bit_xor w n1 n2)))
     | BitOr     => Some (ValBaseBit (to_lbool w (BitArith.bit_or  w n1 n2)))
-    | Div       => if n2 =? 0 then None
+    (* Div and Mod are not allowed for bit<w> according to the P4 Spec. Also,
+      dividing by a runtime value may cause runtime error. *)
+    (* | Div       => if n2 =? 0 then None
                   else Some (ValBaseBit (to_lbool w (BitArith.div_mod w n1 n2)))
     | Mod       => if n2 =? 0 then None
-                  else Some (ValBaseBit (to_lbool w (BitArith.modulo_mod w n1 n2)))
+                  else Some (ValBaseBit (to_lbool w (BitArith.modulo_mod w n1 n2))) *)
     (* implemented elsewhere *)
     | Shl | Shr | PlusPlus | Eq | NotEq
     (* not allowed *)
-    | And
-    | Or      => None
+    | _      => None
     end.
 
 

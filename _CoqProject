@@ -1,0 +1,16 @@
+-Q _build/default/coq/lib Poulet4
+
+# Compilers.
+-Q _build/default/coq/lib/Ccomp   Poulet4.Ccomp
+-Q _build/default/coq/lib/Compile Poulet4.Compile
+
+# IRs.
+-Q _build/default/coq/lib/GCL        Poulet4.GCL
+-Q _build/default/coq/lib/P4Automata Poulet4.P4automata
+-Q _build/default/coq/lib/P4cub      Poulet4.P4cub
+-Q _build/default/coq/lib/P4light    Poulet4.P4light
+
+# Utility modules.
+-Q _build/default/coq/lib/Monads   Poulet4.Monads
+-Q _build/default/coq/lib/Platform Poulet4.Platform
+-Q _build/default/coq/lib/Utils    Poulet4.Utils

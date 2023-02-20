@@ -95,9 +95,9 @@
 (library
  (preprocess
   (action
-   (run ./extraction/dummy.sh %{input-file})))
- (name poulet4)
+   (run coq/extraction/dummy.sh %{input-file})))
  (public_name poulet4)
  (libraries bignum zarith)
  (flags
-  (:standard -w -39 -w -33 -w -20 -w -27)))
+  (:standard -w -39 -w -33 -w -20)
+  ))

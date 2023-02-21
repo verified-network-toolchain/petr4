@@ -462,7 +462,7 @@
 \newcommand{\tableDcl}[2]{\mathsf{table}\ {#1}\, \{{#2}\}}
 \newcommand{\headerDcl}[4]{\mathsf{header}\ {#1} \langle {\overline{#2}} \rangle\, \{\overline{{#3} : {#4}}\}}
 \newcommand{\headerUnionDcl}[4]{\mathsf{header\_union}\ {#1}\, \langle {\overline{#2}} \rangle\, \{\overline{{#3} : {#4}}\}}
-\newcommand{\structDcl}[2]{\mathsf{struct}\ {#1}\, \{{#2}\}}
+\newcommand{\structDcl}[4]{\mathsf{struct}\ {#1}\,  \langle {\overline{#2}} \rangle\, \{\overline {{#3}:{#4}}\}}
 \newcommand{\errDcl}[1]{\mathsf{error}\ \{ {#1} \}}
 \newcommand{\matchkindDcl}[1]{\mathsf{match\_kind}\ \{{#1}\}}
 \newcommand{\enumDcl}[2]{\mathsf{enum}\ {#1}\, \{{#2} \}}
@@ -619,12 +619,12 @@
 \newcommand{\headerUnionTyp}[2]{\mathsf{header\_union} \recordTypStructureOpen {#1} {#2}}
 \newcommand{\headerUnionTyps}[3]{\mathsf{header\_union}\langle{\overline{#1}}\rangle \recordTypStructureClose {#2} {#3}}
 \newcommand{\headerTyp}[3]{\mathsf{header} \langle{\overline{#1}}\rangle\recordTypStructureOpen {#2} {#3}}
-\newcommand{\structTyp}[2]{\mathsf{struct} \recordTypStructureOpen {#1} {#2}}
+\newcommand{\structTyp}[3]{\mathsf{struct} \langle{\overline{#1}}\rangle \recordTypStructureOpen {#2} {#3}}
 \newcommand{\headerTyps}[3]{\mathsf{header} \langle{\overline{#1}}\rangle\recordTypStructureClose {#2} {#3}}
 %% \newcommand{\headerTypp}[2]{\mathsf{header} \recordTypp {#1} {#2}}
 %% \newcommand{\structTypp}[2]{\mathsf{struct} \recordTypp {#1} {#2}}
 \newcommand{\structTypDef}{\mathsf{struct} \recordTypStructureOpen 1 n}
-\newcommand{\structTyps}[2]{\mathsf{struct} \recordTypStructureClose {#1} {#2}}
+\newcommand{\structTyps}[3]{\mathsf{struct} \langle{\overline{#1}}\rangle \recordTypStructureClose {#2} {#3}}
 %% \newcommand{\headerUnionTyp}{\mathit{header\_union}\{\field_1:\typ_1;\ldots;\field_n:\typ_n \}}
 %% \newcommand{\headerTypDef}{\headerTyp 1 n}
 %% \newcommand{\headerTyp}[2]{\mathit{header}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}

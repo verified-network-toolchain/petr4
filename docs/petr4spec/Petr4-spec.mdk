@@ -593,7 +593,7 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\tableDcl \var \props$ | $\qquad \text{tables}$ |
 |   | $\vert$ | $\headerDcl \typName \typParam \field {\surfaceTyp \width}$ | $\qquad \text{header types}$ |
 |   | $\vert$ | $\headerUnionDcl \typName \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{header union types}$ |
-|   | $\vert$ | $\structDcl \typName \fieldTyps$ | $\qquad \text{struct types}$ |
+|   | $\vert$ | $\structDcl \typName \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{struct types}$ |
 |   | $\vert$ | $\errDcl \fields$ | $\qquad \text{error types}$ |
 |   | $\vert$ | $\matchkindDcl \fields$ | $\qquad \text{match kind types}$ |
 |   | $\vert$ | $\enumDcl \typName \fields$ | $\qquad \text{enumerated types}$ |
@@ -649,7 +649,7 @@ Two judgments are provided for types of P4 expressions:
 |~~~~:|:~~~~:|:~~~~|:~~~~|
 | $\declaredTyp$ | $::=$ |$\headerTyps \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{headers}$ |
 |   | $\vert$ | $\headerUnionTyps \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{header unions}$ |
-|   | $\vert$ | $\structTyps \field \typ$ | $\qquad \text{structs}$ |
+|   | $\vert$ | $\structTyps \typParam \field \typ$ | $\qquad \text{structs}$ |
 |   | $\vert$ | $\enumTypDef$ | $\qquad \text{serializable enums}$ |
 |   | $\vert$ | $\enumTypNoTypDef$ | $\qquad \text{enums}$ |
 |   | $\vert$ | $\parserTyp \typParams {\prmDefs \typ}$ | $\qquad \text{parsers}$ |
@@ -2231,34 +2231,34 @@ meaning that it applies for both explicit and implicit casts. However, note that
 
   \inferrule
      {\castenv \ {\typs} {\overline {\VVal \typ}}}
-     {\castenv \ {\listTyps \typ} {\structTyps \field {\VVal \typ}}}
+     {\castenv \ {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
      \quad (\rn{TupleToStruct}\rAE\rSep\rn{1})
 
 \and
 
   \inferrule
      {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
-     {\castenv \ {\listTyps \typ} {\structTyps \field {\VVal \typ}}}
+     {\castenv \ {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
      \quad (\rn{TupleToStruct}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\explCast {\typs} {\overline {\VVal \typ}}}
-  %    {\explCast {\listTyps \typ} {\structTyps \field {\VVal \typ}}}
+  %    {\explCast {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{ListToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{1})
 
   % \inferrule
   %    {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
-  %    {\explCast {\listTyps \typ} {\structTyps \field {\VVal \typ}}}
+  %    {\explCast {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{ListToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\implCast {\typs} {\overline {\VVal \typ}}}
-  %    {\implCast {\listTyps \typ} {\structTyps \field {\VVal \typ}}}
+  %    {\implCast {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{ListToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{1})
 
   % \inferrule
   %    {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
-  %    {\implCast {\listTyps \typ} {\structTyps \field {\VVal \typ}}}
+  %    {\implCast {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{ListToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{2})
 
 \and
@@ -2300,34 +2300,34 @@ meaning that it applies for both explicit and implicit casts. However, note that
 
   \inferrule
      {\castenv \ {\typs} {\overline {\VVal \typ}}}
-     {\castenv \ {\recordTyps \field \typ } {\structTyps \field {\VVal \typ}}}
+     {\castenv \ {\recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
      \quad (\rn{RecordToStruct}\rAE\rSep\rn{1})
 
 \and
 
   \inferrule
      {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
-     {\castenv \ {\recordTyps \field \typ } {\structTyps \field {\VVal \typ}}}
+     {\castenv \ {\recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
      \quad (\rn{RecordToStruct}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\explCast {\typs} {\overline {\VVal \typ}}}
-  %    {\explCast {\recordTyps \field \typ } {\structTyps \field {\VVal \typ}}}
+  %    {\explCast {\recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{1})
 
   % \inferrule
   %    {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
-  %    {\explCast {\recordTyps \field \typ } {\structTyps \field {\VVal \typ}}}
+  %    {\explCast {\recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\implCast {\typs} {\overline {\VVal \typ}}}
-  %    {\implCast {\recordTyps \field \typ } {\structTyps \field {\VVal \typ}}}
+  %    {\implCast {\recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{1})
 
   % \inferrule
   %    {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
-  %    {\implCast {\recordTyps \field \typ } {\structTyps \field {\VVal \typ}}}
+  %    {\implCast {\recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{2})
 
   % \inferrule
@@ -2352,22 +2352,22 @@ meaning that it applies for both explicit and implicit casts. However, note that
 
   % \inferrule
   %    {\explCast {\typs} {\overline {\VVal {\typ}}}}
-  %    {\explCast {\structTyps \field \typ} {\structTyps \field {\VVal \typ}}}
+  %    {\explCast {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{StructToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{1})
 
   % \inferrule
-  %    {\typEqEnv \emp {\structTyps \field \typ} {\structTyps \field {\VVal \typ}}}
-  %    {\explCast {\structTyps \field \typ} {\structTyps \field {\VVal \typ}}}
+  %    {\typEqEnv \emp {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
+  %    {\explCast {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{StructToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\implCast {\typs} {\overline {\VVal \typ}}}
-  %    {\implCast {\structTyps \field \typ} {\structTyps \field {\VVal \typ}}}
+  %    {\implCast {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{StructToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{1})
 
   % \inferrule
-  %    {\typEqEnv \emp {\structTyps \field \typ} {\structTyps \field {\VVal \typ}}}
-  %    {\implCast {\structTyps \field \typ} {\structTyps \field {\VVal \typ}}}
+  %    {\typEqEnv \emp {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
+  %    {\implCast {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{StructToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{2})
 
   % \inferrule
@@ -2441,7 +2441,7 @@ a record type, a specialized type, an extern type, or an array. Then, it looks u
        (\field, \typ) \in \overline {\field, \typ} 
        % \exists 1 \leq i \leq n+1. \field_i = \field
        }
-     { \fieldAccessEnv \ctxt \field {\structTyps \field \typ} {\typ} }
+     { \fieldAccessEnv \ctxt \field {\structTyps \typParam \field \typ} {\typ} }
      \quad (\rn{Type:Struct}\rAE)
 
   \inferrule
@@ -2452,7 +2452,7 @@ a record type, a specialized type, an extern type, or an array. Then, it looks u
        % (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
        % \exists 1 \leq i \leq n+1. \field_i = \field
        }
-     { \fieldAccessEnv \ctxt \field {\structTyps \field \typ} {\funcTyp \builtin \ \ \boolTyp} }
+     { \fieldAccessEnv \ctxt \field {\structTyps \typParam \field \typ} {\funcTyp \builtin \ \ \boolTyp} }
      \quad (\rn{Type:Struct}\rSep\rn{Mem:isValid}\rAE)
 
   \inferrule
@@ -3000,7 +3000,6 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 ```done```
 
 ~ Begin InfRule
-% \headerDcl \typName \fieldTyps
 
   \mprset {vskip = 0.7ex}
   {\inferrule
@@ -3028,13 +3027,13 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 ## Struct Type Declaration { #sec-struct-typ-decl }
 
 ~ Begin InfRule
-% \structDcl \typName \fieldTyps
+% \structDcl \typName \typParam \field {\surfaceTyp \exp}
 
-  % \mprset {vskip = 0.7ex}
-  % {\inferrule
-  %   {}
-  %   {\dclenv {\headerUnionDcl \typName \typParam \field {\surfaceTyp \exp}} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
-  % \quad (\structD)
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {}
+    {\dclenv {} {} {} {} {} {}}}
+  \quad (\structD)
 
 ~ End InfRule 
 

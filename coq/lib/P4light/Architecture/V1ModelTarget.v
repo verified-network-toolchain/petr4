@@ -27,7 +27,7 @@ Notation path := (list ident).
 Notation P4Type := (@P4Type tags_t).
 Notation Val := (@ValueBase bool).
 Notation ValSet := ValueSet.
-Notation table_entry := (@table_entry tags_t Expression).
+Notation table_entry := (@table_entry Expression).
 Notation action_ref := (@action_ref Expression).
 
 Global Instance Inhabitant_Val : Inhabitant Val := ValBaseNull.
@@ -355,7 +355,7 @@ Inductive ValSetT :=
 | VSTRange (lo: Val) (hi: Val)
 | VSTProd (_: list ValSetT)
 | VSTLpm (nbits: N) (value: Val)
-| VSTValueSet (size: N) (members: list (list (@Match tags_t))) (sets: list ValSetT).
+| VSTValueSet (size: N) (members: list (list ValSetT)) (sets: list ValSetT).
 
 Fixpoint valset_to_valsett (vs : ValSet) :=
   match vs with
@@ -365,7 +365,11 @@ Fixpoint valset_to_valsett (vs : ValSet) :=
   | ValSetRange lo hi => VSTMask lo hi
   | ValSetProd sets => VSTProd (List.map valset_to_valsett sets)
   | ValSetLpm nbits value => VSTLpm nbits value
-  | ValSetValueSet size members sets => VSTValueSet size members (List.map valset_to_valsett sets)
+  | ValSetValueSet size members sets =>
+      VSTValueSet
+        size
+        (List.map (List.map valset_to_valsett) members)
+        (List.map valset_to_valsett sets)
   end.
 
 Definition extern_get_entries (es : extern_state) (p : path) : list table_entry :=

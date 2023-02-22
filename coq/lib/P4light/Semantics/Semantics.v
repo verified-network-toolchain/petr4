@@ -29,6 +29,21 @@ Notation Val := (@ValueBase bool).
 Notation Sval := (@ValueBase (option bool)).
 
 Context {tags_t : Type}.
+
+Definition unwrap_action_ref2 (ref : TableActionRef) : (@action_ref (@Expression tags_t)) :=
+  match ref with
+  | MkTableActionRef _ ref _ =>
+      match ref with
+      | MkTablePreActionRef name args =>
+          let id :=
+            match name with
+            | BareName id => id
+            | QualifiedName _ id => id
+            end in
+          mk_action_ref (str id) args
+      end
+  end.
+
 Context {inhabitant_tags_t : Inhabitant tags_t}.
 Definition dummy_type : @P4Type tags_t := TypBool.
 Opaque dummy_type.
@@ -114,7 +129,7 @@ Variant get_member : Sval -> string -> Sval -> Prop :=
                             get_next_of_stack headers next = Some hdr ->
                             get_member (ValBaseStack headers next) "next" hdr.
 
-Notation ValSet := (@ValueSet tags_t).
+Notation ValSet := ValueSet.
 Notation Lval := ValueLvalue.
 Notation P4Int := (P4Int.t tags_t).
 
@@ -127,7 +142,7 @@ Variant fundef :=
       (keys : list (@TableKey tags_t))
       (actions : list (@Expression tags_t))
       (default_action : @Expression tags_t)
-      (entries : option (list (@table_entry tags_t (@Expression tags_t))))
+      (entries : option (list (@table_entry (@Expression tags_t))))
   | FExternal
       (class : ident)
       (name : ident).
@@ -674,11 +689,19 @@ Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
 Definition exec_matches (read_one_bit : option bool -> bool -> Prop) (this : path) :=
   Forall2 (exec_match read_one_bit this).
 
+Variant exec_TableEntry (read_one_bit : option bool -> bool -> Prop) (this : path) :
+  TableEntry -> table_entry -> Prop :=
+  | exec_MkTableEntry tag mtchs action valsets :
+    exec_matches read_one_bit this mtchs valsets ->
+    exec_TableEntry
+      read_one_bit this
+      (MkTableEntry tag mtchs action)
+      (mk_table_entry valsets (unwrap_action_ref2 action)). 
+
 Inductive exec_table_entry (read_one_bit : option bool -> bool -> Prop) :
                            path -> table_entry ->
-                           (@table_entry_valset tags_t (@Expression tags_t)) -> Prop :=
+                           (@table_entry_valset (@Expression tags_t)) -> Prop :=
   | exec_table_entry_intro : forall this ms svs action entryvs,
-                             exec_matches read_one_bit this ms svs ->
                              (if (List.length svs =? 1)%nat
                               then entryvs = (List.hd ValSetUniversal svs, action)
                               else entryvs = (ValSetProd svs, action)) ->
@@ -1964,26 +1987,6 @@ Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) 
       end
   end.
 
-Definition unwrap_action_ref2 (ref : TableActionRef) : (@action_ref (@Expression tags_t)) :=
-  match ref with
-  | MkTableActionRef _ ref _ =>
-      match ref with
-      | MkTablePreActionRef name args =>
-          let id :=
-            match name with
-            | BareName id => id
-            | QualifiedName _ id => id
-            end in
-          mk_action_ref (str id) args
-      end
-  end.
-
-Definition unwrap_table_entry (entry : TableEntry) : table_entry :=
-  match entry with
-  | MkTableEntry _ matches action =>
-      mk_table_entry matches (unwrap_action_ref2 action)
-  end.
-
 (* When loading function definitions into function environment, we add initializer for
   out parameters. (And we do the same thing for abstract methods during instantiation.)
   This is not ideal as it is mixing instantiation with preprocessing. But puting it into
@@ -1996,6 +1999,12 @@ Definition no_op_action_ref : @TableActionRef tags_t :=
   MkTableActionRef dummy_tags
                    (MkTablePreActionRef (QualifiedName [] NoAction) [])
                    (TypAction [] []).
+
+Definition unwrap_table_entry (entry : TableEntry) : table_entry :=
+  match entry with
+  | MkTableEntry _ matches action =>
+      mk_table_entry matches (unwrap_action_ref2 action)
+  end.
 
 Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : genv_func :=
   match decl with

@@ -65,7 +65,6 @@ Context {tags_t: Type}.
 Notation ident := string.
 Notation path := (list ident).
 Notation Val := (@ValueBase bool).
-Notation ValSet := (@ValueSet tags_t).
 
 Fixpoint width_of_val (v: Val): N :=
   let fix fields_width (fields: StringAList ValueBase) : N :=
@@ -98,9 +97,9 @@ Inductive action_ref :=
 
 Inductive table_entry :=
   (* TODO replace Expression in Match with Val. *)
-  mk_table_entry (matches : list (@Match tags_t)) (action : action_ref).
+  mk_table_entry (matches : list ValueSet) (action : action_ref).
 
-Definition table_entry_valset : Type :=  ValSet * action_ref.
+Definition table_entry_valset : Type :=  ValueSet * action_ref.
 
 Class ExternSem := {
   extern_env_object : Type;

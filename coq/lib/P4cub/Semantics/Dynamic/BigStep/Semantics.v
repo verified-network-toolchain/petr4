@@ -192,35 +192,10 @@ Definition lv_update_signal
 
 Notation light_set := (@ValueSet unit).
 
-Open Scope pat_scope.
-
-(* TODO: cast case. *)
-Variant pre_match_big_step : @MatchPreT unit -> Parser.pat -> Prop :=
-  | bs_DontCare :
-    pre_match_big_step MatchDontCare Parser.Wild
-  | bs_Mask l₁ l₂ e₁ e₂ n₁ n₂ w :
-    embed_expr e₁ l₁ ->
-    embed_expr e₂ l₂ ->
-    ⟨ [], e₁ ⟩ ⇓ w VW n₁ ->
-    ⟨ [], e₂ ⟩ ⇓ w VW n₂ ->
-    pre_match_big_step (MatchMask l₁ l₂) (Parser.Mask (w PW n₁) (w PW n₂))
-  | bs_Range l₁ l₂ e₁ e₂ n₁ n₂ w :
-    embed_expr e₁ l₁ ->
-    embed_expr e₂ l₂ ->
-    ⟨ [], e₁ ⟩ ⇓ w VW n₁ ->
-    ⟨ [], e₂ ⟩ ⇓ w VW n₂ ->
-    pre_match_big_step (MatchRange l₁ l₂) (Parser.Range (w PW n₁) (w PW n₂)).
-
-Close Scope pat_scope.
-
-Variant match_big_step : @Match unit -> Parser.pat -> Prop :=
-  | bs_MkMatch τ m p :
-    pre_match_big_step m p -> match_big_step (MkMatch tt m τ) p.
-
 Variant table_entry_big_step
-  : table_entry (tags_t:=unit) (Expression:=Expr.e) -> Parser.pat -> action_ref -> Prop :=
+  : table_entry (Expression:=Expr.e) -> Parser.pat -> action_ref -> Prop :=
   | bs_mk_table_entry mtchs pats aref :
-    Forall2 match_big_step mtchs pats ->
+    Forall2 embed_pat_valset pats mtchs ->
     table_entry_big_step (mk_table_entry mtchs aref) (Parser.Lists pats) aref.
 
 Notation Extern_Sem := (ExternSem (tags_t:=unit) (Expression:=Expr.e)).

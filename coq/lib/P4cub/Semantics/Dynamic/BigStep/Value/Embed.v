@@ -286,7 +286,7 @@ Section Embed.
     - apply unembed_expr_complete.
   Qed.
 
-  Inductive embed_pat_valset : Parser.pat -> ValueSet (tags_t:=tags_t) -> Prop :=
+  Inductive embed_pat_valset : Parser.pat -> ValueSet -> Prop :=
   | embed_pat_wild :
     embed_pat_valset Parser.Wild ValSetUniversal
   | embed_pat_bit w n :

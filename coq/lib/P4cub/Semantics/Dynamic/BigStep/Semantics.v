@@ -333,7 +333,7 @@ Inductive stmt_big_step
     ⤋ ⧼ lv_update_signal olv sig (copy_out O vargs ϵ'' ϵ), Cont, ψ ⧽  
 | sbs_action_call
     ϵ ϵ' ϵ'' clos c ψ a ctrl_args data_args actions
-    vctrl_args vdata_args olv act_clos body sig :
+    vctrl_args vdata_args act_clos body sig :
   (** Get action from context. *)
   actions_of_ctx c actions ->
   (** Lookup action. *)
@@ -348,7 +348,7 @@ Inductive stmt_big_step
   ⧼ Ψ, vctrl_args ++ ϵ' ++ clos, CAction act_clos,
       body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽
-    ⤋ ⧼ lv_update_signal olv sig (copy_out O vdata_args ϵ'' ϵ), Cont, ψ ⧽
+    ⤋ ⧼ copy_out O vdata_args ϵ'' ϵ, Cont, ψ ⧽
 | sbs_method_call
     ϵ c ψ ext meth τs args
     eo vargs vargs' olv sig

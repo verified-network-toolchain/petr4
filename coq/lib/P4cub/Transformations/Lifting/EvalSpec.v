@@ -228,11 +228,11 @@ Section StatementLifting.
   Local Hint Resolve relate_decl_list_app : core.
   Local Hint Resolve shift_s_eval : core.
   Local Hint Constructors relop : core.
-  Local Hint Constructors ctx_cuttoff : core.
-  Local Hint Resolve ctx_cuttoff_le : core.
+  Local Hint Constructors ctx_cutoff : core.
+  Local Hint Resolve ctx_cutoff_le : core.
   
   Lemma Lift_s_good : forall Ψ ϵ ϵ' c s sig ψ,
-      ctx_cuttoff (length ϵ) c ->
+      ctx_cutoff (length ϵ) c ->
       ⧼ Ψ, ϵ, c, s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ -> forall s',
           Lift_s s s' ->
           ⧼ Ψ, ϵ, c, s' ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽.

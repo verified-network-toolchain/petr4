@@ -241,6 +241,50 @@ Section Relop.
   | relop_some a b : R a b -> relop (Some a) (Some b).
 End Relop.
 
+Section Relop.
+  Local Hint Constructors relop : core.
+  
+  Lemma relop_impl : forall {A B : Type} (R Q : A -> B -> Prop) oa ob,
+      (forall a b, R a b -> Q a b) -> relop R oa ob -> relop Q oa ob.
+  Proof.
+    intros A B R Q oa ob h H; inv H; auto.
+  Qed.
+
+  Lemma relop_map_l : forall {A B C : Type} (R : C -> B -> Prop) (f : A -> C) oa ob,
+      relop R (option_map f oa) ob <-> relop (fun a => R (f a)) oa ob.
+  Proof.
+    intros A B C R f oa ob.
+    destruct oa as [a |]; destruct ob as [b |];
+      split; cbn; intro h; inv h; auto.
+  Qed.
+
+  Lemma relop_sym : forall {A B : Type} (R : A -> B -> Prop) oa ob,
+      relop R oa ob <-> relop (fun b a => R a b) ob oa.
+  Proof.
+    intros R oa ob; split; intro h; inv h; auto.
+  Qed.
+
+  Lemma relop_map_r : forall {A B C : Type} (R : A -> C -> Prop) (f : B -> C) oa ob,
+      relop R oa (option_map f ob) <-> relop (fun a b => R a (f b)) oa ob.
+  Proof.
+    intros A B C R f oa ob.
+    rewrite relop_sym.
+    rewrite relop_map_l.
+    rewrite relop_sym.
+    reflexivity.
+  Qed.
+
+  Lemma relop_map_both :
+    forall {A B C D : Type} (R : C -> D -> Prop) (f : A -> C) (g : B -> D) oa ob,
+      relop R (option_map f oa) (option_map g ob)
+      <-> relop (fun a b => R (f a) (g b)) oa ob.
+  Proof.
+    intros A B C D R f g oa ob.
+    rewrite relop_map_l,relop_map_r.
+    reflexivity.
+  Qed.
+End Relop.
+    
 (** * Option Equivalence *)
 Section Relop.
   Context {A : Type}.

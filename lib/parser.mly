@@ -51,7 +51,7 @@ let rec smash_annotations l tok2 =
 %token<P4info.t> DONTCARE
 %token<P4info.t> MASK RANGE
 %token<P4info.t> TRUE FALSE
-%token<P4info.t> ABSTRACT ACTION ACTIONS APPLY BOOL BIT CONST CONTROL DEFAULT
+%token<P4info.t> ABSTRACT ACTION ACTIONS APPLY BOOL BIT CONST CONTROL DEFAULT DEFAULT_ACTION
 %token<P4info.t> ELSE ENTRIES ENUM ERROR EXIT EXTERN HEADER HEADER_UNION IF IN INOUT
 %token<P4info.t> INT KEY SELECT MATCH_KIND OUT PACKAGE PARSER RETURN STATE STRING STRUCT
 %token<P4info.t> SWITCH TABLE THEN TRANSITION TUPLE TYPE TYPEDEF VARBIT VALUESET VOID
@@ -1087,6 +1087,12 @@ tableProperty:
 | info1 = CONST ENTRIES ASSIGN L_BRACE entries = entriesList info2 = R_BRACE
     { (P4info.merge info1 info2,
        Table.Entries { entries = entries }) }
+| info1 = CONST DEFAULT_ACTION ASSIGN act = actionRef info2 = SEMICOLON
+    { (P4info.merge info1 info2,
+       Table.DefaultAction {action = act; const = true}) }
+| info1 = DEFAULT_ACTION ASSIGN act = actionRef info2 = SEMICOLON
+    { (P4info.merge info1 info2,
+       Table.DefaultAction {action = act; const = false}) }
 | annos = optAnnotations
     info1 = CONST n = nonTableKwName ASSIGN v = initialValue info2 = SEMICOLON
     { (P4info.merge info1 info2,

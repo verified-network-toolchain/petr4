@@ -1068,15 +1068,15 @@ Section InterpreterSafe.
         destruct (Semantics.not_continue s), (Semantics.not_continue s0);
           try (simpl_result_all; intuition congruence).
         eapply interp_builtin_safe; eauto.
-      + destruct func; simpl in Heqb.
-        cbn in H.
+      + unfold Interpreter.interp_call in H.
         rewrite Heqb in H.
+        cbn in H.
         repeat simpl_result_all.
-        destruct w.
+        destruct w0.
         repeat simpl_result_all.
-        destruct w.
+        destruct w0.
         repeat simpl_result_all.
-        destruct w as [[? ?] ?].
+        destruct w0 as [[? ?] ?].
         repeat simpl_result_all.
         econstructor; eauto using interp_lexpr_safe, interp_args_safe, interp_call_copy_out_safe.
         destruct (Semantics.is_continue s);

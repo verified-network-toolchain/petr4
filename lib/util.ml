@@ -117,10 +117,21 @@ let eq_opt ~f o1 o2 =
   | Some v1, Some v2 -> f v1 v2
   | _ -> false
 
+let rec repeat (n: int) (a: 'a) : 'a list =
+  if n > 0
+  then a :: repeat (n - 1) a
+  else []
+
+let pad8 (bits: bool list) =
+  let gap = 8 - List.length bits in
+  if gap > 0
+  then bits @ repeat gap false
+  else bits
+
 let rec pos_int_to_rev_bits' (acc: bool list) (k: int) : bool list =
   assert (k >= 0);
   if k = 0
-  then acc
+  then pad8 acc
   else if k mod 2 = 0
        then pos_int_to_rev_bits' (false :: acc) (k / 2)
        else pos_int_to_rev_bits' (true :: acc)  ((k - 1) / 2)
@@ -128,12 +139,54 @@ let rec pos_int_to_rev_bits' (acc: bool list) (k: int) : bool list =
 let pos_int_to_rev_bits (k: int) : bool list =
   pos_int_to_rev_bits' [] k
 
+(** Convert a hexadecimal nibble to a string of 4 bits. 
+ * Values outside [a-fA-F0-9] are sent to the empty list. *)
+let nibble_to_bits (c: char) : bool list =
+  match Char.uppercase c with
+  | '0' -> [false; false; false; false]
+  | '1' -> [false; false; false;  true]
+  | '2' -> [false; false;  true; false]
+  | '3' -> [false; false;  true;  true]
+  | '4' -> [false;  true; false; false]
+  | '5' -> [false;  true; false;  true]
+  | '6' -> [false;  true;  true; false]
+  | '7' -> [false;  true;  true;  true]
+  | '8' -> [ true; false; false; false]
+  | '9' -> [ true; false; false;  true]
+  | 'A' -> [ true; false;  true; false]
+  | 'B' -> [ true; false;  true;  true]
+  | 'C' -> [ true;  true; false; false]
+  | 'D' -> [ true;  true; false;  true]
+  | 'E' -> [ true;  true;  true; false]
+  | 'F' -> [ true;  true;  true;  true]
+  |  _  -> []
+
+(** If nibble_to_bits c = bits and bits is non-nil,
+ * then bits_to_nibble bits = Char.uppercase c. *)
+let bits_to_nibble (l: bool list) : char option =
+  match l with
+  | [false; false; false; false] -> Some '0'
+  | [false; false; false;  true] -> Some '1'
+  | [false; false;  true; false] -> Some '2'
+  | [false; false;  true;  true] -> Some '3'
+  | [false;  true; false; false] -> Some '4'
+  | [false;  true; false;  true] -> Some '5'
+  | [false;  true;  true; false] -> Some '6'
+  | [false;  true;  true;  true] -> Some '7'
+  | [ true; false; false; false] -> Some '8'
+  | [ true; false; false;  true] -> Some '9'
+  | [ true; false;  true; false] -> Some 'A'
+  | [ true; false;  true;  true] -> Some 'B'
+  | [ true;  true; false; false] -> Some 'C'
+  | [ true;  true; false;  true] -> Some 'D'
+  | [ true;  true;  true; false] -> Some 'E'
+  | [ true;  true;  true;  true] -> Some 'F'
+  |                            _ -> None
+
 let string_to_bits (s: string) : bool list =
   s
-  |> String.to_list_rev
-  |> List.map ~f:Char.to_int
-  |> List.concat_map ~f:pos_int_to_rev_bits
-  |> List.rev
+  |> String.to_list
+  |> List.concat_map ~f:nibble_to_bits
 
 let bool_to_int (b: bool) : int =
   if b then 1 else 0
@@ -149,23 +202,24 @@ let group8 lst =
   group8' [] lst
   |> List.rev
 
-let bits_to_string (bs: bool list) : string =
-  (* Expects 0 <= idx < 8 *)
-  let accum_bits idx acc bit =
-    let p = 7 - idx in
-    acc + bit lsl p
-  in
-  let collect_byte bits =
-    bits
-    |> List.foldi ~init:0 ~f:accum_bits
-  in
-  bs
-  |> List.map ~f:bool_to_int
-  |> group8
-  |> List.map ~f:collect_byte
-  |> List.map ~f:Char.of_int_exn
-  |> String.of_char_list
+let rec bits_to_nibbles (bs: bool list) : char list option =
+  match bs with
+  | [] -> Some []
+  | b1 :: b2 :: b3 :: b4 :: some_more ->
+    begin match bits_to_nibble [b1; b2; b3; b4],
+                bits_to_nibbles some_more with
+    | Some nibble, Some more ->
+      Some (nibble :: more)
+    | _, _ -> None
+    end
+  | _ -> None
 
+let bits_to_string (bs: bool list) : string =
+  match bits_to_nibbles bs with
+  | Some nibbles -> String.of_char_list nibbles
+  | None ->
+    failwith (Printf.sprintf "bool list of irregular length %d passed to bits_to_string" (List.length bs))
+  
 let hex_of_nibble (i : int) : string =
   match i with
   | 0 -> "0"

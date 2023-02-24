@@ -56,6 +56,7 @@ let packet_equal (port_exp, pkt_exp) (port, pkt) =
       Char.equal char_exp char || Char.equal char_exp '*'
   in
   Int.equal (Int.of_string port_exp) (Int.of_string port) &&
+  Int.equal (String.length pkt_exp) (String.length pkt) &&
   String.for_alli ~f:matches_exp pkt
 
 let convert_qualified name =
@@ -100,7 +101,7 @@ let get_stf_files path =
   Sys_unix.ls_dir path |> Base.List.to_list |>
   List.filter ~f:(fun x -> Core.Filename.check_suffix x ".stf")
 
-let stf_alco_test include_dir stf_file p4_file =
+let stf_alco_test speed include_dir stf_file p4_file =
     let run_stf_alcotest () =
       let cfg = Petr4.Pass.mk_check_only include_dir p4_file in
       let p4_prog = Petr4.Unix.Driver.run_checker cfg
@@ -110,5 +111,5 @@ let stf_alco_test include_dir stf_file p4_file =
       |> List.iter ~f:(fun (p_exp, p) ->
           Alcotest.(testable (Fmt.pair ~sep:Fmt.sp Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)
     in
-    let test = Alcotest.test_case (Filename.basename p4_file) `Quick run_stf_alcotest in
+    let test = Alcotest.test_case (Filename.basename p4_file) speed run_stf_alcotest in
     test

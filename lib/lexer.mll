@@ -171,6 +171,8 @@ rule tokenize = parse
       { CONTROL (info lexbuf) }
   | "default"
       { DEFAULT (info lexbuf) }
+  | "default_action"
+      { DEFAULT_ACTION (info lexbuf) }
   | "else"
       { ELSE (info lexbuf) }
   | "entries"

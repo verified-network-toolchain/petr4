@@ -486,6 +486,9 @@ and Table : sig
             { actions: action_ref list }
         | Entries of
             { entries: entry list }
+        | DefaultAction of
+            { action: action_ref;
+              const: bool }
         | Custom of
             { annotations: Annotation.t list;
               const: bool;
@@ -524,6 +527,9 @@ and Table : sig
                     { actions: action_ref list }
                 | Entries of
                     { entries: entry list }
+                | DefaultAction of
+                    { action: action_ref;
+                      const: bool }
                 | Custom of
                     { annotations: Annotation.t list;
                       const: bool;
@@ -537,6 +543,7 @@ and Table : sig
                 | Key _ -> "key"
                 | Actions _ -> "actions"
                 | Entries _ -> "entries"
+                | DefaultAction _ -> "default_action"
                 | Custom {name; _} -> name.str
             end
 

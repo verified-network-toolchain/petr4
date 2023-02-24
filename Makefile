@@ -41,7 +41,7 @@ claims: build
 	@test/claims.py
 
 ci-test: build
-	#dune exec -- bin/test.exe
+	dune exec -- bin/test.exe -q
 	cd test && dune exec -- ./test.exe test -q
 
 test-stf: build

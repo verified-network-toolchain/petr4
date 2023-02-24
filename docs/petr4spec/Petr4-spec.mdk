@@ -381,16 +381,16 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\bitWidthTyp \atyp$ | $\qquad \text{fixed-width unsigned integers}$ |
 |   | $\vert$ | $\varbitTyp \atyp$ | $\qquad \text{variable-width integers with a maximum width}$ |
 |   | $\vert$ | $\typName$ | $\qquad \text{type identifier}$ |
-|   | $\vert$ | $\spcTyp {\typName} {\argTyp}$ | $\qquad \text{specialized type}$ |
+|   | $\vert$ | $\spcTyp {\typName} {\typArg}$ | $\qquad \text{specialized type}$ |
 |   | $\vert$ | $\stackTyp {\surfaceTyp \atyp} \atyp$ | $\qquad \text{header stacks}$ |
-|   | $\vert$ | $\tupleTyps {\argTyp}$ | $\qquad \text{tuples}$ |
+|   | $\vert$ | $\tupleTyps {\typArg}$ | $\qquad \text{tuples}$ |
 { .booktable }
 
-**Argument types:**
+**Type arguments:**
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\argTyp$ | $::=$ | $\surfaceTyp \exp$ | $\qquad \text{surface types}$ |
+| $\typArg$ | $::=$ | $\surfaceTyp \exp$ | $\qquad \text{surface types}$ |
 |   | $\vert$ | $\voidTyp$ | $\qquad \text{void}$ |
 |   | $\vert$ | $\dontcareTyp$ | $\qquad \text{don't care}$ |
 |   | $\vert$ | $\identifierkw$ | $\qquad \text{identifier keyword}$ |
@@ -833,7 +833,7 @@ The rule $\specializedExternT$ states that the specialization of an extern type 
         % 1 \leq i \leq n. \typWellFormed {\typ_i} \\
         \typWellFormed \typs\\
         |\typs| = |\params|}
-     { \typWellFormed {\spcTyp {\externTyp \name} \typs} }
+     { \typWellFormed {\spcTyp {\externTyp \name} \typ} }
      \quad (\specializedExternT)}
 
 \and
@@ -843,31 +843,43 @@ The rule $\specializedExternT$ states that the specialization of an extern type 
      { \getTypeParams \typ = \{\params\}\\
         \typWellFormed {\typs} \\
         |\params| = |\typs|}
-     { \typWellFormed {\spcTyp \typName {\typs}} }
+     { \typWellFormed {\spcTyp \typName {\typ}} }
      \quad (\specializedRestT)}
 
 ~ End InfRule
 
-#### Stack Type { #sec-stack-t }
+#### Header Stack Type { #sec-stack-t }
 
-``todo: make sure it covers both \surfacetyp \exp and \typ``
+```done..```
 
-An array type has a specific type and size.
+An array (header stack) type has a specific type and size.
 The rule $\arrayT$ states that under environment $\env$, an array is well-formed if its
 type is well-formed and it follows the nesting rules of P4.
 
-- $\isValidNestedTyp \typ$ checks whether the nested type $\typ$ is valid, that is,
-it checks if all the subtypes in the type $\typ$ can actually be inner types of $\typ$ based on [P4's description of type nesting rules][sec7-2-7]. 
-
-[sec7-2-7]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html#sec-type-nesting 
-
 ~ Begin InfRule
 
-  \inferrule
-     { \typWellFormed \typ \\
-       \isValidNestedTyp {\arrayTyp \typ \size}}
-     { \typWellFormed {\arrayTyp \typ \size} }
+  \mprset {vskip=0.7ex}
+  {\inferrule
+     { \lookupTypEnv \typName = \typ \\
+       \typWellFormed \typ \\
+       \isHeaderOrUnion {\surfaceTyp \exp} \\\\
+       \compileTimeEval \exp = \size\\
+       \size > 0
+       % \isValidNestedTyp {\arrayTyp {\surfaceTyp \exp} \exp}
+       }
+     { \typWellFormed {\arrayTyp {\typName} \exp} }}
      \quad (\arrayT)
+
+\and
+
+  \mprset {vskip=0.7ex}
+  {\inferrule
+     { \typWellFormed {\spcTyp \typName {\typArg}}\\
+       \typWellFormed {\arrayTyp \typName \exp}
+       }
+     { \typWellFormed {\arrayTyp {\spcTyp \typName {\typArg}} \exp} }}
+     \quad (\arraySpecT)
+
 
 ~ End InfRule
 
@@ -878,6 +890,17 @@ it checks if all the subtypes in the type $\typ$ can actually be inner types of 
 Each element of a tuple can have a distinct type so a tuple type is simply a list of types. Note that lists also have a tuple type. The rule $\tupleT$ states that under
 environment $\env$, a tuple type is well-formed if all its types are well-formed and it
 follows the nesting typing rules of P4. 
+
+``todo: add isvalidenestedtyp for tuples. the text below is taken from headers. 
+A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function which for a header type the inner types can be one of the followings:``
+
+- $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
+- $\intWidthTyp \exp$ and $\compTimeKnown \exp$
+- $\integerTyp$
+- $\boolTyp$
+- $\enumTypDef$ and $\compTimeKnown \exp$
+- a struct or nested struct type that has the same properties, that is, it must contain only the above subtypes. 
+
 
 ~ Begin InfRule
 
@@ -3013,17 +3036,6 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
 ~ End InfRule 
 
-
-## Header Stack Type Declaration { #sec-header-stack-typ-decl }
-
-~ Begin InfRule
-
-  \mprset {vskip = 0.7ex}
-  {\inferrule
-    {}
-    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
-  \quad (header stack d)
-~ End InfRule 
 
 ## Struct Type Declaration { #sec-struct-typ-decl }
 

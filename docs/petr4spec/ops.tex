@@ -40,6 +40,7 @@
 \newcommand*{\intWidthT}{\rn{SignedInt}\rT}
 \newcommand*{\bitWidthT}{\rn{BitString}\rT}
 \newcommand*{\arrayT}{\rn{Array}\rT}
+\newcommand*{\arraySpecT}{\rn{Array}\rSep\rn{Specialized}\rT}
 \newcommand*{\tupleT}{\rn{Tuple}\rT}
 \newcommand*{\setT}{\rn{Set}\rT}
 \newcommand*{\enumTwoT}{\rn{SerializableEnum}\rT}
@@ -313,7 +314,7 @@
 \newcommand{\typs}{\overline \typ}
 \newcommand{\surfaceTyp}[1]{\rho_{#1}}
 \newcommand{\surfaceTyps}[1]{\overline {\surfaceTyp {#1}}}
-\newcommand{\argTyp}{\eta}
+\newcommand{\typArg}{\eta}
 \newcommand{\funcProTyp}{\mu}
 \newcommand{\declaredTyp}{\nu}
 \newcommand{\synTyp}{\sigma}
@@ -570,6 +571,7 @@
 \renewcommand{\next}{\mathsf{next}}
 \newcommand{\last}{\mathsf{last}}
 \newcommand{\isHeader}[1]{\mathit{is\_header}({#1})}
+\newcommand{\isHeaderOrUnion}[1]{\mathit{is\_header\_or\_union}({#1})}
 
 %kinds
 \newcommand{\builtin}{\mathsf{builtin}}

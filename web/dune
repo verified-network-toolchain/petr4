@@ -1,4 +1,5 @@
 (executable
+  (package petr4)
   (public_name petr4-web)
   (name web)
   (libraries p4pp core_kernel petr4 js_of_ocaml js_of_ocaml-lwt)

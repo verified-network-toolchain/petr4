@@ -22,14 +22,8 @@ WEB_EXAMPLES+=stf-test/custom-stf-tests/register.p4
 
 all: build
 
-build: deps
+build:
 	dune build @install && echo
-
-fast: 
-	dune build @install && echo
-
-deps:
-	$(MAKE) -C deps
 
 doc:
 	dune build @doc
@@ -41,7 +35,7 @@ install: build
 	dune install
 
 ctest: build install
-	cd deps/poulet4_Ccomp && petr4 c && gcc -o helloworld.o ccompiled.c -lgmp -lm
+	cd ccomp && dune exec -- petr4 c && gcc -o helloworld.o ccompiled.c -lgmp -lm
 
 claims: build
 	@test/claims.py

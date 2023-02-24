@@ -382,7 +382,7 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\varbitTyp \atyp$ | $\qquad \text{variable-width integers with a maximum width}$ |
 |   | $\vert$ | $\typName$ | $\qquad \text{type identifier}$ |
 |   | $\vert$ | $\spcTyp {\typName} {\typArg}$ | $\qquad \text{specialized type}$ |
-|   | $\vert$ | $\stackTyp {\surfaceTyp \atyp} \atyp$ | $\qquad \text{header stacks}$ |
+|   | $\vert$ | $\headerStackTyp {\surfaceTyp \atyp} \atyp$ | $\qquad \text{header stacks}$ |
 |   | $\vert$ | $\tupleTyps {\typArg}$ | $\qquad \text{tuples}$ |
 { .booktable }
 
@@ -865,9 +865,9 @@ type is well-formed and it follows the nesting rules of P4.
        \isHeaderOrUnion {\surfaceTyp \exp} \\\\
        \compileTimeEval \exp = \size\\
        \size > 0
-       % \isValidNestedTyp {\arrayTyp {\surfaceTyp \exp} \exp}
+       % \isValidNestedTyp {\headerStackTyp {\surfaceTyp \exp} \exp}
        }
-     { \typWellFormed {\arrayTyp {\typName} \exp} }}
+     { \typWellFormed {\headerStackTyp {\typName} \exp} }}
      \quad (\arrayT)
 
 \and
@@ -875,9 +875,9 @@ type is well-formed and it follows the nesting rules of P4.
   \mprset {vskip=0.7ex}
   {\inferrule
      { \typWellFormed {\spcTyp \typName {\typArg}}\\
-       \typWellFormed {\arrayTyp \typName \exp}
+       \typWellFormed {\headerStackTyp \typName \exp}
        }
-     { \typWellFormed {\arrayTyp {\spcTyp \typName {\typArg}} \exp} }}
+     { \typWellFormed {\headerStackTyp {\spcTyp \typName {\typArg}} \exp} }}
      \quad (\arraySpecT)
 
 
@@ -968,6 +968,8 @@ An enum is well-formed if its fields are distinct. Additionally, if it is a seri
 
 A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function which for a header type the inner types can be one of the followings:
 
+``todo: check if this is complete and according to p4 spec. ``
+
 - $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
 - $\intWidthTyp \exp$ and $\compTimeKnown \exp$
 - $\integerTyp$
@@ -1013,14 +1015,6 @@ A header union can have zero or more fields of type header. Note that in order f
 
 #### Well-Formed Struct Type
 
-~ Begin InfRule
-
-  \mprset {vskip = 0.7ex}
-    {}
-    {}
-    \quad (\}
-
-~ End InfRule
 
 #### Well-Formed Parser Type
 
@@ -1456,7 +1450,7 @@ $\name$ in the environment $\env$ and it has the type $\typ$ and direction $\dir
 $\arrayAccess {\exp_1} {\exp_2}$ denotes accessing the $\exp_2$^th^ element from the array $\exp_1$. 
 The rule $\arrayAccessE$ states that expression $\arrayAccess {\exp_1} {\exp_2}$
 translates to $\arrayAccess {\VVal {\exp_1}} {\VVal {\exp_2}}$
-when $\exp_1$ has the array type $\arrayTyp \typ \size$ and $\exp_2$ has a numeric type. 
+when $\exp_1$ has the array type $\headerStackTyp \typ \size$ and $\exp_2$ has a numeric type. 
 
 - $\isNumeric \exp \typ$
 checks that the expression $\exp$ with type $\typ$ fits one of the following:
@@ -1473,7 +1467,7 @@ compile time we still consider it known at compile time.
 ~ Begin InfRule
 
   \inferrule
-     {\expenv {\exp_1} {\VVal {\exp_1}} {\arrayTyp \typ \size} \dir \\\\
+     {\expenv {\exp_1} {\VVal {\exp_1}} {\headerStackTyp \typ \size} \dir \\\\
       \expenv {\exp_2} {\VVal {\exp_2}} {\VVal \typ} {\VVal \dir} \\\\
       % \isArray {\arrayTyp \typ \size} \\
       \isNumeric {\exp_2} {\VVal \typ}}
@@ -2498,22 +2492,22 @@ a record type, a specialized type, an extern type, or an array. Then, it looks u
 
   \inferrule
      { }
-     { \fieldAccessEnv \ctxt \sizeMem {\arrayTyp \typ \size} {\bitWidthTyp {32}}}
+     { \fieldAccessEnv \ctxt \sizeMem {\headerStackTyp \typ \size} {\bitWidthTyp {32}}}
      \quad (\rn{Type:Array}\rSep\rn{Mem:Size}\rAE)
 
   \inferrule
      { }
-     { \fieldAccessEnv \ctxt \lastIndex {\arrayTyp \typ \size} {\bitWidthTyp {32}}}
+     { \fieldAccessEnv \ctxt \lastIndex {\headerStackTyp \typ \size} {\bitWidthTyp {32}}}
      \quad (\rn{Type:Array}\rSep\rn{Mem:LastIndex}\rAE)
 
   \inferrule
      { }
-     { \fieldAccessEnv \parserCtxt \next {\arrayTyp \typ \size} {\typ}}
+     { \fieldAccessEnv \parserCtxt \next {\headerStackTyp \typ \size} {\typ}}
      \quad (\rn{Type:Array}\rSep\rn{Mem:Next}\rAE)
 
   \inferrule
      { }
-     { \fieldAccessEnv \parserCtxt \last {\arrayTyp \typ \size} {\typ}}
+     { \fieldAccessEnv \parserCtxt \last {\headerStackTyp \typ \size} {\typ}}
      \quad (\rn{Type:Array}\rSep\rn{Mem:Last}\rAE)
 
 ~ End InfRuleHelper
@@ -3030,7 +3024,6 @@ const S x = { 10, 20 }; //a = 10, b = 20.
     {\typWellFormed {\headerTyps  \typParam \field {\surfaceTyp \exp}}\\\\
      \VVal \typEnv = \insertToTypEnv \typName {\headerTyps  \typParam \field {\surfaceTyp \exp}}
     }
-    % {}}
     {\dclenv {\headerDcl \typName \typParam \field {\surfaceTyp \exp}} {\headerDcl \typName \typParam \field {\surfaceTyp \exp}} {\varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
   \quad (\headerD)
 
@@ -3039,16 +3032,6 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
 ## Struct Type Declaration { #sec-struct-typ-decl }
 
-~ Begin InfRule
-% \structDcl \typName \typParam \field {\surfaceTyp \exp}
-
-  \mprset {vskip = 0.7ex}
-  {\inferrule
-    {}
-    {\dclenv {} {} {} {} {} {}}}
-  \quad (\structD)
-
-~ End InfRule 
 
 ## Header Union Type Declaration { #sec-header-union-typ-decl }
 

@@ -25,6 +25,7 @@
 \newcommand*{\serenumTypedefWellT}{\rn{SerializableEnum}\rSep\rn{Typedef}\rT}
 \newcommand*{\headerTypWellT}{\rn{Header}\rT}
 \newcommand*{\headerUnionTypWellT}{\rn{HeaderUnion}\rT}
+\newcommand*{\structTypWellT}{\rn{Struct}\rT}
 
 \newcommand*{\boolT}{\rn{Bool}\rT}
 \newcommand*{\stringT}{\rn{String}\rT}
@@ -602,7 +603,7 @@
 \newcommand{\varbitTyp}[1]{\mathsf{varbit}\langle{#1}\rangle}
 \newcommand{\matchKindTyp}{\mathsf{match\_kind}}
 \newcommand{\voidTyp}{\mathsf{void}}
-\newcommand{\arrayTyp}[2]{{#1}[{#2}]}
+\newcommand{\headerStackTyp}[2]{{#1}[{#2}]}
 \newcommand{\tupleTyp}[2]{\mathsf{tuple}\langle{#1},\ldots,{#2}\rangle}
 \newcommand{\tupleTyps}[1]{\mathsf{tuple}\langle\overline{#1}\rangle}
 \newcommand{\listTyp}[2]{\tupleTyp {#1} {#2}}
@@ -654,7 +655,7 @@
 \newcommand{\tableTyp}[1]{\mathsf{table}\ {#1}}
 %% \newcommand{\typNameTyp}[1]{\mathsf{type\_name}\ {#1}}
 \newcommand{\unitTyp}{()}
-\newcommand{\stackTyp}[2]{{#1}[{#2}]}
+%% \newcommand{\stackTyp}[2]{{#1}[{#2}]}
 
 %directions:
 \newcommand{\less}{\mathsf{directionless}}

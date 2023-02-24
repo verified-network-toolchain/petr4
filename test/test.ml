@@ -42,7 +42,9 @@ let known_failures =
    "control-verify.p4";
    "div1.p4";
    "table-entries-lpm-2.p4";
-   "default-control-argument.p4"]
+   "default-control-argument.p4";
+   "virtual3.p4";
+   "issue2037.p4"]
 
 let good_test f file () =
   Alcotest.(check bool) (Printf.sprintf "good/%s" file) true

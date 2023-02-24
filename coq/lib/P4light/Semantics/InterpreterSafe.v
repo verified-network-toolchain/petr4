@@ -822,8 +822,8 @@ Section InterpreterSafe.
 
   Lemma interp_table_entry_safe:
     forall this entries vset,
-      Interpreter.interp_table_entry ge this entries = Ok vset ->
-      Semantics.exec_table_entry ge read_ndetbit this entries vset.
+      Interpreter.interp_table_entry this entries = vset ->
+      Semantics.exec_table_entry (tags_t:=tags_t) read_ndetbit this entries vset.
   Proof.
     unfold Interpreter.interp_table_entry.
     intros.
@@ -831,13 +831,13 @@ Section InterpreterSafe.
     simpl in *.
     repeat simpl_result_all.
     econstructor; eauto using interp_matches_safe.
-    destruct (PeanoNat.Nat.eqb _ _); simpl_result_all; congruence.
+    destruct (PeanoNat.Nat.eqb _ _); congruence.
   Qed.
 
   Lemma interp_table_entries_safe:
     forall entries this vsets,
-      Interpreter.interp_table_entries ge this entries = Ok vsets ->
-      Semantics.exec_table_entries ge read_ndetbit this entries vsets.
+      Interpreter.interp_table_entries this entries = vsets ->
+      Semantics.exec_table_entries (tags_t:=tags_t) read_ndetbit this entries vsets.
   Proof.
     unfold Semantics.exec_table_entries.
     induction entries; intros.

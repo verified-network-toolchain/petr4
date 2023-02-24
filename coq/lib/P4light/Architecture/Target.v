@@ -96,7 +96,6 @@ Inductive action_ref :=
   mk_action_ref (action : ident) (args : list (option Expression)).
 
 Inductive table_entry :=
-  (* TODO replace Expression in Match with Val. *)
   mk_table_entry (matches : list ValueSet) (action : action_ref).
 
 Definition table_entry_valset : Type :=  ValueSet * action_ref.

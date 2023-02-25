@@ -10,16 +10,17 @@ export PETR4_DEPS="m4 \
 
 # install dependencies
 brew update
-brew install \
-  ${PETR4_DEPS}
-opam update
-opam upgrade
+brew install ${PETR4_DEPS}
+
+opam switch 4.14.0
 eval $(opam env)
-opam install . --deps-only
+opam repo add coq-released https://coq.inria.fr/opam/released
+opam update
 
-# build petr4
+opam pin add --no-action p4pp https://github.com/cornell-netlab/p4pp.git
+opam pin add --no-action coq-vst-zlist https://github.com/PrincetonUniversity/VST.git
+
+opam install . --deps-only --no-checksums
+
 dune build --profile release
-dune install
 make ci-test
-
-

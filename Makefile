@@ -18,11 +18,9 @@ WEB_EXAMPLES+=examples/checker_tests/good/switch_ebpf.p4
 WEB_EXAMPLES+=examples/checker_tests/good/union-valid-bmv2.p4
 WEB_EXAMPLES+=stf-test/custom-stf-tests/register.p4
 
-.PHONY: all build claims clean test test-stf web ci-test
+.PHONY: all deps build claims clean test test-stf ci-test web stf-errors
 
 all: build
-
-default: build
 
 build:
 	dune build @install && echo
@@ -30,23 +28,26 @@ build:
 doc:
 	dune build @doc
 
-run:
+run: build
 	dune exec -- $(NAME)
 
-install:
+install: build
 	dune install
 
-claims:
+ctest: build install
+	cd ccomp && dune exec -- petr4 c && gcc -o helloworld.o ccompiled.c -lgmp -lm
+
+claims: build
 	@test/claims.py
 
-ci-test:
-	dune exec -- bin/test.exe
-	cd test && dune exec -- ./test.exe test -q
+ci-test: build
+	dune exec -- bin/test.exe -q
+	cd test && dune exec -- ./test.exe -q
 
-test-stf:
+test-stf: build
 	dune exec -- bin/test.exe
 
-test:
+test: build
 	cd test && dune exec -- ./test.exe
 
 clean:
@@ -54,3 +55,6 @@ clean:
 
 web:
 	dune build _build/default/web/web.bc.js --profile release && cp _build/default/web/web.bc.js web/html_build/
+
+stf-errors:
+	cat _build/_tests/Stf-tests/* | grep '\[failure\]' | sed 's/^ *//' | sort | uniq

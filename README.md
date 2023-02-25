@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/cornell-netlab/petr4.svg?branch=master)](https://travis-ci.org/cornell-netlab/petr4)
+[![Build Status](https://travis-ci.org/cornell-netlab/petr4.svg?branch=use-poulet4)](https://travis-ci.org/cornell-netlab/petr4)
 
 # Petr4
 The Petr4 project is developing the formal semantics of the [P4
@@ -41,25 +41,28 @@ Alternatively, follow theses steps:
     ```
 
 1. Install [p4pp](https://github.com/cornell-netlab/p4pp) from source.
-
-1. Use OPAM to install dependencies. 
+1. Install Coq and Bignum.
    ```
-   opam install . --deps-only
+   opam install coq
+   opam install bignum
    ```
    If this doesn't work, install the dependencies manually.
    ```
    opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriving_yojson yojson js_of_ocaml js_of_ocaml-lwt js_of_ocaml-ppx
    ```
 
-1. Build binaries using the supplied `Makefile`
+1. Build bundled dependencies.
    ```
-   make
+   opam repo add coq-released https://coq.inria.fr/opam/released
+   opam pin add coq-vst-zlist https://github.com/PrincetonUniversity/VST.git
+   make deps
    ```
 
-1. Install binaries in local OPAM directory
+1. Use dune to build and install petr4.
    ```
-   make install
-   ``` 
+   dune build
+   dune install
+   ```
 
 1. [Optional] Run tests
    ``` 

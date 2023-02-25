@@ -1,0 +1,103 @@
+(coq.extraction
+ (prelude Extract)
+ (extracted_modules
+  AList
+  AListUtil
+  Datatypes
+  List
+  P4Int
+  P4String
+  Syntax
+  P4Field
+  Extract
+  Packet
+  Typed
+  Utils
+  SimplExpr
+  Maps
+  SyntaxUtil
+  GenLoc
+  ConstValue
+  Interpreter
+  Target
+  V1ModelTarget
+  CoqLib
+  Compare_dec
+  BinNat
+  Datatypes
+  GCL
+  Inline
+  List
+  Result
+  ToGCL
+  ToP4cub
+  AST
+  EquivDec
+  ToP4cub
+  ToGCL
+  GCL
+  Inline
+  Statementize
+  HoistNameless
+  InferMemberTypes
+  Substitution
+  InlineTypeDecl
+  InlineConstants
+  TableInstr
+  V1model
+  Auxiliary
+  Envn
+  Result
+  P4Arith
+  EquivUtil
+  StringUtil
+  AListUtil
+  ListUtil
+  FunUtil
+  OptionUtil
+  Bool
+  String
+  Nat
+  BinNums
+  BinInt
+  Zpower
+  Specif
+  Basics
+  PeanoNat
+  BinPosDef
+  BinPos
+  BinNat
+  BinNatDef
+  Zcomplements
+  Ops
+  Value
+  sublist
+  Sumbool
+  Semantics
+  ZArith_dec
+  Target
+  ValueUtil
+  ssrbool
+  Classes
+  Ascii
+  BinIntDef
+  Monad
+  Option
+  State
+  ExceptionState
+  HeaderStack
+  Shift
+  RecordSet
+  Pure)
+ (libraries zarith bignum)
+ (theories Poulet4))
+
+(library
+ (preprocess
+  (action
+   (run coq/extraction/dummy.sh %{input-file})))
+ (public_name poulet4)
+ (libraries bignum zarith)
+ (flags
+  (:standard -w -39 -w -33 -w -20)
+  ))

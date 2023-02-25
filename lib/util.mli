@@ -24,6 +24,8 @@ val option_map: ('a -> 'b) -> 'a option -> 'b option
 
 val option_collapse: 'a option option -> 'a option
 
+val opt_to_exn: exn -> 'a option -> 'a
+
 val list_option_flip: 'a option list -> 'a list option
 
 val uncurry: ('a -> 'b -> 'c) -> 'a * 'b -> 'c
@@ -48,4 +50,8 @@ val eq_opt : f:('a -> 'a -> bool) -> 'a Option.t -> 'a Option.t -> bool
 
 type bigint = Bigint.t [@@deriving sexp,show,yojson]
 
-val hex_of_string : string -> string
+val string_to_bits: string -> bool list
+
+val bits_to_string: bool list -> string
+
+val hex_of_string: string -> string

@@ -1,22 +1,19 @@
 (* adds type variable at various places. check with Ryan. *)
-
-module I = Info
 open Core
-open Prog.Env
 open Util
-open Types
-module Info = I
+open Poulet4.Typed
+open Surface
+open Checker_env
 
 let subst_vars_name env type_name =
-  begin match CheckerEnv.resolve_type_name_opt type_name env with
-  | Some (TypeName v) -> v
+  begin match Checker_env.resolve_type_name_opt type_name env with
+  | Some (TypTypeName v) -> BareName v
   | Some _ -> failwith "unexpected type value during elaboration"
   | None -> type_name
   end
 
 let rec subst_vars_type env typ =
-  let open Types.Type in
-  (* fst typ, *)
+  let open Surface.Type in
   match typ with
   | TypeName {tags; name} ->
      TypeName {tags; name=subst_vars_name env name}
@@ -36,10 +33,9 @@ let subst_vars_arguments env args =
   List.map ~f:(subst_vars_argument env) args
 
 let rec subst_vars_expression env expr =
-  let open Types.Expression in
+  let open Surface.Expression in
   let go = subst_vars_expression env in
   let go_l = List.map ~f:go in
-  (* fst expr, *)
   match expr with
   | ArrayAccess { tags; array; index } ->
      ArrayAccess { tags; array = go array; index = go index }
@@ -75,8 +71,7 @@ let rec subst_vars_expression env expr =
   | e -> e
 
 let rec subst_vars_statement env stmt =
-  let open Types.Statement in
-  (* fst stmt, *)
+  let open Surface.Statement in
   match stmt with
   | MethodCall { tags; func; type_args; args } ->
      MethodCall { tags;
@@ -111,8 +106,7 @@ let rec subst_vars_statement env stmt =
                             decl = subst_vars_stmt_declaration env decl }
 
 and subst_vars_case env case =
-  let open Types.Statement in
-  (* fst case, *)
+  let open Surface.Statement in
   match case with
   | Action { tags; label; code } ->
      Action { tags; label = label; code = subst_vars_block env code }
@@ -123,13 +117,12 @@ and subst_vars_cases env cases =
   List.map ~f:(subst_vars_case env) cases
 
 and subst_vars_block env block =
-  let open Types.Block in
+  let open Surface.Block in
   let { tags; annotations; statements } = block in
     { tags; annotations; statements = List.map ~f:(subst_vars_statement env) statements }
 
 and subst_vars_stmt_declaration env decl =
-  let open Types.Declaration in
-  (* fst decl, *)
+  let open Surface.Declaration in
   match decl with
   | Instantiation { tags; annotations; typ; args; name; init } ->
      Instantiation { tags;
@@ -150,11 +143,11 @@ and subst_vars_stmt_declaration env decl =
                 typ = subst_vars_type env typ;
                 name = name;
                 init = option_map (subst_vars_expression env) init }
-  | _ -> raise_s [%message "declaration is not allowed as a statement"
-                     ~decl:(decl: Types.Declaration.t)]
+  | _ -> failwith "declaration is not allowed as a statement"
+         (* decl: Surface.Declaration.t *)
 
 let subst_vars_param env param =
-  let open Types.Parameter in
+  let open Surface.Parameter in
   let { tags; annotations; direction; typ; variable; opt_value } = param in
   let typ = subst_vars_type env typ in
   let opt_value = Util.option_map (subst_vars_expression env) opt_value in
@@ -164,29 +157,28 @@ let subst_vars_params env params =
   List.map ~f:(subst_vars_param env) params
 
 let freshen_param env param =
-  let param' = Renamer.freshen_name (CheckerEnv.renamer env) param in
-  CheckerEnv.insert_type ~shadowing:true (BareName {tags=Info.dummy; name={tags=Info.dummy; string=param}}) (TypeName (BareName {tags=Info.dummy; name={tags=Info.dummy; string=param'}})) env, param'
+  let param' = Renamer.freshen_p4string (renamer env) param in
+  Checker_env.insert_type
+    ~shadow:true (BareName param) (TypTypeName param') env, param'
 
-let check_shadowing (params: P4String.t list) =
-  (* let open Types.P4String in *)
-  let param_compare p1 p2 = String.compare p1.P4String.string p2.P4String.string in
+let check_shadowing (params: P4string.t list) =
+  let param_compare (p1: P4string.t) (p2: P4string.t) =
+    String.compare p1.str p2.str in
   match List.find_a_dup ~compare:param_compare params with
   | Some _ -> failwith "parameter shadowed?"
   | None -> ()
 
-let rec freshen_params env (params: P4String.t list) =
+let rec freshen_params env params =
   check_shadowing params;
   match params with
   | [] -> env, []
-  | {P4String.tags; P4String.string=param} :: params ->
-     (* let pre_param = param.string in *)
-     let env, pre_param = freshen_param env param in
+  | param :: params ->
+     let env, param = freshen_param env param in
      let env, params = freshen_params env params in
-     env, {P4String.tags; P4String.string=pre_param} :: params
+     env, param :: params
 
 let elab_method env m =
-  let open Types.MethodPrototype in
-  (* fst m, *)
+  let open Surface.MethodPrototype in
   match m with
   | Constructor { tags; annotations; name; params } ->
      let params = subst_vars_params env params in
@@ -207,7 +199,6 @@ let elab_methods env ms =
 
 let elab_decl env decl =
   let open Declaration in
-  (* fst decl, *)
   match decl with
   | Function { tags; return; name; type_params; params; body } ->
 
@@ -257,12 +248,12 @@ let elab_decls env decls =
      cannot be changed, unlike bound type variable names! *)
   let observe_decl_name d =
     match Declaration.name_opt d with
-    | Some {P4String.tags; P4String.string=name} -> Renamer.observe_name (CheckerEnv.renamer env) name
+    | Some name -> Renamer.observe_name (renamer env) name.str
     | None -> ()
   in
   List.iter ~f:observe_decl_name decls;
   elab_decls' env decls
 
 let elab (Program decls) =
-  let env = CheckerEnv.empty_t () in
-  Program (elab_decls env decls), CheckerEnv.renamer env
+  let env = Checker_env.empty_t () in
+  Program (elab_decls env decls), env.renamer

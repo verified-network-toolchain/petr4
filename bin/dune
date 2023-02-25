@@ -1,12 +1,13 @@
 (executable
   (public_name petr4)
   (name main)
-  (modules common main)
-  (libraries ANSITerminal core core_unix core_unix.command_unix p4pp petr4 p4stf alcotest)
-  (preprocess (pps ppx_jane)))
+  (package petr4)
+  (modules main)
+  (libraries ANSITerminal core core_unix core_unix.command_unix petr4 alcotest poulet4 poulet4_Ccomp str)
+  (preprocess (pps ppx_jane ppx_let)))
 
 (executable
   (name test)
   (modules test)
-  (libraries ANSITerminal core core_unix core_unix.command_unix p4pp petr4 p4stf alcotest)
+  (libraries ANSITerminal core core_unix core_unix.command_unix petr4 alcotest poulet4 poulet4_Ccomp p4stf str)
   (preprocess (pps ppx_jane)))

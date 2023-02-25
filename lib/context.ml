@@ -28,24 +28,24 @@ let reset () =
   backup := []
 
 (* Associates [id] with [b] in map for current scope *)
-let declare (id : Types.P4String.t) (b : bool) : unit =
+let declare (id : P4string.t) (b : bool) : unit =
   match !context with
   | [] ->
     failwith "ill-formed context"
   | m :: l ->
-    context := StringMap.set m ~key:(id.string) ~data:b :: l
+    context := StringMap.set m ~key:id.str ~data:b :: l
 
 let declare_type id = declare id true
 let declare_var id = declare id false
 
 (* Tests whether [id] is known as a type name. *)
-let is_typename (id : Types.P4String.t) =
+let is_typename (id: P4string.t) =
   let rec loop =
     function
     | [] ->
       false
     | m::rest ->
-      match StringMap.find m id.string with
+      match StringMap.find m id.str with
       | None -> loop rest
       | Some b -> b in
   loop !context

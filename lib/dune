@@ -1,11 +1,16 @@
 (menhir
   (flags --no-stdlib --explain)
-  (modules parser))
+  (modules p4parser))
 
-(ocamllex (modules lexer))
+(menhir
+  (flags --explain)
+  (modules stf_parser))
+
+(ocamllex (modules lexer stf_lexer))
 
 (library
   (public_name petr4)
   (name petr4)
-  (libraries core_kernel bignum ppx_deriving_yojson.runtime yojson cstruct-sexp pp)
-  (preprocess (pps ppx_jane ppx_deriving_yojson ppx_deriving.show)))
+  (libraries core core_kernel core_unix ANSITerminal bignum poulet4 ppx_deriving_yojson.runtime yojson cstruct-sexp poulet4_Ccomp pp)
+  (preprocess
+    (staged_pps ppx_import ppx_jane ppx_deriving_yojson ppx_deriving.show)))

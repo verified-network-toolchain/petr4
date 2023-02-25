@@ -1,3 +1,18 @@
+(* Copyright 2019-present Cornell University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy
+ * of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ *)
+
 open Core
 open StdLabels
 open List
@@ -5,7 +20,7 @@ open Util
 open Pp
 open Pp.O
 
-module P4 = Types
+module P4 = Surface
 
 let format_list_pp_sep f sep l =
   Pp.concat_map ~sep l ~f
@@ -24,31 +39,30 @@ let format_option f o =
 let format_list_sep_nl f sep l =
   Pp.concat_map ~sep:((sep |> text) ++ ("\n" |> text)) l ~f:f
 
-module P4Int = struct
-  open P4.P4Int
+module P4int = struct
   let format_bigint b = b |> Bigint.to_string |> text
-  let format_t (i: P4.P4Int.t) =
+  let format_t (i: P4int.t) =
     (* let i = e. in *)
     (match i.width_signed with
      | None -> i.value |> format_bigint |> box
-     | Some (width,signed) -> (width |> string_of_int |> text) ++
+     | Some (width,signed) -> (width |> format_bigint) ++
                               (text (if signed then "s" else "w")) ++
                               (i.value |> format_bigint) |> box)
 end
 
 module P4String = struct
-  let format_t (e: P4.P4String.t) = ("\"" |> text) ++ (e.string |> text) ++ ("\"" |> text)
+  let format_t (e: P4string.t) = ("\"" |> text) ++ (e.str |> text) ++ ("\"" |> text)
 end
 
 module P4Word = struct
-  let format_t (e: P4.P4String.t) =  e.string |> text
+  let format_t (e: P4string.t) =  e.str |> text
 (*   let format_t (e: P4.name) = e.name |> text *)
 end
 
-let name_format_t (name: P4.name) =
+let name_format_t (name: P4name.t) =
   match name with
-  | BareName n -> n.name.string |> text
-  | QualifiedName {prefix=[]; name; _} -> (text ".") ++ (name.string |> text)
+  | BareName n -> P4Word.format_t n
+  | QualifiedName ([], name) -> (text ".") ++ P4Word.format_t name
   | _ -> failwith "illegal name"
 
 module rec Expression : sig
@@ -59,7 +73,7 @@ end = struct
     match e with
     | True _ ->  text "true"
     | False _ -> text "false"
-    | Int {x; _} -> P4Int.format_t x
+    | Int {x; _} -> P4int.format_t x
     | String {str; _} -> P4String.format_t str
     | Name {name; _} -> name_format_t name
     | ArrayAccess x ->
@@ -108,11 +122,12 @@ end = struct
       ("(" |> text) ++ (Type.format_t x.typ) ++ (") " |> text) ++
       (format_t x.expr) |> hbox
     | TypeMember x ->
-      (name_format_t x.typ) ++ ("." |> text) ++ (x.name.string |> text)
+      (name_format_t x.typ) ++ ("." |> text) ++ (x.name |> P4Word.format_t)
       |> box ~indent:2
-    | ErrorMember x -> x.err.string |> text
+    | ErrorMember x ->
+      ("error." |> text) ++ (x.err |> P4Word.format_t)
     | ExpressionMember x -> (format_t x.expr) ++ ("." |> text) ++
-                            (x.name.string |> text) |> box ~indent:2
+                            (x.name |> P4Word.format_t) |> box ~indent:2
     | Ternary x ->
       ("(" |> text) ++ (format_t x.cond) ++ space ++ ("?" |> text) ++
       space ++ (format_t x.tru) ++ space ++ (":" |> text) ++
@@ -243,7 +258,7 @@ end
 and Type : sig
   val format_t : P4.Type.t -> _ Pp.t
   val format_typ_args: P4.Type.t list -> _ Pp.t
-  val format_type_params: P4.P4String.t list -> _ Pp.t
+  val format_type_params: P4string.t list -> _ Pp.t
 end = struct
   open P4.Type
   let rec format_t e =
@@ -495,6 +510,11 @@ end = struct
                       space ++ ("{\n" |> text) ++
                       (format_list_nl format_entry entries))) ++
       ("\n}" |> text)
+    | DefaultAction { tags; action; const } ->
+      (box ~indent:2 (
+          text ((if const then "const " else "") ^ "default_action") ++
+          space ++ ("=" |> text) ++ space ++ format_action_ref action
+          ++ (";\n" |> text)))
     | Custom { annotations; const; name; value; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 (((if const then "const " else "") |> text) ++

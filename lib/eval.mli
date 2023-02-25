@@ -1,58 +1,22 @@
-module I = Info
-module Info = I (* JNF: ugly hack *)
-open Prog
-open Value
-open Target
+open Poulet4
 
-type env = Env.EvalEnv.t
+val interp :
+  (P4info.t, P4info.t P4light.pre_Expression)
+    Target.coq_Target ->
+  P4info.t P4light.pre_program ->
+  Obj.t Maps.PathMap.t ->
+  Bigint.t ->
+  bool list ->
+  (Target.Exn.t,
+   (Obj.t Maps.PathMap.t * Bigint.t) * bool list)
+    Result.result
 
-module type Interpreter = sig
+val v1_interp :
+  P4light.program ->
+  Obj.t Maps.PathMap.t ->
+  Bigint.t ->
+  bool list ->
+  (Target.Exn.t,
+   (Obj.t Maps.PathMap.t * Bigint.t) * bool list)
+  Result.result
 
-  (* the type of a state is unique to each interpreter instance *)
-  type state
-
-  val empty_state : state
-
-  (** [eval_expression env st expr] is [st', v], where [v] is the value obtained
-      from evaluating the P4 expression [expr] under the environment [env] and
-      the state [st], and [st'] is [st] updated according to the side-effects of
-      the same evaluation. *)
-  val eval_expression : env -> state -> Expression.t -> state * value
-
-  (** [eval_statement ctrl env st stmt] is [env', st'], where [env'] is [env]
-      updated with the bindings produced by evaluating [stmt] under the
-      control-plane configuration [ctrl], environment [env], and state [st],
-      and [st'] is [st] updated according to the side-effects of the same
-      evaluation. *)
-  val eval_statement : ctrl -> env -> state -> Statement.t -> env * state
-
-  (** [eval_declaration ctrl env st decl] is [env', st'], where [env'] is [env]
-      updated with the bindings produced by evaluating [decl] under the
-      control-plane configuration [ctrl], environment [env], and state [st],
-      and [st'] is [st] updated according to the side-effects of the same
-      evaluation. *)
-  val eval_declaration : ctrl -> env -> state -> Declaration.t -> env * state
-
-  (** [eval_program ctrl env st pkt port prog] is [st', None] if [prog] drops
-      the packet [pkt] with ingress port [port] under control-plane
-      configuration [ctrl], environment [env], and state [st], producing the 
-      side-effects in [st']. It is [st', Some (pkt', port')] if [prog] updates
-      the packet [pkt] to [pkt'] and sends it out on egress port [port'] under
-      control-plane configuration [ctrl], environment [env], and state [st],
-      producing the side-effects in [st']. *)
-  val eval_program : ctrl -> env -> state -> buf -> Bigint.t -> program ->
-    state * (buf * Bigint.t) option
-
-end
-
-(** [MakeInterpreter(T)] is a P4 interpreter instantiated on the target [T]. *)
-module MakeInterpreter : functor (T : Target) -> Interpreter
-
-(** [V1Interpreter] is an interpreter for P4 under the V1model architecture. *)
-module V1Interpreter : Interpreter
-
-(** [EbpfInterpreter] is an interpreter for P4 under the eBPF architecture. *)
-module EbpfInterpreter : Interpreter
-
-(** [Up4Interpreter] is an interpreter for P4 under the uP4 architecture. *)
-module Up4Interpreter : Interpreter

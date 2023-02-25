@@ -5,12 +5,13 @@ docs/petr4spec/build
 # Build artifacts
 _build/
 *.exe
-petr4.install
+*.install
 .merlin
 web/html_build/*bc.js
 docs/specification/build
 *.p4i
 testruns/
+*.lia.cache
 
 # LaTeX output
 *.aux
@@ -25,3 +26,14 @@ testruns/
 .*.sw?
 .#*
 \#*
+*.p4~
+
+#Coq build files
+*.vo
+*.vok
+*.vos
+*.coq
+*.coq.conf
+*.coq.d
+*.glob
+deps/poulet4_Ccomp/helloworld.o

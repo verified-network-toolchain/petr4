@@ -18,12 +18,14 @@ def run_tests(working_dir, program, subset):
     cmdline = ["dune", "exec", "--", program, "test", "--color=never", "--json", subset]
     output = run_in_dir(working_dir, cmdline)
     output = output.splitlines()
-    results_id = re.search("`(.*)'",output[1]).group(1)
-    results_dir = os.path.join(working_dir, "_build/_tests", results_id)
-    json_output = "".join(output[3:])
-    results = json.loads(json_output)
-    return Res(results["success"], results["failures"], results_dir)
-
+    if len(output) > 1:
+        results_id = re.search("`(.*)'",output[1]).group(1)
+        results_dir = os.path.join(working_dir, "_build/_tests", results_id)
+        json_output = "".join(output[3:])
+        results = json.loads(json_output)
+        return Res(results["success"], results["failures"], results_dir)
+    else:
+        return Res(0, 0, "")
 class Res(object):
     def __init__(self, total, failed, results_dir):
         self.results_dir = results_dir

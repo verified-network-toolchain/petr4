@@ -15,10 +15,11 @@
 {
 open Lexing
 open Context
-open Parser
+open P4parser
+open Poulet4.P4String
+open Poulet4.P4Int
 
 module S = String
-open Types
 module String = S
 
 exception Error of string
@@ -29,9 +30,9 @@ let line_start    = ref 1
 
 type lexer_state =
   | SRegular (* Nothing to recall from the previous tokens. *)
-  | SRangle of Info.t
+  | SRangle of P4info.t
   | SPragma
-  | SIdent of Types.P4String.t * lexer_state
+  | SIdent of P4string.t * lexer_state
     (* We have seen an identifier: we have just
      * emitted a [NAME] token. The next token will be
      * either [IDENTIFIER] or [TYPENAME], depending on
@@ -66,13 +67,13 @@ let newline lexbuf =
   current_line := line_number() + 1 ;
   set_start_of_line (lexeme_end lexbuf)
 
-let info lexbuf : Info.t =
+let info lexbuf : P4info.t =
   let f = filename () in
   let c1 = lexeme_start lexbuf in
   let c2 = lexeme_end lexbuf in
   let c = start_of_line () in
   let l = line_number() in
-  Info.I { filename=f; line_start=l; line_end=None; col_start=c1-c; col_end=c2-c }
+  P4info.I { filename=f; line_start=l; line_end=None; col_start=c1-c; col_end=c2-c }
 
 let sanitize s =
   String.concat "" (String.split_on_char '_' s)
@@ -82,11 +83,11 @@ let strip_prefix s =
   assert (length > 2);
   String.sub s 2 (length - 2)
 
-let parse_int n tags =
+let parse_int n info =
   let value = Bigint.of_string (sanitize n) in
-  P4Int.{ value; width_signed=None; tags = tags }
+  {tags=info; value; width_signed=None}
 
-let parse_width_int s n tags =
+let parse_width_int s n info =
   let l_s = String.length s in
   let width = String.sub s 0 (l_s - 1) in
   let sign = String.sub s (l_s - 1) 1 in
@@ -95,13 +96,13 @@ let parse_width_int s n tags =
       "s" ->
       if (int_of_string width < 2)
       then raise (Error "signed integers must have width at least 2")
-      else Some (int_of_string width, true)
+      else Some (Bigint.of_string width, true)
     | "w" ->
-      Some (int_of_string width, false)
+      Some (Bigint.of_string width, false)
     | _ -> 
       raise (Error "Illegal integer constant")
   in
-  P4Int.{value; width_signed; tags = tags }
+  {tags=info; value = value; width_signed}
 }
 
 let name = ['A'-'Z' 'a'-'z' '_'] ['A'-'Z' 'a'-'z' '0'-'9' '_']*
@@ -118,14 +119,14 @@ rule tokenize = parse
   | "/*"
       { match multiline_comment None lexbuf with 
          | None -> tokenize lexbuf
-         | Some tags -> PRAGMA_END (tags) }
+         | Some info -> PRAGMA_END (info) }
   | "//"
       { singleline_comment lexbuf; tokenize lexbuf }
   | '\n'
       { newline lexbuf; PRAGMA_END(info lexbuf) }
   | '"'
       { let str, end_info = (string lexbuf) in
-        STRING_LITERAL P4String.{tags = Info.merge (info lexbuf) end_info; string = str} }
+        STRING_LITERAL ({tags=P4info.merge (info lexbuf) end_info; str}) }
   | whitespace
       { tokenize lexbuf }
   | '#'
@@ -170,6 +171,8 @@ rule tokenize = parse
       { CONTROL (info lexbuf) }
   | "default"
       { DEFAULT (info lexbuf) }
+  | "default_action"
+      { DEFAULT_ACTION (info lexbuf) }
   | "else"
       { ELSE (info lexbuf) }
   | "entries"
@@ -241,7 +244,7 @@ rule tokenize = parse
   | "_"
       { DONTCARE (info lexbuf) }
   | name
-      { NAME P4String.{ tags = info lexbuf; string = Lexing.lexeme lexbuf} }
+      { NAME ({tags=info lexbuf; str=Lexing.lexeme lexbuf}) }
   | "<="
       { LE (info lexbuf) }
   | ">="
@@ -319,7 +322,7 @@ rule tokenize = parse
   | eof
       { END (info lexbuf) }
   | _
-      { UNEXPECTED_TOKEN P4String.{tags = info lexbuf; string = lexeme lexbuf} }
+      { UNEXPECTED_TOKEN({tags=info lexbuf; str=lexeme lexbuf}) }
       
 and string = parse
   | eof
@@ -401,7 +404,7 @@ let rec lexer (lexbuf:lexbuf) : token =
     | SRangle info1 -> 
       begin 
         match tokenize lexbuf with
-        | R_ANGLE info2 when Info.follows info1 info2 -> 
+        | R_ANGLE info2 when P4info.follows info1 info2 -> 
           lexer_state := SRegular;
           R_ANGLE_SHIFT info2
         | PRAGMA _ as token ->

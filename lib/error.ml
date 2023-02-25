@@ -1,17 +1,15 @@
-open Typed
-open Sexplib.Conv
+open P4light
 
 type error =
   | Unbound of string
   | Mismatch of
-      { expected: string; (* TODO: string or Typed.t? *)
-        found: Type.t; }
+      { expected: string; (* TODO: string or P4light.t? *)
+        found: coq_P4Type; }
   | UnfoundMember of
       { expected_member: string}
-  | Type_Difference of Type.t * Type.t
+  | Type_Difference of coq_P4Type * coq_P4Type
   | Duplicate
   | UnreachableBlock
-[@@deriving sexp]
 
 let format_error fmt = function
   | Unbound x -> 
@@ -28,8 +26,8 @@ let format_error fmt = function
   | UnreachableBlock -> 
      Format.fprintf fmt "error: unreachable block"
      
-exception Internal of string [@@deriving sexp]
-exception Type of (Info.t * error) [@@deriving sexp]
+exception Internal of string
+exception Type of (P4info.t * error)
 exception V1AssertionError
 
 let raise_mismatch info expected found =

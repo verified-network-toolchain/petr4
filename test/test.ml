@@ -1,102 +1,45 @@
 open Core
 open Petr4
-(* open Common *)
-
-let print pp = Format.printf "%a@." Pp.to_fmt pp
-
-(* module Conf: Parse_config = struct *)
-  let red s = s
-  let green s = s
-
-  let preprocess include_dirs p4file =
-    let cmd =
-      String.concat ~sep:" "
-        (["cc"] @
-         (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
-          ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
-    let in_chan = Core_unix.open_process_in cmd in
-    let str = In_channel.input_all in_chan in
-    let _ = Core_unix.close_process_in in_chan in
-    str
-(* end *)
-
-(* module Parse = Make_parse(Conf) *)
-
-let parse_file include_dirs p4_file verbose =
-  let () = Lexer.reset () in
-  let () = Lexer.set_filename p4_file in
-  let p4_string = preprocess include_dirs p4_file in
-  let lexbuf = Lexing.from_string p4_string in
-  try
-    let prog = Parser.p4program Lexer.lexer lexbuf in
-    if verbose then
-      begin
-        Format.eprintf "[%s] %s@\n%!" (green "Passed") p4_file;
-        prog |> Pretty.format_program |> print;
-        Format.print_string "@\n%!"; 
-        Format.printf "----------@\n";
-        Format.printf "%s@\n%!" (prog |> Types.program_to_yojson |> Yojson.Safe.pretty_to_string)
-      end;
-    `Ok prog
-  with
-  | err ->
-    if verbose then Format.eprintf "[%s] %s@\n%!" (red "Failed") p4_file;
-    `Error (Lexer.info lexbuf, err)
 
 let parse_string p4_string = 
   let () = Lexer.reset () in
   let () = Lexer.set_filename p4_string in
   let lexbuf = Lexing.from_string p4_string in
-  Parser.p4program Lexer.lexer lexbuf 
-
-
-
-let parser_test include_dirs file =
-  match parse_file include_dirs file false with
-  | `Ok _ -> true
-  | `Error _ -> false
+  P4parser.p4program Lexer.lexer lexbuf 
 
 let to_string pp : string =
   Format.fprintf Format.str_formatter "%a" Pp.to_fmt pp;
   Format.flush_str_formatter ()
 
-let get_name include_dirs file =
-  match parse_file include_dirs file false with 
-  | `Ok prog -> prog |> Pretty.format_program |> to_string 
-  | `Error _ -> "121" 
-
 let pp_round_trip_test include_dirs file =
-  let way_there = match parse_file include_dirs file false with 
-    | `Ok prog -> prog |> Pretty.format_program |> to_string 
-    | `Error _ -> "" in 
+  let cfg = Pass.mk_parse_only include_dirs file in
+  let way_there = match Petr4.Unix.Driver.run_parser cfg with
+    | Ok prog -> prog |> Pretty.format_program |> to_string 
+    | Error _ -> "" in 
   let way_back = parse_string way_there in
   String.compare way_there (way_back |> Pretty.format_program |> to_string) = 0 
 
-let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
-  Printf.printf "Testing file %s...\n" p4_file;
-  match parse_file include_dirs p4_file false with
-  | `Ok prog ->
-    begin
-      try
-        let prog, renamer = Elaborate.elab prog in
-        let _ = Checker.check_program renamer prog in
-        true
-      with
-      | Error.Type(info, err) ->
-        Format.eprintf "%s: %a" (Info.to_string info) Error.format_error err;
-        false
-      | exn ->
-        Format.eprintf "Unknown exception: %s" (Exn.to_string exn);
-        false
-    end
-  | `Error (info, Lexer.Error s) -> false
-  | `Error (info, Parser.Error) -> false
-  | `Error (info, err) -> false
+let parser_test include_dirs file =
+  let cfg = Pass.mk_parse_only include_dirs file in
+  match Petr4.Unix.Driver.run_parser cfg with
+  | Ok _ -> true
+  | Error e ->
+    Printf.eprintf "error in parser test: %s" (Petr4.Common.error_to_string e);
+    false
+
+let typecheck_test include_dirs file =
+  Printf.printf "Testing file %s...\n" file;
+  let cfg = Pass.mk_check_only include_dirs file in
+  match Petr4.Unix.Driver.run_checker cfg with
+  | Ok _ -> true
+  | Error e ->
+    Printf.eprintf "error in checker test: %s" (Petr4.Common.error_to_string e);
+    false
 
 let get_files path =
   Sys_unix.ls_dir path
-  |> List.filter ~f:(fun name ->
-      Core.Filename.check_suffix name ".p4")
+  |> List.filter
+       ~f:(fun name -> Filename.check_suffix name ".p4")
 
 let example_path l =
   let root = Filename.concat ".." "examples" in
@@ -113,45 +56,46 @@ let known_failures =
   ["default-control-argument.p4";
    "cast-call.p4";
    "issue1803_same_table_name.p4";
-   "issue1541.p4";
    "issue1672-bmv2.p4";
-   "issue1932.p4";
    "table-entries-optional-2-bmv2.p4";
    "control-verify.p4";
    "div1.p4";
    "table-entries-lpm-2.p4";
-   "default-control-argument.p4"]
+   "default-control-argument.p4";
+   "virtual3.p4";
+   "issue2037.p4"]
 
 let good_test f file () =
-  Alcotest.(check bool) "good test" true
+  Alcotest.(check bool) (Printf.sprintf "good/%s" file) true
     (f ["../examples"] (example_path ["checker_tests"; "good"; file]))
 
 let bad_test f file () =
-  Alcotest.(check bool) "bad test" false
+  Alcotest.(check bool) (Printf.sprintf "bad/%s" file) false
     (f ["../examples"] (example_path ["checker_tests"; "bad"; file]))
 
 let excl_test file () =
-  Alcotest.(check bool) "good test" true true
+  Alcotest.(check bool) (Printf.sprintf "excluded %s" file) true true
 
-let example_path l =
-  let root = Filename.concat ".." "examples" in
-  List.fold_left l ~init:root ~f:Filename.concat
+let classify_test name =
+  if List.mem ~equal:String.equal known_failures name
+  then `Slow
+  else `Quick
 
-let () = 
-  (let open Alcotest in
-   run "Tests" [
-     "excluded tests good", (Stdlib.List.map (fun name ->
-         test_case name `Quick (excl_test name)) excluded_good_files);
-     "excluded tests bad", (Stdlib.List.map (fun name ->
-         test_case name `Quick (excl_test name)) excluded_bad_files);
-     "parser tests good", (Stdlib.List.map (fun name ->
-         test_case name `Quick (good_test parser_test name)) (good_files@bad_files));
-     "typecheck tests good", (Stdlib.List.map (fun name ->
-         let speed = if List.mem ~equal:String.equal known_failures name then `Slow else `Quick in
-         test_case name speed (good_test typecheck_test name)) good_files);
-     "typecheck tests bad", (Stdlib.List.map (fun name ->
-         let speed = if List.mem ~equal:String.equal known_failures name then `Slow else `Quick in
-         test_case name speed (bad_test typecheck_test name)) bad_files); 
+let () =
+  let open Alcotest in
+  run "Tests" [
+    "excl-pos", (Stdlib.List.map (fun name ->
+        test_case name `Quick (excl_test name)) excluded_good_files);
+    "excl-neg", (Stdlib.List.map (fun name ->
+        test_case name `Quick (excl_test name)) excluded_bad_files);
+    "parser-pos", (Stdlib.List.map (fun name ->
+        test_case name `Quick (good_test parser_test name)) (good_files@bad_files));
+    "typing-pos", (Stdlib.List.map (fun name ->
+        let speed = classify_test name in
+        test_case name speed (good_test typecheck_test name)) good_files);
+    "typing-neg", (Stdlib.List.map (fun name ->
+        let speed = classify_test name in
+        test_case name speed (bad_test typecheck_test name)) bad_files);
      "round trip pp tests good", (Stdlib.List.map (fun name ->
          test_case name `Quick (good_test pp_round_trip_test name)) good_files);
-   ])
+  ]

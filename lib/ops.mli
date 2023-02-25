@@ -1,6 +1,5 @@
-module V = Prog.Value
-module Op = Typed.Op
+open P4light
 
-val interp_binary_op: Op.bin -> V.value -> V.value -> V.value
-val interp_unary_op:  Op.uni -> V.value -> V.value
-val interp_cast: type_lookup:(Types.name -> Typed.Type.t) -> val_lookup:(Types.name -> V.value) -> Typed.Type.t -> V.value -> V.value
+val interp_binary_op: coq_OpBin -> coq_Value -> coq_Value -> coq_Value
+val interp_unary_op: coq_OpUni -> coq_Value -> coq_Value
+val interp_cast: type_lookup:(P4string.t -> coq_P4Type) -> coq_P4Type -> coq_Value -> coq_Value

@@ -49,8 +49,6 @@ let expr_ctxt_of_decl_ctxt (s: coq_DeclContext) : coq_ExprContext =
    | DeclCxNested -> ExprCxDeclLocals
    | DeclCxStatement c -> expr_ctxt_of_stmt_ctxt c
 
-type 'a info = 'a Surface.info
-
 type ('a, 'b) sum = ('a, 'b) Poulet4.Datatypes.sum
 type 'a pre_MethodPrototype =
   'a Poulet4.Syntax.coq_MethodPrototype
@@ -58,7 +56,7 @@ type coq_MethodPrototype = P4info.t pre_MethodPrototype
 type coq_OpUni = Poulet4.Syntax.coq_OpUni
 type coq_OpBin = Poulet4.Syntax.coq_OpBin
 type coq_Locator = Poulet4.Syntax.coq_Locator
-let noLocator = Poulet4.Syntax.LGlobal [""]
+let noLocator = Poulet4.Syntax.LGlobal ["missing_locator"]
 type 'a pre_ExpressionPreT =
   'a Poulet4.Syntax.coq_ExpressionPreT
 type 'a pre_Expression =

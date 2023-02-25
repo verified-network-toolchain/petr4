@@ -28,7 +28,7 @@ let reset () =
   backup := []
 
 (* Associates [id] with [b] in map for current scope *)
-let declare (id: P4string.t) b =
+let declare (id : P4string.t) (b : bool) : unit =
   match !context with
   | [] ->
     failwith "ill-formed context"

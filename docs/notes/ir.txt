@@ -1,5 +1,3 @@
-the good IR
-
 val_typ ::= bit<k>
          |  unit
          |  struct {val_typ_i}

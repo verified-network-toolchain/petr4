@@ -106,7 +106,8 @@ let rec print_type p (t:Expr.t) =
   match t with
   | Expr.TBool -> fprintf p "%s" "TBool"
   | Expr.TBit i -> fprintf p "TBit: @[%a@]" print_bigint i 
-  | Expr.TInt i -> fprintf p "TInt: @[%a@]" print_bigint i 
+  | Expr.TInt i -> fprintf p "TInt: @[%a@]" print_bigint i
+  | Expr.TVarBit i -> fprintf p "TVarBit: @[%a@]" print_bigint i 
   | Expr.TError -> fprintf p "%s" "TError" 
   | Expr.TStruct (false,lt) -> fprintf p "TStruct <%a>" (print_list ~sep:"*" print_type) lt
   | Expr.TStruct (true,lt) -> fprintf p "THeader <%a>" (print_list ~sep:"*" print_type) lt
@@ -144,6 +145,7 @@ let rec print_expr p =
   | Expr.Bool b -> fprintf p "EBool %a" print_bool b
   | Expr.Bit (w, i) -> fprintf p "EBit <%a> %a" print_bigint w print_bigint i
   | Expr.Int (w, i) -> fprintf p "EInt <%a> %a" print_bigint w print_bigint i
+  | Expr.VarBit (mw, w, i) -> fprintf p "EVarBit <%a> %a %a" print_bigint mw  print_bigint w print_bigint i
   | Expr.Var (typ, x, n) ->
     fprintf p "EVar : <%a> %a %a" print_type typ print_string x
     my_print_int n
@@ -295,8 +297,8 @@ let rec print_stmt p =
   | Stmt.Exit ->
     fprintf p "SExit"
 
-  | Stmt.Invoke s ->
-    fprintf p "SInvoke %s" s
+  | Stmt.Invoke (eo, s) ->
+    fprintf p "SInvoke %a %s" (print_option print_expr) eo s
 
   | Stmt.Apply (s, fs, arg) ->
     fprintf p "SApply @[%s, Ext_args = %a, args = %a@]"
@@ -316,11 +318,12 @@ let print_control_d p (d : Control.d) =
     (print_fields print_string print_type) ctrl_params
     print_params data_params
     print_stmt st
-  | Control.Table (s, key, ss) ->
-    fprintf p "CDTable %s (%a) %a"
+  | Control.Table (s, key, ss, def) ->
+    fprintf p "CDTable %s (%a) %a %a"
     s
     (print_fields print_expr print_string) key
     (print_fields print_string print_args) ss
+    (print_option (fun p (a, es) -> fprintf p "(%s , %a)" a (print_list print_expr) es)) def
 
 let print_tp_decl p (d: TopDecl.d) =
   match d with 

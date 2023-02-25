@@ -63,6 +63,7 @@ let rec convert_type (x : Prev.Expr.t) =
     | Prev.Expr.TStruct (b,fs) -> Expr.TStruct (b, List.map convert_type fs)
     | Prev.Expr.TArray (i, t) -> Expr.TArray (bigint_coqN i, convert_type t)
     | Prev.Expr.TVar s -> Expr.TVar (Nat.of_int s)
+    | Prev.Expr.TVarBit z -> Expr.TVarBit (bigint_coqN z)
 
 
 let convert_params (fs) = 
@@ -132,6 +133,8 @@ let rec convert_expression (x : Prev.Expr.e) = match x with
         Expr.Bit (bigint_coqN w,bigint_coqZ v)
     | Prev.Expr.Int (w,v) -> 
         Expr.Int (bigint_positive w,bigint_coqZ v)
+    | Prev.Expr.VarBit (mw, w, z) ->
+        Expr.VarBit (bigint_coqN mw, bigint_coqN w, bigint_coqZ z)
     | Prev.Expr.Var (t,x,n) ->
         Expr.Var (convert_type t, string_charlist x, Nat.of_int n)
     | Prev.Expr.Slice (a, b, e) ->
@@ -221,8 +224,8 @@ let rec stmt_convert (s:  Prev.Stmt.s) =
     | Prev.Stmt.Return e ->
         Stmt.Return (Option.map convert_expression e)
     | Prev.Stmt.Exit -> Stmt.Exit
-    | Prev.Stmt.Invoke t ->
-        Stmt.Invoke (string_charlist t)
+    | Prev.Stmt.Invoke (eo,t) ->
+        Stmt.Invoke (Option.map convert_expression eo, string_charlist t)
     | Prev.Stmt.Apply (s, fs, a) ->
         Stmt.Apply (string_charlist s,
         List.map string_charlist fs,
@@ -240,11 +243,12 @@ let controld_convert (d :  Prev.Control.d) =
             List.map (fun (x,t) -> string_charlist x, convert_type t) ctrl_params,
             convert_params data_params,
             stmt_convert st)
-    | Prev.Control.Table (t, key, mks) ->
+    | Prev.Control.Table (t, key, mks, def) ->
         Control.Table (
             string_charlist t,
             List.map (fun (e,mk) -> convert_expression e, string_charlist mk) key,
-            List.map (fun (a,args) -> string_charlist a, args_convert args) mks)
+            List.map (fun (a,args) -> string_charlist a, args_convert args) mks,
+            Option.map (fun (a, es) -> string_charlist a, List.map convert_expression es) def)
 
 let topdecl_convert (d:  Prev.TopDecl.d) =
     match d with

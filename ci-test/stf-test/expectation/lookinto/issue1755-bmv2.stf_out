@@ -1,0 +1,81 @@
+p4 program:
+\n
+/* -*- P4_16 -*- */
+
+#include <core.p4>
+#include <v1model.p4>
+
+struct headers {}
+
+struct metadata {}
+
+parser MyParser(packet_in packet,
+                out headers hdr,
+                inout metadata meta,
+                inout standard_metadata_t standard_metadata) {
+    state start {
+        packet.advance(8);
+        transition accept;
+    }
+}
+
+control MyVerifyChecksum(inout headers hdr,
+                         inout metadata meta) {
+    apply {}
+}
+
+control MyIngress(inout headers hdr,
+                  inout metadata meta,
+                  inout standard_metadata_t standard_metadata) {
+    apply {}
+}
+
+control MyEgress(inout headers hdr,
+                 inout metadata meta,
+                 inout standard_metadata_t standard_metadata) {
+    apply {}
+}
+
+control MyComputeChecksum(inout headers hdr, inout metadata meta) {
+    apply {}
+}
+
+control MyDeparser(packet_out packet, in headers hdr) {
+    apply {}
+}
+
+V1Switch(
+ MyParser(),
+ MyVerifyChecksum(),
+ MyIngress(),
+ MyEgress(),
+ MyComputeChecksum(),
+ MyDeparser()
+) main;
+\n
+\n
+packet 0 00 00
+expect 0 00$
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Packet matched the expected packet.
+Packet:   port 0 pkt 00
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmp9qwpt5xk
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmp9qwpt5xk/issue1755-bmv2.json /petr4/ci-test/testdata/p4_16_samples/issue1755-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9152 --device-id 62 -i 0@pcap0 .././tmp9qwpt5xk/issue1755-bmv2.json
+Running simple_switch_CLI --thrift-port 9152
+STF Command: packet 0 00 00
+STF Command: expect 0 00$
+simple_switch exit code -15
+Execution completed
+Comparing outputs

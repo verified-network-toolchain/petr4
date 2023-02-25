@@ -1,0 +1,100 @@
+# Statement's Typing Rules { #sec-stmt-typing }
+this judgment type checks a statement written in surface syntax, generates the IR statement from it and if applicable updates the env and ctxt.
+is_lvalue checks if an IR expression is lvalue. 
+cast_expr takes a type and surface syntax expression. after generating the IR expression by type_expression, it checks if the given type and type of IR expression are equal it just returns the IR exp o.w. it casts (if possible) the IR expression to the given type.
+if void type  returns a void type if a (or two) type is (are) void and otherwise returns a unit type.
+get enum typ takes a type and checks if it's an enum. if so it returns the enums of it. 
+
+~ Begin InfRule
+
+  \inferrule
+     { \expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
+       \isLval {{\prim {\exp_1}}, {\typ_1}, {\dir_1}} \\ 
+       ({\prim {\exp_2}}, {\typ_2}, {\dir_2}) = \castExpression {\typ_1} {\exp_2}\\
+       % \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2} \\
+       % \typ_1 = \typ_2 \\
+       }
+     { \stmtenv {\assign {\exp_1} {\exp_2}} {\assign {\prim {\exp_1}} {\prim {\exp_2}}} {\unitTyp} }
+     \quad (\assignmentS)
+
+
+  \inferrule
+     { }
+     { \stmtenv {\noop} {\noop} {\unitTyp}}
+     \quad (\emptyS)
+
+  \inferrule
+     { \stmtenvv 1 {\stmt_1} {\prim {\stmt_1}} {\typ_1} 2 \\
+       \prim \typ = \ifVoidTyp {\typ_1} \\
+       \stmtenvv 2 {\stmts} {\prim \stmts} {\prim \typ} 3 }
+     { \stmtenvv 1 {\block {\stmt_1; \stmts} } {\block {\prim {\stmt_1}; {\prim \stmts}} } {\prim \typ} 3 }
+     \quad (\blockS)
+
+  \inferrule
+     {
+     % \expenv \exp {\prim \exp} \typ \dir \\
+       \ctxt = \applyBlockCtxt \textOr \actionCtxt \\
+       ({\prim {\exp}}, {\typ}, {\dir}) = \castExpression {\voidTyp} {\exp}\\
+       }
+     { \stmtenv {\return \exp} {\return {({\prim {\exp}}, {\typ}, {\dir})}} \voidTyp  }
+     \quad (\returnS)
+
+  \inferrule
+     {
+     % \expenv \exp {\prim \exp} \typ \dir \\
+       \ctxt = \applyBlockCtxt \textOr \actionCtxt \textOr \funcCtxt \typ \\
+       }
+     { \stmtenv {\return {}} {\return {}} \voidTyp  }
+     \quad (\returnEmpS)
+
+  \inferrule
+     {
+     % \expenv \exp {\prim \exp} \typ \dir \\
+       \ctxt = \funcCtxt \typ \\
+       ({\prim {\exp}}, {\prim \typ}, {\dir}) = \castExpression {\typ} {\exp}\\
+       }
+     { \stmtenv {\return \exp} {\return {({\prim {\exp}}, {\prim \typ}, {\dir})}} \voidTyp  }
+     \quad (\returnFuncS)
+
+  \inferrule
+     { \ctxt \neq \parserCtxt }
+     { \stmtenv \exit \exit \voidTyp}
+     \quad (\exitS)
+
+  \inferrule
+     { \ctxt \neq \parserCtxt \\
+       (\prim \exp, \boolTyp, \dir) = \castExpression \boolTyp \exp \\
+       \stmtenvv 1 {\stmt_1} {\prim {\stmt_1}} {\typ_1} 2 }
+     { \stmtenvv 1 {\ifthen \exp {\stmt}} {\ifthen {\prim \exp} {\prim \stmt} } {\unitTyp} 1 }
+     \quad (\ifthenS)
+
+  \inferrule
+     { \ctxt \neq \parserCtxt \\
+       (\prim \exp, \boolTyp, \dir) = \castExpression \boolTyp \exp \\
+       \stmtenvv 1 {\stmt_1} {\prim {\stmt_1}} {\typ_1} 2 \\
+       \stmtenvv 1 {\stmt_2} {\prim {\stmt_2}} {\typ_2} 3 \\
+       \prim \typ = \ifVoidTyp {\typ_1, \typ_2}}
+     { \stmtenvv 1 {\ifthenelse \exp {\stmt_1} {\stmt_2}} {\ifthenelse {\prim \exp} {\prim {\stmt_1}} {\prim {\stmt_2}} } {\prim \typ} 1 }
+     \quad (\ifthenelseS)
+
+  \inferrule
+     { \ctxt_0 = \applyBlockCtxt \\
+       \expenvv \exp {\prim \exp} \typ \dir 0 \\
+       \prim \typ = \reduce \typ \\
+       \name_1, \ldots, \name_m = \getEnum {\prim \typ} \\
+       \lbl \notin \overline \lbl \\
+       \lbl \in \{\name_1, \ldots, \name_m \}\\
+       \stmtenvv 0 {\block {\stmts}} {\block {\prim {\stmts}}} {\typ_0} 1 \\
+       \stmtenvv 1 {\switch \exp {\overline {\actionCase \stmt}}} {\switch {\prim \exp} {\overline {\actionCase {\pprim \stmt} }}} \unitTyp 2
+       }
+     { \stmtenvv 0 {\switch \exp {\actionCase \stmts, \overline {\actionCase \stmt}} } {\switch {\prim \exp} {\actionCase {\prim \stmts}, {\overline {\actionCase {\pprim \stmt} }} } } \unitTyp 2 }
+     \quad (\switchS)
+
+  \inferrule
+     { \isConstant \dcl \textOr \isInstantiation \dcl \textOr \isVariable \dcl \\
+       \dclenvv 0 \dcl {\prim \dcl} 1}
+     { \stmtenvv 0 \dcl {\prim \dcl} \unitTyp 1 }
+     \quad (\declS)
+
+~ End InfRule
+

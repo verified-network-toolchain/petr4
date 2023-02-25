@@ -1,0 +1,63 @@
+p4 program:
+\n
+/*
+Copyright 2016 VMware, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include <core.p4>
+#include <v1model.p4>
+
+header hdr {
+    bit<16> a;
+}
+
+control compute(inout hdr h)
+{
+    apply {
+        hash(h.a, HashAlgorithm.crc16, 10w0, { 16w1 }, 10w4);
+    }
+}
+
+#include "arith-inline-skeleton.p4"
+\n
+\n
+# bit<16> A
+# In the output we need A = 1
+
+packet 0 ABAB
+expect 0 0001
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Packet matched the expected packet.
+Packet:   port 0 pkt 0001
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmpr5r2g0zf
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpr5r2g0zf/constant-in-calculation-bmv2.json /petr4/ci-test/testdata/p4_16_samples/constant-in-calculation-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9374 --device-id 284 -i 0@pcap0 .././tmpr5r2g0zf/constant-in-calculation-bmv2.json
+Running simple_switch_CLI --thrift-port 9374
+STF Command: packet 0 ABAB
+STF Command: expect 0 0001
+simple_switch exit code -15
+Execution completed
+Comparing outputs

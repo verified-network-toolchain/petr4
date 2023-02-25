@@ -81,8 +81,8 @@ module MakeDriver (IO: DriverIO) = struct
 
   let parse cfg (lexbuf: Lexing.lexbuf) =
     try
-      Ok (Parser.p4program Lexer.lexer lexbuf)
-    with Parser.Error -> Error (ParserError (Lexer.info lexbuf))
+      Ok (P4parser.p4program Lexer.lexer lexbuf)
+    with P4parser.Error -> Error (ParserError (Lexer.info lexbuf))
 
   let print_surface (cfg: Pass.checker_cfg) (prog: Surface.program) =
     match cfg.cfg_p4surface with
@@ -229,8 +229,9 @@ module MakeDriver (IO: DriverIO) = struct
     run_parser cfg.cfg_parser
     >>= print_surface cfg
     >>= check cfg
-    >>= gen_loc cfg
+    (* normalize must come before gen_loc *)
     >>= normalize cfg
+    >>= gen_loc cfg
     >>= print_p4light cfg
 
   let run_compiler (cfg: Pass.compiler_cfg) =

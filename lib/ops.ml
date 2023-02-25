@@ -150,6 +150,8 @@ let interp_bshr (l : coq_Value) (r : coq_Value) : coq_Value =
     let exp = Bitstring.power_of_two Bigint.(w' - one) in
     let arith = Bigint.(v1 > exp) in
     ValInt(w, to_twos_complement (shift_bitstring_right v1 v2 arith exp) w')
+  | ValInteger v1,  ValBit(_, v2)
+  | ValInteger v1,  ValInt(_, v2)
   | ValInteger v1,  ValInteger v2 ->
     ValInteger(shift_bitstring_right v1 v2 false Bigint.zero)
   | ValBit (w, v1), ValInt(_, v2) ->

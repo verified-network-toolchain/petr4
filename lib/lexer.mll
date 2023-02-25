@@ -15,7 +15,7 @@
 {
 open Lexing
 open Context
-open Parser
+open P4parser
 open Poulet4.P4String
 open Poulet4.P4Int
 
@@ -171,6 +171,8 @@ rule tokenize = parse
       { CONTROL (info lexbuf) }
   | "default"
       { DEFAULT (info lexbuf) }
+  | "default_action"
+      { DEFAULT_ACTION (info lexbuf) }
   | "else"
       { ELSE (info lexbuf) }
   | "entries"

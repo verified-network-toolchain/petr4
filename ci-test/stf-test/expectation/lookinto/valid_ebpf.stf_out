@@ -1,0 +1,99 @@
+p4 program:
+\n
+#include <ebpf_model.p4>
+#include <core.p4>
+
+#include "ebpf_headers.p4"
+
+struct Headers_t
+{
+    Ethernet_h ethernet;
+    IPv4_h     ipv4;
+}
+
+parser prs(packet_in p, out Headers_t headers)
+{
+    state start
+    {
+        p.extract(headers.ethernet);
+        transition select(headers.ethernet.etherType)
+        {
+            16w0x800 : ip;
+            default : reject;
+        }
+    }
+
+    state ip
+    {
+        p.extract(headers.ipv4);
+        transition accept;
+    }
+}
+
+control pipe(inout Headers_t headers, out bool pass)
+{
+    CounterArray(32w10, true) counters;
+
+    action invalidate() {
+        headers.ipv4.setInvalid();
+        headers.ethernet.setInvalid();
+    }
+    table t {
+        actions = {
+            invalidate;
+        }
+        implementation = array_table(1);
+    }
+
+    apply {
+        if (headers.ipv4.isValid())
+        {
+            counters.increment((bit<32>)headers.ipv4.dstAddr);
+            pass = true;
+        }
+        else {
+            t.apply();
+            pass = false;
+        }
+    }
+}
+
+ebpfFilter(prs(), pipe()) main;
+\n
+\n
+# bit<32> A bit<32> B
+# In the output B = (A + 10)
+
+packet 0 00000000 00000000 00000000 00000000 00000000 ABCDEF01
+
+packet 0 001b1700 0130b881 98b7aeb7 08004500 00344a6f 40004006 53920a01 98453212 c86acf2c 01bbd0fa 585c4ccc b2ac8010 0353c314 00000101 080a0192 463911a0 c06f
+expect 0 001b1700 0130b881 98b7aeb7 08004500 00344a6f 40004006 53920a01 98453212 c86acf2c 01bbd0fa 585c4ccc b2ac8010 0353c314 00000101 080a0192 463911a0 c06f
+
+packet 0 00000000 00000000 00000000 00000000 00000000 00010000
+
+packet 0 00000000 00000000 00000000 00000000 00000000 00011000
+
+packet 0 001b1700 0130b881 98b7aeb7 08004500 00344a6f 40004006 53920a01 98453212 c86acf2c 01bbd0fa 585c4ccc b2ac8010 0353c314 00000101 080a0192 463911a0 c06e
+expect 0 001b1700 0130b881 98b7aeb7 08004500 00344a6f 40004006 53920a01 98453212 c86acf2c 01bbd0fa 585c4ccc b2ac8010 0353c314 00000101 080a0192 463911a0 c06e
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Packet matched the expected packet.
+Packet:   port 0 pkt 001b17000130b88198b7aeb70800450000344a6f4000400653920a0198453212c86acf2c01bbd0fa585c4cccb2ac80100353c31400000101080a0192463911a0c06e
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 001b17000130b88198b7aeb70800450000344a6f4000400653920a0198453212c86acf2c01bbd0fa585c4cccb2ac80100353c31400000101080a0192463911a0c06f
+************************\n******** p4c stf result: ********\n************************\n
+Writing temporary files into  ./tmpl8r1d2sf
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpl8r1d2sf/valid_ebpf.json /petr4/ci-test/testdata/p4_16_samples/valid_ebpf.p4
+Exit code  1
+Error compiling
+/usr/local/share/p4c/p4include/ebpf_model.p4(69): [--Wwarn=invalid] warning: ebpfFilter: the main package should be called V1Switch; are you using the wrong architecture?
+package ebpfFilter<H>(parse<H> prs,
+        ^^^^^^^^^^
+/petr4/ci-test/testdata/p4_16_samples/valid_ebpf.p4(59): [--Werror=Target model error] error: package ebpfFilter: main package  match the expected model
+Are you using an up-to-date v1model.p4?
+ebpfFilter(prs(), pipe()) main;
+                          ^^^^
+
+*** Test failed

@@ -10,7 +10,6 @@ type error =
   | Type_Difference of coq_P4Type * coq_P4Type
   | Duplicate
   | UnreachableBlock
-  [@@deriving show]
 
 let format_error fmt = function
   | Unbound x -> 

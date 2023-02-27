@@ -1,0 +1,177 @@
+# Declaration's Typing Rules { #sec-decl-typing }
+is allowed type for variable checks if a type is allowed for declaring a variable. it includes all types after saturation except for string, integer, list, set, void, specialized type, package, control, parser, extern, function, action, constructor, and table.
+check parameter shadowing takes two lists of parameters and checks if there is any duplicate in them. 
+
+~ Begin InfRule
+
+  \inferrule
+     { \prim \typ = \trans \typ \emp \\
+       (\prim \exp, \pprim \typ, \dir) = \castExpression \exp {\prim \typ}\\
+       \val = \compileTimeEval {\prim \exp} }
+     { \dclenvvv {\constDcl \typ \var \exp} {\constDcl {\prim \typ} \var \val} {\addConstEnv \var \val} {\addTypeEnv \var {(\prim \typ, \less)}}}
+     \quad (\constantD)
+
+  \inferrule
+     { \expenv {\instantiation {\var} \args} {\instantiation {\var} {\prim \args}} {\prim \typ} \dir \\
+       \ctxt \neq \toplevel \textOr \ctxt = \toplevel, ({\prim \typ} \neq \controlTyp {\_} {\_} \textOr \parserTyp {\_} {\_} )}
+     { \dclenvvv {\inst \typVar \args \var {\ } } {\inst \typVar \args \var {\ }} \constEnv {\addTypeEnv \var {(\prim \typ, \less)}} }
+     \quad (\instantD)
+
+  \inferrule
+    {}
+    {blah}
+    \quad (\parserD)
+     % { \checkParamShadow param constructorparam \\
+     %   }
+     % { \dclenvvv {} {} {} {} }
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\controlD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\funcD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\actionD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\externFuncD)
+
+  \inferrule
+     { \ctxt \neq \toplevel \\
+       \prim \typ = \trans \typ \emp \\
+       \allowedTypeForVar {\prim \typ} \\
+       \typWellFormed {\prim \typ}}
+     { \dclenvvv {\varDcl \typ \var } {\varDcl {\prim \typ} \var} \constEnv {\addTypeEnv \var {(\prim \typ, \inout)}} }
+     \quad (\varD)
+
+  \inferrule
+     { \ctxt \neq \toplevel \\
+       \prim \typ = \trans \typ \emp \\
+       \allowedTypeForVar {\prim \typ} \\
+       \typWellFormed {\prim \typ} \\
+       (\prim \exp, \prim \typ, \dir) = \castExpression  {\prim \typ} \exp}
+     { \dclenvvv {\varDclInit \typ \var \exp} {\varDclInit {\prim \typ} \var {(\prim \exp, \prim \typ, \dir)}} \constEnv {\addTypeEnv \var {(\prim \typ, \inout)}} }
+     \quad (\varInitD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\valueSetD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\tableD)
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\headerD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\headerUnionD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\structD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\errD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\matchkindD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\enumD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\serEnumD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\externObjD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\typDefD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\newtypeD)
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\controlTypD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\parserTypD)
+
+  \inferrule
+     { blah }
+     { blah }
+     \quad (\packageTypD)
+
+  % \inferrule[ ]
+  %    {  }
+  %    {  }
+
+  % \inferrule[]
+  %    {  }
+  %    {  }
+
+  % \inferrule[]
+  %    {  }
+  %    {  }
+
+  % \inferrule[]
+  %    {  }
+  %    {  }
+
+  % \inferrule[]
+  %    {  }
+  %    {  }
+
+  % \inferrule[]
+  %    {  }
+  %    {  }
+
+  % \inferrule[]
+  %    {  }
+  %    {  }
+
+~ End InfRule
+

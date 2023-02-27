@@ -16,177 +16,174 @@ module P4P4info = P4info
 open Core
 module P4info = P4P4info
 
-
-module type Parse_config = sig
+module type DriverIO = sig
   val red: string -> string
   val green: string -> string
-  val preprocess: string list -> string -> string
+  val preprocess: Filename.t list -> Filename.t -> string
+  val open_file: Filename.t -> Out_channel.t
+  val close_file: Out_channel.t -> unit
 end
 
-(* This is a stand-in for Pretty.format_program *)
-let pretty fmt p =
-  Format.pp_print_string fmt "Sorry, I yanked the pretty-printer out while I was refactoring. Feel free to put it back - Ryan"
+type error =
+  | PreprocessorError of exn
+  | LexerError of string
+  | ParserError of P4info.t
+  | CheckerError of exn
+  | GenLocError
+  | ToP4CubError of string
+  | ToGCLError of string
+  | ToCLightError of string
+  (* not an error but an indicator to stop processing data *)
+  | Finished
 
-module Make_parse (Conf: Parse_config) = struct
-  let parse_file include_dirs p4_file verbose =
-    let () = Lexer.reset () in
-    let () = Lexer.set_filename p4_file in
-    let p4_string = Conf.preprocess include_dirs p4_file in
-    let lexbuf = Lexing.from_string p4_string in
+let error_to_string (e : error) : string =
+  match e with
+  | PreprocessorError pp ->
+    Printf.sprintf "preprocessor error: %s" (Exn.to_string pp)
+  | LexerError s ->
+    Printf.sprintf "lexer error: %s" s
+  | ParserError info ->
+    Printf.sprintf "parser error: %s" (P4info.to_string info)
+  | CheckerError exn ->
+    Printf.sprintf "checker error: %s" (Exn.to_string exn)
+  | GenLocError ->
+    Printf.sprintf "genloc error: TODO add debug message"
+  | ToP4CubError s ->
+    Printf.sprintf "top4cub error: %s" s
+  | ToGCLError s ->
+    Printf.sprintf "togcl error: %s" s
+  | ToCLightError s ->
+    Printf.sprintf "toclight error: %s" s
+  | Finished ->
+    Printf.sprintf "error [Finished] (not actually an error)"
+
+let handle_error (res : ('a, error) Result.t) : 'a =
+  match res with
+  | Ok a -> a
+  | Error e ->
+    failwith (error_to_string e)
+
+module MakeDriver (IO: DriverIO) = struct
+
+  open Result
+
+  let preprocess (cfg: Pass.parser_cfg) =
     try
-      let prog = Parser.p4program Lexer.lexer lexbuf in
-      if verbose then
-        begin
-          Format.eprintf "[%s] %s@\n%!" (Conf.green "Passed") p4_file;
-          Format.printf "%a@\n%!" pretty prog;
-          Format.printf "----------@\n";
-          Format.printf "%s@\n%!" (prog |> Surface.program_to_yojson |> Yojson.Safe.pretty_to_string)
-        end;
-      `Ok prog
+      Ok (IO.preprocess cfg.cfg_includes cfg.cfg_infile)
+    with ex -> Error (PreprocessorError ex)
 
-    with
-    | err ->
-      if verbose then Format.eprintf "[%s] %s@\n%!" (Conf.red "Failed") p4_file;
-      `Error (Lexer.info lexbuf, err)
+  let lex (cfg: Pass.parser_cfg) (input: string) =
+    try 
+      let () = Lexer.reset () in
+      let () = Lexer.set_filename cfg.cfg_infile in
+      Ok (Lexing.from_string input)
+    with Lexer.Error s -> Error (LexerError s)
 
-  let hex_of_nibble (i : int) : string =
-    match i with
-    | 0 -> "0"
-    | 1 -> "1"
-    | 2 -> "2"
-    | 3 -> "3"
-    | 4 -> "4"
-    | 5 -> "5"
-    | 6 -> "6"
-    | 7 -> "7"
-    | 8 -> "8"
-    | 9 -> "9"
-    | 10 -> "A"
-    | 11 -> "B"
-    | 12 -> "C"
-    | 13 -> "D"
-    | 14 -> "E"
-    | 15 -> "F"
-    | _ -> failwith "unreachable"
+  let parse cfg (lexbuf: Lexing.lexbuf) =
+    try
+      Ok (P4parser.p4program Lexer.lexer lexbuf)
+    with P4parser.Error -> Error (ParserError (Lexer.info lexbuf))
 
-  let hex_of_int (i : int) : string =
-    hex_of_nibble (i/16) ^ hex_of_nibble (i%16) ^ " "
+  let print_surface (cfg: Pass.checker_cfg) (prog: Surface.program) =
+    match cfg.cfg_p4surface with
+    | Skip -> Error Finished
+    | Run None -> Ok prog
+    | Run (Some out) ->
+      Format.eprintf "TODO: implement surface pretty printing.\n";
+      Ok prog
 
-  let hex_of_char (c : char) : string =
-    c |> Char.to_int |> hex_of_int
-
-  let hex_of_string (s : string) : string =
-    s
-    |> String.to_list
-    |> List.map ~f:hex_of_char
-    |> List.fold_left ~init:"" ~f:(^)
-
-  let check_file (include_dirs : string list) (p4_file : string) 
-      (print_json : bool) (pretty_json : bool) (exportp4 : bool) (exportp4_ocaml: bool)(normalize : bool)
-      (export_file : string) (typed_json : bool) (gen_loc : bool) (verbose : bool) 
-      (printp4 : bool) (printp4_file: string) : unit =
-    match parse_file include_dirs p4_file verbose with
-    | `Ok prog ->
+  let check cfg (prog: Surface.program) =
+    try
       let prog, renamer = Elaborate.elab prog in
       let _, typed_prog = Checker.check_program renamer prog in
-      begin
-        if print_json then
-          let json = Surface.program_to_yojson prog in
-          let to_string j =
-            if pretty_json then
-              Yojson.Safe.pretty_to_string j
-            else
-              Yojson.Safe.to_string j in
-          Format.printf "%s" (to_string json)
-        else
-          Format.printf "%a" pretty prog
+      Ok typed_prog
+    with e -> Error (CheckerError e)
+
+  let gen_loc (cfg: Pass.checker_cfg) (prog: P4light.program) =
+    match cfg.cfg_gen_loc with
+    | Skip -> Ok prog
+    | Run () ->
+       match Poulet4.GenLoc.transform_prog P4info.dummy prog with
+       | Coq_inl prog'' -> Ok prog''
+       | Coq_inr ex     -> Error GenLocError
+
+  let normalize (cfg: Pass.checker_cfg) (prog: P4light.program) =
+    match cfg.cfg_normalize with
+    | Skip -> Ok prog
+    | Run () ->
+       Ok (Poulet4.SimplExpr.transform_prog P4info.dummy prog)
+
+  let print_p4light (cfg: Pass.checker_cfg) (prog: P4light.program) =
+    match cfg.cfg_p4light with
+    | Skip -> Error Finished
+    | Run None -> Ok prog
+    | Run (Some out) ->
+      let oc = IO.open_file out.out_file in
+      let fmt = Format.formatter_of_out_channel oc in
+      begin match out.out_fmt with
+        | Concrete ->
+          Printp4.print_program
+            fmt 
+            ["core.p4"; "tna.p4";"common/headers.p4";"common/util.p4"] 
+            ["@pragma pa_auto_init_metadata"]
+            prog
+        | Sexps ->
+          Format.eprintf "TODO: implement p4light s-expression pretty printing.\n"
+        | Coq ->
+          Exportp4.print_program fmt prog
+        | Ocaml ->
+          Exportp4prune.print_program fmt prog
       end;
-      begin
-        if typed_json then
-          let json = P4light.program_to_yojson typed_prog in
-          Format.printf "%s@\n%!" (Yojson.Safe.pretty_to_string json)
-      end;
-      begin
-        if exportp4 || exportp4_ocaml || printp4 then
-          (* let oc = open_out ofile in *)
-          (* let oc = Stdlib.open_out "out.v" in *)
-          let prog' =
-            if normalize then
-              Poulet4.SimplExpr.transform_prog P4info.dummy typed_prog
-            else typed_prog in
-          let prog'' =
-            if gen_loc then
-              match Poulet4.GenLoc.transform_prog P4info.dummy prog' with
-              | Coq_inl prog'' -> prog''
-              | Coq_inr ex -> failwith "error occurred in GenLoc"
-            else prog' in
-          begin 
-            if exportp4 then
-            let oc = Out_channel.create export_file in
-            Exportp4.print_program (Format.formatter_of_out_channel oc) prog'';
-            Out_channel.close oc
-          end;
-          begin 
-            if exportp4_ocaml then
-            let oc = Out_channel.create export_file in
-            Exportp4prune.print_program (Format.formatter_of_out_channel oc) prog'';
-            Out_channel.close oc
-          end;
-          begin
-            if printp4 then
-            let oc_p4 = Out_channel.create printp4_file in
-            Printp4.print_program (Format.formatter_of_out_channel oc_p4)
-              ["core.p4"; "tna.p4";"common/headers.p4";"common/util.p4"] 
-              ["@pragma pa_auto_init_metadata"]
-              prog'';
-            Out_channel.close oc_p4
-          end;
-      end
-    | `Error (info, Lexer.Error s) ->
-      Format.eprintf "%s: %s@\n%!" (P4info.to_string info) s
-    | `Error (info, Parser.Error) ->
-      Format.eprintf "%s: syntax error@\n%!" (P4info.to_string info)
-    | `Error (info, err) ->
-      Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
+      IO.close_file oc;
+      Ok prog
 
- let write_p4cub_to_file prog printp4_file =
-   let oc_p4 = Out_channel.create printp4_file in
-   Printp4cub.print_tp_decl (Format.formatter_of_out_channel oc_p4) prog;
-   Out_channel.close oc_p4
+  let to_p4cub (cfg: Pass.compiler_cfg) (prog: P4light.program) =
+    if Pass.is_skip cfg.cfg_p4cub
+    then Error Finished
+    else
+      match Poulet4.ToP4cub.translate_program P4info.dummy prog with
+      | Poulet4.Result.Ok cub  -> Ok cub
+      | Poulet4.Result.Error e -> Error (ToP4CubError e)
 
- let to_p4cub light =
-   let open Poulet4 in
-   let open Result in
-   match ToP4cub.translate_program P4info.dummy light with
-   | Result.Ok cub -> cub
-   | Result.Error e -> failwith e
+  let print_p4cub (cfg: Pass.compiler_cfg) prog =
+    match cfg.cfg_p4cub with
+    | Skip -> Error Finished
+    | Run None ->
+       Ok prog
+    | Run (Some out) ->
+       let oc = IO.open_file out.out_file in
+       let fmt = Format.formatter_of_out_channel oc in
+       begin match out.out_fmt with
+       | Concrete -> 
+          Format.eprintf "TODO: implement p4cub concrete syntax pretty printing.\n"
+       | Sexps -> P4cubSexp.print fmt prog
+       | Coq ->
+          Format.eprintf "TODO: implement p4cub coq pretty printing.\n"
+       | Ocaml ->
+          Format.eprintf "TODO: implement p4cub OCaml pretty printing.\n"
+       end;
+       IO.close_file oc;
+       Ok prog
 
- let gen_loc ~if_:do_gen_loc light =
-   if do_gen_loc then begin
-     match Poulet4.GenLoc.transform_prog P4info.dummy light with
-     | Coq_inl located_light -> located_light 
-     | Coq_inr ex -> failwith "error occurred in GenLoc"
-     end
-   else light
+  let to_p4flat (cfg: Pass.compiler_cfg) prog =
+    match cfg.cfg_p4flat with
+    | Skip -> Error Finished
+    | Run p4flat_fmt ->
+       Ok prog
 
- let print_type_def (oc) (struc : string) (typ : string) : unit = 
-    Printf.fprintf oc "typedef struct %s %s; \n" struc typ
+  let write_p4cub_to_file prog printp4_file =
+    let oc_p4 = Out_channel.create printp4_file in
+    Printp4cub.print_prog (Format.formatter_of_out_channel oc_p4) prog;
+    Out_channel.close oc_p4
 
- let simpl_expr ~if_:do_simpl_expr light =
-   if do_simpl_expr then
-     Poulet4.SimplExpr.transform_prog P4info.dummy light
-   else
-     light
+  let print_p4flat (cfg: Pass.compiler_cfg) prog =
+    match cfg.cfg_p4flat with
+    | Skip -> Error Finished
+    | Run None -> Ok prog
+    | Run (Some p4flat_fmt) ->
+       Format.eprintf "TODO: implement p4flat pretty printing.\n";
+       Ok prog
 
- let to_gcl (p4cub : P4info.t Poulet4.ToP4cub.coq_DeclCtx) gas unroll =
-   let open Poulet4 in
-   let open Result in
-   let instr s _ = TableInstr.instr s in 
-   let coq_gcl = V1model.gcl_from_p4cub (P4info.dummy) instr false gas unroll p4cub in 
-   match coq_gcl with
-   | Result.Error msg -> failwith msg
-   | Result.Ok gcl -> gcl
-   
  let ccompile cub =
    match Poulet4_Ccomp.CCompSel.coq_Compile cub with
    | Poulet4_Ccomp.Errors.OK c ->     
@@ -197,113 +194,105 @@ module Make_parse (Conf: Parse_config) = struct
        failwith (Base.String.of_char_list msg)
      | _ ->
        failwith ("unknown failure from Ccomp") 
-   
 
- let flatten cub =
-   let open Poulet4 in
-   let open Result in
-   match Poulet4.ToP4cub.flatten_DeclCtx cub with
-   | Result.Ok cub -> cub
-   | Result.Error e -> failwith e
-   
- let to_c print file cub =  
-   (* the C compiler *)
-   let cub = flatten cub in
-   let stmtd = Poulet4.Statementize.coq_TranslateProgram cub in
-   if(print) then write_p4cub_to_file stmtd file;
-   let certd = Compcertalize.topdecl_convert cub in 
-   ccompile certd
-   
-                    
- let compile_file (include_dirs : string list) (p4_file : string) 
-     (normalize : bool) (export_file : string) (verbose : bool)
-     (do_gen_loc : bool) (print_p4cub : bool)
-     (printp4_file : string)
-     (gcl : int list)
-     : unit =
-   match parse_file include_dirs p4_file verbose with
-   | `Ok prog ->
-     let prog, renamer = Elaborate.elab prog in
-     let _, typ_light = Checker.check_program renamer prog in
-     (* Preprocessing  *)
-     let nrm_light = simpl_expr ~if_:normalize  typ_light in
-     let loc_light = gen_loc    ~if_:do_gen_loc nrm_light in
-     (* p4cub compiler *)
-     let cub = to_p4cub loc_light in
-     begin match gcl with
-     | [gas; unroll] ->
-       (* GCL Compiler *)
-       let _ = to_gcl cub gas unroll in
-       Printf.printf "No Error converting to GCL\n%!"
-     | [] ->
-       (* the C compiler *)
-       Poulet4_Ccomp.PrintClight.change_destination export_file;       
-       let ((prog, hid), mid) = to_c print_p4cub printp4_file cub in
-       Poulet4_Ccomp.CCompSel.print_Clight prog;
-       (let oc = Out_channel.create ~append:true  export_file in 
-        begin (
-          print_type_def oc (Poulet4_Ccomp.PrintCsyntax.name_of_ident hid) "H";
-          print_type_def oc (Poulet4_Ccomp.PrintCsyntax.name_of_ident mid) "M"
-        )end)
-       
-     | _ ->
-       failwith "unrecognized arguments to -gcl"
-     end
-   | `Error (info, Lexer.Error s) ->
-     Format.eprintf "%s: %s@\n%!" (P4info.to_string info) s
-   | `Error (info, Parser.Error) ->
-     Format.eprintf "%s: syntax error@\n%!" (P4info.to_string info)
-   | `Error (info, err) ->
-     Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
-       
+ let to_gcl depth prog =
+    let open Poulet4 in
+    let gas = 100000 in
+    let coq_gcl =
+      V1model.gcl_from_p4cub TableInstr.instr gas depth prog
+    in
+    begin match coq_gcl with
+    | Result.Error msg -> Error (ToGCLError msg)
+    | Result.Ok gcl    -> Ok gcl
+    end
 
-  let eval_file include_dirs p4_file verbose pkt_str ctrl_json port target =
-    failwith "eval_file removed"
-    (* TODO restore evaluator
-    let port = Bigint.of_int port in
-    let pkt = Cstruct.of_hex pkt_str in
-    let open Yojson.Safe in
-    let matches = ctrl_json
-                  |> Util.member "matches"
-                  |> Util.to_list
-                  |> List.map ~f:Util.to_list in
-    let vsets =
-      List.map matches ~f:(fun l -> List.map l ~f:P4light.Match.of_yojson_exn) in
-    match parse_file include_dirs p4_file verbose with
-    | `Ok prog ->
-      let elab_prog, renamer = Elaborate.elab prog in
-      let (cenv, typed_prog) = Checker.check_program renamer elab_prog in
-      let env = Env.CheckerEnv.eval_env_of_t cenv in
-      let open Eval in
-      begin match target with
-        | "v1" ->
-          let st = V1Interpreter.empty_state in
-          begin match V1Interpreter.eval_program (([],[]), vsets) env st pkt port typed_prog |> snd with
-            | Some (pkt,port) -> `Ok(pkt, port)
-            | None -> `NoPacket
-          end
-        | "ebpf" ->
-          let st = EbpfInterpreter.empty_state in
-          begin match EbpfInterpreter.eval_program (([],[]), vsets) env st pkt port typed_prog |> snd with
-            | Some (pkt, port) -> `Ok(pkt,port)
-            | None -> `NoPacket
-          end
-        | _ -> Format.sprintf "Architecture %s unsupported" target |> failwith
-      end
-    | `Error (info, exn) as e-> e
-    *)
+  let print_gcl (out: Pass.output) prog =
+    Format.eprintf "TODO: implement GCL pretty printing.\n";
+    Ok prog
+  
+  let flatten_declctx cub_ctx =
+    Ok (Poulet4.ToP4cub.flatten_DeclCtx cub_ctx)
+  
+  let hoist_clight_effects prog =
+    Ok (Poulet4.Statementize.lift_program prog)
 
-  let eval_file_string include_dirs p4_file verbose pkt_str ctrl_json port target =
-    failwith "eval_file_string removed"
-    (* TODO restore evaluator
-    match eval_file include_dirs p4_file verbose pkt_str ctrl_json port target with
-    | `Ok (pkt, port) ->
-      (pkt |> Cstruct.to_string |> hex_of_string) ^ " port: " ^ Bigint.to_string port
-    | `NoPacket -> "No packet out"
-    | `Error(info, exn) ->
-      let exn_msg = Exn.to_string exn in
-      let info_string = P4info.to_string info in
-      info_string ^ "\n" ^ exn_msg
-    *)
+  let to_clight prog =
+    let certd = List.map ~f:Compcertalize.topdecl_convert prog in
+    match Poulet4_Ccomp.CCompSel.coq_Compile certd with
+    | Poulet4_Ccomp.Errors.OK clight -> Ok clight
+    | Poulet4_Ccomp.Errors.Error m ->
+       match m with
+       | Poulet4_Ccomp.Errors.MSG msg :: [] ->
+          Error (ToCLightError (Base.String.of_char_list msg))
+       | _ ->
+          Error (ToCLightError ("Unknown failure in Ccomp"))
+  
+  let print_clight (out: Pass.output) prog =
+    Format.eprintf "TODO: implement Clight pretty printing.\n";
+    Ok prog
 
+  let run_parser (cfg: Pass.parser_cfg) =
+    preprocess cfg
+    >>= lex cfg
+    >>= parse cfg
+
+  let run_checker (cfg: Pass.checker_cfg) =
+    run_parser cfg.cfg_parser
+    >>= print_surface cfg
+    >>= check cfg
+    (* normalize must come before gen_loc *)
+    >>= normalize cfg
+    >>= gen_loc cfg
+    >>= print_p4light cfg
+
+  let run_compiler (cfg: Pass.compiler_cfg) =
+    run_checker cfg.cfg_checker
+    >>= to_p4cub cfg
+
+    >>= to_p4flat cfg
+    >>= print_p4flat cfg
+
+    >>= begin fun prog ->
+        match cfg.cfg_backend with
+        | Skip -> Ok ()
+        | Run (GCLBackend {depth; gcl_output}) ->
+           to_gcl depth prog
+           >>= print_gcl gcl_output
+           >>= fun x -> Ok ()
+        | Run (CBackend cfg_ccomp) ->
+           flatten_declctx prog
+           >>= hoist_clight_effects
+           >>= print_p4cub cfg
+           >>= to_clight
+           >>= print_clight cfg_ccomp
+           >>= fun x -> Ok ()
+        end
+
+  let run_interpreter (cfg: Pass.interpreter_cfg) =
+    run_checker cfg.cfg_checker
+    >>= fun p4prog ->
+    match cfg.cfg_inputs with
+    | InputSTF stf_filename ->
+      let _ = Stf.run_stf stf_filename p4prog in
+      Ok ()
+    | InputPktPort { input_pkt_hex;
+                     input_port } ->
+      let _ = Stf.evaler p4prog input_pkt_hex input_port (fun _ -> None) in
+      Ok ()
+
+  let run (cfg: Pass.cmd_cfg) =
+    let open Pass in
+    match cfg with
+    | CmdParse parse_cfg ->
+      run_parser parse_cfg
+      >>= fun _ -> Ok ()
+    | CmdCheck check_cfg ->
+      run_checker check_cfg
+      >>= fun _ -> Ok ()
+    | CmdCompile compile_cfg ->
+      run_compiler compile_cfg
+      >>= fun _ -> Ok ()
+    | CmdInterp interp_cfg ->
+      run_interpreter interp_cfg
+      >>= fun _ -> Ok ()
 end

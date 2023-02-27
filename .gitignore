@@ -1,10 +1,13 @@
+# docs build
+docs/petr4spec/build
+
+
 # Build artifacts
 _build/
 *.exe
 *.install
 .merlin
-html_build/*bc.js
-html_build/p4
+web/html_build/*bc.js
 docs/specification/build
 *.p4i
 testruns/

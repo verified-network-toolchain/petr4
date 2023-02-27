@@ -1,0 +1,110 @@
+p4 program:
+\n
+/*
+ * To compile example run (from ebpf/runtime):
+ * p4c-ebpf ../externs/checksum.p4 -o test.c
+ * clang -O2 -include ../externs/checksum.c -I./  -target bpf -c test.c -o test.o
+ */
+
+#include <core.p4>
+#include <ebpf_model.p4>
+
+typedef bit<48> EthernetAddress;
+typedef bit<32>     IPv4Address;
+
+// IPv4 header without options
+header IPv4_h {
+    bit<4>       version;
+    bit<4>       ihl;
+    bit<8>       diffserv;
+    bit<16>      totalLen;
+    bit<16>      identification;
+    bit<3>       flags;
+    bit<13>      fragOffset;
+    bit<8>       ttl;
+    bit<8>       protocol;
+    bit<16>      hdrChecksum;
+    IPv4Address  srcAddr;
+    IPv4Address  dstAddr;
+}
+
+/** Declaration of the C extern function. */
+extern bool verify_ipv4_checksum(in IPv4_h iphdr);
+
+// standard Ethernet header
+header Ethernet_h
+{
+    EthernetAddress dstAddr;
+    EthernetAddress srcAddr;
+    bit<16> etherType;
+}
+
+struct Headers_t {
+    Ethernet_h ethernet;
+    IPv4_h     ipv4;
+}
+
+parser prs(packet_in p, out Headers_t headers) {
+    state start {
+        p.extract(headers.ethernet);
+        p.extract(headers.ipv4);
+        transition accept;
+    }
+}
+
+control pipe(inout Headers_t headers, out bool pass) {
+
+    apply {
+        // verify checksum using C extern
+        bool verified = verify_ipv4_checksum(headers.ipv4);
+        pass = verified;
+    }
+}
+
+ebpfFilter(prs(), pipe()) main;
+\n
+\n
+packet 0 001b1700 0130b881 98b7aeb7 08004500 00344a6f 40004006 53920a01 98463212 c86acf2c 01bbd0fa 585c4ccc b2ac8010 0353c314 00000101 080a0192 463911a0 c06f
+
+packet 0 001b1700 0130b881 98b7aeb7 08004500 00344a6f 40004011 53870a01 98453212 c86acf2c 01bb0020 292c4ccc b2ac8010 0353c314 00000101 080a0192 463911a0 c06f
+expect 0 001b1700 0130b881 98b7aeb7 08004500 00344a6f 40004011 53870a01 98453212 c86acf2c 01bb0020 292c4ccc b2ac8010 0353c314 00000101 080a0192 463911a0 c06f
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Uncaught exception:
+  
+  (Failure "extern unknown in ebpf")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from Petr4__Eval.MakeInterpreter.eval_extern_call in file "lib/eval.ml", line 1034, characters 30-68
+Called from Petr4__Eval.MakeInterpreter.eval_var_decl in file "lib/eval.ml", line 150, characters 33-61
+Called from Petr4__Eval.MakeInterpreter.eval_declaration in file "lib/eval.ml", line 68, characters 20-59
+Called from Petr4__Eval.MakeInterpreter.eval_declaration_stm in file "lib/eval.ml", line 626, characters 22-55
+Called from Stdlib__list.fold_left in file "list.ml", line 121, characters 24-34
+Called from Base__List0.fold in file "src/list0.ml" (inlined), line 21, characters 22-52
+Called from Petr4__Eval.MakeInterpreter.eval_block in file "lib/eval.ml", line 573, characters 4-86
+Called from Petr4__Eval.MakeInterpreter.eval_control in file "lib/eval.ml", line 1303, characters 27-65
+Called from Petr4__Eval.MakeInterpreter.eval_app in file "lib/eval.ml", line 419, characters 23-81
+Called from Petr4__Ebpf.PreEbpfFilter.eval_ebpf_ctrl in file "lib/ebpf.ml", line 117, characters 19-57
+Called from Petr4__Ebpf.PreEbpfFilter.eval_pipeline in file "lib/ebpf.ml", line 170, characters 8-72
+Called from Petr4__Eval.MakeInterpreter.eval in file "lib/eval.ml", line 1421, characters 25-66
+Called from Petr4__Eval.MakeInterpreter.eval_main in file "lib/eval.ml" (inlined), line 1426, characters 33-61
+Called from Petr4__Eval.MakeInterpreter.eval_program in file "lib/eval.ml", line 1440, characters 26-59
+Called from P4stf__Test.MakeRunner.run_test in file "p4stf/test.ml", line 101, characters 28-110
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 106, characters 31-65
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Writing temporary files into  ./tmpx4ijdzhz
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpx4ijdzhz/ebpf_checksum_extern.json /petr4/ci-test/testdata/p4_16_samples/ebpf_checksum_extern.p4
+Exit code  1
+Error compiling
+/usr/local/share/p4c/p4include/ebpf_model.p4(69): [--Wwarn=invalid] warning: ebpfFilter: the main package should be called V1Switch; are you using the wrong architecture?
+package ebpfFilter<H>(parse<H> prs,
+        ^^^^^^^^^^
+/petr4/ci-test/testdata/p4_16_samples/ebpf_checksum_extern.p4(62): [--Werror=Target model error] error: package ebpfFilter: main package  match the expected model
+Are you using an up-to-date v1model.p4?
+ebpfFilter(prs(), pipe()) main;
+                          ^^^^
+
+*** Test failed

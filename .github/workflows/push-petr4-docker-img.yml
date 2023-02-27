@@ -1,0 +1,48 @@
+name: push-petr4-docker-img
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow after the "build-petr4" workflow 
+  # has completed successfully.
+  workflow_run:
+    workflows: ["build-petr4"]
+    branches: [main]
+    types: 
+      - completed
+#   workflow_dispatch:
+
+jobs:
+  build-push-docker-img:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: read
+      packages: write
+    
+    steps: 
+      - name: checkout main
+        uses: actions/checkout@v2
+      
+      - name: log in to docker hub 
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME}}
+          password: ${{ secrets.DOCKER_PASSWORD}}
+
+      - name: extract metadata for docker 
+        id: meta 
+        uses: docker/metadata-action@v1
+        with:
+          images: pataei/petr4
+
+      - name: build and push docker img 
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tag-latest: true
+          # tags: pataei/petr4:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          
+
+

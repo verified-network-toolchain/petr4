@@ -1,0 +1,154 @@
+p4 program:
+\n
+/*
+Copyright 2020 Andy Fingerhut
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include <core.p4>
+#include <v1model.p4>
+
+typedef bit<48>  EthernetAddress;
+
+header ethernet_t {
+    EthernetAddress dstAddr;
+    EthernetAddress srcAddr;
+    bit<16>         etherType;
+}
+
+struct headers_t {
+    ethernet_t    ethernet;
+}
+
+struct metadata_t {
+}
+
+parser parserImpl(packet_in packet,
+                  out headers_t hdr,
+                  inout metadata_t meta,
+                  inout standard_metadata_t stdmeta)
+{
+    state start {
+        packet.extract(hdr.ethernet);
+        transition accept;
+    }
+}
+
+control verifyChecksum(inout headers_t hdr, inout metadata_t meta) {
+    apply { }
+}
+
+control ingressImpl(inout headers_t hdr,
+                    inout metadata_t meta,
+                    inout standard_metadata_t stdmeta)
+{
+    action act_miss() {
+        hdr.ethernet.srcAddr = 0xdeadbeef;
+    }
+    action act_hit(bit<48> x) {
+        hdr.ethernet.srcAddr = x;
+    }
+    table lpm1 {
+        key = {
+            hdr.ethernet.dstAddr: lpm;
+        }
+        actions = {
+            act_miss;
+            act_hit;
+        }
+        const entries = {
+            0x0a0102030000 &&& 0xffffffffffff: act_hit(1);
+            0x0a0000000000 &&& 0xff0000000000: act_hit(2);
+            0x000000000000 &&& 0x000000000000: act_hit(3);
+        }
+        const default_action = act_miss();
+    }
+    apply {
+        lpm1.apply();
+        stdmeta.egress_spec = 1;
+    }
+}
+
+control egressImpl(inout headers_t hdr,
+                   inout metadata_t meta,
+                   inout standard_metadata_t stdmeta)
+{
+    apply { }
+}
+
+control updateChecksum(inout headers_t hdr, inout metadata_t meta) {
+    apply { }
+}
+
+control deparserImpl(packet_out packet,
+                     in headers_t hdr)
+{
+    apply {
+        packet.emit(hdr.ethernet);
+    }
+}
+
+V1Switch(parserImpl(),
+         verifyChecksum(),
+         ingressImpl(),
+         egressImpl(),
+         updateChecksum(),
+         deparserImpl()) main;
+\n
+\n
+# Should match 1st const entry
+packet 0 0a0102030000 ffffffffffff 0000
+expect 1 0a0102030000 000000000001 0000
+
+# Should match 2nd const entry
+packet 0 0a0102030001 ffffffffffff 0000
+expect 1 0a0102030001 000000000002 0000
+
+# Should match 3rd const entry
+packet 0 0b0102030001 ffffffffffff 0000
+expect 1 0b0102030001 000000000003 0000
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Packet matched the expected packet.
+Packet:   port 1 pkt 0b01020300010000000000030000
+
+Packet matched the expected packet.
+Packet:   port 1 pkt 0a01020300010000000000020000
+
+Packet matched the expected packet.
+Packet:   port 1 pkt 0a01020300000000000000010000
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Adding interface pcap1 as port 1 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmp0_xeq66y
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmp0_xeq66y/v1model-const-entries-bmv2.json /petr4/ci-test/testdata/p4_16_samples/v1model-const-entries-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9638 --device-id 548 -i 0@pcap0 -i 1@pcap1 .././tmp0_xeq66y/v1model-const-entries-bmv2.json
+Running simple_switch_CLI --thrift-port 9638
+STF Command: packet 0 0a0102030000 ffffffffffff 0000
+STF Command: expect 1 0a0102030000 000000000001 0000
+STF Command: packet 0 0a0102030001 ffffffffffff 0000
+STF Command: expect 1 0a0102030001 000000000002 0000
+STF Command: packet 0 0b0102030001 ffffffffffff 0000
+STF Command: expect 1 0b0102030001 000000000003 0000
+simple_switch exit code -15
+Execution completed
+Comparing outputs

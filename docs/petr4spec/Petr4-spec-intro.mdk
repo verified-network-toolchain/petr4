@@ -1,0 +1,21 @@
+# Introduction { #sec-intro }
+
+P4's type system is currently distributed between its [language specification][p4spec] and its [reference implementation][p4cgit](p4c).
+P4 spec explains the type of (sub)programs in plain English
+while p4c implements a type system for P4.
+There are multiple problems with both:
+
+[p4spec]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html
+[p4cgit]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html
+
+1. Figuring out how a program behaves and whether it type checks or not is extremely hard. In P4 spec, one has to jump from place to place to find whether each part of the program type checks or not since information regarding type checking a program is staggered all over the place and even worse in some cases it is missing. In p4c, one has to either write a sample program and compile it to see if it type checks or they have to go through all P4C's code to figure out the behavior of their program. For example, ``todo: add GitHub issues. add number of loc of P4C.``
+2. Adding a new feature to P4 requires extending its type system and often times results in revising parts of the current type system as well. Doing so for both P4 spec and p4c is rather burdensome and error-prone due to the distribution of explanation in P4 spec and implementation in p4c. 
+3. Even more concerning, despite lots of effort by the P4 language committee, there are discrepancies between P4 spec and P4C's implementation. For example, ``TODO: add GitHub issues``
+
+In this document, we formalize P4's type system. Formalizing P4 benefits the community in different ways
+
+1. It makes working with and on P4 easier for both people who are just picking it up and those who have been working with/on it for some time. This is because clear formalization makes understanding a language and the behavior of programs written in it less cumbersome. 
+2. It provides a place for experts and users to refer to check the behavior of a program. It also provides a unified place for ensuring all references and implementations of P4 are consistent with each other.
+3. It provides the bases for formally verifying P4's compilers and interpretors.
+
+

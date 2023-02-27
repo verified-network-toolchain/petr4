@@ -1,0 +1,2 @@
+packet 0 01 02 03 04 05 06
+expect 0 01 bb aa aa bb 06

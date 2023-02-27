@@ -1,3 +1,5 @@
+open Poulet4.Syntax
+open Poulet4.Typed
 open P4light
 open Format
 
@@ -1049,8 +1051,8 @@ let get_decl_name (decl: coq_Declaration): string option =
     | DeclExternFunction (_, _, name, _, params) ->
       let param_names =
         List.fold_left
-        (fun accum p -> let MkParameter (_,_,_,_,name) = p
-                        in accum ^ "'" ^ name.str) "" params
+          (fun accum p -> let MkParameter (_,_,_,_,name) = p
+                          in accum ^ "'" ^ name.str) "" params
       in Some (name.str ^ param_names)
     | DeclConstant (_, _, name, _)
     | DeclInstantiation (_, _, _, name, _)

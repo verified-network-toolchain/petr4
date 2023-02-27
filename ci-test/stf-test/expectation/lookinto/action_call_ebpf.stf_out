@@ -1,0 +1,91 @@
+p4 program:
+\n
+/*
+Copyright 2016 VMware, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include <core.p4>
+#include <ebpf_model.p4>
+
+struct Headers_t {}
+
+parser prs(packet_in p, out Headers_t headers) {
+    state start {
+        transition accept;
+    }
+}
+
+control pipe(inout Headers_t headers, out bool pass) {
+    action Reject(bool rej) {
+        pass = rej;
+    }
+
+    apply {
+        bool x = true;
+        Reject(x);
+    }
+}
+
+ebpfFilter(prs(), pipe()) main;
+\n
+\n
+# bit<32> A bit<32> B
+# In the output B = (A + 10)
+
+packet 0 00000000 00000000 00000000 00000000 00000000 ABCDEF01
+expect 0 00000000 00000000 00000000 00000000 00000000 ABCDEF01
+
+packet 0 001b1700 0130b881 98b7aeb7 08004500 00344a6f 40004006 53920a01 98453212 c86acf2c 01bbd0fa 585c4ccc b2ac8010 0353c314 00000101 080a0192 463911a0 c06f
+expect 0 001b1700 0130b881 98b7aeb7 08004500 00344a6f 40004006 53920a01 98453212 c86acf2c 01bbd0fa 585c4ccc b2ac8010 0353c314 00000101 080a0192 463911a0 c06f
+
+packet 0 00000000 00000000 00000000 00000000 00000000 00010000
+expect 0 00000000 00000000 00000000 00000000 00000000 00010000
+packet 0 00000000 00000000 00000000 00000000 00000000 00011000
+expect 0 00000000 00000000 00000000 00000000 00000000 00011000
+
+packet 0 001b1700 0130b881 98b7aeb7 08004500 00344a6f 40004006 53920a01 98453212 c86acf2c 01bbd0fa 585c4ccc b2ac8010 0353c314 00000101 080a0192 463911a0 c06e
+expect 0 001b1700 0130b881 98b7aeb7 08004500 00344a6f 40004006 53920a01 98453212 c86acf2c 01bbd0fa 585c4ccc b2ac8010 0353c314 00000101 080a0192 463911a0 c06e
+
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Packet matched the expected packet.
+Packet:   port 0 pkt 001b17000130b88198b7aeb70800450000344a6f4000400653920a0198453212c86acf2c01bbd0fa585c4cccb2ac80100353c31400000101080a0192463911a0c06e
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 000000000000000000000000000000000000000000011000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 000000000000000000000000000000000000000000010000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 001b17000130b88198b7aeb70800450000344a6f4000400653920a0198453212c86acf2c01bbd0fa585c4cccb2ac80100353c31400000101080a0192463911a0c06f
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 0000000000000000000000000000000000000000abcdef01
+************************\n******** p4c stf result: ********\n************************\n
+Writing temporary files into  ./tmpcufh2m06
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpcufh2m06/action_call_ebpf.json /petr4/ci-test/testdata/p4_16_samples/action_call_ebpf.p4
+Exit code  1
+Error compiling
+/usr/local/share/p4c/p4include/ebpf_model.p4(69): [--Wwarn=invalid] warning: ebpfFilter: the main package should be called V1Switch; are you using the wrong architecture?
+package ebpfFilter<H>(parse<H> prs,
+        ^^^^^^^^^^
+/petr4/ci-test/testdata/p4_16_samples/action_call_ebpf.p4(39): [--Werror=Target model error] error: package ebpfFilter: main package  match the expected model
+Are you using an up-to-date v1model.p4?
+ebpfFilter(prs(), pipe()) main;
+                          ^^^^
+
+*** Test failed

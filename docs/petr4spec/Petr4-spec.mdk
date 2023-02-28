@@ -3093,7 +3093,8 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
   \mprset {vskip=0.7ex}
     {\inferrule
-      {}
+      {{x_1}'\\\\ %try out for Harim
+       \VVal {x_1}}
       {\dclenv {\typdefDcl {\surfaceTyp \exp} \typName} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}
     }
     \quad (\typdefNameD)

@@ -599,8 +599,8 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\enumDcl \typName \fields$ | $\qquad \text{enumerated types}$ |
 |   | $\vert$ | $\serEnumDcl {\surfaceTyp \exp}\typName \field \exp$ | $\qquad \text{serializable enumerated types}$ |
 |   | $\vert$ | $\externObjDcl \var \typVars \extMethods$ | $\qquad \text{extern objects}$ |
-|   | $\vert$ | $\typdefDcl \typName {\surfaceTyp \exp}$ | $\qquad \text{type definitions}$ |
-|   | $\vert$ | $\typdefDcl \typName \dcl$ | $\qquad \text{type definitions (declarations)}$ |
+|   | $\vert$ | $\typdefDcl  {\surfaceTyp \exp} \typName$ | $\qquad \text{type definitions}$ |
+|   | $\vert$ | $\typdefDcl \dcl \typName$ | $\qquad \text{type definitions (declarations)}$ |
 |   | $\vert$ | $\newtypeDcl  {\surfaceTyp \exp}\typName$ | $\qquad \text{generative type definitions}$ |
 |   | $\vert$ | $\newtypeDcl  \dcl \typName$ | $\qquad \text{generative type definitions (declarations)}$ |
 |   | $\vert$ | $\controlTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}$ | $\qquad \text{control types}$ |
@@ -3087,7 +3087,42 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
 ~ End InfRule 
 
-## Error Type Declaration { #sec-error-typ-decl }
+## Type Synonym { #sec-typedef-decl }
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+      {}
+      {\dclenv {\typdefDcl {\surfaceTyp \exp} \typName} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}
+    }
+    \quad (\typdefNameD)
+
+\and
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+      {}
+      {\dclenv {\typdefDcl {\dcl} \typName} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}
+    }
+    \quad (\typdefDclD)
+
+~ End InfRule
+
+## New Type { #sec-type-decl }
+
+~ Begin InfRule
+
+  \mprset{vskip=0.7ex}
+    {\inferrule
+      {}
+      {blah}
+    }
+    \quad (\newtypD)
+
+~ End InfRule
+
+## Error  Declaration { #sec-error-decl }
 
 ~ Begin InfRule
 % \errDcl \fields
@@ -3100,7 +3135,7 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
 ~ End InfRule 
 
-## Match Kind Type Declaration { #sec-match-kind-typ-decl }
+## Match Kind Declaration { #sec-match-kind-decl }
 
 ~ Begin InfRule
 % \matchkindDcl \fields
@@ -3124,20 +3159,6 @@ const S x = { 10, 20 }; //a = 10, b = 20.
   \quad (\externD)
 
 ~ End InfRule 
-
-## Type Specialization { #sec-typ-esp }
-
-~ Begin InfRule
-
-  \mprset {vskip = 0.7ex}
-  {\inferrule
-    {}
-    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
-  \quad (\typespD)
-
-~ End InfRule 
-
-
 
 # References    { #sec-references }
 

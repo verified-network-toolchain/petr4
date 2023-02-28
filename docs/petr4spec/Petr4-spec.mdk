@@ -686,7 +686,7 @@ Two judgments are provided for types of P4 expressions:
 
 ## Type Well-Formed Judgment { #sec-type-well-formed }
 
-This judgment is overloaded and it checks if a surface type and more generally a type is well-formed or not. This judgment is used to check if a surface type is well-formed when it is used in expressions or if a type is well-formed when it is declrade. Specifically, it has two forms $\typWellFormed {\surfaceTyp \exp}$ and $\typWellFormed {\typ}$ which state that the type $\surfaceTyp \exp$ and $\typ$, respectively, are well-formed under the type environment $\typEnv$ and extern environment $\externEnv$. In other words, this judgment checks that types are syntactically correct.
+This judgment is overloaded and it checks if a surface type and more generally a type is well-formed or not. This judgment is used to check if a surface type is well-formed when it is used in expressions or if a type is well-formed when it is declared. Specifically, it has two forms $\typWellFormed {\surfaceTyp \exp}$ and $\typWellFormed {\typ}$ which state that the type $\surfaceTyp \exp$ and $\typ$, respectively, are well-formed under the type environment $\typEnv$ and extern environment $\externEnv$. In other words, this judgment checks that types are syntactically correct.
 
 ### Surface Types Well-Formedness { #sec-surface-typ-well-formed }
 
@@ -818,7 +818,7 @@ Some of the base types are well-formed unconditionally since there is not any ro
 
 ``todo: make sure it covers both \surfacetyp \exp and \typ``
 
-An specialized type specifies the types of parameters in a generic type, the underlying generic type in an specialized type is called the base type. An specialized type is necessary when the compiler cannot infer type arguments.
+A specialized type specifies the types of parameters in a generic type, the underlying generic type in a specialized type is called the base type. A specialized type is necessary when the compiler cannot infer type arguments.
 
 The rule $\specializedExternT$ states that the specialization of an extern type is well-formed if the extern $\name$ exists in the environment $\env$ and the specialization specifies the type of all its type parameters. Similarly, the rule $\specializedRestT$ states that the specialization of a package/control/parser/function is well-formed if it specifies the type of all its type parameters.
 
@@ -990,12 +990,18 @@ A header union can have zero or more fields of type header. Note that in order f
 
 #### Well-Formed Struct Type
 
+A header union can have zero or more fields of type header. 
+
 ~ Begin InfRule
 
   \mprset {vskip = 0.7ex}
-    {}
-    {}
-    \quad (\}
+    {\inferrule
+      {\distinct \fields \\
+       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\typNames} \\\\
+       % \lookupTypEnv \typName = \structTyps {\whatevs} \whatevs \whatevs\\
+       \lookupTypEnv \typNames = \typs}
+      { \typWellFormed {\structTyps  \typParam \field {\typName}}}}
+    \quad (\structTypWellT)
 
 ~ End InfRule
 
@@ -3031,8 +3037,9 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
   \mprset {vskip = 0.7ex}
   {\inferrule
-    {}
-    {\dclenv {} {} {} {} {} {}}}
+    {\typWellFormed {\structTyps  \typParam \field {\surfaceTyp \exp}}\\\\
+    \VVal \typEnv = \insertToTypEnv \typName {\structTyps \typParam \field {\surfaceTyp \exp}}}
+    {\dclenv {\structDcl \typName \typParam \field {\surfaceTyp \exp}} {\structDcl \typName \typParam \field {\surfaceTyp \exp}} { \varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
   \quad (\structD)
 
 ~ End InfRule 

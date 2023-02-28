@@ -1,4 +1,4 @@
-\newcommand{\VVal}[1]{#1'} 
+\newcommand{\VVal}[1]{#1'}
 \newcommand{\VVVal}[1]{#1''}
 
 
@@ -41,6 +41,7 @@
 \newcommand*{\intWidthT}{\rn{SignedInt}\rT}
 \newcommand*{\bitWidthT}{\rn{BitString}\rT}
 \newcommand*{\arrayT}{\rn{Array}\rT}
+\newcommand*{\arraySpecT}{\rn{Array}\rSep\rn{Specialized}\rT}
 \newcommand*{\tupleT}{\rn{Tuple}\rT}
 \newcommand*{\setT}{\rn{Set}\rT}
 \newcommand*{\enumTwoT}{\rn{SerializableEnum}\rT}
@@ -143,13 +144,13 @@
 \newcommand*{\serEnumD}{\rn{SerializableEnum}\rD}
 \newcommand*{\serEnumTypdefD}{\rn{SerializableEnum}\rSep\rn{Typedef}\rD}
 \newcommand*{\externObjD}{\rn{ExternObject}\rD}
-\newcommand*{\typDefD}{\rn{TypeDefinition}\rD}
-\newcommand*{\newtypeD}{\rn{NewType}\rD}
+\newcommand*{\typdefNameD}{\rn{Typedef}\rD}
+\newcommand*{\typdefDclD}{\rn{Typedef}\rSep\rn{Declared}\rD}
+\newcommand*{\newtypD}{\rn{NewType}\rD}
 \newcommand*{\controlTypD}{\rn{ControlType}\rD}
 \newcommand*{\parserTypD}{\rn{ParserType}\rD}
 \newcommand*{\packageTypD}{\rn{PackageType}\rD}
 \newcommand*{\externD}{\rn{Extern}\rD}
-\newcommand*{\typespD}{\rn{TypeSpecialization}\rD}
 
 %stuff here and there:
 %TODO: fix mathit in the followings:
@@ -314,7 +315,7 @@
 \newcommand{\typs}{\overline \typ}
 \newcommand{\surfaceTyp}[1]{\rho_{#1}}
 \newcommand{\surfaceTyps}[1]{\overline {\surfaceTyp {#1}}}
-\newcommand{\argTyp}{\eta}
+\newcommand{\typArg}{\eta}
 \newcommand{\funcProTyp}{\mu}
 \newcommand{\declaredTyp}{\nu}
 \newcommand{\synTyp}{\sigma}
@@ -571,6 +572,7 @@
 \renewcommand{\next}{\mathsf{next}}
 \newcommand{\last}{\mathsf{last}}
 \newcommand{\isHeader}[1]{\mathit{is\_header}({#1})}
+\newcommand{\isHeaderOrUnion}[1]{\mathit{is\_header\_or\_union}({#1})}
 
 %kinds
 \newcommand{\builtin}{\mathsf{builtin}}
@@ -601,7 +603,7 @@
 \newcommand{\varbitTyp}[1]{\mathsf{varbit}\langle{#1}\rangle}
 \newcommand{\matchKindTyp}{\mathsf{match\_kind}}
 \newcommand{\voidTyp}{\mathsf{void}}
-\newcommand{\arrayTyp}[2]{{#1}[{#2}]}
+\newcommand{\headerStackTyp}[2]{{#1}[{#2}]}
 \newcommand{\tupleTyp}[2]{\mathsf{tuple}\langle{#1},\ldots,{#2}\rangle}
 \newcommand{\tupleTyps}[1]{\mathsf{tuple}\langle\overline{#1}\rangle}
 \newcommand{\listTyp}[2]{\tupleTyp {#1} {#2}}
@@ -653,7 +655,7 @@
 \newcommand{\tableTyp}[1]{\mathsf{table}\ {#1}}
 %% \newcommand{\typNameTyp}[1]{\mathsf{type\_name}\ {#1}}
 \newcommand{\unitTyp}{()}
-\newcommand{\stackTyp}[2]{{#1}[{#2}]}
+%% \newcommand{\stackTyp}[2]{{#1}[{#2}]}
 
 %directions:
 \newcommand{\less}{\mathsf{directionless}}

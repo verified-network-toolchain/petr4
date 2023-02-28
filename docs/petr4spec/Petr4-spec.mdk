@@ -381,16 +381,16 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\bitWidthTyp \atyp$ | $\qquad \text{fixed-width unsigned integers}$ |
 |   | $\vert$ | $\varbitTyp \atyp$ | $\qquad \text{variable-width integers with a maximum width}$ |
 |   | $\vert$ | $\typName$ | $\qquad \text{type identifier}$ |
-|   | $\vert$ | $\spcTyp {\typName} {\argTyp}$ | $\qquad \text{specialized type}$ |
-|   | $\vert$ | $\stackTyp {\surfaceTyp \atyp} \atyp$ | $\qquad \text{header stacks}$ |
-|   | $\vert$ | $\tupleTyps {\argTyp}$ | $\qquad \text{tuples}$ |
+|   | $\vert$ | $\spcTyp {\typName} {\typArg}$ | $\qquad \text{specialized type}$ |
+|   | $\vert$ | $\headerStackTyp {\surfaceTyp \atyp} \atyp$ | $\qquad \text{header stacks}$ |
+|   | $\vert$ | $\tupleTyps {\typArg}$ | $\qquad \text{tuples}$ |
 { .booktable }
 
-**Argument types:**
+**Type arguments:**
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\argTyp$ | $::=$ | $\surfaceTyp \exp$ | $\qquad \text{surface types}$ |
+| $\typArg$ | $::=$ | $\surfaceTyp \exp$ | $\qquad \text{surface types}$ |
 |   | $\vert$ | $\voidTyp$ | $\qquad \text{void}$ |
 |   | $\vert$ | $\dontcareTyp$ | $\qquad \text{don't care}$ |
 |   | $\vert$ | $\identifierkw$ | $\qquad \text{identifier keyword}$ |
@@ -599,8 +599,8 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\enumDcl \typName \fields$ | $\qquad \text{enumerated types}$ |
 |   | $\vert$ | $\serEnumDcl {\surfaceTyp \exp}\typName \field \exp$ | $\qquad \text{serializable enumerated types}$ |
 |   | $\vert$ | $\externObjDcl \var \typVars \extMethods$ | $\qquad \text{extern objects}$ |
-|   | $\vert$ | $\typdefDcl \typName {\surfaceTyp \exp}$ | $\qquad \text{type definitions}$ |
-|   | $\vert$ | $\typdefDcl \typName \dcl$ | $\qquad \text{type definitions (declarations)}$ |
+|   | $\vert$ | $\typdefDcl  {\surfaceTyp \exp} \typName$ | $\qquad \text{type definitions}$ |
+|   | $\vert$ | $\typdefDcl \dcl \typName$ | $\qquad \text{type definitions (declarations)}$ |
 |   | $\vert$ | $\newtypeDcl  {\surfaceTyp \exp}\typName$ | $\qquad \text{generative type definitions}$ |
 |   | $\vert$ | $\newtypeDcl  \dcl \typName$ | $\qquad \text{generative type definitions (declarations)}$ |
 |   | $\vert$ | $\controlTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}$ | $\qquad \text{control types}$ |
@@ -833,7 +833,7 @@ The rule $\specializedExternT$ states that the specialization of an extern type 
         % 1 \leq i \leq n. \typWellFormed {\typ_i} \\
         \typWellFormed \typs\\
         |\typs| = |\params|}
-     { \typWellFormed {\spcTyp {\externTyp \name} \typs} }
+     { \typWellFormed {\spcTyp {\externTyp \name} \typ} }
      \quad (\specializedExternT)}
 
 \and
@@ -843,31 +843,43 @@ The rule $\specializedExternT$ states that the specialization of an extern type 
      { \getTypeParams \typ = \{\params\}\\
         \typWellFormed {\typs} \\
         |\params| = |\typs|}
-     { \typWellFormed {\spcTyp \typName {\typs}} }
+     { \typWellFormed {\spcTyp \typName {\typ}} }
      \quad (\specializedRestT)}
 
 ~ End InfRule
 
-#### Stack Type { #sec-stack-t }
+#### Header Stack Type { #sec-stack-t }
 
-``todo: make sure it covers both \surfacetyp \exp and \typ``
+```done..```
 
-An array type has a specific type and size.
+An array (header stack) type has a specific type and size.
 The rule $\arrayT$ states that under environment $\env$, an array is well-formed if its
 type is well-formed and it follows the nesting rules of P4.
 
-- $\isValidNestedTyp \typ$ checks whether the nested type $\typ$ is valid, that is,
-it checks if all the subtypes in the type $\typ$ can actually be inner types of $\typ$ based on [P4's description of type nesting rules][sec7-2-7]. 
-
-[sec7-2-7]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html#sec-type-nesting 
-
 ~ Begin InfRule
 
-  \inferrule
-     { \typWellFormed \typ \\
-       \isValidNestedTyp {\arrayTyp \typ \size}}
-     { \typWellFormed {\arrayTyp \typ \size} }
+  \mprset {vskip=0.7ex}
+  {\inferrule
+     { \lookupTypEnv \typName = \typ \\
+       \typWellFormed \typ \\
+       \isHeaderOrUnion {\surfaceTyp \exp} \\\\
+       \compileTimeEval \exp = \size\\
+       \size > 0
+       % \isValidNestedTyp {\headerStackTyp {\surfaceTyp \exp} \exp}
+       }
+     { \typWellFormed {\headerStackTyp {\typName} \exp} }}
      \quad (\arrayT)
+
+\and
+
+  \mprset {vskip=0.7ex}
+  {\inferrule
+     { \typWellFormed {\spcTyp \typName {\typArg}}\\
+       \typWellFormed {\headerStackTyp \typName \exp}
+       }
+     { \typWellFormed {\headerStackTyp {\spcTyp \typName {\typArg}} \exp} }}
+     \quad (\arraySpecT)
+
 
 ~ End InfRule
 
@@ -878,6 +890,17 @@ it checks if all the subtypes in the type $\typ$ can actually be inner types of 
 Each element of a tuple can have a distinct type so a tuple type is simply a list of types. Note that lists also have a tuple type. The rule $\tupleT$ states that under
 environment $\env$, a tuple type is well-formed if all its types are well-formed and it
 follows the nesting typing rules of P4. 
+
+``todo: add isvalidenestedtyp for tuples. the text below is taken from headers. 
+A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function which for a header type the inner types can be one of the followings:``
+
+- $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
+- $\intWidthTyp \exp$ and $\compTimeKnown \exp$
+- $\integerTyp$
+- $\boolTyp$
+- $\enumTypDef$ and $\compTimeKnown \exp$
+- a struct or nested struct type that has the same properties, that is, it must contain only the above subtypes. 
+
 
 ~ Begin InfRule
 
@@ -944,6 +967,8 @@ An enum is well-formed if its fields are distinct. Additionally, if it is a seri
 ```done..only have to add the nesting rules for instantiation of generic header```
 
 A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function which for a header type the inner types can be one of the followings:
+
+``todo: check if this is complete and according to p4 spec. ``
 
 - $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
 - $\intWidthTyp \exp$ and $\compTimeKnown \exp$
@@ -1439,7 +1464,7 @@ $\name$ in the environment $\env$ and it has the type $\typ$ and direction $\dir
 $\arrayAccess {\exp_1} {\exp_2}$ denotes accessing the $\exp_2$^th^ element from the array $\exp_1$. 
 The rule $\arrayAccessE$ states that expression $\arrayAccess {\exp_1} {\exp_2}$
 translates to $\arrayAccess {\VVal {\exp_1}} {\VVal {\exp_2}}$
-when $\exp_1$ has the array type $\arrayTyp \typ \size$ and $\exp_2$ has a numeric type. 
+when $\exp_1$ has the array type $\headerStackTyp \typ \size$ and $\exp_2$ has a numeric type. 
 
 - $\isNumeric \exp \typ$
 checks that the expression $\exp$ with type $\typ$ fits one of the following:
@@ -1456,7 +1481,7 @@ compile time we still consider it known at compile time.
 ~ Begin InfRule
 
   \inferrule
-     {\expenv {\exp_1} {\VVal {\exp_1}} {\arrayTyp \typ \size} \dir \\\\
+     {\expenv {\exp_1} {\VVal {\exp_1}} {\headerStackTyp \typ \size} \dir \\\\
       \expenv {\exp_2} {\VVal {\exp_2}} {\VVal \typ} {\VVal \dir} \\\\
       % \isArray {\arrayTyp \typ \size} \\
       \isNumeric {\exp_2} {\VVal \typ}}
@@ -1670,6 +1695,7 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
    * $\enumTypDef$
    * $\enumTypNoTypDef$
    * $\headerTyps \typParam \field {\surfaceTyp \exp}$
+   * $\headerUnionTyps \typParam \field {\surfaceTyp \exp}$
 - $\concatCond {\typ_1} {\typ_2}$ is a helper function that determines the type of a concatenation expression based on type of its left operand:
   + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
     $\concatCond {\typ_1} {\typ_2} = \bitWidthTyp {\width_1 + \width_2}$
@@ -2480,22 +2506,22 @@ a record type, a specialized type, an extern type, or an array. Then, it looks u
 
   \inferrule
      { }
-     { \fieldAccessEnv \ctxt \sizeMem {\arrayTyp \typ \size} {\bitWidthTyp {32}}}
+     { \fieldAccessEnv \ctxt \sizeMem {\headerStackTyp \typ \size} {\bitWidthTyp {32}}}
      \quad (\rn{Type:Array}\rSep\rn{Mem:Size}\rAE)
 
   \inferrule
      { }
-     { \fieldAccessEnv \ctxt \lastIndex {\arrayTyp \typ \size} {\bitWidthTyp {32}}}
+     { \fieldAccessEnv \ctxt \lastIndex {\headerStackTyp \typ \size} {\bitWidthTyp {32}}}
      \quad (\rn{Type:Array}\rSep\rn{Mem:LastIndex}\rAE)
 
   \inferrule
      { }
-     { \fieldAccessEnv \parserCtxt \next {\arrayTyp \typ \size} {\typ}}
+     { \fieldAccessEnv \parserCtxt \next {\headerStackTyp \typ \size} {\typ}}
      \quad (\rn{Type:Array}\rSep\rn{Mem:Next}\rAE)
 
   \inferrule
      { }
-     { \fieldAccessEnv \parserCtxt \last {\arrayTyp \typ \size} {\typ}}
+     { \fieldAccessEnv \parserCtxt \last {\headerStackTyp \typ \size} {\typ}}
      \quad (\rn{Type:Array}\rSep\rn{Mem:Last}\rAE)
 
 ~ End InfRuleHelper
@@ -3012,23 +3038,11 @@ const S x = { 10, 20 }; //a = 10, b = 20.
     {\typWellFormed {\headerTyps  \typParam \field {\surfaceTyp \exp}}\\\\
      \VVal \typEnv = \insertToTypEnv \typName {\headerTyps  \typParam \field {\surfaceTyp \exp}}
     }
-    % {}}
     {\dclenv {\headerDcl \typName \typParam \field {\surfaceTyp \exp}} {\headerDcl \typName \typParam \field {\surfaceTyp \exp}} {\varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
   \quad (\headerD)
 
 ~ End InfRule 
 
-
-## Header Stack Type Declaration { #sec-header-stack-typ-decl }
-
-~ Begin InfRule
-
-  \mprset {vskip = 0.7ex}
-  {\inferrule
-    {}
-    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
-  \quad (header stack d)
-~ End InfRule 
 
 ## Struct Type Declaration { #sec-struct-typ-decl }
 
@@ -3098,7 +3112,43 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
 ~ End InfRule 
 
-## Error Type Declaration { #sec-error-typ-decl }
+## Type Synonym { #sec-typedef-decl }
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+      {{x_1}'\\\\ %try out for Harim
+       \VVal {x_1}}
+      {\dclenv {\typdefDcl {\surfaceTyp \exp} \typName} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}
+    }
+    \quad (\typdefNameD)
+
+\and
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+      {}
+      {\dclenv {\typdefDcl {\dcl} \typName} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}
+    }
+    \quad (\typdefDclD)
+
+~ End InfRule
+
+## New Type { #sec-type-decl }
+
+~ Begin InfRule
+
+  \mprset{vskip=0.7ex}
+    {\inferrule
+      {}
+      {blah}
+    }
+    \quad (\newtypD)
+
+~ End InfRule
+
+## Error  Declaration { #sec-error-decl }
 
 ~ Begin InfRule
 % \errDcl \fields
@@ -3111,7 +3161,7 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
 ~ End InfRule 
 
-## Match Kind Type Declaration { #sec-match-kind-typ-decl }
+## Match Kind Declaration { #sec-match-kind-decl }
 
 ~ Begin InfRule
 % \matchkindDcl \fields
@@ -3135,20 +3185,6 @@ const S x = { 10, 20 }; //a = 10, b = 20.
   \quad (\externD)
 
 ~ End InfRule 
-
-## Type Specialization { #sec-typ-esp }
-
-~ Begin InfRule
-
-  \mprset {vskip = 0.7ex}
-  {\inferrule
-    {}
-    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
-  \quad (\typespD)
-
-~ End InfRule 
-
-
 
 # References    { #sec-references }
 

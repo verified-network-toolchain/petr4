@@ -1696,6 +1696,7 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
    * $\enumTypNoTypDef$
    * $\headerTyps \typParam \field {\surfaceTyp \exp}$
    * $\headerUnionTyps \typParam \field {\surfaceTyp \exp}$
+   * $\structTyps \typParam \field \typ$
 - $\concatCond {\typ_1} {\typ_2}$ is a helper function that determines the type of a concatenation expression based on type of its left operand:
   + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
     $\concatCond {\typ_1} {\typ_2} = \bitWidthTyp {\width_1 + \width_2}$

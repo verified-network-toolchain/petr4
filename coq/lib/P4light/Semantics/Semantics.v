@@ -32,20 +32,6 @@ Notation Sval := (@ValueBase (option bool)).
 
 Context {tags_t : Type}.
 
-Definition unwrap_action_ref2 (ref : TableActionRef) : (@action_ref (@Expression tags_t)) :=
-  match ref with
-  | MkTableActionRef _ ref _ =>
-      match ref with
-      | MkTablePreActionRef name args =>
-          let id :=
-            match name with
-            | BareName id => id
-            | QualifiedName _ id => id
-            end in
-          mk_action_ref (str id) args
-      end
-  end.
-
 Context {inhabitant_tags_t : Inhabitant tags_t}.
 Definition dummy_type : @P4Type tags_t := TypBool.
 Opaque dummy_type.
@@ -343,12 +329,6 @@ Definition eval_match_literal
         (Ops.eval_cast_set rt v)
         (Exn.Other "Match could not cast")
   end.
-
-Definition eval_TableEntry_literal
-  (ge_typ : genv_typ) '(MkTableEntry _ ms aref : @TableEntry tags_t)
-  : Result.result Exn.t table_entry :=
-  let+ valsets := sequence (List.map (eval_match_literal ge_typ) ms) in
-  mk_table_entry valsets (unwrap_action_ref2 aref).
 
 Definition eval_p4int_sval (n: P4Int) : Sval :=
   match P4Int.width_signed n with
@@ -697,42 +677,6 @@ Definition add_entry (s : state) (table : path) (entry : table_entry) : state :=
   set_entries s table (get_entries s table None ++ [entry]).
 
 Definition empty_state : state := (PathMap.empty, PathMap.empty).
-
-Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
-                     path -> @Match tags_t -> ValSet -> Prop :=
-  | exec_match_dont_care : forall this tag typ,
-      exec_match read_one_bit this (MkMatch tag MatchDontCare typ) ValSetUniversal
-  | exec_match_mask : forall expr exprv mask maskv this tag typ,
-                      exec_expr_det read_one_bit this empty_state expr exprv ->
-                      exec_expr_det read_one_bit this empty_state mask maskv ->
-                      exec_match read_one_bit this
-                      (MkMatch tag (MatchMask expr mask) typ)
-                      (ValSetMask exprv maskv)
-  | exec_match_range : forall lo lov hi hiv this tag typ,
-                        exec_expr_det read_one_bit this empty_state lo lov ->
-                        exec_expr_det read_one_bit this empty_state hi hiv ->
-                        exec_match read_one_bit this
-                        (MkMatch tag (MatchRange lo hi) typ)
-                        (ValSetRange lov hiv)
-  | exec_match_cast : forall newtyp expr oldv newv this tag typ real_typ,
-                      exec_expr_det read_one_bit this empty_state expr oldv ->
-                      get_real_type (ge_typ ge) newtyp = Some real_typ ->
-                      Ops.eval_cast_set real_typ oldv = Some newv ->
-                      exec_match read_one_bit this
-                      (MkMatch tag (MatchCast newtyp expr) typ)
-                      newv.
-
-Definition exec_matches (read_one_bit : option bool -> bool -> Prop) (this : path) :=
-  Forall2 (exec_match read_one_bit this).
-
-Variant exec_TableEntry (read_one_bit : option bool -> bool -> Prop) (this : path) :
-  TableEntry -> table_entry -> Prop :=
-  | exec_MkTableEntry tag mtchs action valsets :
-    exec_matches read_one_bit this mtchs valsets ->
-    exec_TableEntry
-      read_one_bit this
-      (MkTableEntry tag mtchs action)
-      (mk_table_entry valsets (unwrap_action_ref2 action)). 
 
 Inductive exec_table_entry (read_one_bit : option bool -> bool -> Prop) :
                            path -> table_entry ->
@@ -2022,6 +1966,27 @@ Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) 
           MkExpression dummy_tags (ExpFunctionCall func nil args) dummy_type Directionless
       end
   end.
+
+Definition unwrap_action_ref2 (ref : TableActionRef) : (@action_ref (@Expression tags_t)) :=
+  match ref with
+  | MkTableActionRef _ ref _ =>
+      match ref with
+      | MkTablePreActionRef name args =>
+          let id :=
+            match name with
+            | BareName id => id
+            | QualifiedName _ id => id
+            end in
+          mk_action_ref (str id) args
+      end
+  end.
+
+Definition eval_TableEntry_literal
+  (ge_typ : genv_typ) '(MkTableEntry _ ms aref : @TableEntry tags_t)
+  : Result.result Exn.t table_entry :=
+  let+ valsets := sequence (List.map (eval_match_literal ge_typ) ms) in
+  mk_table_entry valsets (unwrap_action_ref2 aref).
+
 
 (* When loading function definitions into function environment, we add initializer for
   out parameters. (And we do the same thing for abstract methods during instantiation.)

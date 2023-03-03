@@ -5,9 +5,9 @@ From Poulet4 Require Import
   P4cub.Syntax.Syntax
   P4cub.Syntax.CubNotations
   P4cub.Semantics.Dynamic.BigStep.ExprUtil
-  P4cub.Semantics.Dynamic.BigStep.Semantics
   P4cub.Semantics.Dynamic.BigStep.Value.Value
   P4cub.Semantics.Dynamic.BigStep.Value.Embed
+  P4cub.Semantics.Dynamic.BigStep.Semantics
   P4light.Architecture.Target
   Utils.Util.ListUtil.
 
@@ -316,6 +316,27 @@ Section Parser.
       apply interpret_expr_sound in Heqo0, Heqo2. econstructor; eauto.
   Qed.
 
+  Definition interpret_actions_of_ctx ctx :=
+    match ctx with
+    | CAction a => mret a
+    | CApplyBlock _ aa _ => mret aa
+    | _ => None
+    end.
+
+  Lemma interpret_actions_of_ctx_sound :
+    forall ctx actions,
+      interpret_actions_of_ctx ctx = Some actions -> actions_of_ctx ctx actions.
+  Proof.
+    intros. destruct ctx; try discriminate; inv H; constructor.
+  Qed.
+
+  Lemma interpret_actions_of_ctx_complete :
+    forall ctx actions,
+      actions_of_ctx ctx actions -> interpret_actions_of_ctx ctx = Some actions.
+  Proof.
+    intros. inv H; auto.
+  Qed.
+
   Lemma interpret_pre_match_complete :
     forall e pat, pre_match_big_step e pat -> interpret_pre_match e = Some pat.
   Proof.
@@ -431,4 +452,149 @@ Section Parser.
     - apply interpret_table_entry_complete.
   Qed.
 
+  Definition get_final_state (state : Parser.state_label) : option signal :=
+    match state with
+    | Parser.Accept => mret Acpt
+    | Parser.Reject => mret Rjct
+    | _ => None
+    end.
+
+  Lemma get_final_state_sound :
+    forall state sig,
+      get_final_state state = Some sig -> final_state state sig.
+  Proof.
+    intros. destruct state.
+    - discriminate.
+    - inv H. constructor.
+    - inv H. constructor.
+    - inv H.
+  Qed.
+
+  Lemma get_final_state_complete :
+  forall state sig,
+    final_state state sig -> get_final_state state = Some sig.
+Proof.
+  intros. destruct state.
+  - inv H.
+  - inv H. reflexivity.
+  - inv H. constructor.
+  - inv H.
+Qed.
+
+  Lemma intermediate_iff_not_final :
+    forall lbl, intermediate_state lbl <-> ~ exists sig, final_state lbl sig.
+  Proof.
+    split; intros.
+    - inv H; unfold "~"; intros; inv H; inv H0.
+    - unfold "~" in H. destruct lbl.
+      + constructor.
+      + exfalso. apply H. exists Acpt. constructor.
+      + exfalso. apply H. exists Rjct. constructor.
+      + constructor.
+  Qed.
+
+  Definition is_intermediate_state (state : Parser.state_label) :=
+    match state with
+    | Parser.Start | Parser.Name _ => true
+    | _ => false
+    end.
+
+  Lemma is_intermediate_state_sound :
+    forall state,
+      is_intermediate_state state = true -> intermediate_state state.
+  Proof.
+    unfold is_intermediate_state.
+    intros. destruct state; try discriminate; constructor.
+  Qed.
+
 End Parser.
+
+Section Stmt.
+
+  Context {ext_sem : Extern_Sem}.
+
+  Variable Ψ : stmt_eval_env ext_sem.
+
+  Definition interpret_return ϵ e :=
+    match e with
+    | None => mret (ϵ, Rtrn None, extrn_state Ψ)
+    | Some e =>
+      let^ v := interpret_expr ϵ e in
+      (ϵ, Rtrn $ Some v, extrn_state Ψ)
+    end.
+
+  Inductive Fuel :=
+  | NoFuel
+  | MoreFuel (t : Fuel).
+
+  Local Open Scope nat_scope.
+
+  Fixpoint interpret_stmt (fuel : Fuel) (ϵ : list Val.v) (c : ctx) (s : Stmt.s) : option (list Val.v * signal * extern_state) :=
+    match fuel with
+    | MoreFuel fuel =>
+      match s with
+      | Stmt.Skip => mret (ϵ, Cont, extrn_state Ψ)
+      | Stmt.Exit => mret (ϵ, Exit, extrn_state Ψ)
+      | Stmt.Return e => interpret_return ϵ e
+      | Stmt.Transition trns =>
+        match c with
+        | CParserState n start states parsers =>
+          let* lbl := interpret_parser_expr ϵ trns in
+          match get_final_state lbl with
+          | Some sig => mret (ϵ, sig, extrn_state Ψ)
+          | None =>
+            guard (n <=? List.length ϵ) ;;
+            let* (ϵ₁, ϵ₂) := split_at (List.length ϵ - n) ϵ in
+            let* state := get_state_block start states lbl in
+            let ctx := CParserState n start states parsers in
+            let^ (ϵ₃, sig, ψ) := interpret_stmt fuel ϵ₂ ctx state in
+            (ϵ₁ ++ ϵ₃, sig, ψ)
+          end
+        | _ => None
+        end
+      | _ => None
+      end
+    | NoFuel => None
+    end.
+
+  Search (_ <=? _ = true <-> _ <= _).
+
+  Lemma interpret_stmt_sound :
+    forall fuel ϵ c s ϵ' sig ψ,
+      interpret_stmt fuel ϵ c s = Some (ϵ' , sig , ψ) ->
+        ⧼ Ψ , ϵ , c , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽.
+  Proof.
+    induction fuel; try discriminate. destruct s; try discriminate; cbn; intros.
+    - inv H. constructor.
+    - unfold interpret_return in *. destruct e.
+      + destruct (interpret_expr ϵ e) eqn:?; cbn in *.
+        * inv H. do 2 constructor.
+          apply interpret_expr_sound. assumption.
+        * discriminate.
+      + inv H. repeat constructor.
+    - inv H. constructor.
+    - unfold option_bind in *. destruct c eqn:E; try discriminate.
+      destruct (interpret_parser_expr ϵ trns) eqn:?; try discriminate.
+      apply interpret_parser_expr_sound in Heqo.
+      destruct (get_final_state s) eqn:?.
+      + inv H. apply get_final_state_sound in Heqo0.
+        econstructor; eauto.
+      + destruct (parser_arg_length <=? List.length ϵ) eqn:?; try discriminate. cbn in *.
+        apply Nat.leb_le in Heqb.
+        destruct (split_at (List.length ϵ - parser_arg_length) ϵ) eqn:?; 
+        try discriminate. destruct p as [ϵ₁ ϵ₂].
+        destruct (get_state_block start states s) eqn:?; try discriminate.
+        destruct (interpret_stmt fuel ϵ₂ (CParserState parser_arg_length start states available_parsers) s0) eqn:?; 
+        try discriminate. inv H. repeat destruct p. inv H1.
+        apply IHfuel in Heqo3.
+        apply split_at_partition in Heqo1 as ?.
+        apply split_at_length_l2 in Heqo1 as ?.
+        assert (List.length ϵ₂ = parser_arg_length) by lia. subst.
+        econstructor; eauto. apply intermediate_iff_not_final.
+        unfold "~". intros. inv H.
+        assert (get_final_state s <> Some x).
+        { unfold "~". intros. rewrite H in Heqo0. discriminate. }
+        apply get_final_state_complete in H1. contradiction.
+  Qed.
+
+End Stmt.

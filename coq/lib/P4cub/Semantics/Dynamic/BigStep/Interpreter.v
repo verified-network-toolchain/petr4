@@ -524,8 +524,26 @@ Section Stmt.
     end.
 
   Inductive Fuel :=
-  | NoFuel
-  | MoreFuel (t : Fuel).
+    | NoFuel
+    | MoreFuel (t : Fuel).
+
+  Definition interpret_assign ϵ e1 e2 :=
+    let* lv := interpret_lexpr ϵ e1 in
+    let^ v := interpret_expr ϵ e2 in
+    (lv_update lv v ϵ, Cont, extrn_state Ψ).
+
+  Lemma interpret_assign_sound :
+    forall ϵ ϵ' c e₁ e₂ sig ψ, 
+      interpret_assign ϵ e₁ e₂ = Some (ϵ', sig, ψ) ->
+        ⧼ Ψ, ϵ, c, Stmt.Assign e₁ e₂ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽.
+  Proof.
+    cbn. unfold option_bind. intros.
+    destruct (interpret_lexpr ϵ e₁) eqn:E; try discriminate.
+    destruct (interpret_expr ϵ e₂) eqn:E'; try discriminate.
+    inv H. intros. constructor.
+    - apply interpret_lexpr_sound. assumption.
+    - apply interpret_expr_sound. assumption.
+  Qed.
 
   Local Open Scope nat_scope.
 
@@ -552,6 +570,7 @@ Section Stmt.
           end
         | _ => None
         end
+      | Stmt.Assign e1 e2 => interpret_assign ϵ e1 e2
       | _ => None
       end
     | NoFuel => None
@@ -595,6 +614,7 @@ Section Stmt.
         assert (get_final_state s <> Some x).
         { unfold "~". intros. rewrite H in Heqo0. discriminate. }
         apply get_final_state_complete in H1. contradiction.
+    - apply interpret_assign_sound. assumption.
   Qed.
 
 End Stmt.

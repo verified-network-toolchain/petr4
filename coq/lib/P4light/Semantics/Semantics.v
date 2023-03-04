@@ -12,6 +12,8 @@ Require Export Poulet4.P4light.Architecture.Target
 From Poulet4.P4light.Syntax Require Export ValueUtil SyntaxUtil.
 From Poulet4.P4light.Syntax Require Import P4String P4Int P4Notations.
 From Poulet4.P4light.Semantics Require Import Ops.
+From RecordUpdate Require Import RecordSet.
+Import RecordSetNotations.
 Import ListNotations.
 Import Result.ResultNotations.
 Local Open Scope string_scope.
@@ -29,6 +31,7 @@ Notation Val := (@ValueBase bool).
 Notation Sval := (@ValueBase (option bool)).
 
 Context {tags_t : Type}.
+
 Context {inhabitant_tags_t : Inhabitant tags_t}.
 Definition dummy_type : @P4Type tags_t := TypBool.
 Opaque dummy_type.
@@ -114,7 +117,7 @@ Variant get_member : Sval -> string -> Sval -> Prop :=
                             get_next_of_stack headers next = Some hdr ->
                             get_member (ValBaseStack headers next) "next" hdr.
 
-Notation ValSet := (@ValueSet tags_t).
+Notation ValSet := ValueSet.
 Notation Lval := ValueLvalue.
 Notation P4Int := (P4Int.t tags_t).
 
@@ -127,7 +130,7 @@ Variant fundef :=
       (keys : list (@TableKey tags_t))
       (actions : list (@Expression tags_t))
       (default_action : @Expression tags_t)
-      (entries : option (list (@table_entry tags_t (@Expression tags_t))))
+      (entries : option (list (@table_entry (@Expression tags_t))))
   | FExternal
       (class : ident)
       (name : ident).
@@ -140,73 +143,73 @@ Definition clear_list (p: list (@P4String.t tags_t)): list string :=
   map (@str tags_t) p.
 
 Fixpoint get_real_type
-  (get : genv_typ) (typ: @P4Type tags_t): option (@P4Type tags_t) :=
+  (ge_typ : genv_typ) (typ: @P4Type tags_t): option (@P4Type tags_t) :=
   match typ with
-  | TypTypeName name => IdentMap.get (str name) get
+  | TypTypeName name => IdentMap.get (str name) ge_typ
   | TypArray atyp size =>
-    let^ realtyp := get_real_type get atyp in TypArray realtyp size
+    let^ realtyp := get_real_type ge_typ atyp in TypArray realtyp size
   | TypTuple types =>
-    sequence (map (get_real_type get) types) >>| TypTuple
+    sequence (map (get_real_type ge_typ) types) >>| TypTuple
   | TypList types =>
-    sequence (map (get_real_type get) types) >>| TypList
+    sequence (map (get_real_type ge_typ) types) >>| TypList
   | TypRecord fields =>
     sequence
       (map
-         (fun '(a,t) => get_real_type get t >>| pair a)
+         (fun '(a,t) => get_real_type ge_typ t >>| pair a)
          fields)
       >>| TypRecord
-  | TypSet elt_type => get_real_type get elt_type >>| TypSet
+  | TypSet elt_type => get_real_type ge_typ elt_type >>| TypSet
   | TypHeader fields =>
     sequence
       (map
-         (fun '(a,t) => get_real_type get t >>| pair a)
+         (fun '(a,t) => get_real_type ge_typ t >>| pair a)
          fields)
       >>| TypHeader
   | TypHeaderUnion fields =>
     sequence
       (map
-         (fun '(a,t) => get_real_type get t >>| pair a)
+         (fun '(a,t) => get_real_type ge_typ t >>| pair a)
          fields)
       >>| TypHeaderUnion
   | TypStruct fields =>
     sequence
       (map
-         (fun '(a,t) => get_real_type get t >>| pair a)
+         (fun '(a,t) => get_real_type ge_typ t >>| pair a)
          fields)
       >>| TypStruct
   | TypEnum X (Some atyp) members =>
-    let^ realt := get_real_type (IdentMap.remove (str X) get) atyp in
+    let^ realt := get_real_type (IdentMap.remove (str X) ge_typ) atyp in
     TypEnum X (Some realt) members
-  | TypNewType X atyp => get_real_type (IdentMap.remove (str X) get) atyp
-  | TypControl ctrl => get_real_ctrl get ctrl >>| TypControl
-  | TypParser ctrl => get_real_ctrl get ctrl >>| TypParser
-  | TypFunction fn => get_real_func get fn >>| TypFunction
+  | TypNewType X atyp => get_real_type (IdentMap.remove (str X) ge_typ) atyp
+  | TypControl ctrl => get_real_ctrl ge_typ ctrl >>| TypControl
+  | TypParser ctrl => get_real_ctrl ge_typ ctrl >>| TypParser
+  | TypFunction fn => get_real_func ge_typ fn >>| TypFunction
   | TypAction data_params ctrl_params =>
-    let* datas := sequence (map (get_real_param get) data_params) in
-    sequence (map (get_real_param get) ctrl_params) >>| TypAction datas
+    let* datas := sequence (map (get_real_param ge_typ) data_params) in
+    sequence (map (get_real_param ge_typ) ctrl_params) >>| TypAction datas
   | TypPackage Xs wildcards params =>
     sequence
       (map
          (get_real_param
             (IdentMap.removes
                (map str Xs)
-               get))
+               ge_typ))
          params)
       >>| TypPackage Xs wildcards
   | TypSpecializedType base args =>
-    let* realb := get_real_type get base in
-    sequence (map (get_real_type get) args) >>| TypSpecializedType realb
+    let* realb := get_real_type ge_typ base in
+    sequence (map (get_real_type ge_typ) args) >>| TypSpecializedType realb
   | TypConstructor Xs wildcards params ret =>
     let* realret :=
        get_real_type
          (IdentMap.removes
-            (map str Xs) get) ret in
+            (map str Xs) ge_typ) ret in
     let^ rps :=
        sequence
          (map
             (get_real_param
                (IdentMap.removes
-                  (map str Xs) get))
+                  (map str Xs) ge_typ))
             params) in
     TypConstructor Xs wildcards rps realret
   | TypBool => Some TypBool
@@ -263,44 +266,68 @@ with get_real_func
          MkFunctionType Xs realps kind realret
        end.
 
-Fixpoint eval_literal (expr: @Expression tags_t) : option Val :=
+Fixpoint eval_literal (expr: @Expression tags_t) : Result.result Exn.t Val :=
   let '(MkExpression _ expr _ _) := expr in
   match expr with
-  | ExpBool b => Some (ValBaseBool b)
+  | ExpBool b => Result.Ok (ValBaseBool b)
   | ExpInt i =>
-    Some (match i.(width_signed) with
+      Result.Ok  (match i.(width_signed) with
           | None => ValBaseInteger i.(value)
           | Some (w, false) => ValBaseBit (to_lbool w i.(value))
           | Some (w, true) => ValBaseInt (to_lbool w i.(value))
           end)
-  | ExpString s => Some (ValBaseString (str s))
-  | ExpErrorMember t => Some (ValBaseError (str t))
+  | ExpString s => Result.Ok (ValBaseString (str s))
+  | ExpErrorMember t => Result.Ok (ValBaseError (str t))
   | ExpList es =>
-    let fix eval_literals  (exprs: list (@Expression tags_t)) : option (list Val) :=
+    let fix eval_literals  (exprs: list (@Expression tags_t)) : Result.result Exn.t (list Val) :=
         match exprs with
         | expr :: exprs' =>
-          match eval_literal expr, eval_literals exprs' with
-          | Some v, Some vs => Some (v :: vs)
-          | _, _ => None
-          end
-        | [] => Some []
-        end
-    in
-    option_map ValBaseTuple (eval_literals es)
+            let* v := eval_literal expr in
+            let+ vs := eval_literals exprs' in
+            v :: vs
+        | [] => Result.Ok []
+        end in
+    Result.map ValBaseTuple (eval_literals es)
   | ExpRecord fs =>
     let fix eval_literals  (kvs: @P4String.AList tags_t Expression)
-        : option (StringAList Val) :=
+        : Result.result Exn.t (StringAList Val) :=
         match kvs with
         | (k, e) :: kvs' =>
-          match eval_literal e, eval_literals kvs' with
-          | Some v, Some vs => Some ((str k, v) :: vs)
-          | _, _ => None
-          end
-        | [] => Some []
-        end
-    in
-    option_map ValBaseStruct (eval_literals fs)
-  | _ => None
+            let* v := eval_literal e in
+            let+ vs := eval_literals kvs' in
+            (str k, v) :: vs
+        | [] => Result.Ok []
+        end in
+    Result.map ValBaseStruct (eval_literals fs)
+  | _ => Result.Error (Exn.Other "Not a literal.")
+  end.
+
+Definition eval_literal_result l :=
+  let+ v := eval_literal l in
+  eval_val_to_sval v.
+
+Definition eval_match_literal
+  (ge_typ : genv_typ) '(MkMatch _ m _ : @Match tags_t)
+  : Result.result Exn.t ValueSet :=
+  match m with
+  | MatchDontCare => Result.Ok ValSetUniversal
+  | MatchMask e1 e2 =>
+      let* v1 := eval_literal e1 in
+      let+ v2 := eval_literal e2 in
+      ValSetMask v1 v2
+  | MatchRange e1 e2 =>
+      let* v1 := eval_literal e1 in
+      let+ v2 := eval_literal e2 in
+      ValSetRange v1 v2
+  | MatchCast t e =>
+      let* v := eval_literal e in
+      let* rt :=
+        Result.from_opt
+          (get_real_type ge_typ t)
+          (Exn.TypeNameNotFound ("Match cast could not get real type")) in
+      Result.from_opt
+        (Ops.eval_cast_set rt v)
+        (Exn.Other "Match could not cast")
   end.
 
 Definition eval_p4int_sval (n: P4Int) : Sval :=
@@ -344,6 +371,10 @@ Record genv := MkGenv {
   ge_const :> genv_const;
   ge_ext :> extern_env
 }.
+
+Global Instance eta_genv : Settable _ :=
+  settable! MkGenv
+  < ge_func ; ge_typ ; ge_senum ; ge_inst ; ge_const ; ge_ext >.
 
 Section WithGenv.
 
@@ -647,42 +678,14 @@ Definition add_entry (s : state) (table : path) (entry : table_entry) : state :=
 
 Definition empty_state : state := (PathMap.empty, PathMap.empty).
 
-Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
-                     path -> @Match tags_t -> ValSet -> Prop :=
-  | exec_match_dont_care : forall this tag typ,
-      exec_match read_one_bit this (MkMatch tag MatchDontCare typ) ValSetUniversal
-  | exec_match_mask : forall expr exprv mask maskv this tag typ,
-                      exec_expr_det read_one_bit this empty_state expr exprv ->
-                      exec_expr_det read_one_bit this empty_state mask maskv ->
-                      exec_match read_one_bit this
-                      (MkMatch tag (MatchMask expr mask) typ)
-                      (ValSetMask exprv maskv)
-  | exec_match_range : forall lo lov hi hiv this tag typ,
-                        exec_expr_det read_one_bit this empty_state lo lov ->
-                        exec_expr_det read_one_bit this empty_state hi hiv ->
-                        exec_match read_one_bit this
-                        (MkMatch tag (MatchRange lo hi) typ)
-                        (ValSetRange lov hiv)
-  | exec_match_cast : forall newtyp expr oldv newv this tag typ real_typ,
-                      exec_expr_det read_one_bit this empty_state expr oldv ->
-                      get_real_type (ge_typ ge) newtyp = Some real_typ ->
-                      Ops.eval_cast_set real_typ oldv = Some newv ->
-                      exec_match read_one_bit this
-                      (MkMatch tag (MatchCast newtyp expr) typ)
-                      newv.
-
-Definition exec_matches (read_one_bit : option bool -> bool -> Prop) (this : path) :=
-  Forall2 (exec_match read_one_bit this).
-
 Inductive exec_table_entry (read_one_bit : option bool -> bool -> Prop) :
                            path -> table_entry ->
-                           (@table_entry_valset tags_t (@Expression tags_t)) -> Prop :=
-  | exec_table_entry_intro : forall this ms svs action entryvs,
-                             exec_matches read_one_bit this ms svs ->
+                           (@table_entry_valset (@Expression tags_t)) -> Prop :=
+  | exec_table_entry_intro : forall this svs action entryvs,
                              (if (List.length svs =? 1)%nat
                               then entryvs = (List.hd ValSetUniversal svs, action)
                               else entryvs = (ValSetProd svs, action)) ->
-                             exec_table_entry read_one_bit this (mk_table_entry ms action) entryvs.
+                             exec_table_entry read_one_bit this (mk_table_entry svs action) entryvs.
 
 Definition exec_table_entries (read_one_bit : option bool -> bool -> Prop) (this : path) :=
   Forall2 (exec_table_entry read_one_bit this).
@@ -1980,11 +1983,12 @@ Definition unwrap_action_ref2 (ref : TableActionRef) : (@action_ref (@Expression
       end
   end.
 
-Definition unwrap_table_entry (entry : TableEntry) : table_entry :=
-  match entry with
-  | MkTableEntry _ matches action =>
-      mk_table_entry matches (unwrap_action_ref2 action)
-  end.
+Definition eval_TableEntry_literal
+  (ge_typ : genv_typ) '(MkTableEntry _ ms aref : @TableEntry tags_t)
+  : Result.result Exn.t table_entry :=
+  let+ valsets := sequence (List.map (eval_match_literal ge_typ) ms) in
+  mk_table_entry valsets (unwrap_action_ref2 aref).
+
 
 (* When loading function definitions into function environment, we add initializer for
   out parameters. (And we do the same thing for abstract methods during instantiation.)
@@ -1999,7 +2003,10 @@ Definition no_op_action_ref : @TableActionRef tags_t :=
                    (MkTablePreActionRef (QualifiedName [] NoAction) [])
                    (TypAction [] []).
 
-Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : genv_func :=
+(** This should return result if table match eval fails. *)
+Fixpoint load_decl
+  (p : path) (ge_typ : genv_typ)
+  (ge : genv_func) (decl : @Declaration tags_t) : Result.result Exn.t genv_func :=
   match decl with
   | DeclParser _ name type_params params constructor_params locals states =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
@@ -2007,7 +2014,9 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [param])) params in
       let params := List.filter (compose is_directional snd) params in
-      let ge := fold_left (load_decl (p ++ [str name])) locals ge in
+      let+ ge :=
+        fold_left_monad
+          (load_decl (p ++ [str name]) ge_typ) locals ge in
       let init := block_app init (process_locals locals) in
       let ge := fold_left (load_parser_state (p ++ [str name])) states ge in
       let ge := PathMap.set (p ++ [str name; "accept"]) accept_state ge in
@@ -2015,25 +2024,41 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let method := MkExpression dummy_tags (ExpName (BareName !"start") (LInstance ["start"]))
                     empty_func_type Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
-      PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init (BlockSingleton stmt))) ge
+      PathMap.set
+        (p ++ [str name; "apply"])
+        (FInternal (map (map_fst get_loc_path) params) (block_app init (BlockSingleton stmt)))
+        ge
   | DeclControl _ name type_params params _ locals apply =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
       let init := uninit_out_params [] out_params in
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [param])) params in
       let params := List.filter (compose is_directional snd) params in
-      let ge := fold_left (load_decl (p ++ [str name])) locals ge in
+      let+ ge :=
+        fold_left_monad
+          (load_decl (p ++ [str name]) ge_typ) locals ge in
       let init := block_app init (process_locals locals) in
-      PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init apply)) ge
+      PathMap.set
+        (p ++ [str name; "apply"])
+        (FInternal (map (map_fst get_loc_path) params) (block_app init apply))
+        ge
   | DeclFunction _ _ name type_params params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
       let init := uninit_out_params [str name] out_params in
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [str name; param])) params in
-      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) (block_app init body)) ge
+      Result.Ok
+        (PathMap.set
+           (p ++ [str name])
+           (FInternal (map (map_fst get_loc_path) params) (block_app init body))
+           ge)
   | DeclExternFunction _ _ name _ p4params =>
       let params := map get_param_name_dir p4params in
-      PathMap.set (p ++ [str name]) (FExternal "" (str name)) ge
+      Result.Ok
+        (PathMap.set
+           (p ++ [str name])
+           (FExternal "" (str name))
+           ge)
   | DeclExternObject _ name _ methods =>
       let add_method_prototype ge' method :=
         match method with
@@ -2042,7 +2067,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
             PathMap.set (p ++ [str name; str mname]) (FExternal (str name) (str mname)) ge'
         | _ => ge
         end
-      in fold_left add_method_prototype methods ge
+      in Result.Ok (fold_left add_method_prototype methods ge)
   | DeclAction _ name params ctrl_params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
       let init := uninit_out_params [str name] out_params in
@@ -2053,25 +2078,33 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
           map (map_fst (fun param => LGlobal [str name; param])) (params ++ ctrl_params)
         else
           map (map_fst (fun param => LInstance [str name; param])) (params ++ ctrl_params) in
-      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) combined_params) (block_app init body)) ge
+      Result.Ok
+        (PathMap.set
+           (p ++ [str name])
+           (FInternal (map (map_fst get_loc_path) combined_params) (block_app init body))
+           ge)
   | DeclTable _ name keys actions entries default_action_opt _ _ =>
       let default_action :=
         match default_action_opt with
         | Some act => act
         | None => no_op_action_ref
         end in
+      let+ table_entries :=
+        opt_sequence
+          (option_map
+             (List.map (eval_TableEntry_literal ge_typ)) entries) in
       let table :=
         FTable (str name) keys
                (map (unwrap_action_ref p ge) actions)
                (unwrap_action_ref p ge default_action)
-               (option_map (map unwrap_table_entry) entries) in
+               table_entries in
       PathMap.set (p ++ [str name; "apply"]) table ge
-  | _ => ge
+  | _ => Result.Ok ge
   end.
 
-Definition load_prog (prog : @program tags_t) : genv_func :=
+Definition load_prog (ge_typ : genv_typ) (prog : @program tags_t) : Result.result Exn.t genv_func :=
   match prog with
-  | Program decls => fold_left (load_decl nil) decls PathMap.empty
+  | Program decls => fold_left_monad (load_decl nil ge_typ) decls PathMap.empty
   end.
 
 Definition conv_decl_field (ge_typ : genv_typ) (fild: DeclarationField):
@@ -2148,11 +2181,6 @@ Fixpoint add_decls_to_ge_typ
       add_decls_to_ge_typ ge_typ' rest
   end.
 
-Definition eval_literal_result l :=
-  let+ v := Result.from_opt (eval_literal l)
-                            (Exn.Other "could not evaluate expression (expected literal)") in
-  eval_val_to_sval v.
-
 
 Definition eval_ser_enum_member '((name, expr): P4String.t tags_t * (@Expression tags_t)) :=
   (name.(str), eval_literal_result expr).
@@ -2198,14 +2226,14 @@ Definition gen_ge_senum (prog : @program tags_t) : Result.result Exn.t genv_senu
 End Instantiation.
 
 Definition gen_am_ge (prog : @program tags_t) : Result.result Exn.t genv :=
-  let ge_func := load_prog prog in
   let* ge_typ := gen_ge_typ prog in
+  let* ge_func := load_prog ge_typ prog in
   let* ge_senum := gen_ge_senum prog in
   mret (MkGenv ge_func ge_typ ge_senum PathMap.empty PathMap.empty PathMap.empty).
 
 Definition gen_ge' (am_ge : genv) (prog : @program tags_t) : Result.result Exn.t genv :=
-  let ge_func := load_prog prog in
   let* ge_typ := gen_ge_typ prog in
+  let* ge_func := load_prog ge_typ prog in
   let* ge_senum := gen_ge_senum prog in
   let+ ((ge_inst, ge_const, ge_ext), _) :=
     instantiate_prog am_ge ge_typ prog in
@@ -2229,8 +2257,8 @@ Definition gen_ge (prog : @program tags_t) : Result.result Exn.t genv :=
   gen_ge' ge prog.
 
 Definition gen_init_es' (am_ge : genv) (prog : @program tags_t) : Result.result Exn.t extern_state :=
-  let ge_func := load_prog prog in
   let* ge_typ := gen_ge_typ prog in
+  let* ge_func := load_prog ge_typ prog in
   let+ (_, es) := instantiate_prog am_ge ge_typ prog in
   es.
 

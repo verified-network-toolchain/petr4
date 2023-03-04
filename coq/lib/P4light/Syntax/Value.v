@@ -30,8 +30,6 @@ Section Value.
   | ValLeftBitAccess (expr: ValueLvalue) (msb: N) (lsb: N)
   | ValLeftArrayAccess (expr: ValueLvalue) (idx: Z).
 
-  Context {tags_t : Type}.
-
   Inductive ValueSet:=
   | ValSetSingleton (value: (@ValueBase bool))
   | ValSetUniversal
@@ -39,10 +37,12 @@ Section Value.
   | ValSetRange (lo: (@ValueBase bool)) (hi: (@ValueBase bool))
   | ValSetProd (_: list ValueSet)
   | ValSetLpm (nbits: N) (value: (@ValueBase bool))
-  | ValSetValueSet (size: N) (members: list (list (@Syntax.Match tags_t))) (sets: list ValueSet).
+  | ValSetValueSet (size: N) (members: list (list ValueSet)) (sets: list ValueSet).
 
   Definition ValueLoc := string.
 
+  Context {tags_t : Type}.
+  
   Inductive ValueTable :=
   | MkValTable (name: string) (keys: list (@Syntax.TableKey tags_t))
                (actions: list (@Syntax.TableActionRef tags_t))

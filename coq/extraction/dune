@@ -1,6 +1,8 @@
 (coq.extraction
  (prelude Extract)
  (extracted_modules
+  P4cubToP4flat
+  Syntax0
   AList
   AListUtil
   Datatypes

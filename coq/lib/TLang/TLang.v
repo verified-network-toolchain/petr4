@@ -9,6 +9,8 @@ Local Open Scope string_scope.
 Local Open Scope sexp_scope.
 From Poulet4 Require GCL.Inline.
 Module E := AST.Expr.
+From Poulet4 Require P4flat.Syntax.
+Module F := P4flat.Syntax.
 
 (* This file defines the Coq version of the AST used in Egg for
    rewriting. See deps/table_opt/src/table_lang.rs for that.
@@ -199,5 +201,8 @@ Section Optimizer.
     let* tprog := t_to_tm t in
     let* tprog_better := R.emap (fun x => "") (optimize_tm tprog) in
     tm_to_t tprog_better.
+
+  Definition optimize_p4flat (t: F.TopDecl.prog) : R.result string F.TopDecl.prog.
+  Admitted.
 
 End Optimizer.

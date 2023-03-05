@@ -31,6 +31,8 @@ type error =
   | CheckerError of exn
   | GenLocError
   | ToP4CubError of string
+  | ToP4flatError of string
+  | TableOptError of string
   | ToGCLError of string
   | ToCLightError of string
   (* not an error but an indicator to stop processing data *)
@@ -50,6 +52,10 @@ let error_to_string (e : error) : string =
     Printf.sprintf "genloc error: TODO add debug message"
   | ToP4CubError s ->
     Printf.sprintf "top4cub error: %s" s
+  | ToP4flatError s ->
+    Printf.sprintf "top4flat error: %s" s
+  | TableOptError s ->
+    Printf.sprintf "table_opt error: %s" s
   | ToGCLError s ->
     Printf.sprintf "togcl error: %s" s
   | ToCLightError s ->
@@ -169,7 +175,9 @@ module MakeDriver (IO: DriverIO) = struct
     match cfg.cfg_p4flat with
     | Skip -> Error Finished
     | Run p4flat_fmt ->
-       Ok prog
+      match Poulet4.P4cubToP4flat.translate_prog prog with
+      | Poulet4.Result.Ok flat -> Ok flat
+      | Poulet4.Result.Error e -> Error (ToP4flatError e)
 
   let write_p4cub_to_file prog printp4_file =
     let oc_p4 = Out_channel.create printp4_file in
@@ -183,6 +191,11 @@ module MakeDriver (IO: DriverIO) = struct
     | Run (Some p4flat_fmt) ->
        Format.eprintf "TODO: implement p4flat pretty printing.\n";
        Ok prog
+
+  let table_opt (cfg: Pass.compiler_cfg) prog =
+    match Poulet4.TLang.optimize_p4flat (fun x -> x) prog with
+      | Poulet4.Result.Ok prog -> Ok prog
+      | Poulet4.Result.Error e -> Error (TableOptError e)
 
   let to_gcl depth prog =
     let open Poulet4 in
@@ -238,12 +251,14 @@ module MakeDriver (IO: DriverIO) = struct
     run_checker cfg.cfg_checker
     >>= to_p4cub cfg
 
-    >>= to_p4flat cfg
-    >>= print_p4flat cfg
-
     >>= begin fun prog ->
         match cfg.cfg_backend with
         | Skip -> Ok ()
+        | Run TblBackend ->
+          flatten_declctx prog
+          >>= to_p4flat cfg
+          >>= table_opt cfg
+          >>= fun x -> Ok ()
         | Run (GCLBackend {depth; gcl_output}) ->
            to_gcl depth prog
            >>= print_gcl gcl_output

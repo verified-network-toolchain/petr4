@@ -21,6 +21,9 @@ Check F.Expr.e.
 Definition flatten_env : Type.
 Admitted.
 
+Definition empty_env : flatten_env.
+Admitted.
+
 (* Functions and actions. *)
 Definition func_template: Type.
 Admitted.
@@ -146,12 +149,15 @@ Definition translate_decl (fenv: flatten_env) (decl: C.TopDecl.d) : result strin
       (add_function function_name type_params signature body' fenv, [])
   end.
 
-Fixpoint translate_prog (fenv: flatten_env) (p: C.TopDecl.prog) : result string F.TopDecl.prog :=
+Fixpoint translate_decls (fenv: flatten_env) (p: list C.TopDecl.d)
+  : result string (list F.TopDecl.d) :=
   match p with
   | decl :: decls =>
       let* (fenv, flat_decl) := translate_decl fenv decl in
-      let* flat_decls := translate_prog fenv decls in
+      let* flat_decls := translate_decls fenv decls in
       ok (flat_decl ++ flat_decls)
   | [] => ok []
   end.
 
+Definition translate_prog (p: C.TopDecl.prog) : result string F.TopDecl.prog :=
+  translate_decls empty_env p.

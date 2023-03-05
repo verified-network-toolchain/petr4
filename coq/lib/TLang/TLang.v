@@ -202,7 +202,8 @@ Section Optimizer.
     let* tprog_better := R.emap (fun x => "") (optimize_tm tprog) in
     tm_to_t tprog_better.
 
-  Definition optimize_p4flat (t: F.TopDecl.prog) : R.result string F.TopDecl.prog.
-  Admitted.
+  Definition optimize_p4flat (t: F.TopDecl.prog) : R.result string F.TopDecl.prog :=
+    let _ := ExternalOptimizer "" in
+    mret t.
 
 End Optimizer.

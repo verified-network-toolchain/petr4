@@ -18,68 +18,72 @@ Check C.Expr.e.
 Module F := P4flat.Syntax.
 Check F.Expr.e.
 
-Definition flatten_env : Type.
-Admitted.
-
-Definition empty_env : flatten_env.
-Admitted.
-
 (* Functions and actions. *)
-Definition func_template: Type.
-Admitted.
+Record func_template: Type :=
+  {ft_body: F.Stmt.s}.
 
 (* Controls and parsers. *)
-Definition instance_template: Type.
-Admitted.
+Record instance_template: Type :=
+  {inst_body: F.Stmt.s}.
+
+Record flatten_env : Type :=
+  MkFlattenEnv { fe_funcs: Envn.Env.t string func_template;
+                 fe_instances: Envn.Env.t string instance_template;
+                 fe_tables: Envn.Env.t string F.Stmt.s; }.
+
+Definition empty_env : flatten_env :=
+  MkFlattenEnv (Envn.Env.empty _ _)
+               (Envn.Env.empty _ _)
+               (Envn.Env.empty _ _).
 
 Definition find_func
            (fenv: flatten_env)
            (f: C.Stmt.fun_kind)
-  : result string func_template.
-Admitted.
+  : result string func_template :=
+  error "sorry".
 
 Definition find_instance
            (fenv: flatten_env)
            (name: string)
-  : result string instance_template.
-Admitted.
+  : result string instance_template :=
+  error "sorry".
 
 Definition specialize_func
            (ft: func_template)
            (args: C.Expr.args)
-  : result string F.Stmt.s.
-Admitted.
+  : result string F.Stmt.s :=
+  error "sorry".
 
 Definition specialize_instance
            (inst: instance_template)
            (extern_args: list string)
            (args: C.Expr.args)
-  : result string F.Stmt.s.
-Admitted.
+  : result string F.Stmt.s :=
+  error "sorry".
 
 Definition find_table
            (fenv: flatten_env)
            (table_name: string)
-  : result string F.Stmt.s.
-Admitted.
+  : result string F.Stmt.s :=
+  error "sorry".
 
 Definition add_control
            (control: C.TopDecl.d)
-           (fenv: flatten_env) : flatten_env.
-Admitted.
+           (fenv: flatten_env) : flatten_env :=
+  fenv.
 
 Definition add_parser
            (parser: C.TopDecl.d)
-           (fenv: flatten_env) : flatten_env.
-Admitted.
+           (fenv: flatten_env) : flatten_env :=
+  fenv.
 
 Definition add_function
            (function_name : string)
            (type_params : nat)
            (signature : F.Expr.arrowT)
            (body : F.Stmt.s)
-  : flatten_env -> flatten_env.
-Admitted.
+  : flatten_env -> flatten_env :=
+  fun fe => fe.
 
 (* doesn't have to do anything but included for later adjustment *)
 Definition translate_expr (e : C.Expr.e) : result string F.Expr.e :=

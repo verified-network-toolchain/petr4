@@ -31,3 +31,7 @@ control c(inout bit<32> hdr) {
     t2.apply();
   }
 }
+
+control ctrl<T>(inout T h);
+package p<T>(ctrl<T> ctrl);
+p(c()) main;

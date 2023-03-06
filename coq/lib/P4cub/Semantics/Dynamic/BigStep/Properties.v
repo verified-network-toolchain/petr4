@@ -964,7 +964,25 @@ Section Properties.
     intro s; induction s;
       intros Psi us us' vs vs' eps eps' c sig psi hus hvs hctx h;
       unravel in *; inv h; auto 3.
-    - admit.
+    - inv hctx.
+      pose proof sbs_length _ _ _ _ _ _ _ H6 as hlen.
+      rewrite app_assoc in H,H1.
+      pose proof f_equal (length (A:=Val.v)) H as hlen1.
+      pose proof f_equal (length (A:=Val.v)) H1 as hlen2.
+      repeat rewrite app_length in hlen1,hlen2.
+      rewrite <- firstn_skipn with
+        (n := length eps - length ϵ₂) (l := eps) in H.
+      rewrite <- firstn_skipn with
+        (n := length eps' - length ϵ₃) (l := eps') in H1.
+      rewrite app_assoc in H,H1.
+      pose proof skipn_length_minus H4 as hskiplen1.
+      pose proof skipn_length_minus (n:=length ϵ₃) (l:=eps') ltac:(lia) as hskiplen2.
+      pose proof app_eq_len_tail_app H (Logic.eq_sym hskiplen1) as [hϵ₁ hϵ₂].
+      pose proof app_eq_len_tail_app H1 (Logic.eq_sym hskiplen2) as [h hϵ₃].
+      rewrite hϵ₁ in h.
+      assert (hlenusvs : length (us ++ vs) = length (us' ++ vs'))
+        by (rewrite !app_length; lia).
+      apply sublist.app_eq_len_eq in h as [husvs _]; auto.
     - apply shift_e_lv_eval_shift_lv_exists in H4 as [lv' ?]; subst. eauto 2.
     - destruct call as [g ts oe | |]; unravel in *; inv H.
       apply args_eval_shift_exists_shift_varg in H6 as [vargs' ?]; subst.

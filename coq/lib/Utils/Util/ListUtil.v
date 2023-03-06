@@ -388,3 +388,22 @@ Section Mapi.
 
   Definition mapi : list A -> list B := mapi_help 0.
 End Mapi.
+
+Lemma skipn_length_minus : forall {A : Type} {l : list A} {n : nat},
+    n <= List.length l ->
+    List.length (skipn (List.length l - n) l) = n.
+Proof.
+  intros A l n h.
+  rewrite skipn_length. lia.
+Qed.
+
+Lemma app_eq_len_tail_app : forall {A : Type} {l1 l2 l1' l2' : list A},
+    l1 ++ l2 = l1' ++ l2' ->
+    List.length l2 = List.length l2' ->
+    l1 = l1' /\ l2 = l2'.
+Proof.
+  intros A l1 l2 l1' l2' h hlen.
+  apply sublist.app_eq_len_eq; auto.
+  apply f_equal with (f:=List.length (A:=A)) in h.
+  rewrite !app_length in h. lia.
+Qed.

@@ -861,8 +861,7 @@ type is well-formed and it follows the nesting rules of P4.
   \mprset {vskip=0.7ex}
   {\inferrule
      { \lookupTypEnv \typName = \typ \\
-       \typWellFormed \typ \\
-       \isHeaderOrUnion {\surfaceTyp \exp} \\\\
+       \isHeaderOrUnion {\typ} \\\\
        \compileTimeEval \exp = \size\\
        \size > 0
        % \isValidNestedTyp {\headerStackTyp {\surfaceTyp \exp} \exp}

@@ -1015,17 +1015,33 @@ A header union can have zero or more fields of type header. Note that in order f
 
 #### Well-Formed Struct Type
 
-A header union can have zero or more fields of type header. 
+```done```
+
+A struct type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function which for a struct type the inner types can be one of the followings:
+
+- $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
+- $\intWidthTyp \exp$ and $\compTimeKnown \exp$
+- $\varbitTyp \exp$ and $\compTimeKnown \exp$
+- $\errTyp$
+- $\boolTyp$
+- $\enumTypNoTypDef$
+- $\enumTypDef$
+- $\headerTyps \typParam \field {\surfaceTyp \exp}$
+- $\headerUnionTyps \typParam \field {\typName}$
+- $\headerStackTyp {\surfaceTyp \exp} \exp $
+- $\structTyps \typParam \field {\surfaceTyp \exp}$
+- $\tupleTyps \typ$
+
 
 ~ Begin InfRule
 
   \mprset {vskip = 0.7ex}
     {\inferrule
       {\distinct \fields \\
-       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\typNames} \\\\
-       % \lookupTypEnv \typName = \structTyps {\whatevs} \whatevs \whatevs\\
-       \lookupTypEnv \typNames = \typs}
-      { \typWellFormed {\structTyps  \typParam \field {\typName}}}}
+       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps \exp} \\
+       \isValidNestedTyp {\structTyps  \typParam \field {\surfaceTyp \exp}}}
+      {\typWellFormed {\structTyps  \typParam \field {\surfaceTyp \exp}}}
+    }
     \quad (\structTypWellT)
 
 ~ End InfRule
@@ -3046,8 +3062,9 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
 ## Struct Type Declaration { #sec-struct-typ-decl }
 
+```done```
+
 ~ Begin InfRule
-% \structDcl \typName \typParam \field {\surfaceTyp \exp}
 
   \mprset {vskip = 0.7ex}
   {\inferrule

@@ -175,7 +175,7 @@ Section GCL.
   | GExternVoid (e : string) (args : list (form + rvalue))
   | GExternAssn (x : lvalue) (e : string) (args : list (form + rvalue))
   | GTable (tbl : string)
-           (keys : list (rvalue * E.matchkind))
+           (keys : list (rvalue * string))
            (actions : list (string * ((list BitVec.t) * t))).
 
   Definition g_sequence {L R F : Type} : list (@t L R F) -> @t L R F :=

@@ -155,10 +155,10 @@ Section ToGCL.
 
   Section Instr.
 
-    Variable instr : (string -> tags_t -> list (nat * BitVec.t * string) -> list (string * (list BV.t * target)) -> result target).
+    Variable instr : (string -> list (nat * BitVec.t * string) -> list (string * (list BV.t * target)) -> result string target).
 
     Definition pos := GCL.pos.
-    Fixpoint scopify (ctx : ctx) (e : E.e ) : E.e  :=
+    Fixpoint scopify (ctx : ctx) (e : E.e) : E.e :=
       match e with
       | E.Bool _ => e
       | E.Bit _ _ => e
@@ -236,18 +236,17 @@ Section ToGCL.
         Inline.index_array_str lv 0 (* TODO: how to get nat of arbitrary index?? *)
       end.
 
-    Definition width_of_type (x:string) (t : E.t) : result string nat :=
+    Definition width_of_type (t : E.t) : result string nat :=
       match t with
       | E.TBool => ok 1
       | E.TBit w => ok (BinNat.N.to_nat w)
       | E.TInt w => ok (BinPos.Pos.to_nat w)
       | E.TVarBit w => ok (BinNat.N.to_nat w)
-      | E.TVar tx => error ("Cannot get the width of a typ variable " @@ string_of_nat tx @@ " for var " @@ x)
+      | E.TVar tx => error ("Cannot get the width of a typ variable " @@ string_of_nat tx)
       | E.TError => ok 3 (* FIXME:: core.p4 has only 7 error codes, but this should come from a static analysis*)
-      (* | E.TMatchKind => error ("Cannot get the width of a Match Kind Type for var" @@ x) *)
       | E.TStruct _ fields =>
-        error ("Cannot get the width of a Struct Type with "@@ string_of_nat (List.length fields) @@ " for var " @@ x)
-      | E.TArray _ _ => error ("Cannot get the width of a header stack type for var" @@ x)
+        error ("Cannot get the width of a Struct Type with "@@ string_of_nat (List.length fields) @@ " for var ")
+      | E.TArray _ _ => error ("Cannot get the width of a header stack type")
       end.
 
     Fixpoint to_header_string (e : E.e) : result string string :=
@@ -311,7 +310,7 @@ Section ToGCL.
       | E.VarBit m w v =>
         ok (BV.bit (Some (BinNat.N.to_nat w)) (BinInt.Z.to_nat v))
       | E.Var t x _ =>
-        let* w := width_of_type x t (*over ("couldn't get type-width of " @@ x @@ " while converting to rvalue")*) in
+        let* w := width_of_type t (*over ("couldn't get type-width of " @@ x @@ " while converting to rvalue")*) in
         ok (BV.BVVar x w)
       | E.Slice hi lo e =>
         let+ rv_e := to_rvalue e in
@@ -440,8 +439,7 @@ Section ToGCL.
       | E.Lists (E.lists_header _) _ =>
         error "Header in the rvalue positon should have been factored out by previous passes"
       | E.Member ret_type mem arg =>
-          let* w := width_of_type (string_of_nat mem) ret_type (*over
-                      ("couldn't get width of ??." @@ string_of_nat mem @@ " while converting to_rvalue")*) in
+        let* w := width_of_type ret_type in
         let+ lv := to_lvalue arg in
         BV.BVVar (lv @@ "." @@ string_of_nat mem) w
       | E.Error _ => error "errors are not rvalues."
@@ -484,6 +482,8 @@ Section ToGCL.
       | E.Slice hi lo e =>
         error "Typeerror: BitVector Slices are not booleans (perhaps you want to insert a cast?)"
 
+      | E.Error _ =>
+        error "Typeerror: Errors are not formulae"
       | E.Cast type arg =>
         let~ rvalue_arg := to_rvalue arg over "couldn't convert to rvalue under cast" in
         let cast := fun w => ok (GCL.isone (BV.UnOp (BV.BVCast w) rvalue_arg)) in
@@ -553,13 +553,11 @@ Section ToGCL.
         error "Headers are not formulae"
       | E.Member expr_type mem arg =>
         let* lv := to_lvalue arg in
-        let~ w := (width_of_type mem expr_type) over ("failed getting type of " @@ mem) in
+        let~ w := (width_of_type expr_type) over ("failed getting type") in
         if Nat.eqb w 1 then
-          ok (GCL.isone (BV.BVVar (lv @@ "." @@ mem) 1))
+          ok (GCL.isone (BV.BVVar (lv @@ "." @@ string_of_nat mem) 1))
         else
-          error ("Got type of " @@ mem @@ "but it's type width wasn't 0")
-      | E.EError _ =>
-        error "errors are not formulae"
+          error ("Got type of " @@ string_of_nat mem @@ "but it's type width wasn't 1")
       | E.Lists (E.lists_array _) _ =>
         error "HeaderStacks are not formulae"
       | E.Index _ stack index =>
@@ -656,14 +654,16 @@ Section ToGCL.
       | Inline.IExit =>
         ok (GCL.GAssign (E.TBit (BinNat.N.of_nat 1)) "exit" (BV.bit (Some 1) 1), update_exit c true)
 
-      | Inline.IInvoke tbl keys actions i =>
+      | Inline.IInvoke tbl keys actions =>
         let* actions' := rred (map (fun '(name, (params, act)) =>
-                                      let* bv_params := rred (List.map to_rvalue params) in
+                                      let* bv_params := rred (List.map (fun '(name, type) =>
+                                                                          let+ w := width_of_type type in
+                                                                          BV.BVVar name w) params) in
                                       let+ (gcl_act,_) := inline_to_gcl c arch act in
                                       (name, (bv_params, gcl_act))) actions)
         in
         let* keys' := rred (map (fun '(t,e,mk) =>
-                                   let~ w := width_of_type (tbl @@ " key") t over ("[inline_to_gcl] failed getting width of table key. Table: " @@ tbl ) in
+                                   let~ w := width_of_type t over ("[inline_to_gcl] failed getting width of table key. Table: " @@ tbl ) in
                                    let~ e' := to_rvalue e over "failed converting keys to rvalue" in
                                    ok (w, e', mk)) keys) in
         let+ g := instr tbl keys' actions' in

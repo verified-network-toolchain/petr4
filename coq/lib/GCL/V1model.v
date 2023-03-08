@@ -118,8 +118,10 @@ Definition package (types : list E.t) (cargs : TopDecl.constructor_args) : resul
     error "ill-formed constructor arguments to V1Switch instantiation."
   end.
 
-Definition gcl_from_p4cub instr gas unroll p4cub : result string ToGCL.target :=
+Check ToGCL.from_p4cub.
+
+Definition gcl_from_p4cub instr hv gas unroll p4cub : result string ToGCL.target :=
   let arrowtype := ({|paramargs:=[("check", PAIn E.TBool)]; rtrns:=None|} : Expr.arrowT) in
   let assume_decl := TopDecl.Extern "_" 1 [] [] [("assume", (0%nat, [], arrowtype))] in
   let p4cub_instrumented := ToP4cub.add_extern  p4cub assume_decl in
-  ToGCL.from_p4cub  instr gas unroll externs (package) p4cub.
+  ToGCL.from_p4cub instr hv gas unroll externs (package) p4cub.

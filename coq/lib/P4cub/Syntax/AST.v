@@ -40,6 +40,13 @@ Variant pred_paramarg {A B : Set}
 Definition pred_paramarg_same {A : Set} (P : A -> Prop)
   : paramarg A A -> Prop := pred_paramarg P P.
 
+Definition paramarg_strength {A B : Set} (arg : paramarg (option A) (option B)) : option (paramarg A B) :=
+  match arg with
+  | PAIn a => a >>| PAIn
+  | PAOut b => b >>| PAOut
+  | PAInOut b => b >>| PAInOut
+  end.
+
 (** Relating [paramarg]s. *)
 Variant rel_paramarg {A1 A2 B1 B2 : Set}
   (R : A1 -> A2 -> Prop) (Q : B1 -> B2 -> Prop)

@@ -1,5 +1,7 @@
 From Coq Require Import NArith.BinNat ZArith.BinInt ssr.ssrbool.
 
+From RecordUpdate Require Import RecordSet.
+
 From Poulet4 Require Import
   Monads.Monad
   P4cub.Syntax.Syntax
@@ -513,28 +515,28 @@ Section Stmt.
 
   Context {ext_sem : Extern_Sem}.
 
-  Variable Ψ : stmt_eval_env ext_sem.
-
-  Definition interpret_return ϵ e :=
-    match e with
-    | None => mret (ϵ, Rtrn None, extrn_state Ψ)
-    | Some e =>
-      let^ v := interpret_expr ϵ e in
-      (ϵ, Rtrn $ Some v, extrn_state Ψ)
+  Definition interpret_relop {A B : Type} (f : A -> option B) (x : option A) : option (option B) :=
+    match x with
+    | None => mret None
+    | Some x => f x >>| Some
     end.
+
+  Definition interpret_return Ψ ϵ e :=
+    let^ v := interpret_relop (interpret_expr ϵ) e in
+    (ϵ, Rtrn v , extrn_state Ψ).
 
   Inductive Fuel :=
     | NoFuel
     | MoreFuel (t : Fuel).
 
-  Definition interpret_assign ϵ e1 e2 :=
+  Definition interpret_assign Ψ ϵ e1 e2 :=
     let* lv := interpret_lexpr ϵ e1 in
     let^ v := interpret_expr ϵ e2 in
     (lv_update lv v ϵ, Cont, extrn_state Ψ).
 
   Lemma interpret_assign_sound :
-    forall ϵ ϵ' c e₁ e₂ sig ψ, 
-      interpret_assign ϵ e₁ e₂ = Some (ϵ', sig, ψ) ->
+    forall Ψ ϵ ϵ' c e₁ e₂ sig ψ, 
+      interpret_assign Ψ ϵ e₁ e₂ = Some (ϵ', sig, ψ) ->
         ⧼ Ψ, ϵ, c, Stmt.Assign e₁ e₂ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽.
   Proof.
     cbn. unfold option_bind. intros.
@@ -545,15 +547,89 @@ Section Stmt.
     - apply interpret_expr_sound. assumption.
   Qed.
 
+  Definition interpret_arg (ϵ : list Val.v) : Expr.arg -> option Val.argv := 
+    paramarg_strength ∘ paramarg_map (interpret_expr ϵ) (interpret_lexpr ϵ).
+
+  Lemma interpret_arg_sound :
+    forall ϵ e v, 
+      interpret_arg ϵ e = Some v -> arg_big_step ϵ e v.
+  Proof.
+    destruct e; cbn; unfold option_bind; intros.
+    - destruct (interpret_expr ϵ a) eqn:E; try discriminate. inv H.
+      constructor. apply interpret_expr_sound. assumption.
+    - destruct (interpret_lexpr ϵ b) eqn:E; try discriminate. inv H.
+      constructor. apply interpret_lexpr_sound. assumption.
+    - destruct (interpret_lexpr ϵ b) eqn:E; try discriminate. inv H.
+      constructor. apply interpret_lexpr_sound. assumption.
+  Qed.
+
+  Lemma interpret_arg_complete :
+    forall ϵ e v, 
+      arg_big_step ϵ e v -> interpret_arg ϵ e = Some v.
+  Proof.
+    intros. inv H; cbn; unfold option_bind.
+    - apply interpret_expr_complete in H0. rewrite H0. reflexivity.
+    - apply interpret_lexpr_complete in H0. rewrite H0. reflexivity.
+    - apply interpret_lexpr_complete in H0. rewrite H0. reflexivity.
+  Qed.
+
+  Definition interpret_arg_adequate :
+    forall ϵ e v, 
+      interpret_arg ϵ e = Some v <-> arg_big_step ϵ e v.
+  Proof.
+    split.
+    - apply interpret_arg_sound.
+    - apply interpret_arg_complete.
+  Qed.
+
+  Definition interpret_args ϵ := map_monad (interpret_arg ϵ).
+
+  Lemma interpret_args_sound :
+    forall ϵ es vs,
+      interpret_args ϵ es = Some vs -> args_big_step ϵ es vs.
+  Proof.
+    induction es.
+    - cbn. intros. inv H. constructor.
+    - cbn. unfold option_bind. intros.
+      destruct (interpret_arg ϵ a) eqn:E; try discriminate.
+      destruct (sequence (map (interpret_arg ϵ) es)) eqn:E'; try discriminate.
+      inv H. constructor.
+      + apply interpret_arg_sound. assumption.
+      + apply IHes. assumption.
+  Qed.
+
+  Lemma interpret_args_complete :
+    forall ϵ es vs,
+      args_big_step ϵ es vs -> interpret_args ϵ es = Some vs.
+  Proof.
+    intros. induction H.
+    - reflexivity.
+    - cbn. unfold option_bind.
+      apply interpret_arg_complete in H. rewrite H.
+      unfold interpret_args, map_monad, "∘" in IHForall2.
+      rewrite IHForall2. reflexivity.
+  Qed.
+
+  Lemma interpret_args_adequate :
+    forall ϵ es vs,
+      interpret_args ϵ es = Some vs <-> args_big_step ϵ es vs.
+  Proof.
+    split.
+    - apply interpret_args_sound.
+    - apply interpret_args_complete.
+  Qed.
+
   Local Open Scope nat_scope.
 
-  Fixpoint interpret_stmt (fuel : Fuel) (ϵ : list Val.v) (c : ctx) (s : Stmt.s) : option (list Val.v * signal * extern_state) :=
+  Import RecordSetNotations.
+
+  Fixpoint interpret_stmt (fuel : Fuel) (Ψ : stmt_eval_env ext_sem) (ϵ : list Val.v) (c : ctx) (s : Stmt.s) : option (list Val.v * signal * extern_state) :=
     match fuel with
     | MoreFuel fuel =>
       match s with
       | Stmt.Skip => mret (ϵ, Cont, extrn_state Ψ)
       | Stmt.Exit => mret (ϵ, Exit, extrn_state Ψ)
-      | Stmt.Return e => interpret_return ϵ e
+      | Stmt.Return e => interpret_return Ψ ϵ e
       | Stmt.Transition trns =>
         match c with
         | CParserState n start states parsers =>
@@ -565,32 +641,42 @@ Section Stmt.
             let* (ϵ₁, ϵ₂) := split_at (List.length ϵ - n) ϵ in
             let* state := get_state_block start states lbl in
             let ctx := CParserState n start states parsers in
-            let^ (ϵ₃, sig, ψ) := interpret_stmt fuel ϵ₂ ctx state in
+            let^ (ϵ₃, sig, ψ) := interpret_stmt fuel Ψ ϵ₂ ctx state in
             (ϵ₁ ++ ϵ₃, sig, ψ)
           end
         | _ => None
         end
-      | Stmt.Assign e1 e2 => interpret_assign ϵ e1 e2
+      | Stmt.Assign e1 e2 => interpret_assign Ψ ϵ e1 e2
+      | Stmt.Call (Stmt.Funct f τs eo) args =>
+        let* FDecl fun_clos body := functs Ψ f in
+        let* olv := interpret_relop (interpret_lexpr ϵ) eo in
+        let* vargs := interpret_args ϵ args in
+        let* ϵ' := copy_in vargs ϵ in
+        let env := Ψ <| functs := fun_clos |> in
+        let body := tsub_s (gen_tsub τs) body in
+        let^ (ϵ'', sig, ψ) := interpret_stmt fuel env ϵ' CFunction body in
+        let ϵ''' := lv_update_signal olv sig (copy_out O vargs ϵ'' ϵ) in
+        (ϵ''', Cont, ψ)
       | _ => None
       end
     | NoFuel => None
     end.
 
-  Search (_ <=? _ = true <-> _ <= _).
-
   Lemma interpret_stmt_sound :
-    forall fuel ϵ c s ϵ' sig ψ,
-      interpret_stmt fuel ϵ c s = Some (ϵ' , sig , ψ) ->
+    forall fuel Ψ ϵ c s ϵ' sig ψ,
+      interpret_stmt fuel Ψ ϵ c s = Some (ϵ' , sig , ψ) ->
         ⧼ Ψ , ϵ , c , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽.
   Proof.
     induction fuel; try discriminate. destruct s; try discriminate; cbn; intros.
     - inv H. constructor.
-    - unfold interpret_return in *. destruct e.
-      + destruct (interpret_expr ϵ e) eqn:?; cbn in *.
-        * inv H. do 2 constructor.
+    - unfold option_bind in *. 
+      destruct (interpret_relop (interpret_expr ϵ) e) eqn:?;
+      try discriminate. inv H. destruct e; cbn in *.
+      + unfold option_bind in *. destruct (interpret_expr ϵ' e) eqn:?; cbn in *.
+        * inv Heqo. do 2 constructor.
           apply interpret_expr_sound. assumption.
         * discriminate.
-      + inv H. repeat constructor.
+      + inv Heqo. repeat constructor.
     - inv H. constructor.
     - unfold option_bind in *. destruct c eqn:E; try discriminate.
       destruct (interpret_parser_expr ϵ trns) eqn:?; try discriminate.
@@ -603,7 +689,7 @@ Section Stmt.
         destruct (split_at (List.length ϵ - parser_arg_length) ϵ) eqn:?; 
         try discriminate. destruct p as [ϵ₁ ϵ₂].
         destruct (get_state_block start states s) eqn:?; try discriminate.
-        destruct (interpret_stmt fuel ϵ₂ (CParserState parser_arg_length start states available_parsers) s0) eqn:?; 
+        destruct (interpret_stmt fuel Ψ ϵ₂ (CParserState parser_arg_length start states available_parsers) s0) eqn:?; 
         try discriminate. inv H. repeat destruct p. inv H1.
         apply IHfuel in Heqo3.
         apply split_at_partition in Heqo1 as ?.
@@ -615,6 +701,20 @@ Section Stmt.
         { unfold "~". intros. rewrite H in Heqo0. discriminate. }
         apply get_final_state_complete in H1. contradiction.
     - apply interpret_assign_sound. assumption.
+    - unfold option_bind in *. destruct call eqn:E; try discriminate.
+      destruct (functs Ψ function_name) eqn:?; try discriminate.
+      destruct f. 
+      destruct (interpret_relop (interpret_lexpr ϵ) returns) eqn:?; try discriminate.
+      destruct (interpret_args ϵ args) eqn:?; try discriminate.
+      destruct (copy_in l ϵ) eqn:?; try discriminate.
+      destruct (interpret_stmt fuel _ _ _ _) eqn:?; try discriminate.
+      inv H. do 2 destruct p. inv H1.
+      apply interpret_args_sound in Heqo1.
+      apply IHfuel in Heqo3. econstructor; eauto.
+      destruct returns; cbn in *; unfold option_bind in *.
+      + destruct (interpret_lexpr ϵ e) eqn:?; try discriminate. inv Heqo0.
+        apply interpret_lexpr_sound in Heqo4. constructor. assumption.
+      + inv Heqo0. constructor.
   Qed.
 
 End Stmt.

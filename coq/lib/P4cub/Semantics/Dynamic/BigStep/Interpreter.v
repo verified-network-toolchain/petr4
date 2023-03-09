@@ -170,6 +170,17 @@ Section Expr.
       - apply interpret_expr_complete.
     Qed.
 
+    Definition interpret_exprs := map_monad interpret_expr.
+
+    Lemma interpret_exprs_sound :
+      forall es vs, interpret_exprs es = Some vs -> Forall2 (expr_big_step ϵ) es vs.
+    Proof.
+      unfold interpret_exprs. intros. rewrite map_monad_some in H. generalize dependent vs.
+      induction es.
+      - intros. inv H. constructor.
+      - intros. inv H. constructor; auto. apply interpret_expr_sound. assumption.
+    Qed.
+      
     Fixpoint interpret_lexpr (e : Expr.e) : option Val.lv :=
       match e with
       | Expr.Var _ _ x => mret $ Val.Var x
@@ -657,6 +668,15 @@ Section Stmt.
         let^ (ϵ'', sig, ψ) := interpret_stmt fuel env ϵ' CFunction body in
         let ϵ''' := lv_update_signal olv sig (copy_out O vargs ϵ'' ϵ) in
         (ϵ''', Cont, ψ)
+      | Stmt.Call (Stmt.Action a ctrl_args) data_args =>
+        let* actions := interpret_actions_of_ctx c in
+        let* ADecl clos act_clos body := actions a in
+        let* vctrl_args := interpret_exprs ϵ ctrl_args in
+        let* vdata_args := interpret_args ϵ data_args in
+        let* ϵ' := copy_in vdata_args ϵ in
+        let action_env := vctrl_args ++ ϵ' ++ clos in
+        let^ (ϵ'', sig, ψ) := interpret_stmt fuel Ψ action_env (CAction act_clos) body in
+        (copy_out O vdata_args ϵ'' ϵ, Cont, ψ)
       | _ => None
       end
     | NoFuel => None
@@ -715,6 +735,17 @@ Section Stmt.
       + destruct (interpret_lexpr ϵ e) eqn:?; try discriminate. inv Heqo0.
         apply interpret_lexpr_sound in Heqo4. constructor. assumption.
       + inv Heqo0. constructor.
+      + destruct (interpret_actions_of_ctx c) eqn:?; try discriminate.
+        apply interpret_actions_of_ctx_sound in Heqo.
+        destruct (a action_name) eqn:?; try discriminate. destruct a0.
+        destruct (interpret_exprs ϵ control_plane_args) eqn:?; try discriminate.
+        apply interpret_exprs_sound in Heqo1.
+        destruct (interpret_args ϵ args) eqn:?; try discriminate.
+        apply interpret_args_sound in Heqo2.
+        destruct (copy_in _ _) eqn:?; try discriminate.
+        destruct (interpret_stmt _ _ _ _ _) eqn:?; try discriminate. 
+        inv H. do 2 destruct p. inv H1. apply IHfuel in Heqo4.
+        econstructor; eauto.
   Qed.
 
 End Stmt.

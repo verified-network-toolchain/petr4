@@ -31,7 +31,7 @@ Notation path := (list ident).
 Notation P4Type := (@P4Type tags_t).
 Notation Val := (@ValueBase bool).
 Notation ValSet := ValueSet.
-Notation table_entry := (@table_entry tags_t Expression).
+Notation table_entry := (@table_entry Expression).
 Notation action_ref := (@action_ref Expression).
 
 Global Instance Inhabitant_Val : Inhabitant Val := ValBaseNull.
@@ -409,7 +409,7 @@ Inductive ValSetT :=
 | VSTRange (lo: Val) (hi: Val)
 | VSTProd (_: list ValSetT)
 | VSTLpm (nbits: N) (value: Val)
-| VSTValueSet (size: N) (members: list (list (@Match tags_t))) (sets: list ValSetT).
+| VSTValueSet (size: N) (members: list (list ValSet)) (sets: list ValSetT).
 
 Fixpoint valset_to_valsett (vs : ValSet) :=
   match vs with

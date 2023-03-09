@@ -295,6 +295,12 @@ Section FoldRighti.
     snd (List.fold_right (fun a '(i, b) => (i + 1, f i a b )) (O, init) xs).
 End FoldRighti.
 
+Definition tl_error {A : Type} (l : list A) : option (list A) :=
+  match l with
+  | [] => None
+  | _ :: t => Some t
+  end.
+
 Fixpoint partitions {A : Type} (l : list A) : list (list A * list A) :=
   match l with
   | [] => [([], [])]

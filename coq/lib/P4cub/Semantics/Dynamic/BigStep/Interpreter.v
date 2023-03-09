@@ -634,6 +634,28 @@ Section Stmt.
 
   Import RecordSetNotations.
 
+  Lemma args_invariant : 
+    forall (vargs : Val.argsv), Forall2 (rel_paramarg eq (fun _ _ => True)) vargs vargs.
+  Proof.
+    induction vargs; constructor; auto. destruct a; constructor; auto.
+  Qed.
+
+  Definition initialized_value (ϵ : list Val.v) (initializer : Expr.t + Expr.e) : option Val.v :=
+    match initializer with
+    | inl t => v_of_t t
+    | inr e => interpret_expr ϵ e
+    end.
+
+  Lemma initialized_value_sound :
+    forall ϵ initializer v, 
+      initialized_value ϵ initializer = Some v ->
+        SumForall (fun τ => v_of_t τ = Some v) (fun e => ⟨ ϵ, e ⟩ ⇓ v) initializer.
+  Proof.
+    intros. destruct initializer; inv H.
+    - constructor. reflexivity.
+    - constructor. apply interpret_expr_sound. assumption.
+  Qed.
+
   Fixpoint interpret_stmt (fuel : Fuel) (Ψ : stmt_eval_env ext_sem) (ϵ : list Val.v) (c : ctx) (s : Stmt.s) : option (list Val.v * signal * extern_state) :=
     match fuel with
     | MoreFuel fuel =>
@@ -677,6 +699,18 @@ Section Stmt.
         let action_env := vctrl_args ++ ϵ' ++ clos in
         let^ (ϵ'', sig, ψ) := interpret_stmt fuel Ψ action_env (CAction act_clos) body in
         (copy_out O vdata_args ϵ'' ϵ, Cont, ψ)
+      | Stmt.Var og te s =>
+        let* v := initialized_value ϵ te in
+        let* (ϵ', sig, ψ) := interpret_stmt fuel Ψ (v :: ϵ) c s in
+        let^ ϵ' := tl_error ϵ' in
+        (ϵ', sig, ψ)
+      | Stmt.Seq s1 s2 =>
+        let* (ϵ', sig, ψ) := interpret_stmt fuel Ψ ϵ c s1 in
+        match sig with
+        | Cont => interpret_stmt fuel (Ψ <| extrn_state := ψ |>) ϵ' c s2
+        | Exit | Rtrn _ | Rjct => mret (ϵ', sig, ψ)
+        | Acpt => None
+        end
       | _ => None
       end
     | NoFuel => None
@@ -746,6 +780,19 @@ Section Stmt.
         destruct (interpret_stmt _ _ _ _ _) eqn:?; try discriminate. 
         inv H. do 2 destruct p. inv H1. apply IHfuel in Heqo4.
         econstructor; eauto.
+    - unfold option_bind in *.
+      destruct (initialized_value ϵ expr) eqn:E; try discriminate.
+      apply initialized_value_sound in E.
+      destruct (interpret_stmt _ _ _ _ _) eqn:?; try discriminate.
+      do 2 destruct p. apply IHfuel in Heqo. destruct (tl_error l) eqn:?; try discriminate.
+      inv H. destruct l; try discriminate. cbn in *. inv Heqo0. econstructor; eauto.
+    - unfold option_bind in *. destruct (interpret_stmt fuel Ψ ϵ c s1) eqn:?; try discriminate.
+      do 2 destruct p. apply IHfuel in Heqo. destruct s.
+      + apply IHfuel in H. econstructor; eauto.
+      + inv H. constructor; auto; constructor.
+      + discriminate.
+      + inv H. constructor; auto; constructor.
+      + inv H. constructor; auto; constructor.
   Qed.
 
 End Stmt.

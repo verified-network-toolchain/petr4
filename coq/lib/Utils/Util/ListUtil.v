@@ -301,46 +301,6 @@ Definition tl_error {A : Type} (l : list A) : option (list A) :=
   | _ :: t => Some t
   end.
 
-Fixpoint partitions {A : Type} (l : list A) : list (list A * list A) :=
-  match l with
-  | [] => [([], [])]
-  | h :: t => ([], l) :: List.map (fun '(l1, l2) => (h :: l1, l2)) (partitions t)
-  end.
-
-Lemma partitions_sound :
-  forall (A : Type) (l l1 l2 : list A),
-    In (l1, l2) (partitions l) -> l1 ++ l2 = l.
-Proof.
-  induction l; cbn; intros l1 l2 [? | ?].
-  - inv H. reflexivity.
-  - contradiction.
-  - inv H. reflexivity.
-  - rewrite in_map_iff in H. inv H.
-    destruct x. inv H0. inv H.
-    apply IHl in H1. subst. reflexivity.
-Qed.
-
-Fixpoint find_map {A B : Type} (f : A -> option B) (l : list A) : option B :=
-  match l with
-  | [] => None
-  | h :: t =>
-    match f h with
-    | Some _ as v => v
-    | None => find_map f t
-    end
-  end.
-
-Lemma find_map_sound :
-  forall (A B : Type) (f : A -> option B) (l : list A) (v : B),
-    find_map f l = Some v -> exists x, In x l /\ f x = Some v.
-Proof.
-  induction l.
-  - discriminate.
-  - cbn. intros. destruct (f a) eqn:E.
-    + inv H. exists a. auto.
-    + apply IHl in H. inv H. inv H0. exists x. auto.
-Qed.
-
 Fixpoint split_at {A : Type} (n : nat) (l : list A) :=
   match n with
   | O => Some ([], l)

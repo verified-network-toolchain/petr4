@@ -656,6 +656,12 @@ Section Stmt.
     - constructor. apply interpret_expr_sound. assumption.
   Qed.
 
+  Definition get_bool (v : Val.v) : option bool :=
+    match v with
+    | Val.Bool b => mret b
+    | _ => None
+    end.
+
   Fixpoint interpret_stmt (fuel : Fuel) (Ψ : stmt_eval_env ext_sem) (ϵ : list Val.v) (c : ctx) (s : Stmt.s) : option (list Val.v * signal * extern_state) :=
     match fuel with
     | MoreFuel fuel =>
@@ -711,6 +717,9 @@ Section Stmt.
         | Exit | Rtrn _ | Rjct => mret (ϵ', sig, ψ)
         | Acpt => None
         end
+      | Stmt.Conditional e s1 s2 =>
+        let* b : bool := get_bool =<< interpret_expr ϵ e in
+        interpret_stmt fuel Ψ ϵ c $ if b then s1 else s2
       | _ => None
       end
     | NoFuel => None
@@ -793,6 +802,11 @@ Section Stmt.
       + discriminate.
       + inv H. constructor; auto; constructor.
       + inv H. constructor; auto; constructor.
+    - unfold option_bind in *.
+      destruct (interpret_expr ϵ guard) eqn:?; try discriminate.
+      apply interpret_expr_sound in Heqo.
+      destruct v; try discriminate. cbn in *. unfold "$" in *.
+      apply IHfuel in H. econstructor; eauto.
   Qed.
 
 End Stmt.

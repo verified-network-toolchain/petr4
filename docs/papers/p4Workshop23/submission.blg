@@ -1,0 +1,54 @@
+This is BibTeX, Version 0.99d (TeX Live 2021)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: submission.aux
+The style file: acl_natbib.bst
+Reallocated glb_str_ptr (elt_size=4) to 20 items from 10.
+Reallocated global_strs (elt_size=200001) to 20 items from 10.
+Reallocated glb_str_end (elt_size=4) to 20 items from 10.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Database file #1: submission.bib
+Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
+Warning--empty journal in p4diff
+Warning--there's a number but no volume in p4diff
+You've used 3 entries,
+            3571 wiz_defined-function locations,
+            716 strings with 6380 characters,
+and the built_in function-call counts, 2658 in all, are:
+= -- 205
+> -- 170
+< -- 1
++ -- 54
+- -- 51
+* -- 200
+:= -- 422
+add.period$ -- 13
+call.type$ -- 3
+change.case$ -- 34
+chr.to.int$ -- 3
+cite$ -- 5
+duplicate$ -- 171
+empty$ -- 170
+format.name$ -- 60
+if$ -- 564
+int.to.chr$ -- 1
+int.to.str$ -- 1
+missing$ -- 36
+newline$ -- 19
+num.names$ -- 12
+pop$ -- 79
+preamble$ -- 1
+purify$ -- 29
+quote$ -- 0
+skip$ -- 111
+stack$ -- 0
+substring$ -- 65
+swap$ -- 94
+text.length$ -- 1
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 27
+warning$ -- 2
+while$ -- 12
+width$ -- 0
+write$ -- 42
+(There were 2 warnings)

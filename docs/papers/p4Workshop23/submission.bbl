@@ -1,13 +1,6 @@
 \begin{thebibliography}{3}
 \expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
 
-\bibitem[{Ataei et~al.(2022)Ataei, Doenges, Sommers, and Foster}]{p4diff}
-Parisa Ataei, Ryan Doenges, Chris Sommers, and Nate Foster. 2022.
-\newblock \href
-  {https://opennetworking.org/wp-content/uploads/2022/05/Parisa-Ataei-Final-Slide-Deck.pdf}
-  {Differential testing of p4 implementations using ci/cd}.
-\newblock (P4 Workshop).
-
 \bibitem[{Doenges et~al.(2021)Doenges, Arashloo, Bautista, Chang, Ni,
   Parkinson, Peterson, Solko-Breslin, Xu, and Foster}]{petr4}
 Ryan Doenges, Mina~Tahmasbi Arashloo, Santiago Bautista, Alexander Chang,
@@ -17,11 +10,20 @@ Ryan Doenges, Mina~Tahmasbi Arashloo, Santiago Bautista, Alexander Chang,
   for p4 data planes}.
 \newblock \emph{Proc. ACM Program. Lang.}, 5(POPL).
 
+\bibitem[{Peterson et~al.(2023)Peterson, Campbell, Chen, Isak, Shyu, Doenges,
+  Ataei, and Foster}]{p4cub}
+Rudy Peterson, Eric~Hayden Campbell, John Chen, Natalie Isak, Calvin Shyu, Ryan
+  Doenges, Parisa Ataei, and Nate Foster. 2023.
+\newblock \href {https://doi.org/10.1145/3573105.3575670} {P4cub: A little
+  language for big routers}.
+\newblock In \emph{Proceedings of the ACM SIGPLAN International Conference on
+  Certified Programs and Proofs (CPP)}, page 303–319.
+
 \bibitem[{Ruffy et~al.(2020)Ruffy, Wang, and Sivaraman}]{gauntlet}
 Fabian Ruffy, Tao Wang, and Anirudh Sivaraman. 2020.
 \newblock \href {https://www.usenix.org/conference/osdi20/presentation/ruffy}
   {Gauntlet: Finding bugs in compilers for programmable packet processing}.
 \newblock In \emph{14th USENIX Symposium on Operating Systems Design and
-  Implementation (OSDI 20)}, pages 683--699. USENIX Association.
+  Implementation (OSDI 20)}, pages 683--699.
 
 \end{thebibliography}

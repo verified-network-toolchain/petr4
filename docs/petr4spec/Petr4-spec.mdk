@@ -679,6 +679,7 @@ Two judgments are provided for types of P4 expressions:
 | $\typ$ | $::=$ | $\surfaceTyp \width $ | $\qquad \text{surface types}$ |
 |   | $\vert$ | $\synTyp$ | $\qquad \text{synthesized types}$ |
 |   | $\vert$ | $\declaredTyp$ | $\qquad \text{declared types}$ |
+|   | $\vert$ | $\voidTyp$ | $\qquad \text{void type}$ |
 { .booktable }
 
 
@@ -2427,7 +2428,7 @@ meaning that it applies for both explicit and implicit casts. However, note that
 
 ## Membership Rules { #sec-mem-e }
 
-```typeMember rule is correct for enums and done.```
+``type member (typeMember rule is correct for enums and done.) and error member are old``
 
 A membership expression denoted by a dot, that is, $a.\name$ looks if $\name$ exists in $a$. And it can be a type, error, or expression membership depending on what $a$ is.
 An expression member looks up a _member_ in an expression.
@@ -2449,6 +2450,27 @@ has the type $\VVal \typ$ in an expression of type $\typ$.
 Simply stated, it looks up the type of the member from the expression passed from the $\expMemE$ rule. 
 Note that the expression has to be of a one of the types: record, extern, specialized, or array.
 
+- $\sizingMem$ stands for methods: $\minSizeBits$, $\minSizeBytes$, $\maxSizeBits$, and $\maxSizeBytes$.
+- $\getFieldTyp \typ$ returns the fields and their types for a type that has some sort of fields in its declaration which includes the following types:
+  + struct
+  + header
+  + header union
+  + header stack
+  + serializable enums
+- $\isSerializableTyp \typ$ recursively checks if a type is serializable, that is, if it is one of the following types:
+  + bool
+  + bit-strings (unsigned integers)
+  + signed integers
+  + dynamically-sized bit-strings
+  + tuple of serializable types and types that have fields (explained above for the helper $\getFieldTyp \typ$)
+  + struct ```FIX```
+  + header
+  + header union
+  + header stack
+  + serializable enums
+- $\setValidity$ stands for both $\setValid$ and $\setInvalid$. ``todo: we dont have void type in tau rn``
+- $\nextOrLast$ stands for either $\next$ or $\last$.
+
 ~ Begin InfRule
 
   \inferrule
@@ -2456,10 +2478,14 @@ Note that the expression has to be of a one of the types: record, extern, specia
      {\expenv {\typMem \typName \name} {\typMem \typName \name} \typ \less  }
      \quad (\typeMemE)
 
+\and
+
   \inferrule
      {\lookupEnv {\errMem \name} = (\errTyp, \dir)  }
      {\expenv {\errMem \name} {\errMem \name} \errTyp \less  }
      \quad (\errMemE)
+
+\and
 
   \inferrule
      { \expenv \exp {\VVal \exp} {\typ} \dir \\
@@ -2470,53 +2496,146 @@ Note that the expression has to be of a one of the types: record, extern, specia
      { \expenv {\expMem \exp \name} {\expMem {\VVal \exp} \name} {\pprim \typ} {\less} }
      \quad (\expMemE)
 
-  \inferrule
-     { %\constEnv, \varEnv, \typEnv, \ctxt \vdash \\
-       \lookupTypEnv \typName = { \structTyps  \typParam {\VVal \field} {\VVal {\surfaceTyp \exp}}} \\
-       (\field : {\surfaceTyp \exp} ) \in \recordTypStructureClose {\VVal \field} {\VVal {\surfaceTyp \exp}}
+\and
+
+  \mprset {vskip = 0.7 ex}
+    {\inferrule
+       { %\constEnv, \varEnv, \typEnv, \ctxt \vdash \\
+         \lookupTypEnv \typName = { \structTyps  \typParam {\VVal \field} {\VVal {\surfaceTyp \exp}}} \\
+         (\field : {\surfaceTyp \exp} ) \in \recordTypStructureClose {\VVal \field} {\VVal {\surfaceTyp \exp}}
        }
-     { \expenv {\expMem \typName \field} {\expMem \typName \field} {\surfaceTyp \exp} {\dir} }
+     { \expenv {\expMem \typName \field} {\expMem \typName \field} {\surfaceTyp \exp} {\dir} }}
      \quad (\structMemE)
+
+\and
+
+  \mprset {vskip = 0.7 ex}
+    {\inferrule
+       {\lookupTypEnv \typName = \typ \\
+        \getFieldTyp \typ = \recordTypStructureClose \field {\VVal \typ}\\
+        \isSerializableTyp {\overline {\VVal \typ}}}
+       {\expenv {\expMem \typName \sizingMem} {\expMem \typName \sizingMem} \integerTyp \less}
+    }
+    \quad (\sizesMemStructLikeE)
+
+\and
+
+  \mprset {vskip = 0.7 ex}
+    {\inferrule
+       {\lookupTypSynEnv \typName = \typ \\
+        \getFieldTyp \typ = \recordTypStructureClose \field {\VVal \typ}\\
+        \isSerializableTyp {\overline {\VVal \typ}}}
+       {\expenv {\expMem \typName \sizingMem} {\expMem \typName \sizingMem} \integerTyp \less}
+    }
+    \quad (\sizesMemStructLikeE)
+
+\and
+
+  \mprset {vskip = 0.7 ex}
+    {\inferrule
+       {\expenv \exp {\VVal \exp} \typ \dir \\
+        \isSerializableTyp \typ}
+       {\expenv {\expMem \exp \sizingMem} {\expMem {\VVal \exp} \sizingMem} {\integerTyp} \less}
+    }
+    \quad (\sizesMemSerTypesE)
+
+\and
+
+  \mprset {vskip = 0.7 ex}
+    {\inferrule
+       {\expenv \exp {\VVal \exp} \typ \dir\\
+         \isHeaderOrUnion \typ}
+       {\expenv {\expMem \exp \isValid} {\expMem {\VVal \exp} \isValid} \boolTyp \less }
+    }
+  \quad (isValidmembership)
+
+\and
+
+  \mprset {vskip = 0.7 ex}
+    {\inferrule
+       {\expenv \exp {\VVal \exp} \typ \dir\\
+         \isHeader \typ}
+       {\expenv {\expMem \exp \setValidity} {\expMem {\VVal \exp} \setValidity} \voidTyp \less }
+    }
+  \quad (setvaliditymembership)
+
+\and
+
+  \mprset {vskip = 0.7 ex}
+  {\inferrule
+     {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir}
+     {\expenv {\expMem \exp \sizeMem} {\expMem {\VVal \exp} \sizeMem} {\bitWidthTyp {32}} \less}
+  }
+  \quad (sizemembership-headerstack)
+
+\and
+
+  \mprset {vskip = 0.7 ex}
+  {\inferrule
+     {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir}
+     {\expenvWithCtxt \parserCtxt {\expMem \exp \nextOrLast} {\expMem {\VVal \exp} \nextOrLast} {\typ} \less}
+  }
+  \quad (nextlastmembership-headerstack)
+
+\and
+
+  \mprset {vskip = 0.7 ex}
+  {\inferrule
+     {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir}
+     {\expenvWithCtxt \parserCtxt {\expMem \exp \lastIndex} {\expMem {\VVal \exp} \nextOrLast} {\bitWidthTyp {32}} \less}
+  }
+  \quad (lastindexmembership-headerstack)
+
+\and
+
+  \mprset {vskip = 0.7 ex}
+  {\inferrule
+     {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir \\
+      \int > 0}
+     {\expenv {\expMem \exp {\pushOrPop \int }} {\expMem {\VVal \exp} {\pushOrPop \int }} {\voidTyp} \less}
+  }
+  \quad (pushpopmembership-headerstack)
 
 ~ End InfRule
 
 ### Expression Member Auxiliary Judgment { #sec-exp-mem-helper }
 
-```todo: insertvarenv is 90% wrong.```
+``from an older version``
+``todo: insertvarenv is 90% wrong.``
 This judgment ensures that the type of an expression in an expression member is either
 a record type, a specialized type, an extern type, or an array. Then, it looks up the member that is being accessed by the expression member. 
 
 ~ Begin InfRuleHelper
 
-  \inferrule
-     {
-       % \expenv \exp {\VVal \exp} {\typ} \dir \\
-       % \structTypDef = \reduce \typ \\
-       % \structTypDef = \VVal \typ\\
-       % (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
-       (\field, \typ) \in \overline {\field, \typ} 
-       % \exists 1 \leq i \leq n+1. \field_i = \field
-       }
-     { \fieldAccessEnv \ctxt \field {\structTyps \typParam \field \typ} {\typ} }
-     \quad (\rn{Type:Struct}\rAE)
+  % \inferrule
+  %    {
+  %      % \expenv \exp {\VVal \exp} {\typ} \dir \\
+  %      % \structTypDef = \reduce \typ \\
+  %      % \structTypDef = \VVal \typ\\
+  %      % (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
+  %      (\field, \typ) \in \overline {\field, \typ} 
+  %      % \exists 1 \leq i \leq n+1. \field_i = \field
+  %      }
+  %    { \fieldAccessEnv \ctxt \field {\structTyps \typParam \field \typ} {\typ} }
+  %    \quad (\rn{Type:Struct}\rAE)
 
-  \inferrule
-     {
-       % \expenv \exp {\VVal \exp} {\typ} \dir \\
-       % \structTypDef = \reduce \typ \\
-       % \structTypDef = \VVal \typ\\
-       % (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
-       % \exists 1 \leq i \leq n+1. \field_i = \field
-       }
-     { \fieldAccessEnv \ctxt \field {\structTyps \typParam \field \typ} {\funcTyp \builtin \ \ \boolTyp} }
-     \quad (\rn{Type:Struct}\rSep\rn{Mem:isValid}\rAE)
+  % \inferrule
+  %    {
+  %      % \expenv \exp {\VVal \exp} {\typ} \dir \\
+  %      % \structTypDef = \reduce \typ \\
+  %      % \structTypDef = \VVal \typ\\
+  %      % (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
+  %      % \exists 1 \leq i \leq n+1. \field_i = \field
+  %      }
+  %    { \fieldAccessEnv \ctxt \field {\structTyps \typParam \field \typ} {\funcTyp \builtin \ \ \boolTyp} }
+  %    \quad (\rn{Type:Struct}\rSep\rn{Mem:isValid}\rAE)
 
   \inferrule
      {
        % names in the following are actually methods. have to see what they contain.
-       \lookupEnv {\VVal \name} = (\typParams,\overline {\name:\simpFuncTyp {\typ_{\mathit{in}}} {\typ_{\mathit{out}}}}) \\
+       \lookupEnv {\VVal \name} = (\typParams,\overline {\name:\simpFuncTyp {\typ_{\mathit{in}}} {\typ_{\mathit{out}}}}) \\\\
        % \VVal \env = \insertToEnv  \typParams \typs \\
-       \suchThat {\exists \name_i: \VVal {\typ_i} \in \overline {\name:\simpFuncTyp {\typ_{\mathit{in}}} {\typ_{\mathit{out}}}}} {\name_i = \name} \\
+       \suchThat {\exists \name_i: \VVal {\typ_i} \in \overline {\name:\simpFuncTyp {\typ_{\mathit{in}}} {\typ_{\mathit{out}}}}} {\name_i = \name} \\\\
        %%TODO: fix the insert in the following. it might have to be inserted to typ env.
         \reduceWithEnv {\insertsToVarEnv  \typParam \typ \less} {\VVal {\typ_i}} = \pprim {\typ_i}}
         %% TODO: change var env here. it's 90% wrong. 

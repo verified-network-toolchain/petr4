@@ -412,20 +412,20 @@ Inductive stmt_big_step
   ⧼ Ψ, ϵ, CApplyBlock tbls actions control_insts,
     Stmt.Apply c ext_args args ⧽ ⤋ ⧼ copy_out O vargs ϵ'' ϵ, Cont, ψ ⧽
 | sbs_apply_parser
-    ϵ ϵ' ϵ'' eps_clos n strt states parsers ψ p
+    ϵ ϵ' ϵ'' p_eps n strt states parsers ψ p
     ext_args args vargs
-    fun_clos prsr_clos strt_clos states_clos final sig :
+    p_fun p_prsr p_strt p_states final sig :
   (** Lookup parser instance. *)
-  parsers p = Some (ParserInst fun_clos prsr_clos eps_clos strt states) ->
+  parsers p = Some (ParserInst p_fun p_prsr p_eps p_strt p_states) ->
   (** Evaluate arguments. *)
   args_big_step ϵ args vargs ->
   (** Copyin. *)
   copy_in vargs ϵ = Some ϵ' ->
   parser_signal final sig ->
   (** Evaluate parser state machine. *)
-  ⧼ Ψ <| functs := fun_clos |>, ϵ' ++ eps_clos,
-      CParserState (length args) strt_clos states_clos prsr_clos,
-      strt ⧽ ⤋ ⧼ ϵ'', final, ψ ⧽ ->
+  ⧼ Ψ <| functs := p_fun |>, ϵ' ++ p_eps,
+      CParserState
+        (length args) p_strt p_states p_prsr, p_strt ⧽ ⤋ ⧼ ϵ'', final, ψ ⧽ ->
   ⧼ Ψ, ϵ, CParserState n strt states parsers,
     Stmt.Apply p ext_args args ⧽ ⤋ ⧼ copy_out O vargs ϵ'' ϵ, sig, ψ ⧽
 | sbs_var ϵ ϵ' c og te v v' s sig ψ :

@@ -1711,6 +1711,7 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
    * $\enumTypNoTypDef$
    * $\headerTyps \typParam \field {\surfaceTyp \exp}$
    * $\headerUnionTyps \typParam \field {\surfaceTyp \exp}$
+   * $\structTyps \typParam \field \typ$
 - $\concatCond {\typ_1} {\typ_2}$ is a helper function that determines the type of a concatenation expression based on type of its left operand:
   + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
     $\concatCond {\typ_1} {\typ_2} = \bitWidthTyp {\width_1 + \width_2}$
@@ -2468,6 +2469,14 @@ Note that the expression has to be of a one of the types: record, extern, specia
        }
      { \expenv {\expMem \exp \name} {\expMem {\VVal \exp} \name} {\pprim \typ} {\less} }
      \quad (\expMemE)
+
+  \inferrule
+     { %\constEnv, \varEnv, \typEnv, \ctxt \vdash \\
+       \lookupTypEnv \typName = { \structTyps  \typParam {\VVal \field} {\VVal {\surfaceTyp \exp}}} \\
+       (\field : {\surfaceTyp \exp} ) \in \recordTypStructureClose {\VVal \field} {\VVal {\surfaceTyp \exp}}
+       }
+     { \expenv {\expMem \typName \field} {\expMem \typName \field} {\surfaceTyp \exp} {\dir} }
+     \quad (\structMemE)
 
 ~ End InfRule
 

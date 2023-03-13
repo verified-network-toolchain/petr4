@@ -85,6 +85,7 @@
 \newcommand*{\typeMemE}{\rn{TypeMember}\rE}
 \newcommand*{\errMemE}{\rn{ErrorMember}\rE}
 \newcommand*{\expMemE}{\rn{ExpressionMember}\rE}
+\newcommand*{\structMemE}{\rn{StructMember}\rE}
 \newcommand*{\ternaryE}{\rn{Ternary}\rE} 
 \newcommand*{\ternaryIntE}{\rn{Ternary}\rSep\rn{Int}\rE}
 \newcommand*{\funcCallE}{\rn{FunctionCall}\rE\rSep\rn{1}}
@@ -462,9 +463,9 @@
 \newcommand{\valSetDcl}[3]{{#1}\, {#3}:{#2}}
 \newcommand{\actionDcl}[3]{\mathsf{action}\ {#1}\, ({#2})\, \{{#3}\}}
 \newcommand{\tableDcl}[2]{\mathsf{table}\ {#1}\, \{{#2}\}}
-\newcommand{\headerDcl}[4]{\mathsf{header}\ {#1} \langle {\overline{#2}} \rangle\, \{\overline{{#3} : {#4}}\}}
-\newcommand{\headerUnionDcl}[4]{\mathsf{header\_union}\ {#1}\, \langle {\overline{#2}} \rangle\, \{\overline{{#3} : {#4}}\}}
-\newcommand{\structDcl}[4]{\mathsf{struct}\ {#1}\,  \langle {\overline{#2}} \rangle\, \{\overline {{#3}:{#4}}\}}
+\newcommand{\headerDcl}[4]{\mathsf{header}\ {#1} \langle {\overline{#2}} \rangle\, \recordTypStructureClose{#3}{#4}}
+\newcommand{\headerUnionDcl}[4]{\mathsf{header\_union}\ {#1}\, \langle {\overline{#2}} \rangle\, \recordTypStructureClose{#3}{#4}}
+\newcommand{\structDcl}[4]{\mathsf{struct}\ {#1}\,  \langle {\overline{#2}} \rangle\, \recordTypStructureClose{#3}{#4}}
 \newcommand{\errDcl}[1]{\mathsf{error}\ \{ {#1} \}}
 \newcommand{\matchkindDcl}[1]{\mathsf{match\_kind}\ \{{#1}\}}
 \newcommand{\enumDcl}[2]{\mathsf{enum}\ {#1}\, \{{#2} \}}

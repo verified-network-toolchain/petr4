@@ -2455,6 +2455,14 @@ Note that the expression has to be of a one of the types: record, extern, specia
      { \expenv {\expMem \exp \name} {\expMem {\VVal \exp} \name} {\pprim \typ} {\less} }
      \quad (\expMemE)
 
+  \inferrule
+     { %\constEnv, \varEnv, \typEnv, \ctxt \vdash \\
+       \lookupTypEnv \typName = { \structTyps  \typParam {\VVal \field} {\VVal {\surfaceTyp \exp}}} \\
+       (\field : {\surfaceTyp \exp} ) \in \recordTypStructureClose {\VVal \field} {\VVal {\surfaceTyp \exp}}
+       }
+     { \expenv {\expMem \typName \field} {\expMem \typName \field} {\surfaceTyp \exp} {\dir} }
+     \quad (\structMemE)
+
 ~ End InfRule
 
 ### Expression Member Auxiliary Judgment { #sec-exp-mem-helper }

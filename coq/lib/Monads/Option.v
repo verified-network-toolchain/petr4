@@ -1,5 +1,5 @@
 Require Export Poulet4.Monads.Monad.
-Require Import Coq.Lists.List.
+From Coq Require Import Lists.List Program.Basics.
 
 Import ListNotations.
 
@@ -103,6 +103,14 @@ Proof.
     unfold option_bind in *; auto.
   rewrite <- IHus.
   destruct (sequence us) as [sus |]; cbn in *; auto.
+Qed.
+
+Lemma map_monad_some :
+  forall (A B : Type) (f : A -> option B) (l : list A) (l' : list B),
+    map_monad f l = Some l' <-> Forall2 (fun x y => f x = Some y) l l'.
+Proof.
+  unfold map_monad, "∘". intros. rewrite <- Forall2_sequence_iff.
+  rewrite Forall2_map1. reflexivity.
 Qed.
 
 (** Proved w/o functional extentionality! *)

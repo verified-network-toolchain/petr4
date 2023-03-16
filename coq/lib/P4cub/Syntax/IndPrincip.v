@@ -4,63 +4,60 @@ Require Import Poulet4.P4cub.Syntax.AST
         Poulet4.P4cub.Syntax.CubNotations.
 Import String.
 
-(** Custom induction principle for [t]. *)
-Section TypeInduction.
-  Import Expr ExprNotations.
-  Local Open Scope ty_scope.
+(** Custom induction principle for [Typ.t]. *)
+Section TypInduction.
+  Import Typ.
+  Local Open Scope typ_scope.
   
   (** An arbitrary property. *)
   Variable P : t -> Prop.
 
-  Hypothesis HTVar : forall X : nat, P X.
+  Hypothesis HVar : forall X : nat, P (Var X).
   
-  Hypothesis HTBool : P TBool.
+  Hypothesis HBool : P Bool.
   
-  Hypothesis HTBit : forall w, P (TBit w).
+  Hypothesis HBit : forall w, P (Bit w).
   
-  Hypothesis HTInt : forall w, P (TInt w).
+  Hypothesis HInt : forall w, P (Int w).
 
-  Hypothesis HTVarBit : forall w, P (TVarBit w).
+  Hypothesis HVarBit : forall w, P (VarBit w).
   
-  Hypothesis HTError : P TError.
+  Hypothesis HError : P Error.
 
-  Hypothesis HTArray : forall n typ, P typ -> P (TArray n typ).
+  Hypothesis HArray : forall n typ, P typ -> P (Array n typ).
   
-  Hypothesis HTStruct : forall b ts,
-      Forall P ts -> P (TStruct b ts).
+  Hypothesis HStruct : forall b ts,
+      Forall P ts -> P (Struct b ts). Check list_ind.
 
   (** A custom induction principle.
-      Do [induction ?t using custom_t_ind]. *)
-  Definition custom_t_ind : forall ty : t, P ty :=
-    fix custom_t_ind (type : t) : P type :=
-      let fix list_ind ts :
-            Forall P ts :=
-        match ts with
-        | []     => Forall_nil _
-        | h :: ts => Forall_cons _ (custom_t_ind h) (list_ind ts)
-        end in
-      match type with
-      | TVar X       => HTVar X
-      | TBool        => HTBool
-      | TBit w       => HTBit w
-      | TInt w       => HTInt w
-      | TVarBit w    => HTVarBit w
-      | TError       => HTError
-      | TArray n typ => HTArray n _ (custom_t_ind typ)
-      | TStruct b ts => HTStruct b ts (list_ind ts)
+      Do [induction ?t using custom_typ_ind]. *)
+  Definition custom_typ_ind : forall τ : t, P τ :=
+    fix tind (τ : t) : P τ :=
+      match τ with
+      | Var X       => HVar X
+      | Bool        => HBool
+      | Bit w       => HBit w
+      | Int w       => HInt w
+      | VarBit w    => HVarBit w
+      | Error       => HError
+      | Array n typ => HArray n _ (tind typ)
+      | Struct b ts =>
+          HStruct b ts
+            (list_ind
+               (Forall P) (Forall_nil _)
+               (fun τ _ => Forall_cons _ (tind τ)) ts)
       end.
-  (**[]*)
-End TypeInduction.
+End TypInduction.
 
-(** A custom induction principle for [e]. *)
-Section ExprInduction.
-  Import Expr ExprNotations.
-  Local Open Scope expr_scope.
+(** A custom induction principle for [Exp.t]. *)
+Section ExpInduction.
+  Import Exp.
+  Local Open Scope exp_scope.
   
   (** An arbitrary predicate. *)
-  Variable P : e -> Prop.
+  Variable P : t -> Prop.
   
-  Hypothesis HBool : forall b : bool, P b.
+  Hypothesis HBool : forall b : bool, P (Bool b).
   
   Hypothesis HBit : forall w n, P (w `W n).
   
@@ -72,57 +69,58 @@ Section ExprInduction.
   
   Hypothesis HSlice : forall hi lo n, P n -> P (Slice hi lo n).
   
-  Hypothesis HCast : forall τ exp, P exp -> P (Cast τ exp).
+  Hypothesis HCast : forall τ e, P e -> P (Cast τ e).
   
-  Hypothesis HUop : forall rt op exp, P exp -> P (Uop rt op exp).
+  Hypothesis HUop : forall rt op e, P e -> P (Uop rt op e).
   
   Hypothesis HBop : forall rt op lhs rhs,
       P lhs -> P rhs -> P (Bop rt op lhs rhs).
 
-  Hypothesis HLists : forall l exps,
-      Forall P exps -> P (Lists l exps).
+  Hypothesis HLists : forall l es,
+      Forall P es -> P (Lists l es).
 
   Hypothesis HIndex : forall typ arr index,
       P arr -> P index -> P (Index typ arr index).
   
-  Hypothesis HMember : forall rt x exp,
-      P exp -> P (Member rt x exp).
+  Hypothesis HMember : forall rt x e,
+      P e -> P (Member rt x e).
   
   Hypothesis HError : forall err, P (Error err).
     
   (** A custom induction principle.
-      Do [induction ?e using custom_e_ind]. *)
-  Definition custom_e_ind : forall exp : e, P exp :=
-    fix eind (expr : e) : P expr :=
-      let fix list_ind (es : list e) : Forall P es :=
-          match es with
-          | []        => Forall_nil P
-          | exp :: ees => Forall_cons exp (eind exp) (list_ind ees)
-          end in
-      match expr with
+      Do [induction ?e using custom_exp_ind]. *)
+  Definition custom_exp_ind : forall e : t, P e :=
+    fix eind (e : t) : P e :=
+      match e with
       | Bool b       => HBool b
       | w `W n       => HBit w n
       | w `S n       => HInt w n
       | VarBit m w n => HVarBit m w n
       | Var ty og x  => HVar ty og x
       | Slice h l n  => HSlice h l n (eind n)
-      | Cast τ exp   => HCast τ exp (eind exp)
-      | Uop τ op exp => HUop τ op exp (eind exp)
+      | Cast τ e     => HCast τ e (eind e)
+      | Uop τ op e   => HUop τ op e (eind e)
       | Bop τ op lhs rhs
         => HBop τ op lhs rhs (eind lhs) (eind rhs)
-      | Lists l exps => HLists l exps (list_ind exps)
+      | Lists l es
+        => HLists
+            l es
+            (list_ind
+               (Forall P)
+               (Forall_nil _)
+               (fun e _ => Forall_cons _ (eind e)) es)
       | Index typ arr index => HIndex typ _ _ (eind arr) (eind index)
-      | Member rt x exp => HMember rt x exp (eind exp)
-      | Error err       => HError err
+      | Member rt x e => HMember rt x e (eind e)
+      | Error err     => HError err
       end.
-End ExprInduction.
+End ExpInduction.
 
 (** A custom induction principle for select patterns. *)
 Section PatternInduction.
-  Import Parser ParserNotations.
+  Import Pat.
   Local Open Scope pat_scope.
   
-  Variable P : pat -> Prop.
+  Variable P : t -> Prop.
       
   Hypothesis HWild : P Wild.
   
@@ -141,19 +139,20 @@ Section PatternInduction.
   
   (** A custom induction principle,
       do [induction ?H using custom_pat_ind]. *)
-  Definition custom_pat_ind : forall (p : pat), P p :=
-    fix pind (p : pat) : P p :=
-      let fix lind (ps : list pat) : Forall P ps :=
-        match ps with
-        | []   => Forall_nil _
-        | p::ps => Forall_cons p (pind p) (lind ps)
-        end in
+  Definition custom_pat_ind : forall (p : t), P p :=
+    fix pind (p : t) : P p :=
       match p with
       | Wild        => HWild
       | Mask p1 p2  => HMask p1 p2 (pind p1) (pind p2)
       | Range p1 p2 => HRange p1 p2 (pind p1) (pind p2)
       | w PW n      => HBit w n
       | w PS z      => HInt w z
-      | Lists ps    => HLists ps (lind ps)
+      | Lists ps    =>
+          HLists
+            ps
+            (list_ind
+               (Forall P)
+               (Forall_nil _)
+               (fun p _ => Forall_cons _ (pind p)) ps)
       end.
 End PatternInduction.

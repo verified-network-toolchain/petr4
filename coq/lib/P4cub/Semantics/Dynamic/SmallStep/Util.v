@@ -7,146 +7,146 @@ Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.Utils.ForallMap Poulet4.Monads.Option.
 
 Section StepDefs.
-  Import String P4ArithTactics AllCubNotations.
+  Import String P4ArithTactics.
   
   (** Bit-slicing. *)
-  Definition eval_slice (hi lo : positive) (v : Expr.e) : option Expr.e :=
+  Definition eval_slice (hi lo : positive) (v : Exp.t) : option Exp.t :=
     match v with
-    | (_ `W z)%expr
-    | (_ `S z)%expr
+    | (_ `W z)%exp
+    | (_ `S z)%exp
       => let w' := (Npos hi - Npos lo + 1)%N in
-        Some $ Expr.Bit w'
+        Some $ Exp.Bit w'
              (BitArith.mod_bound
                 w' $ BitArith.bitstring_slice z hi lo)
     | _ => None
     end.
   
   Definition eval_cast
-             (target : Expr.t) (v : Expr.e) : option Expr.e :=
+             (target : Typ.t) (v : Exp.t) : option Exp.t :=
     match target, v with
-    | Expr.TBit (Npos 1), Expr.Bool true => Some $ Expr.Bit 1%N 1%Z
-    | Expr.TBit (Npos 1), Expr.Bool false => Some $ Expr.Bit 1%N 0%Z
-    | Expr.TBool, Expr.Bit 1%N 1%Z=> Some $ Expr.Bool true
-    | Expr.TBool, Expr.Bit 1%N 0%Z=> Some $ Expr.Bool true
-    | Expr.TBit w, (_ `S z)%expr
-      => Some $ Expr.Bit w $ BitArith.mod_bound w z
-    | Expr.TInt w, (_ `W n)%expr
-      => Some $ Expr.Int w $ IntArith.mod_bound w n
-    | Expr.TBit w, (_ `W n)%expr
-      => Some $ Expr.Bit w $ BitArith.mod_bound w n
-    | Expr.TInt w, (_ `S z)%expr
-      => Some $ Expr.Int w $ IntArith.mod_bound w z
-    | Expr.TStruct false _, Expr.Lists _ vs
-      => Some $ Expr.Lists Expr.lists_struct vs
+    | Typ.Bit (Npos 1), Exp.Bool true => Some $ Exp.Bit 1%N 1%Z
+    | Typ.Bit (Npos 1), Exp.Bool false => Some $ Exp.Bit 1%N 0%Z
+    | Typ.Bool, Exp.Bit 1%N 1%Z=> Some $ Exp.Bool true
+    | Typ.Bool, Exp.Bit 1%N 0%Z=> Some $ Exp.Bool true
+    | Typ.Bit w, (_ `S z)%exp
+      => Some $ Exp.Bit w $ BitArith.mod_bound w z
+    | Typ.Int w, (_ `W n)%exp
+      => Some $ Exp.Int w $ IntArith.mod_bound w n
+    | Typ.Bit w, (_ `W n)%exp
+      => Some $ Exp.Bit w $ BitArith.mod_bound w n
+    | Typ.Int w, (_ `S z)%exp
+      => Some $ Exp.Int w $ IntArith.mod_bound w z
+    | Typ.Struct false _, Exp.Lists _ vs
+      => Some $ Exp.Lists Lst.Struct vs
     | _, _ => None
     end.
   
-  (** Default (value) Expression. *)
-  Fixpoint e_of_t (τ : Expr.t) : option Expr.e :=
+  (** Default (value) Expession. *)
+  Fixpoint exp_of_typ (τ : Typ.t) : option Exp.t :=
     match τ with
-    | Expr.TBool => Some $ Expr.Bool false
-    | Expr.TBit w => Some $ Expr.Bit w 0%Z
-    | Expr.TInt w => Some $ Expr.Int w 0%Z
-    | Expr.TVarBit w => Some $ Expr.VarBit w w 0%Z
-    | Expr.TError => Some $ Expr.Error "no error"%string
-    | Expr.TArray n t =>
-        let^ v := e_of_t t in
-        Expr.Lists
-          (Expr.lists_array t)
+    | Typ.Bool => Some $ Exp.Bool false
+    | Typ.Bit w => Some $ Exp.Bit w 0%Z
+    | Typ.Int w => Some $ Exp.Int w 0%Z
+    | Typ.VarBit w => Some $ Exp.VarBit w w 0%Z
+    | Typ.Error => Some $ Exp.Error "no error"%string
+    | Typ.Array n t =>
+        let^ v := exp_of_typ t in
+        Exp.Lists
+          (Lst.Array t)
           $ List.repeat v $ N.to_nat n
-    | Expr.TStruct b τs =>
+    | Typ.Struct b τs =>
         sequence
-          $ List.map e_of_t τs
-          >>| Expr.Lists
-          (if b then Expr.lists_header false else Expr.lists_struct)
-    | Expr.TVar _ => None
+          $ List.map exp_of_typ τs
+          >>| Exp.Lists
+          (if b then Lst.Header false else Lst.Struct)
+    | Typ.Var _ => None
     end.
   
   (** Unary Operations. *)
-  Definition eval_uop (op : Expr.uop) (e : Expr.e) : option Expr.e :=
+  Definition eval_una (op : Una.t) (e : Exp.t) : option Exp.t :=
     match op, e with
-    | `!%uop, (Expr.Bool b) => Some (Expr.Bool $ negb b)
-    | `~%uop, (w `W n)%expr => Some $ Expr.Bit w $ BitArith.bit_not w n
-    | `~%uop, (w `S n)%expr => Some $ Expr.Int w $ IntArith.bit_not w n
-    | `-%uop, (w `W z)%expr => Some $ Expr.Bit w $ BitArith.neg w z
-    | `-%uop, (w `S z)%expr => Some $ Expr.Int w $ IntArith.neg w z
-    | Expr.IsValid, Expr.Lists (Expr.lists_header b) _ => Some $ Expr.Bool b
-    | Expr.SetValidity b, Expr.Lists _ fs
-      => Some $ Expr.Lists (Expr.lists_header b) fs
+    | `!%una, (Exp.Bool b) => Some (Exp.Bool $ negb b)
+    | `~%una, (w `W n)%exp => Some $ Exp.Bit w $ BitArith.bit_not w n
+    | `~%una, (w `S n)%exp => Some $ Exp.Int w $ IntArith.bit_not w n
+    | `-%una, (w `W z)%exp => Some $ Exp.Bit w $ BitArith.neg w z
+    | `-%una, (w `S z)%exp => Some $ Exp.Int w $ IntArith.neg w z
+    | Una.IsValid, Exp.Lists (Lst.Header b) _ => Some $ Exp.Bool b
+    | Una.SetValidity b, Exp.Lists _ fs
+      => Some $ Exp.Lists (Lst.Header b) fs
     | _, _ => None
     end.
 
-  Local Open Scope expr_scope.
+  Local Open Scope exp_scope.
   
   (** Binary operations. *)
-  Definition eval_bop
-             (op : Expr.bop) (v1 v2 : Expr.e) : option Expr.e :=
+  Definition eval_bin
+             (op : Bin.t) (v1 v2 : Exp.t) : option Exp.t :=
     match op, v1, v2 with
-    | `+%bop, w `W n1, _ `W n2
-      => Some $ Expr.Bit w $ BitArith.plus_mod w n1 n2
-    | `+%bop, w `S z1, _ `S z2
-      => Some $ Expr.Int w $ IntArith.plus_mod w z1 z2
-    | |+|%bop, w `W n1, _ `W n2
-      => Some $ Expr.Bit w $ BitArith.plus_sat w n1 n2
-    | |+|%bop,  w `S z1, _ `S z2
-      => Some $ Expr.Int w $ IntArith.plus_sat w z1 z2
-    | `-%bop, w `W n1, _ `W n2
-      => Some $ Expr.Bit w $ BitArith.minus_mod w n1 n2
-    | `-%bop, w `S z1, _ `S z2
-      => Some $ Expr.Int w $ IntArith.minus_mod w z1 z2
-    | |-|%bop, w `W n1, _ `W n2
-      => Some $ Expr.Bit w $ BitArith.minus_sat w n1 n2
-    | |-|%bop, w `S z1, _ `S z2
-      => Some $ Expr.Int w $ IntArith.minus_sat w z1 z2
-    | ×%bop, w `W n1, _ `W n2
-      => Some $ Expr.Bit w $ BitArith.mult_mod w n1 n2
-    | ×%bop, w `S n1, _ `S n2
-      => Some $ Expr.Int w $ IntArith.mult_mod w n1 n2
-    | <<%bop, w `W n1, _ `W n2
-      => Some $ Expr.Bit w $ BitArith.shift_left w n1 n2
-    | <<%bop, w `S z1, _ `W z2
-      => Some $ Expr.Int w $ IntArith.shift_left w z1 z2
-    | >>%bop, w `W n1, _ `W n2
-      => Some $ Expr.Bit w $ BitArith.shift_right w n1 n2
-    | >>%bop, w `S z1, _ `W z2
-      => Some $ Expr.Int w $ IntArith.shift_right w z1 z2
-    | &%bop, w `W n1, _ `W n2
-      => Some $ Expr.Bit w $ BitArith.bit_and w n1 n2
-    | &%bop, w `S z1, _ `S z2
-      => Some $ Expr.Int w $ IntArith.bit_and w z1 z2
-    | ^%bop, w `W n1, _ `W n2
-      => Some $ Expr.Bit w $ BitArith.bit_xor w n1 n2
-    | ^%bop, w `S z1, _ `S z2
-      => Some $ Expr.Int w $ IntArith.bit_xor w z1 z2
-    | Expr.BitOr, w `W n1, _ `W n2
-      => Some $ Expr.Bit w $ BitArith.bit_or w n1 n2
-    | Expr.BitOr, w `S z1, _ `S z2
-      => Some $ Expr.Int w $ IntArith.bit_or w z1 z2
-    | ≤%bop, w `W n1, _ `W n2 => Some $ Expr.Bool (n1 <=? n2)%Z
-    | ≤%bop, w `S z1, _ `S z2 => Some $ Expr.Bool (z1 <=? z2)%Z
-    | `<%bop, w `W n1, _ `W n2 => Some $ Expr.Bool (n1 <? n2)%Z
-    | `<%bop, w `S z1, _ `S z2 => Some $ Expr.Bool (z1 <? z2)%Z
-    | ≥%bop, w `W n1, _ `W n2 => Some $ Expr.Bool (n2 <=? n1)%Z
-    | ≥%bop, w `S z1, _ `S z2 => Some $ Expr.Bool (z2 <=? z1)%Z
-    | `>%bop, w `W n1, _ `W n2 => Some $ Expr.Bool (n2 <? n1)%Z
-    | `>%bop, w `S z1, _ `S z2 => Some $ Expr.Bool (z2 <? z1)%Z
-    | `&&%bop, Expr.Bool b1, Expr.Bool b2 => Some $ Expr.Bool (b1 && b2)
-    | `||%bop, Expr.Bool b1, Expr.Bool b2 => Some $ Expr.Bool (b1 || b2)
-    | `==%bop, _, _ => Some $ Expr.Bool $ eqbe v1 v2
-    | !=%bop, _, _ => Some $ Expr.Bool $ negb $ eqbe v1 v2
-    | `++%bop, w1 `W n1, w2 `W n2
-      => Some $ Expr.Bit (w1 + w2)%N $ BitArith.concat w1 w2 n1 n2
-    | `++%bop, w1 `W n1, w2 `S n2
-      => Some $ Expr.Bit (w1 + Npos w2)%N $ BitArith.concat w1 (Npos w2) n1 n2
-    | `++%bop, w1 `S n1, w2 `S n2
-      => Some $ Expr.Int (w1 + w2)%positive $ IntArith.concat (Npos w1) (Npos w2) n1 n2
-    | `++%bop, w1 `S n1, w2 `W n2
+    | `+%bin, w `W n1, _ `W n2
+      => Some $ Exp.Bit w $ BitArith.plus_mod w n1 n2
+    | `+%bin, w `S z1, _ `S z2
+      => Some $ Exp.Int w $ IntArith.plus_mod w z1 z2
+    | |+|%bin, w `W n1, _ `W n2
+      => Some $ Exp.Bit w $ BitArith.plus_sat w n1 n2
+    | |+|%bin,  w `S z1, _ `S z2
+      => Some $ Exp.Int w $ IntArith.plus_sat w z1 z2
+    | `-%bin, w `W n1, _ `W n2
+      => Some $ Exp.Bit w $ BitArith.minus_mod w n1 n2
+    | `-%bin, w `S z1, _ `S z2
+      => Some $ Exp.Int w $ IntArith.minus_mod w z1 z2
+    | |-|%bin, w `W n1, _ `W n2
+      => Some $ Exp.Bit w $ BitArith.minus_sat w n1 n2
+    | |-|%bin, w `S z1, _ `S z2
+      => Some $ Exp.Int w $ IntArith.minus_sat w z1 z2
+    | ×%bin, w `W n1, _ `W n2
+      => Some $ Exp.Bit w $ BitArith.mult_mod w n1 n2
+    | ×%bin, w `S n1, _ `S n2
+      => Some $ Exp.Int w $ IntArith.mult_mod w n1 n2
+    | <<%bin, w `W n1, _ `W n2
+      => Some $ Exp.Bit w $ BitArith.shift_left w n1 n2
+    | <<%bin, w `S z1, _ `W z2
+      => Some $ Exp.Int w $ IntArith.shift_left w z1 z2
+    | >>%bin, w `W n1, _ `W n2
+      => Some $ Exp.Bit w $ BitArith.shift_right w n1 n2
+    | >>%bin, w `S z1, _ `W z2
+      => Some $ Exp.Int w $ IntArith.shift_right w z1 z2
+    | &%bin, w `W n1, _ `W n2
+      => Some $ Exp.Bit w $ BitArith.bit_and w n1 n2
+    | &%bin, w `S z1, _ `S z2
+      => Some $ Exp.Int w $ IntArith.bit_and w z1 z2
+    | ^%bin, w `W n1, _ `W n2
+      => Some $ Exp.Bit w $ BitArith.bit_xor w n1 n2
+    | ^%bin, w `S z1, _ `S z2
+      => Some $ Exp.Int w $ IntArith.bit_xor w z1 z2
+    | Bin.BitOr, w `W n1, _ `W n2
+      => Some $ Exp.Bit w $ BitArith.bit_or w n1 n2
+    | Bin.BitOr, w `S z1, _ `S z2
+      => Some $ Exp.Int w $ IntArith.bit_or w z1 z2
+    | ≤%bin, w `W n1, _ `W n2 => Some $ Exp.Bool (n1 <=? n2)%Z
+    | ≤%bin, w `S z1, _ `S z2 => Some $ Exp.Bool (z1 <=? z2)%Z
+    | `<%bin, w `W n1, _ `W n2 => Some $ Exp.Bool (n1 <? n2)%Z
+    | `<%bin, w `S z1, _ `S z2 => Some $ Exp.Bool (z1 <? z2)%Z
+    | ≥%bin, w `W n1, _ `W n2 => Some $ Exp.Bool (n2 <=? n1)%Z
+    | ≥%bin, w `S z1, _ `S z2 => Some $ Exp.Bool (z2 <=? z1)%Z
+    | `>%bin, w `W n1, _ `W n2 => Some $ Exp.Bool (n2 <? n1)%Z
+    | `>%bin, w `S z1, _ `S z2 => Some $ Exp.Bool (z2 <? z1)%Z
+    | `&&%bin, Exp.Bool b1, Exp.Bool b2 => Some $ Exp.Bool (b1 && b2)
+    | `||%bin, Exp.Bool b1, Exp.Bool b2 => Some $ Exp.Bool (b1 || b2)
+    | `==%bin, _, _ => Some $ Exp.Bool $ eqb_exp v1 v2
+    | !=%bin, _, _ => Some $ Exp.Bool $ negb $ eqb_exp v1 v2
+    | `++%bin, w1 `W n1, w2 `W n2
+      => Some $ Exp.Bit (w1 + w2)%N $ BitArith.concat w1 w2 n1 n2
+    | `++%bin, w1 `W n1, w2 `S n2
+      => Some $ Exp.Bit (w1 + Npos w2)%N $ BitArith.concat w1 (Npos w2) n1 n2
+    | `++%bin, w1 `S n1, w2 `S n2
+      => Some $ Exp.Int (w1 + w2)%positive $ IntArith.concat (Npos w1) (Npos w2) n1 n2
+    | `++%bin, w1 `S n1, w2 `W n2
       => match w2 with
         | 0%N => 
-            Some $ Expr.Int w1 n1
+            Some $ Exp.Int w1 n1
         | Npos w2 =>
             Some
-              $ Expr.Int (w1 + w2)%positive
+              $ Exp.Int (w1 + w2)%positive
               $ IntArith.concat (Npos w1) (Npos w2) n1 n2
         end
     | _, _, _ => None
@@ -155,16 +155,16 @@ Section StepDefs.
   Section Edefault.
     Local Hint Constructors value : core.
     
-    Lemma value_e_of_t : forall τ e,
-        e_of_t τ = Some e -> value e.
+    Lemma value_exp_of_typ : forall τ e,
+        exp_of_typ τ = Some e -> value e.
     Proof.
       intro t;
-        induction t using custom_t_ind;
+        induction t using custom_typ_ind;
         intros e h; unravel in *; try discriminate;
         try (inv h; auto; assumption).
       - match_some_inv; some_inv;
           eauto using sublist.Forall_repeat.
-      - destruct (sequence (map e_of_t ts))
+      - destruct (sequence (map exp_of_typ ts))
           as [es |] eqn:hseq; try discriminate.
         inv h. constructor.
         rewrite <- Forall2_sequence_iff in hseq.
@@ -174,13 +174,13 @@ Section StepDefs.
   End Edefault.
   
   Section HelpersType.
-    Local Hint Constructors type_expr : core.
+    Local Hint Constructors type_exp : core.
     Local Hint Resolve type_array : core.
     Local Hint Resolve type_struct : core.
     Local Hint Resolve type_header : core.
     Local Hint Extern 0 => bit_bounded : core.
     Local Hint Extern 0 => int_bounded : core.
-    Local Hint Constructors type_lists_ok : core.
+    Local Hint Constructors type_lst_ok : core.
     
     Import CanonicalForms.
     
@@ -190,7 +190,7 @@ Section StepDefs.
         (Npos lo <= Npos hi < w)%N ->
         numeric_width w τ ->
         `⟨ Δ, Γ ⟩ ⊢ v ∈ τ ->
-        `⟨ Δ, Γ ⟩ ⊢ v' ∈ Expr.TBit (Npos hi - Npos lo + 1)%N.
+        `⟨ Δ, Γ ⟩ ⊢ v' ∈ Typ.Bit (Npos hi - Npos lo + 1)%N.
     Proof.
       intros Δ Γ v v' τ hi lo w Heval Hv Hw Hnum Ht; inv Hnum;
         assert_canonical_forms; simpl in Heval;
@@ -224,17 +224,17 @@ Section StepDefs.
       - destruct w; inv Heval; auto.
       - destruct w2; inv Heval; auto.
         destruct p; inv H1; auto.
-      - some_inv; invert_type_lists_ok; eauto.
+      - some_inv; invert_type_lst_ok; eauto.
     Qed.
     
-    Lemma eval_bop_types : forall Δ Γ op τ1 τ2 τ v1 v2 v,
-        bop_type op τ1 τ2 τ ->
+    Lemma eval_bin_types : forall Δ Γ op τ1 τ2 τ v1 v2 v,
+        bin_type op τ1 τ2 τ ->
         value v1 -> value v2 ->
-        eval_bop op v1 v2 = Some v ->
+        eval_bin op v1 v2 = Some v ->
         `⟨ Δ, Γ ⟩ ⊢ v1 ∈ τ1 -> `⟨ Δ, Γ ⟩ ⊢ v2 ∈ τ2 -> `⟨ Δ, Γ ⟩ ⊢ v ∈ τ.
     Proof.
-      intros Δ Γ op τ1 τ2 τ v1 v2 v Hbop Hv1 Hv2 Heval Ht1 Ht2;
-        inv Hbop; unravel in *; try inv_numeric;
+      intros Δ Γ op τ1 τ2 τ v1 v2 v Hbin Hv1 Hv2 Heval Ht1 Ht2;
+        inv Hbin; unravel in *; try inv_numeric;
         repeat assert_canonical_forms;
         try (inv_numeric_width; assert_canonical_forms);
         try (inv Heval; auto 2; assumption).
@@ -244,7 +244,7 @@ Section StepDefs.
         nth_error ts x = Some τ ->
         nth_error vs x = Some v ->
         value v ->
-        Forall2 (type_expr Δ Γ) vs ts ->
+        Forall2 (type_exp Δ Γ) vs ts ->
         `⟨ Δ, Γ ⟩ ⊢ v ∈ τ.
     Proof.
       intros Δ Γ x vs v ts t hntht hnthv hv hvsts.
@@ -254,12 +254,12 @@ Section StepDefs.
     
     Local Hint Resolve BitArith.bound0 : core.
     Local Hint Resolve IntArith.bound0 : core.
-    Local Hint Constructors t_ok : core.
+    Local Hint Constructors typ_ok : core.
     
-    Lemma e_of_t_ok_0 : forall τ e,
-        e_of_t τ = Some e -> t_ok 0 τ.
+    Lemma exp_of_typ_ok_0 : forall τ e,
+        exp_of_typ τ = Some e -> typ_ok 0 τ.
     Proof.
-      intro t; induction t using custom_t_ind;
+      intro t; induction t using custom_typ_ind;
         intros e h; unravel in *;
         try match_some_inv; try some_inv;
         try discriminate; eauto.
@@ -274,18 +274,18 @@ Section StepDefs.
       apply Forall2_only_l_Forall in h'; assumption.
     Qed.
 
-    Local Hint Resolve e_of_t_ok_0 : core.
-    Local Hint Resolve t_ok_0 : core.
+    Local Hint Resolve exp_of_typ_ok_0 : core.
+    Local Hint Resolve typ_ok_0 : core.
     Local Hint Resolve sublist.Forall_repeat : core.
     
-    Lemma e_of_t_types : forall Δ Γ τ e,
-        e_of_t τ = Some e -> `⟨ Δ, Γ ⟩ ⊢ e ∈ τ.
+    Lemma exp_of_typ_types : forall Δ Γ τ e,
+        exp_of_typ τ = Some e -> `⟨ Δ, Γ ⟩ ⊢ e ∈ τ.
     Proof.
-      intros Δ Γ t; induction t using custom_t_ind;
+      intros Δ Γ t; induction t using custom_typ_ind;
         unravel in *; intros e h; try discriminate;
         try match_some_inv; try some_inv; eauto.
       - replace n
-          with (N.of_nat (List.length (repeat e0 (N.to_nat n)))) at 2
+          with (N.of_nat (List.length (repeat t0 (N.to_nat n)))) at 2
           by (rewrite repeat_length; lia); eauto 6.
       - rename Heqo into hes; rename l into es.
         rewrite <- Forall2_sequence_iff in hes.
@@ -299,17 +299,17 @@ Section StepDefs.
     Qed.
     
     Local Hint Resolve Forall_impl : core.
-    Local Hint Resolve e_of_t_types : core.
+    Local Hint Resolve exp_of_typ_types : core.
     Hint Rewrite app_length.
     Hint Rewrite Forall_app.
     Hint Rewrite map_length.
     
-    Lemma eval_uop_types : forall Δ Γ op e v τ τ',
-        uop_type op τ τ' -> value e -> eval_uop op e = Some v ->
+    Lemma eval_una_types : forall Δ Γ op e v τ τ',
+        una_type op τ τ' -> value e -> eval_una op e = Some v ->
         `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> `⟨ Δ, Γ ⟩ ⊢ v ∈ τ'.
     Proof.
-      intros Δ Γ op e v τ τ' Huop Hev Heval Het;
-        inv Huop; try inv_numeric;
+      intros Δ Γ op e v τ τ' Huna Hev Heval Het;
+        inv Huna; try inv_numeric;
         assert_canonical_forms; unravel in *;
         inv Heval; auto 2;
         repeat match goal with
@@ -352,29 +352,29 @@ Section StepDefs.
         destruct p; eauto.
     Qed.
     
-    Lemma eval_bop_exists : forall Δ Γ op τ1 τ2 τ v1 v2,
-        bop_type op τ1 τ2 τ ->
+    Lemma eval_bin_exists : forall Δ Γ op τ1 τ2 τ v1 v2,
+        bin_type op τ1 τ2 τ ->
         value v1 -> value v2 ->
         `⟨ Δ, Γ ⟩ ⊢ v1 ∈ τ1 -> `⟨ Δ, Γ ⟩ ⊢ v2 ∈ τ2 ->
-        exists v, eval_bop op v1 v2 = Some v.
+        exists v, eval_bin op v1 v2 = Some v.
     Proof.
-      intros Δ Γ op τ1 τ2 τ v1 v2 Hbop Hv1 Hv2 Ht1 Ht2;
-        inv Hbop; try inv_numeric; try inv_numeric_width;
+      intros Δ Γ op τ1 τ2 τ v1 v2 Hbin Hv1 Hv2 Ht1 Ht2;
+        inv Hbin; try inv_numeric; try inv_numeric_width;
           repeat assert_canonical_forms; unravel; eauto 2.
     Qed.
     
-    Lemma eval_uop_exists : forall op Δ Γ e τ τ',
-        uop_type op τ τ' -> value e -> `⟨ Δ, Γ ⟩ ⊢ e ∈ τ ->
-        exists v, eval_uop op e = Some v.
+    Lemma eval_una_exists : forall op Δ Γ e τ τ',
+        una_type op τ τ' -> value e -> `⟨ Δ, Γ ⟩ ⊢ e ∈ τ ->
+        exists v, eval_una op e = Some v.
     Proof.
       intros op Δ Γ e τ τ' Hu Hv Het; inv Hu;
         try inv_numeric; assert_canonical_forms;
-        try invert_type_lists_ok; unravel; eauto 2.
+        try invert_type_lst_ok; unravel; eauto 2.
     Qed.
       
     Lemma eval_member_exists : forall Δ Γ x vs ts τ,
         Forall value vs ->
-        Forall2 (type_expr Δ Γ) vs ts ->
+        Forall2 (type_exp Δ Γ) vs ts ->
         nth_error ts x = Some τ ->
         exists v, nth_error vs x = Some v.
     Proof.
@@ -388,43 +388,43 @@ Section StepDefs.
 End StepDefs.
   
 (** Lookup an lvalue. *)
-Fixpoint lv_lookup (ϵ : list Expr.e) (lv : Expr.e) : option Expr.e :=
+Fixpoint lv_lookup (ϵ : list Exp.t) (lv : Exp.t) : option Exp.t :=
   match lv with
-  | Expr.Var _ _ x => nth_error ϵ x
-  | Expr.Member _ x lv =>
+  | Exp.Var _ _ x => nth_error ϵ x
+  | Exp.Member _ x lv =>
       let* v := lv_lookup ϵ lv in
       match v with
-      | Expr.Lists
-          (Expr.lists_struct
-          | Expr.lists_header _) fs => nth_error fs x
+      | Exp.Lists
+          (Lst.Struct
+          | Lst.Header _) fs => nth_error fs x
       | _ => None
       end
-  | Expr.Slice hi lo lv => lv_lookup ϵ lv >>= eval_slice hi lo
-  | Expr.Index _ lv (Expr.Bit _ n) =>
+  | Exp.Slice hi lo lv => lv_lookup ϵ lv >>= eval_slice hi lo
+  | Exp.Index _ lv (Exp.Bit _ n) =>
       let* v := lv_lookup ϵ lv in
       match v with
-      | Expr.Lists (Expr.lists_array _) vs => nth_error vs $ Z.to_nat n
+      | Exp.Lists (Lst.Array _) vs => nth_error vs $ Z.to_nat n
       | _ => None
       end
   | _ => None
   end.
   
 (** Updating an lvalue in an environment. *)
-Fixpoint lv_update (lv v : Expr.e) (ϵ : list Expr.e) : list Expr.e :=
+Fixpoint lv_update (lv v : Exp.t) (ϵ : list Exp.t) : list Exp.t :=
   match lv with
-  | Expr.Var _ _ x => nth_update x v ϵ
-  | Expr.Member _ x lv
+  | Exp.Var _ _ x => nth_update x v ϵ
+  | Exp.Member _ x lv
     => match lv_lookup ϵ lv with
       | Some
-          (Expr.Lists
-             ((Expr.lists_struct
-              | Expr.lists_header _) as ls) vs)
-        => lv_update lv (Expr.Lists ls (nth_update x v vs)) ϵ
+          (Exp.Lists
+             ((Lst.Struct
+              | Lst.Header _) as ls) vs)
+        => lv_update lv (Exp.Lists ls (nth_update x v vs)) ϵ
       | _ => ϵ
       end
-  | Expr.Slice hi lo lv
+  | Exp.Slice hi lo lv
     => match v, lv_lookup ϵ lv with
-      | (Expr.Bit _ n | Expr.Int _ n), Some (Expr.Bit w _) =>
+      | (Exp.Bit _ n | Exp.Int _ n), Some (Exp.Bit w _) =>
           let rhs := N.shiftl (Z.to_N n) w in
           let mask :=
             Z.to_N
@@ -433,15 +433,15 @@ Fixpoint lv_update (lv v : Expr.e) (ϵ : list Expr.e) : list Expr.e :=
                             (N.pow 2 (Npos hi + 1) - 1)
                             (N.pow 2 (Npos lo - 1))))) in
           let new := Z.lxor (Z.land n (Z.of_N mask)) (Z.of_N rhs) in
-          lv_update lv (Expr.Bit w new) ϵ
+          lv_update lv (Exp.Bit w new) ϵ
       | _, _ => ϵ
       end
-  | Expr.Index _ lv (Expr.Bit _ n) =>
+  | Exp.Index _ lv (Exp.Bit _ n) =>
       match lv_lookup ϵ lv with
       | Some
-          (Expr.Lists
-             (Expr.lists_array _ as ls) vs)
-        => lv_update lv (Expr.Lists ls $ nth_update (Z.to_nat n) v vs) ϵ
+          (Exp.Lists
+             (Lst.Array _ as ls) vs)
+        => lv_update lv (Exp.Lists ls $ nth_update (Z.to_nat n) v vs) ϵ
       | _ => ϵ
       end
   | _ => ϵ
@@ -452,8 +452,8 @@ Fixpoint lv_update (lv v : Expr.e) (ϵ : list Expr.e) : list Expr.e :=
     values of [In] args are substituted
     into the function parameters. *)
 Definition copy_in
-           (argsv : Expr.args)
-           (ϵcall : list Expr.e) : option (list Expr.e) :=
+           (argsv : Exp.args)
+           (ϵcall : list Exp.t) : option (list Exp.t) :=
   argsv
     ▷ map (fun arg =>
              match arg with
@@ -466,8 +466,8 @@ Definition copy_in
 (** Update call-site environment with
     out variables from function call evaluation. *)
 Definition copy_out
-           (argsv : Expr.args) (ϵ_func : list Expr.e)
-           (ϵ_call : list Expr.e) : list Expr.e :=
+           (argsv : Exp.args) (ϵ_func : list Exp.t)
+           (ϵ_call : list Exp.t) : list Exp.t :=
   fold_right
     (fun arg ϵ_call =>
        match arg with

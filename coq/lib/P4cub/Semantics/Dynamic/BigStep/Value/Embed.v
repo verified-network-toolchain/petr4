@@ -306,6 +306,22 @@ Section Embed.
   | embed_pat_lists ps vss :
     Forall2 embed_pat_valset ps vss ->
     embed_pat_valset (Parser.Lists ps) (ValSetProd vss).
+
+  Fixpoint unembed_valset (val : ValueSet) : option Parser.pat :=
+    match val with
+    | ValSetSingleton (ValBaseBit bits) => mret $ uncurry Parser.Bit $ BitArith.from_lbool bits
+    | _ => None
+    end.
+
+  Lemma unembed_valset_sound :
+    forall val pat, unembed_valset val = Some pat -> embed_pat_valset pat val.
+  Proof.
+    intros. destruct val; try discriminate.
+    - destruct value; try discriminate. inv H. cbn.
+      replace (ValBaseBit value) with (ValBaseBit (to_lbool (Z.to_N (Zcomplements.Zlength value)) (BitArith.lbool_to_val value 1 0))).
+      + constructor.
+      + f_equal. apply to_lbool_lbool_to_val.
+  Qed.
   
   Fixpoint snd_map {A : Type} {B : Type} (func : A -> B) (l : list (string * A)) :=
     match l with 

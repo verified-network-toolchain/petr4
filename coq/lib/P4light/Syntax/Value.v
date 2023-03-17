@@ -154,6 +154,52 @@ Section Value.
         end.
   End ValBaseInd.
 
+  Section ValueSetInd.
+
+    Variable P : ValueSet -> Prop.
+
+    Hypothesis HSingleton : forall value, P (ValSetSingleton value).
+
+    Hypothesis HUniversal : P ValSetUniversal.
+
+    Hypothesis HMask : forall value mask, P (ValSetMask value mask).
+
+    Hypothesis HRange : forall lo hi, P (ValSetRange lo hi).
+
+    Hypothesis HProd : forall l, Forall P l -> P (ValSetProd l).
+
+    Hypothesis HLpm : forall nbits value, P (ValSetLpm nbits value).
+
+    Hypothesis HValueSet :
+      forall size members sets,
+        Forall (Forall P) members -> Forall P sets -> P (ValSetValueSet size members sets).
+
+    Fixpoint custom_ValueSet_ind (v : ValueSet) : P v :=
+      let fix list_ind (vs : list ValueSet) : Forall P vs :=
+        match vs with
+        | v :: vs => Forall_cons _ (custom_ValueSet_ind v) (list_ind vs)
+        | [] => Forall_nil _
+        end
+      in
+      let fix nested_list_ind (vs : list (list ValueSet)) : Forall (Forall P) vs :=
+        match vs with
+        | v :: vs => Forall_cons _ (list_ind v) (nested_list_ind vs)
+        | [] => Forall_nil _
+        end
+      in
+      match v with
+      | ValSetSingleton value => HSingleton value
+      | ValSetUniversal => HUniversal
+      | ValSetMask value mask => HMask value mask
+      | ValSetRange lo hi => HRange lo hi
+      | ValSetProd l => HProd _ (list_ind l)
+      | ValSetLpm nbits value => HLpm nbits value
+      | ValSetValueSet _ members sets => 
+        HValueSet _ _ _ (nested_list_ind members) (list_ind sets)
+      end.
+
+  End ValueSetInd.
+
   Section ValueBaseFunctor.
     Context {A B : Type}.
     Variable (f : A -> B).

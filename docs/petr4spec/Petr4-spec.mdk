@@ -2573,6 +2573,15 @@ Note that the expression has to be of a one of the types: record, extern, specia
   \mprset {vskip = 0.7 ex}
   {\inferrule
      {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir}
+     {\expenv {\expMem \exp \nextIndex} {\expMem {\VVal \exp} \sizeMem} {\bitWidthTyp {32}} \less}
+  }
+  \quad (nextIndexmembership-headerstack)
+
+\and
+
+  \mprset {vskip = 0.7 ex}
+  {\inferrule
+     {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir}
      {\expenvWithCtxt \parserCtxt {\expMem \exp \nextOrLast} {\expMem {\VVal \exp} \nextOrLast} {\typ} \less}
   }
   \quad (nextlastmembership-headerstack)

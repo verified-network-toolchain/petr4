@@ -2,107 +2,105 @@ Require Import Poulet4.P4cub.Syntax.Syntax
         String Poulet4.P4cub.Syntax.CubNotations.
 Open Scope string_scope.
 Open Scope list_scope.
-Notation t := (Expr.t).
-Notation it := (TopDecl.it).
-Notation e := (Expr.e).
-Notation s := (Stmt.s).
-Notation par_e := (Parser.pt).
-Notation ct_d := (Control.d).
-Notation tpdecl := (TopDecl.d).
-
-Import AllCubNotations.
+Notation t := (Typ.t).
+Notation it := (InstTyp.t).
+Notation e := (Exp.t).
+Notation s := (Stm.t).
+Notation par_e := (Trns.t).
+Notation ct_d := (Ctrl.t).
+Notation tpdecl := (Top.t).
 
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Definition metadata : t := 
-  Expr.TStruct false [(*meta:*) Expr.TInt $ Pos.of_nat 32].
-Definition hdrs : t := Expr.TStruct false [(*hd:*) Expr.TBool].
-Definition pkt_in := TopDecl.ExternInstType "packet_in".
-Definition pkt_out := TopDecl.ExternInstType "packet_out".
-Definition std_meta := Expr.TStruct false [(*stdmeta:*) Expr.TBool].
+  Typ.Struct false [(*meta:*) Typ.Int $ Pos.of_nat 32].
+Definition hdrs : t := Typ.Struct false [(*hd:*) Typ.Bool].
+Definition pkt_in := InstTyp.Extern "packet_in".
+Definition pkt_out := InstTyp.Extern "packet_out".
+Definition std_meta := Typ.Struct false [(*stdmeta:*) Typ.Bool].
 Definition oneplusone := 
   let width := N.of_nat 32 in  
   let one := Z.of_nat 1 in
-  Expr.Bop (Expr.TBit width) `+%bop (width `W one)%expr (width `W one)%expr.
+  Exp.Bop (Typ.Bit width) `+%bin (width `W one)%exp (width `W one)%exp.
 Definition parser_start_state : s :=
-  Stmt.Transition (Parser.Direct Parser.Accept).
-Definition parsr_cparams : TopDecl.constructor_params := [].
-Definition parsr_params : Expr.params :=
+  Stm.Trans (Trns.Direct Lbl.Accept).
+Definition parsr_cparams : Top.constructor_params := [].
+Definition parsr_params : Typ.params :=
   [ ("hdr",PAOut hdrs)
     ; ("meta",PAInOut metadata)
     ; ("standard_meta",PAInOut std_meta)].
 Definition myparser : tpdecl :=
-  TopDecl.Parser
+  Top.Parser
     "MyParser"
     parsr_cparams []
     [("b","packet_in")] parsr_params
     parser_start_state [].
 Definition instance_myparser : tpdecl :=
-  TopDecl.Instantiate "MyParser" "my_parser" [] [] [].
+  Top.Instantiate "MyParser" "my_parser" [] [] [].
 
-Definition gress_cparams : TopDecl.constructor_params := [].
-Definition gress_params : Expr.params :=
+Definition gress_cparams : Top.constructor_params := [].
+Definition gress_params : Typ.params :=
   [ ("hdr",PAInOut hdrs)
     ; ("meta",PAInOut metadata)
     ; ("standard_meta",PAInOut std_meta)].
 Definition ingress_decl : ct_d := 
-  Control.Action "test_ingress" [] [] Stmt.Skip.
+  Ctrl.Action "test_ingress" [] [] Stm.Skip.
 Definition ingress : tpdecl :=
-  TopDecl.Control
+  Top.Control
     "MyIngress" gress_cparams [] [] gress_params
-    [ingress_decl] Stmt.Skip.
+    [ingress_decl] Stm.Skip.
 Definition instance_myingress : tpdecl :=
-  TopDecl.Instantiate "MyIngress" "my_ingress" [] [] [].
+  Top.Instantiate "MyIngress" "my_ingress" [] [] [].
 
 Definition egress_decl : ct_d := 
-  Control.Action "test_egress" [] [] Stmt.Skip.
+  Ctrl.Action "test_egress" [] [] Stm.Skip.
 Definition egress : tpdecl := 
-  TopDecl.Control
+  Top.Control
     "MyEgress" gress_cparams [] [] gress_params
-    [egress_decl] Stmt.Skip.
+    [egress_decl] Stm.Skip.
 Definition instance_myegress : tpdecl :=
-  TopDecl.Instantiate "MyEgress" "my_egress" [] [] [].
+  Top.Instantiate "MyEgress" "my_egress" [] [] [].
 
-Definition deparser_cparams : TopDecl.constructor_params := [].
-Definition deparser_params : Expr.params := [ ("hdr",PAIn hdrs)].
+Definition deparser_cparams : Top.constructor_params := [].
+Definition deparser_params : Typ.params := [ ("hdr",PAIn hdrs)].
 Definition mydeparser_decl : ct_d :=
-  Control.Action
-    "test_deparser" [] [] (Stmt.Var "x" (inr oneplusone) Stmt.Skip).
+  Ctrl.Action
+    "test_deparser" [] [] (`let "x" := inr oneplusone `in Stm.Skip)%stm.
 
 Definition mydeparser : tpdecl := 
-  TopDecl.Control
+  Top.Control
     "MyDeparser"
     deparser_cparams []
     [("b","packet_out")] deparser_params
-    [mydeparser_decl] Stmt.Skip.
+    [mydeparser_decl] Stm.Skip.
 Definition instance_mydeparser : tpdecl :=
-  TopDecl.Instantiate "MyDeparser" "my_deparser" [] [] [].
+  Top.Instantiate "MyDeparser" "my_deparser" [] [] [].
 
-Definition checksum_cparams : TopDecl.constructor_params := [].
-Definition checksum_params : Expr.params :=
+Definition checksum_cparams : Top.constructor_params := [].
+Definition checksum_params : Typ.params :=
   [("hdr",PAInOut hdrs); ("meta",PAInOut metadata)].
 Definition verify_decl : ct_d :=
-  Control.Action "test_verifyChecksum" [] [] Stmt.Skip.
+  Ctrl.Action "test_verifyChecksum" [] [] Stm.Skip.
 Definition verify : tpdecl :=
-  TopDecl.Control
+  Top.Control
     "MyVerifyChecksum"
     checksum_cparams [] [] checksum_params
-    [verify_decl] Stmt.Skip.
+    [verify_decl] Stm.Skip.
 Definition instance_myverify : tpdecl :=
-  TopDecl.Instantiate "MyVerifyChecksum" "my_verify" [] [] [].
+  Top.Instantiate "MyVerifyChecksum" "my_verify" [] [] [].
 
 Definition compute_decl : ct_d :=
-  Control.Action "test_computeChecksum" [] [] Stmt.Skip.
+  Ctrl.Action "test_computeChecksum" [] [] Stm.Skip.
 Definition compute : tpdecl :=
-  TopDecl.Control
+  Top.Control
       "MyComputeChecksum"
       checksum_cparams [] [] checksum_params
-      [compute_decl] Stmt.Skip.
+      [compute_decl] Stm.Skip.
 Definition instance_mycompute : tpdecl :=
-  TopDecl.Instantiate "MyComputeChecksum" "my_compute" [] [] [].
+  Top.Instantiate "MyComputeChecksum" "my_compute" [] [] [].
 
-Definition instance_args : TopDecl.constructor_args :=
+Definition instance_args : Top.constructor_args :=
   [ (*p:=*) "my_parser";
     (*vr:=*) "my_verify";
     (*ig:=*) "my_ingress";
@@ -110,7 +108,7 @@ Definition instance_args : TopDecl.constructor_args :=
     (*ck:=*) "my_compute";
     (*dep:=*) "my_deparser" ].
 Definition instance : tpdecl :=
-  TopDecl.Instantiate "V1Switch" "main" [] instance_args [].
+  Top.Instantiate "V1Switch" "main" [] instance_args [].
 
 Definition instances : list tpdecl := 
   [ instance_myparser

@@ -1,7 +1,7 @@
 From Poulet4 Require Import P4cub.Syntax.Syntax.
 From Poulet4.P4cub.Semantics.Dynamic Require Import
      SmallStep.Value SmallStep.Semantics.
-Import AllCubNotations Step Field.FieldTactics.
+Import Step Field.FieldTactics.
 
 Section Determinism.
   Local Hint Constructors value : core.
@@ -31,7 +31,7 @@ Section Determinism.
 
   Local Hint Extern 0 => solve_eqn : core.
 
-  Section ExprDeterminism.
+  Section ExpDeterminism.
     Local Hint Extern 0 => step_value : core.
 
     Ltac ind_case :=
@@ -45,7 +45,7 @@ Section Determinism.
     Local Hint Extern 0 => ind_case : core.
     Local Hint Extern 0 => contradiction : core.
 
-    Theorem expr_deterministic : forall ϵ e e1 e2,
+    Theorem exp_deterministic : forall ϵ e e1 e2,
         ⟨ ϵ, e ⟩ -->  e1 -> ⟨ ϵ, e ⟩ -->  e2 -> e1 = e2.
     Proof.
       intros ϵ e e1 e2 He1; generalize dependent e2;
@@ -55,20 +55,20 @@ Section Determinism.
         destruct H4 as [_ h]; inv h; auto.
       - inv H5. rewrite Forall_app in H0.
         destruct H0 as [_ h]; inv h; auto.
-      - assert (Hv : value (Expr.Lists ls vs)) by eauto.
+      - assert (Hv : value (Exp.Lists ls vs)) by eauto.
         step_value.
-      - assert (Hv : value (w `W n)%expr) by eauto.
+      - assert (Hv : value (w `W n)%exp) by eauto.
         step_value.
-      - assert (Hv : value (Expr.Lists ls vs)) by eauto.
+      - assert (Hv : value (Exp.Lists ls vs)) by eauto.
         step_value.
-      - assert (Hv : value (w `W n)%expr) by eauto.
+      - assert (Hv : value (w `W n)%exp) by eauto.
         step_value.
       - assert (He: ~ value e) by auto 1.
         assert (He0: ~ value e0) by auto 1.
         eapply Forall_until_eq in H1 as [? [? ?]]; eauto 1; subst.
         repeat f_equal; auto 2.
     Qed.
-  End ExprDeterminism.
+  End ExpDeterminism.
 
   Lemma lvalue_deterministic : forall e e1 e2,
       lvalue_step e e1 -> lvalue_step e e2 -> e1 = e2.
@@ -77,13 +77,13 @@ Section Determinism.
     induction H1; intros e2 H2; inv H2; f_equal; auto 2.
   Qed.
   
-  Section ParserExprDeterminism.
+  Section TrnsDeterminism.
     Local Hint Extern 0 => step_value : core.
-    Local Hint Resolve expr_deterministic : core.
+    Local Hint Resolve exp_deterministic : core.
     Hint Rewrite Forall_app : core.
     Local Hint Extern 0 => inv_Forall_cons : core.
 
-    Lemma parser_expr_deterministic :
+    Lemma trns_deterministic :
       forall ϵ e e1 e2,
         π ϵ, e -->  e1 -> π ϵ, e -->  e2 -> e1 = e2.
     Proof.
@@ -92,5 +92,5 @@ Section Determinism.
       inv He2; f_equal; repeat subst_term;
       autorewrite with core in *; intuition; unravel in *; eauto 2.
     Qed.
-  End ParserExprDeterminism.
+  End TrnsDeterminism.
 End Determinism.

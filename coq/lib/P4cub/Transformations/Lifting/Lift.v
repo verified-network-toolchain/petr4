@@ -97,7 +97,7 @@ Inductive Lift_exp
   Forall3 Lift_exp es es' ess ->
   Lift_exp
     (Exp.Lists ls es)
-    (Exp.Var (t_of_lists ls es) "lifted_lists" 0)
+    (Exp.Var (typ_of_lists ls es) "lifted_lists" 0)
     (Exp.Lists ls (map fst (shift_pairs shift_exp (combine es' ess)))
        :: concat (map snd (shift_pairs shift_exp (combine es' ess)))).
 
@@ -176,7 +176,7 @@ Section LifteInduction.
       Forall3 P es es' ess ->
       P
         (Exp.Lists ls es)
-        (Exp.Var (t_of_lists ls es) "lifted_lists" 0)
+        (Exp.Var (typ_of_lists ls es) "lifted_lists" 0)
         (Exp.Lists ls (map fst (shift_pairs shift_exp (combine es' ess)))
            :: concat (map snd (shift_pairs shift_exp (combine es' ess)))).
 

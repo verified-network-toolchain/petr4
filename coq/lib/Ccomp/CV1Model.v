@@ -33,7 +33,7 @@ Definition typelist_extract_bitvec := Ctypes.Tcons ptr_pkt_in
 (** The order is 
     Parser -> VerifyChecksum -> Ingress -> Egress -> ComputeChecksum -> Deparser *)
 Definition main_fn (env: ClightEnv)
-  (cargs: TopDecl.constructor_args) : Clight.function
+  (cargs: Top.constructor_args) : Clight.function
 := 
 (* TODO: this is sketchy because I'm not sure how many instantiations will there be
    and I'm not sure if the name works as I thought they would*)

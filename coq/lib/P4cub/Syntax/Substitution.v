@@ -123,6 +123,9 @@ Section Sub.
              '({| paramargs:=params; rtrns:=ret |} : Typ.arrowT) : Typ.arrowT :=
     {| paramargs := map_snd tsub_param params
     ; rtrns := option_map tsub_typ ret |}.
+
+  Definition tsub_cparams : Top.constructor_params -> Top.constructor_params :=
+    List.map (FunUtil.map_snd tsub_insttyp).
 End Sub.
 
 Definition tsub_method

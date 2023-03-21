@@ -270,7 +270,7 @@ Section Rename.
 
   Local Open Scope exp_scope.
   
-  Fixpoint rename_e  (e : Exp.t) : Exp.t :=
+  Fixpoint rename_exp  (e : Exp.t) : Exp.t :=
     match e with
     | Exp.Bool _
     | _ `W _
@@ -278,33 +278,33 @@ Section Rename.
     | Exp.VarBit _ _ _
     | Exp.Error _     => e
     | Exp.Var t og x  => Exp.Var t og $ ρ x
-    | Exp.Slice h l e => Exp.Slice h l $ rename_e e
-    | Exp.Cast t e    => Exp.Cast t $ rename_e e
-    | Exp.Uop t op e  => Exp.Uop t op $ rename_e e
+    | Exp.Slice h l e => Exp.Slice h l $ rename_exp e
+    | Exp.Cast t e    => Exp.Cast t $ rename_exp e
+    | Exp.Uop t op e  => Exp.Uop t op $ rename_exp e
     | Exp.Index t e1 e2
-      => Exp.Index t (rename_e e1) $ rename_e e2
+      => Exp.Index t (rename_exp e1) $ rename_exp e2
     | Exp.Member t x e
-      => Exp.Member t x $ rename_e e
+      => Exp.Member t x $ rename_exp e
     | Exp.Bop t op e1 e2
-      => Exp.Bop t op (rename_e e1) $ rename_e e2
-    | Exp.Lists l es => Exp.Lists l $ map rename_e es
+      => Exp.Bop t op (rename_exp e1) $ rename_exp e2
+    | Exp.Lists l es => Exp.Lists l $ map rename_exp es
     end.
   
   Local Close Scope exp_scope.
 
   Definition rename_arg
     : paramarg Exp.t Exp.t -> paramarg Exp.t Exp.t :=
-    paramarg_map_same $ rename_e.
+    paramarg_map_same $ rename_exp.
 
   Definition rename_call (fk : Call.t)
     : Call.t :=
     match fk with
     | Call.Funct f τs oe
-      => Call.Funct f τs $ option_map rename_e oe
+      => Call.Funct f τs $ option_map rename_exp oe
     | Call.Action a cargs
-      => Call.Action a $ map rename_e cargs
+      => Call.Action a $ map rename_exp cargs
     | Call.Method e m τs oe
-      => Call.Method e m τs $ option_map rename_e oe
+      => Call.Method e m τs $ option_map rename_exp oe
     | Call.Inst _ _ => fk
     end.
 
@@ -312,30 +312,30 @@ Section Rename.
     match e with
     | Trns.Direct _ => e
     | Trns.Select e d cases
-      => Trns.Select (rename_e e) d cases
+      => Trns.Select (rename_exp e) d cases
     end.
 End Rename.
 
 Local Open Scope stm_scope.
 
-Fixpoint rename_s (ρ : nat -> nat) (s : Stm.t) : Stm.t :=
+Fixpoint rename_stm (ρ : nat -> nat) (s : Stm.t) : Stm.t :=
   match s with
   | Stm.Skip
   | Stm.Exit => s
   | Stm.Ret oe
-    => Stm.Ret $ option_map (rename_e ρ) oe
+    => Stm.Ret $ option_map (rename_exp ρ) oe
   | Stm.Trans e
     => Stm.Trans $ rename_trns ρ e
-  | e1 `:= e2 => rename_e ρ e1 `:= rename_e ρ e2
+  | e1 `:= e2 => rename_exp ρ e1 `:= rename_exp ρ e2
   | Stm.Invoke e t
-    => Stm.Invoke (option_map (rename_e ρ) e) t
+    => Stm.Invoke (option_map (rename_exp ρ) e) t
   | Stm.App fk args
     => Stm.App fk $ map (rename_arg ρ) args
   | `let og := te `in b
-    => `let og := map_sum id (rename_e ρ) te `in rename_s (ext ρ) b
-  | s₁ `; s₂ => rename_s ρ s₁ `; rename_s ρ s₂
+    => `let og := map_sum id (rename_exp ρ) te `in rename_stm (ext ρ) b
+  | s₁ `; s₂ => rename_stm ρ s₁ `; rename_stm ρ s₂
   | `if e `then s₁ `else s₂
-    => `if rename_e ρ e `then rename_s ρ s₁ `else rename_s ρ s₂
+    => `if rename_exp ρ e `then rename_stm ρ s₁ `else rename_stm ρ s₂
   end.
 
 Local Close Scope stm_scope.
@@ -348,7 +348,7 @@ Section TermSub.
   Definition exts (x : nat) (t : Typ.t) (original_name : String.string) : Exp.t :=
     match x with
     | O => Exp.Var t original_name O
-    | S n => rename_e S $ σ n t original_name
+    | S n => rename_exp S $ σ n t original_name
     end.
 
   Fixpoint exp_sub_exp (e : Exp.t) : Exp.t :=

@@ -55,11 +55,11 @@ Fixpoint lift_exp (e : Exp.t) {struct e}
   | Exp.Error _
   | Exp.Var _ _ _ => (e, [])
   | Exp.Bit _ _ =>
-      (Exp.Var (t_of_e e) "lifted_bit" 0, [e])
+      (Exp.Var (typ_of_exp e) "lifted_bit" 0, [e])
   | Exp.VarBit _ _ _ =>
-      (Exp.Var (t_of_e e) "lifted_varbit" 0, [e])
+      (Exp.Var (typ_of_exp e) "lifted_varbit" 0, [e])
   | Exp.Int _ _ =>
-      (Exp.Var (t_of_e e) "lifted_int" 0, [e])
+      (Exp.Var (typ_of_exp e) "lifted_int" 0, [e])
   | Exp.Member t x e
     => let '(e, inits) := lift_exp e in
       (Exp.Member t x e, inits)
@@ -91,7 +91,7 @@ Fixpoint lift_exp (e : Exp.t) {struct e}
           :: shift_list shift_exp (Shifter 0 (length l1)) l2 ++ l1)
   | Exp.Lists l es =>
       let '(es', les) := List.split (shift_pairs shift_exp $ List.map lift_exp es) in
-      (Exp.Var (t_of_lists l es) "lifted_lists" 0, Exp.Lists l es' :: concat les)
+      (Exp.Var (typ_of_lists l es) "lifted_lists" 0, Exp.Lists l es' :: concat les)
   end.
 
 Definition lift_exp_list (es : list Exp.t) : list Exp.t * list Exp.t :=

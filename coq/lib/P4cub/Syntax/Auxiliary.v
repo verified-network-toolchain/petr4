@@ -26,7 +26,7 @@ Fixpoint width_of_typ (τ : Typ.t) : option nat :=
   end.
 
 (** Syntactic type of an expression. *)
-Fixpoint t_of_e (exp: Exp.t) : Typ.t := 
+Fixpoint typ_of_exp (exp: Exp.t) : Typ.t := 
   match exp with
   | Exp.Bool _  => Typ.Bool
   | Exp.Error _ => Typ.Error
@@ -41,13 +41,13 @@ Fixpoint t_of_e (exp: Exp.t) : Typ.t :=
   | Exp.VarBit m w _    => Typ.VarBit m
   | Exp.Slice hi lo _ => Typ.Bit (Npos hi - Npos lo + 1)%N
   | Exp.Lists (Lst.Array τ) es  => Typ.Array (N.of_nat $ List.length es) τ
-  | Exp.Lists Lst.Struct es     => Typ.Struct false (List.map t_of_e es)
-  | Exp.Lists (Lst.Header _) es => Typ.Struct true (List.map t_of_e es)
+  | Exp.Lists Lst.Struct es     => Typ.Struct false (List.map typ_of_exp es)
+  | Exp.Lists (Lst.Header _) es => Typ.Struct true (List.map typ_of_exp es)
   end.
 
-Definition t_of_lists (ls : Lst.t) (es : list Exp.t) : Typ.t :=
+Definition typ_of_lists (ls : Lst.t) (es : list Exp.t) : Typ.t :=
   match ls with
   | Lst.Array t  => Typ.Array (N.of_nat $ List.length es) t
-  | Lst.Struct   => Typ.Struct false (List.map t_of_e es)
-  | Lst.Header _ => Typ.Struct true (List.map t_of_e es)
+  | Lst.Struct   => Typ.Struct false (List.map typ_of_exp es)
+  | Lst.Header _ => Typ.Struct true (List.map typ_of_exp es)
   end.

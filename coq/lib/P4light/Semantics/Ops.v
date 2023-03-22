@@ -78,7 +78,7 @@ Section Ops.
   Definition dummy_tags := @default tags_t _.
 
   Notation Val := (@ValueBase bool).
-  Notation ValSet := (@ValueSet tags_t).
+  Notation ValSet := ValueSet.
   Definition Fields (A : Type):= AList.StringAList A.
 
   Definition eval_unary_op (op : OpUni) (v : Val) : option Val :=

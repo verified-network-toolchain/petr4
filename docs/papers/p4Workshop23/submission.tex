@@ -1,0 +1,125 @@
+% This must be in the first 5 lines to tell arXiv to use pdfLaTeX, which is strongly recommended.
+\pdfoutput=1
+% In particular, the hyperref package requires pdfLaTeX in order to break URLs across lines.
+
+\documentclass[11pt]{article}
+
+% Remove the "review" option to generate the final version.
+\usepackage{random}
+
+% Standard package includes
+\usepackage{times}
+\usepackage{latexsym}
+
+%\usepackage[utf8]{inputenc}
+%\usepackage[T1]{fontenc}
+\usepackage{fourier, erewhon}
+\usepackage{geometry}
+\usepackage{array, caption, floatrow, tabularx, makecell, booktabs}%
+\captionsetup{labelfont = sc}
+\setcellgapes{3pt}
+
+\usepackage{diagbox}
+
+% For proper rendering and hyphenation of words containing Latin characters (including in bib files)
+\usepackage[T1]{fontenc}
+% For Vietnamese characters
+% \usepackage[T5]{fontenc}
+% See https://www.latex-project.org/help/documentation/encguide.pdf for other character sets
+
+% This assumes your files are encoded as UTF8
+\usepackage[utf8]{inputenc}
+\usepackage{comment}
+
+% This is not strictly necessary, and may be commented out,
+% but it will improve the layout of the manuscript,
+% and will typically save some space.
+\usepackage{microtype}
+
+% If the title and author information does not fit in the area allocated, uncomment the following
+%
+%\setlength\titlebox{<dim>}
+%
+% and set <dim> to something 5cm or larger.
+
+
+\input{p4macros}
+
+\title{\LARGE Formalizing and Extending \pfour's Type System}
+
+\begin{document}
+
+\author{Parisa Ataei, Ryan Doenges, and Nate Foster\\
+  Cornell University \\
+  \texttt{\{psa43,rhd89,jnf27\}@cornell.edu}}
+
+\maketitle
+
+The \pfour language currently lacks a precise specification. This
+shortcoming is highlighted every time an issue is created that
+identifies an ambiguity or incompleteness in the (informal) language
+specification\footnote{For
+example:
+\url{https://github.com/p4lang/p4-spec/issues/876},
+\url{https://github.com/p4lang/p4-spec/issues/1221}, and
+\url{https://github.com/p4lang/p4-spec/issues/953}.}, or a
+discrepancy between the language specification and the reference
+compiler\footnote{For example:
+\url{https://github.com/p4lang/p4c/issues/3730}.}.
+
+The lack of a precise specification also creates friction whenever
+the \pfour Language Design Working Group (LDWG) considers a proposal
+for extending the language with new features. In particular, the group
+works hard to understand the interactions between new features and
+existing features. But without a full formalization, it can be hard to
+understand the interaction of the new feature and existing language
+features.\footnote{For
+example: \url{https://github.com/p4lang/p4-spec/issues/1001}.}
+
+The programming languages community has developed a rich collection of
+powerful tools for modeling the syntax and semantics of programming
+language. The ``gold standard'' is to use techniques like formal
+grammars and inductively defined relations to model the operational
+semantics and type systems. But, to date, these tools have not been
+applied to \pfour. The Petr4~\cite{petr4} and P4Cub~\cite{p4cub}
+efforts are similar, but they focus on core calculi rather than the
+full-blown surface syntax.
+
+To address these shortcomings, we have been developing a formalization
+of the \pfour syntax, type system, and operational semantics, building
+on the Petr4 framework~\cite{petr4}. However, unlike Petr4, we model
+the entire surface-level language. The contributions of this work
+include:
+\begin{itemize}
+\item The development of a new front-end for \pfour including
+a surface-level intermediate representation (IR) that,
+unlike \texttt{p4c}'s IR, directly follows the official grammar
+published in the lanugage specification.
+\item A type system that models compile-time evaluation, cast insertion,
+coercions, type inference, and type checking. Unlike the implementation
+in \texttt{p4c}, which uses powerful Hindly-Milner type inference, our
+type system is based on a simpler scheme known as local type inference.
+\item To illustrate the benefits of our approach, we also present a
+proposal for extending \pfour with type families, and we demonstrate
+how this extension can be be formalized in our model.
+\end{itemize}
+
+We envision several appliations of our work. Language designers can
+use it to explore the design of new features. Compiler writers can use
+it for differential testing~\cite{gauntlet}. Tool developers can use
+it to build linters, static analyzers, language servers, etc. In
+our \pfour workshop talk, we will interleave discussion of our
+formalization with practical examples and applications.
+
+{\footnotesize
+\bibliography{submission}
+\bibliographystyle{plain}
+}
+%\appendix
+%
+%\section{Example Appendix}
+%\label{sec:appendix}
+%
+%This is an appendix.
+
+\end{document}

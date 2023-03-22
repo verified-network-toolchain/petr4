@@ -10,9 +10,9 @@ Import Env.EnvNotations Result ResultNotations.
 Open Scope string_scope.
 
 (** Compile to GCL *)
-Module ST := Stmt.
-Module CD := Control.
-Module E := Expr.
+Module ST := Stm.
+Module CD := Ctrl.
+Module E := Exp.
 Require Import Poulet4.GCL.Inline.
 
 Definition pos : (nat -> positive) := BinPos.Pos.of_nat.
@@ -166,7 +166,7 @@ Module GCL.
 Section GCL.
   Inductive t {lvalue rvalue form : Type} : Type :=
   | GSkip
-  | GAssign (type : E.t) (lhs : lvalue) (rhs : rvalue)
+  | GAssign (type : Typ.t) (lhs : lvalue) (rhs : rvalue)
   | GSeq (g1 g2 : t)
   | GChoice (g1 g2 : t)
   | GAssume (phi : form)

@@ -300,6 +300,82 @@ Section Parser.
 
 End Parser.
 
+Definition interpret_actions_of_ctx ctx :=
+  match ctx with
+  | CAction a => mret a
+  | CApplyBlock _ aa _ => mret aa
+  | _ => None
+  end.
+
+Lemma interpret_actions_of_ctx_sound :
+  forall ctx actions,
+    interpret_actions_of_ctx ctx = Some actions -> actions_of_ctx ctx actions.
+Proof.
+  intros. destruct ctx; try discriminate; inv H; constructor.
+Qed.
+
+Lemma interpret_actions_of_ctx_complete :
+  forall ctx actions,
+    actions_of_ctx ctx actions -> interpret_actions_of_ctx ctx = Some actions.
+Proof.
+  intros. inv H; auto.
+Qed.
+
+Definition get_final_state (state : Parser.state_label) : option signal :=
+  match state with
+  | Parser.Accept => mret Acpt
+  | Parser.Reject => mret Rjct
+  | _ => None
+  end.
+
+Lemma get_final_state_sound :
+  forall state sig,
+    get_final_state state = Some sig -> final_state state sig.
+Proof.
+  intros. destruct state.
+  - discriminate.
+  - inv H. constructor.
+  - inv H. constructor.
+  - inv H.
+Qed.
+
+Lemma get_final_state_complete :
+forall state sig,
+  final_state state sig -> get_final_state state = Some sig.
+Proof.
+  intros. destruct state.
+  - inv H.
+  - inv H. reflexivity.
+  - inv H. constructor.
+  - inv H.
+Qed.
+
+Lemma intermediate_iff_not_final :
+  forall lbl, intermediate_state lbl <-> ~ exists sig, final_state lbl sig.
+Proof.
+  split; intros.
+  - inv H; unfold "~"; intros; inv H; inv H0.
+  - unfold "~" in H. destruct lbl.
+    + constructor.
+    + exfalso. apply H. exists Acpt. constructor.
+    + exfalso. apply H. exists Rjct. constructor.
+    + constructor.
+Qed.
+
+Definition is_intermediate_state (state : Parser.state_label) :=
+  match state with
+  | Parser.Start | Parser.Name _ => true
+  | _ => false
+  end.
+
+Lemma is_intermediate_state_sound :
+  forall state,
+    is_intermediate_state state = true -> intermediate_state state.
+Proof.
+  unfold is_intermediate_state.
+  intros. destruct state; try discriminate; constructor.
+Qed.
+
 Section Stmt.
 
   Context {ext_sem : Extern_Sem}.

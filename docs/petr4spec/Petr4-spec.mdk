@@ -409,7 +409,6 @@ ParserModel.verify(bool condition, error err) {
 | $\funcProTyp$ | $::=$ | $\surfaceTyp \exp$ | $\qquad \text{surface types}$ |
 |   | $\vert$ | $\voidTyp$ | $\qquad \text{void}$ |
 |   | $\vert$ | $\typVar$ | $\qquad \text{type variables}$ |
-|   | $\vert$ | $\wildcard$ | $\qquad \text{wild cards}$ |
 { .booktable }
 
 
@@ -661,7 +660,7 @@ Two judgments are provided for types of P4 expressions:
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\synTyp$ | $::=$ | $\funcType \kind \typParams {\prmDefs \typ} \typ$ | $\qquad \text{functions}$ |
+| $\synTyp$ | $::=$ | $\funcType \kind \typParams {\prmDefs \typ} {\surfaceTypOrVoidOrVar}$ | $\qquad \text{functions}$ |
 |   | $\vert$ | $\setTyp \typ$ | $\qquad \text{sets}$ |
 |   | $\vert$ | $\externTyp \name$ | $\qquad \text{externs}$ |
 |   | $\vert$ | $\recordTyps \field \typ$ | $\qquad \text{records}$ |

@@ -317,9 +317,11 @@
 \newcommand{\typ}{\tau}
 \newcommand{\typs}{\overline \typ}
 \newcommand{\surfaceTyp}[1]{\rho_{#1}}
+\newcommand{\surfaceTypOrVoidOrVar}{\rho_{+\voidTyp+\typVar}}
 \newcommand{\surfaceTyps}[1]{\overline {\surfaceTyp {#1}}}
 \newcommand{\typArg}{\eta}
-\newcommand{\funcProTyp}{\mu}
+%% \newcommand{\funcProTyp}{\mu}
+\newcommand{\funcProTyp}{\surfaceTypOrVoidOrVar}
 \newcommand{\declaredTyp}{\nu}
 \newcommand{\synTyp}{\sigma}
 \newcommand{\typKind}{t}

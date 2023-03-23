@@ -307,9 +307,46 @@ Section Embed.
     Forall2 embed_pat_valset ps vss ->
     embed_pat_valset (Parser.Lists ps) (ValSetProd vss).
 
-  Fixpoint unembed_valset (val : ValueSet) : option Parser.pat :=
+  Definition unembed_valset_singleton (v : @ValueBase bool) : option Parser.pat :=
+    match v with
+    | ValBaseBit bits => mret $ uncurry Parser.Bit $ BitArith.from_lbool bits
+    | ValBaseInt bits =>
+      let (w, z) := BitArith.from_lbool bits in
+      match w with
+      | N0 => None
+      | Npos w => mret $ Parser.Int w z
+      end
+    | _ => None
+    end.
+
+  Lemma unembed_valset_singleton_sound :
+    forall v pat,
+      unembed_valset_singleton v = Some pat ->
+        embed_pat_valset pat (ValSetSingleton v).
+  Proof.
+    intros. destruct v; try discriminate.
+    - inv H. cbn.
+      replace (ValBaseBit value) with (ValBaseBit (to_lbool (Z.to_N (Zcomplements.Zlength value)) (BitArith.lbool_to_val value 1 0))).
+      * constructor.
+      * f_equal. apply to_lbool_lbool_to_val.
+    - inv H. destruct (Z.to_N _) eqn:?; try discriminate. inv H1.
+      replace (ValBaseInt value) with (ValBaseInt (to_lbool (Z.to_N (Zcomplements.Zlength value)) (BitArith.lbool_to_val value 1 0))).
+      * rewrite Heqn. constructor.
+      * f_equal. apply to_lbool_lbool_to_val.
+    Qed.
+
+  Definition unembed_valset (val : ValueSet) : option Parser.pat :=
     match val with
-    | ValSetSingleton (ValBaseBit bits) => mret $ uncurry Parser.Bit $ BitArith.from_lbool bits
+    | ValSetUniversal => mret Parser.Wild
+    | ValSetSingleton v => unembed_valset_singleton v
+    | ValSetRange v₁ v₂ =>
+      let* p₁ := unembed_valset_singleton v₁ in
+      let^ p₂ := unembed_valset_singleton v₂ in
+      Parser.Range p₁ p₂
+    | ValSetMask v₁ v₂ =>
+      let* p₁ := unembed_valset_singleton v₁ in
+      let^ p₂ := unembed_valset_singleton v₂ in
+      Parser.Mask p₁ p₂
     | _ => None
     end.
 
@@ -317,10 +354,20 @@ Section Embed.
     forall val pat, unembed_valset val = Some pat -> embed_pat_valset pat val.
   Proof.
     intros. destruct val; try discriminate.
-    - destruct value; try discriminate. inv H. cbn.
-      replace (ValBaseBit value) with (ValBaseBit (to_lbool (Z.to_N (Zcomplements.Zlength value)) (BitArith.lbool_to_val value 1 0))).
-      + constructor.
-      + f_equal. apply to_lbool_lbool_to_val.
+    - cbn in H. apply unembed_valset_singleton_sound. assumption.
+    - inv H. constructor.
+    - cbn in H. unfold option_bind in *.
+      destruct (unembed_valset_singleton value) eqn:Hvalue; try discriminate.
+      apply unembed_valset_singleton_sound in Hvalue.
+      destruct (unembed_valset_singleton mask) eqn:Hmask; try discriminate.
+      inv H. apply unembed_valset_singleton_sound in Hmask.
+      constructor; auto.
+    - cbn in H. unfold option_bind in *.
+      destruct (unembed_valset_singleton lo) eqn:Hlo; try discriminate.
+      apply unembed_valset_singleton_sound in Hlo.
+      destruct (unembed_valset_singleton hi) eqn:Hhi; try discriminate.
+      inv H. apply unembed_valset_singleton_sound in Hhi.
+      constructor; auto.
   Qed.
   
   Fixpoint snd_map {A : Type} {B : Type} (func : A -> B) (l : list (string * A)) :=

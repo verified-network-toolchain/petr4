@@ -316,9 +316,9 @@
 %% \newcommand{\constEnv}{\Sigma}
 \newcommand{\typ}{\tau}
 \newcommand{\typs}{\overline \typ}
-\newcommand{\surfaceTyp}[1]{\rho_{#1}}
+\newcommand{\surfaceTyp}{\rho}
 \newcommand{\surfaceTypOrVoidOrVar}{\rho_{+\voidTyp+\typVar}}
-\newcommand{\surfaceTyps}[1]{\overline {\surfaceTyp {#1}}}
+\newcommand{\surfaceTyps}{\overline {\surfaceTyp}}
 \newcommand{\typArg}{\eta}
 %% \newcommand{\funcProTyp}{\mu}
 \newcommand{\funcProTyp}{\surfaceTypOrVoidOrVar}
@@ -441,7 +441,7 @@
 \newcommand{\props}{\overline \prop}
 
 %% field type pairs
-\newcommand{\fieldTyp}{\field:\surfaceTyp \exp}
+\newcommand{\fieldTyp}{\field:\surfaceTyp}
 \newcommand{\fieldTyps}{\overline \fieldTyp}
 
 %% methods
@@ -622,7 +622,7 @@
 \newcommand{\tupleTyps}[1]{\mathsf{tuple}\langle\overline{#1}\rangle}
 \newcommand{\listTyp}[2]{\tupleTyp {#1} {#2}}
 \newcommand{\listTyps}[1]{\tupleTyps {#1}}
-\newcommand{\enumTypDef}{\mathsf{enum}\ {\surfaceTyp \exp}\ {\typName}\ \{\fields\}}
+\newcommand{\enumTypDef}{\mathsf{enum}\ {\surfaceTyp}\ {\typName}\ \{\fields\}}
 \newcommand{\enumTyp}[3]{\mathsf{enum}\ {#1}\ {#2}\ \{{#3}\}}
 \newcommand{\enumTypNoTypDef}{\mathsf{enum} \ {\typName}\ \{\fields\}}
 \newcommand{\enumTypNoTyp}[2]{\mathsf{enum} \ {#1}\ \{{#2}\}}

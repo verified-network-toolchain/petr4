@@ -349,7 +349,9 @@ In this section, we provide the signatures used throughout this document includi
 
 In the following we present P4 syntax. Note that we omitted annotations and meta-information since they are not required for type checking. Some notes about the syntax follows:
 
-- Surface types are the types that a developer can use and write down while writing a P4 program. The surface type presented is parametrized by a type variable and it instantiates to $\surfaceTyp \exp$ for the types that a programers writes in their P4 program.
+``todo: fix the explanation``
+
+- Surface types are the types that a developer can use and write down while writing a P4 program. The surface type presented is parametrized by a type variable and it instantiates to $\surfaceTyp$ for the types that a programers writes in their P4 program.
   + Note that similar to P4, we categorize $\errTyp$ and $\matchKindTyp$ types as surface types, however, their members are declared by a P4 program/library. The reason behind this is the need to have arguments of these types, such as the example below which is taken from P4 spec:
 
 ~ Begin P4Example
@@ -363,7 +365,7 @@ ParserModel.verify(bool condition, error err) {
 }
 ~ End P4Example
 
-- Parameters, denoted by $\prmDef \typKind$, are paremeterized by the type they have, that is, $\typKind$ represent a type where it can either be $\surfaceTyp \atyp$ or $\typ$. This is because they are used in different places and depending on where they are used they may have a different type. 
+- Parameters, denoted by $\prmDef \typKind$, are paremeterized by the type they have, that is, $\typKind$ represent a type where it can either be $\surfaceTyp$ or $\typ$. This is because they are used in different places and depending on where they are used they may have a different type. 
 - For simplicity, we use the expanded format of parameter in most rules to have fine access to its direction and type. However, we often don't need its initializer so we omit that. Keep in mind that a parameter could or could not have an initializer.
 - Direction is optional in parameter declaration. However, for simpilicity, we just use  $\less$ to denote a missing direction. 
 
@@ -372,7 +374,7 @@ ParserModel.verify(bool condition, error err) {
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\surfaceTyp \atyp $ | $::=$ | $\boolTyp$ | $\qquad \text{booleans}$ |
+| $\surfaceTyp $ | $::=$ | $\boolTyp$ | $\qquad \text{booleans}$ |
 |   | $\vert$ | $\errTyp$ | $\qquad \text{errors}$ |
 |   | $\vert$ | $\matchKindTyp$ | $\qquad \text{match kinds}$ |
 |   | $\vert$ | $\integerTyp$ | $\qquad \text{infinite-precision integers}$ |
@@ -382,7 +384,7 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\varbitTyp \atyp$ | $\qquad \text{variable-width integers with a maximum width}$ |
 |   | $\vert$ | $\typName$ | $\qquad \text{type identifier}$ |
 |   | $\vert$ | $\spcTyp {\typName} {\typArg}$ | $\qquad \text{specialized type}$ |
-|   | $\vert$ | $\headerStackTyp {\surfaceTyp \atyp} \atyp$ | $\qquad \text{header stacks}$ |
+|   | $\vert$ | $\headerStackTyp {\surfaceTyp} \exp$ | $\qquad \text{header stacks}$ |
 |   | $\vert$ | $\tupleTyps {\typArg}$ | $\qquad \text{tuples}$ |
 { .booktable }
 
@@ -390,7 +392,7 @@ ParserModel.verify(bool condition, error err) {
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\typArg$ | $::=$ | $\surfaceTyp \exp$ | $\qquad \text{surface types}$ |
+| $\typArg$ | $::=$ | $\surfaceTyp $ | $\qquad \text{surface types}$ |
 |   | $\vert$ | $\voidTyp$ | $\qquad \text{void}$ |
 |   | $\vert$ | $\dontcareTyp$ | $\qquad \text{don't care}$ |
 |   | $\vert$ | $\identifierkw$ | $\qquad \text{identifier keyword}$ |
@@ -406,7 +408,7 @@ ParserModel.verify(bool condition, error err) {
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\funcProTyp$ | $::=$ | $\surfaceTyp \exp$ | $\qquad \text{surface types}$ |
+| $\funcProTyp$ | $::=$ | $\surfaceTyp$ | $\qquad \text{surface types}$ |
 |   | $\vert$ | $\voidTyp$ | $\qquad \text{void}$ |
 |   | $\vert$ | $\typVar$ | $\qquad \text{type variables}$ |
 { .booktable }
@@ -493,13 +495,13 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\records \exp$ | $\qquad \text{records}$ |
 |   | $\vert$ | $\unaryOp \exp$ | $\qquad \text{unary operations}$ |
 |   | $\vert$ | $\exp_1 \binOp \exp_2$ | $\qquad \text{binary operations}$ |
-|   | $\vert$ | $\cast {\surfaceTyp \exp} \exp$ | $\qquad \text{casts}$ |
+|   | $\vert$ | $\cast {\surfaceTyp} \exp$ | $\qquad \text{casts}$ |
 |   | $\vert$ | $\typMem \typName \field$ | $\qquad \text{type members}$ |
 |   | $\vert$ | $\errMem \field$ | $\qquad \text{error members}$ |
 |   | $\vert$ | $\expMem \exp \field$ | $\qquad \text{expression members}$ |
 |   | $\vert$ | $\ternary {\exp_1} {\exp_2} {\exp_3}$ | $\qquad \text{conditionals}$ |
-|   | $\vert$ | $\funcCall \exp {\surfaceTyps \exp} \args$ | $\qquad \text{function calls}$ |
-|   | $\vert$ | $\instantiation {\surfaceTyp \exp} {\args}$ | $\qquad \text{anonymous instantiation}$ |
+|   | $\vert$ | $\funcCall \exp {\surfaceTyps} \args$ | $\qquad \text{function calls}$ |
+|   | $\vert$ | $\instantiation {\surfaceTyp} {\args}$ | $\qquad \text{anonymous instantiation}$ |
 |   | $\vert$ | $\mask {\exp_1} {\exp_2}$ | $\qquad \text{bit masks}$ |
 |   | $\vert$ | $\range {\exp_1} {\exp_2}$ | $\qquad \text{ranges}$ |
 { .booktable }
@@ -524,9 +526,9 @@ ParserModel.verify(bool condition, error err) {
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\stmt$ | $::=$ | $\methodCall \exp {\surfaceTyps \exp} \args$ | $\qquad \text{method call}$ |
+| $\stmt$ | $::=$ | $\methodCall \exp {\surfaceTyps} \args$ | $\qquad \text{method call}$ |
 |   | $\vert$ | $\assign {\exp_1} {\exp_2}$ | $\qquad \text{assignment}$ |
-|   | $\vert$ | $\dirApp {\surfaceTyp \exp}\args$ | $\qquad \text{direct application}$ |
+|   | $\vert$ | $\dirApp {\surfaceTyp}\args$ | $\qquad \text{direct application}$ |
 |   | $\vert$ | $\ifthen \exp \stmt$ | $\qquad \text{if then}$ |
 |   | $\vert$ | $\ifthenelse \exp {\stmt_1} {\stmt_2}$ | $\qquad \text{if then else}$ |
 |   | $\vert$ | $\block \stmts$ | $\qquad \text{sequencing}$ |
@@ -569,42 +571,42 @@ ParserModel.verify(bool condition, error err) {
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\extMethod$ | $::=$ | $\constructor \var {\prmDef {\surfaceTyp \exp}}$ | $\qquad \text{constructors}$ |
-|   | $\vert$ | $\abstractMethod {\surfaceTyp \exp}\var \typVar {\prmDef {\surfaceTyp \exp}}$ | $\qquad \text{abstract methods}$ |
-|   | $\vert$ | $\methodDef {\surfaceTyp \exp}\var \typVar {\prmDef {\surfaceTyp \exp}}$ | $\qquad \text{methods}$ |
+| $\extMethod$ | $::=$ | $\constructor \var {\prmDef {\surfaceTyp}}$ | $\qquad \text{constructors}$ |
+|   | $\vert$ | $\abstractMethod {\surfaceTyp }\var \typVar {\prmDef {\surfaceTyp}}$ | $\qquad \text{abstract methods}$ |
+|   | $\vert$ | $\methodDef {\surfaceTyp}\var \typVar {\prmDef {\surfaceTyp }}$ | $\qquad \text{methods}$ |
 { .booktable }
 
 **Declarations:**
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\dcl$ | $::=$ | $\constDcl {\surfaceTyp \exp}\var \exp$ | $\qquad \text{constants}$ |
-|   | $\vert$ | $\inst {\surfaceTyp \exp}\args \var \stmts$ | $\qquad \text{instantiations (initialized)}$ |
-|   | $\vert$ | $\instNoBlock {\surfaceTyp \exp}\args \var$ | $\qquad \text{instantiations (uninitialized)}$ |
-|   | $\vert$ | $\parserDcl \var \typVars {\overline { {\prmDef {\surfaceTyp \exp}}}} {\overline {\VVal {\prmDef {\surfaceTyp \exp}}}} \dcls \states$ | $\qquad \text{parsers}$ |
-|   | $\vert$ | $\controlDcl \var \typVars {\overline { {\prmDef {\surfaceTyp\exp}}}} {\overline {\VVal {\prmDef {\surfaceTyp \exp}}}} \dcls \stmts$ | $\qquad \text{controls}$ |
-|   | $\vert$ | $\funcDcl {\funcProTyp}\var \typVars {\prmDefs {\surfaceTyp \exp}} \stmts$ | $\qquad \text{functions}$ |
-|   | $\vert$ | $\externFuncDcl {\surfaceTyp \exp}\var \typVars {\prmDefs {\surfaceTyp \exp}}$ | $\qquad \text{extern functions}$ |
-|   | $\vert$ | $\varDclInit {\surfaceTyp \exp}\var \exp$ | $\qquad \text{local variables (initialized)}$ |
-|   | $\vert$ | $\varDcl {\surfaceTyp \exp}\var$ | $\qquad \text{local variables (uninitialized)}$ |
-|   | $\vert$ | $\valSetDcl {\surfaceTyp \exp}\exp \var$ | $\qquad \text{parser value sets}$ |
-|   | $\vert$ | $\actionDcl \var {\prmDefs {\surfaceTyp \exp}} \stmts$ | $\qquad \text{actions}$ |
+| $\dcl$ | $::=$ | $\constDcl {\surfaceTyp }\var \exp$ | $\qquad \text{constants}$ |
+|   | $\vert$ | $\inst {\surfaceTyp}\args \var \stmts$ | $\qquad \text{instantiations (initialized)}$ |
+|   | $\vert$ | $\instNoBlock {\surfaceTyp}\args \var$ | $\qquad \text{instantiations (uninitialized)}$ |
+|   | $\vert$ | $\parserDcl \var \typVars {\overline { {\prmDef {\surfaceTyp}}}} {\overline {\VVal {\prmDef {\surfaceTyp}}}} \dcls \states$ | $\qquad \text{parsers}$ |
+|   | $\vert$ | $\controlDcl \var \typVars {\overline { {\prmDef {\surfaceTyp}}}} {\overline {\VVal {\prmDef {\surfaceTyp}}}} \dcls \stmts$ | $\qquad \text{controls}$ |
+|   | $\vert$ | $\funcDcl {\funcProTyp}\var \typVars {\prmDefs {\surfaceTyp}} \stmts$ | $\qquad \text{functions}$ |
+|   | $\vert$ | $\externFuncDcl {\surfaceTyp}\var \typVars {\prmDefs {\surfaceTyp}}$ | $\qquad \text{extern functions}$ |
+|   | $\vert$ | $\varDclInit {\surfaceTyp}\var \exp$ | $\qquad \text{local variables (initialized)}$ |
+|   | $\vert$ | $\varDcl {\surfaceTyp}\var$ | $\qquad \text{local variables (uninitialized)}$ |
+|   | $\vert$ | $\valSetDcl {\surfaceTyp}\exp \var$ | $\qquad \text{parser value sets}$ |
+|   | $\vert$ | $\actionDcl \var {\prmDefs {\surfaceTyp}} \stmts$ | $\qquad \text{actions}$ |
 |   | $\vert$ | $\tableDcl \var \props$ | $\qquad \text{tables}$ |
-|   | $\vert$ | $\headerDcl \typName \typParam \field {\surfaceTyp \width}$ | $\qquad \text{header types}$ |
-|   | $\vert$ | $\headerUnionDcl \typName \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{header union types}$ |
-|   | $\vert$ | $\structDcl \typName \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{struct types}$ |
+|   | $\vert$ | $\headerDcl \typName \typParam \field {\surfaceTyp}$ | $\qquad \text{header types}$ |
+|   | $\vert$ | $\headerUnionDcl \typName \typParam \field {\surfaceTyp}$ | $\qquad \text{header union types}$ |
+|   | $\vert$ | $\structDcl \typName \typParam \field {\surfaceTyp}$ | $\qquad \text{struct types}$ |
 |   | $\vert$ | $\errDcl \fields$ | $\qquad \text{error types}$ |
 |   | $\vert$ | $\matchkindDcl \fields$ | $\qquad \text{match kind types}$ |
 |   | $\vert$ | $\enumDcl \typName \fields$ | $\qquad \text{enumerated types}$ |
-|   | $\vert$ | $\serEnumDcl {\surfaceTyp \exp}\typName \field \exp$ | $\qquad \text{serializable enumerated types}$ |
+|   | $\vert$ | $\serEnumDcl {\surfaceTyp}\typName \field \exp$ | $\qquad \text{serializable enumerated types}$ |
 |   | $\vert$ | $\externObjDcl \var \typVars \extMethods$ | $\qquad \text{extern objects}$ |
-|   | $\vert$ | $\typdefDcl  {\surfaceTyp \exp} \typName$ | $\qquad \text{type definitions}$ |
+|   | $\vert$ | $\typdefDcl  {\surfaceTyp} \typName$ | $\qquad \text{type definitions}$ |
 |   | $\vert$ | $\typdefDcl \dcl \typName$ | $\qquad \text{type definitions (declarations)}$ |
-|   | $\vert$ | $\newtypeDcl  {\surfaceTyp \exp}\typName$ | $\qquad \text{generative type definitions}$ |
+|   | $\vert$ | $\newtypeDcl  {\surfaceTyp}\typName$ | $\qquad \text{generative type definitions}$ |
 |   | $\vert$ | $\newtypeDcl  \dcl \typName$ | $\qquad \text{generative type definitions (declarations)}$ |
-|   | $\vert$ | $\controlTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}$ | $\qquad \text{control types}$ |
-|   | $\vert$ | $\parserTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}$ | $\qquad \text{parser types}$ |
-|   | $\vert$ | $\packageTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}$ | $\qquad \text{package types}$ |
+|   | $\vert$ | $\controlTypDcl \typName \typVars {\prmDefs {\surfaceTyp}}$ | $\qquad \text{control types}$ |
+|   | $\vert$ | $\parserTypDcl \typName \typVars {\prmDefs {\surfaceTyp}}$ | $\qquad \text{parser types}$ |
+|   | $\vert$ | $\packageTypDcl \typName \typVars {\prmDefs {\surfaceTyp}}$ | $\qquad \text{package types}$ |
 { .booktable }
 
 **Programs:**
@@ -629,7 +631,7 @@ ParserModel.verify(bool condition, error err) {
 
 Three kinds of types are generated by the type checker:
 
-- surface types instantiated with $\width$, that is, $\surfaceTyp \width$ 
+- surface types instantiated with $\width$, that is, $\surfaceTyp$ 
 - declared types indicated by $\declaredTyp$
 - synthesized types indicated by $\synTyp$
 
@@ -646,9 +648,9 @@ Two judgments are provided for types of P4 expressions:
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\declaredTyp$ | $::=$ |$\headerTyps \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{headers}$ |
-|   | $\vert$ | $\headerUnionTyps \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{header unions}$ |
-|   | $\vert$ | $\structTyps \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{structs}$ |
+| $\declaredTyp$ | $::=$ |$\headerTyps \typParam \field {\surfaceTyp}$ | $\qquad \text{headers}$ |
+|   | $\vert$ | $\headerUnionTyps \typParam \field {\surfaceTyp}$ | $\qquad \text{header unions}$ |
+|   | $\vert$ | $\structTyps \typParam \field {\surfaceTyp}$ | $\qquad \text{structs}$ |
 |   | $\vert$ | $\enumTypDef$ | $\qquad \text{serializable enums}$ |
 |   | $\vert$ | $\enumTypNoTypDef$ | $\qquad \text{enums}$ |
 |   | $\vert$ | $\parserTyp \typParams {\prmDefs \typ}$ | $\qquad \text{parsers}$ |
@@ -661,11 +663,11 @@ Two judgments are provided for types of P4 expressions:
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
 | $\synTyp$ | $::=$ | $\funcType \kind \typParams {\prmDefs \typ} {\surfaceTypOrVoidOrVar}$ | $\qquad \text{functions}$ |
-|   | $\vert$ | $\setTyp \typ$ | $\qquad \text{sets}$ |
+|   | $\vert$ | $\setTyp {\surfaceTyp}$ | $\qquad \text{sets}$ |
 |   | $\vert$ | $\externTyp \name$ | $\qquad \text{externs}$ |
-|   | $\vert$ | $\recordTyps \field \typ$ | $\qquad \text{records}$ |
+|   | $\vert$ | $\recordTyps \field {\surfaceTyp}$ | $\qquad \text{records}$ |
 |   | $\vert$ | $\matchKindTyp$ | $\qquad \text{match kinds}$ |
-|   | $\vert$ | $\newTypeTyp \typVar \typ$ | $\qquad \text{reference}$ |
+|   | $\vert$ | $\newTypeTyp \typVar {\surfaceTyp}$ | $\qquad \text{reference}$ |
 |   | $\vert$ | $\actionTyp {\overline { {\prmDef \typ}}} {\overline {\VVal {\prmDef \typ}}}$ | $\qquad \text{actions}$ |
 |   | $\vert$ | $\constructorTyp \typParams {\prmDefs \typ} \typ$ | $\qquad \text{constructors}$ |
 |   | $\vert$ | $\tableTyp \name$ | $\qquad \text{tables}$ |
@@ -675,7 +677,7 @@ Two judgments are provided for types of P4 expressions:
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\typ$ | $::=$ | $\surfaceTyp \width $ | $\qquad \text{surface types}$ |
+| $\typ$ | $::=$ | $\surfaceTyp $ | $\qquad \text{surface types}$ |
 |   | $\vert$ | $\synTyp$ | $\qquad \text{synthesized types}$ |
 |   | $\vert$ | $\declaredTyp$ | $\qquad \text{declared types}$ |
 |   | $\vert$ | $\voidTyp$ | $\qquad \text{void type}$ |
@@ -686,13 +688,13 @@ Two judgments are provided for types of P4 expressions:
 
 ## Type Well-Formed Judgment { #sec-type-well-formed }
 
-This judgment is overloaded and it checks if a surface type and more generally a type is well-formed or not. This judgment is used to check if a surface type is well-formed when it is used in expressions or if a type is well-formed when it is declared. Specifically, it has two forms $\typWellFormed {\surfaceTyp \exp}$ and $\typWellFormed {\typ}$ which state that the type $\surfaceTyp \exp$ and $\typ$, respectively, are well-formed under the type environment $\typEnv$ and extern environment $\externEnv$. In other words, this judgment checks that types are syntactically correct.
+This judgment is overloaded and it checks if a surface type and more generally a type is well-formed or not. This judgment is used to check if a surface type is well-formed when it is used in expressions or if a type is well-formed when it is declared. Specifically, it has two forms $\typWellFormed {\surfaceTyp}$ and $\typWellFormed {\typ}$ which state that the type $\surfaceTyp$ and $\typ$, respectively, are well-formed under the type environment $\typEnv$ and extern environment $\externEnv$. In other words, this judgment checks that types are syntactically correct.
 
 ### Surface Types Well-Formedness { #sec-surface-typ-well-formed }
 
-``todo: rewrite explanation``
+``todo: rewrite explanation for surface type``
 
-At first glance, it might seem redundant to define this judgment for both $\surfaceTyp \exp$ and $\typ$. However, it is important to note that although $\surfaceTyp \exp$ is a subset of $\typ$ for most part, there are exceptions to that: when $\typ$ instantiates $\atyp$ in $\surfaceTyp \atyp$ definition to $\width$ while $\surfaceTyp \exp$ instantiates it to $\exp$. For example, $\intWidthTyp {(3 + 2)}$ is legal instance of type $\surfaceTyp \exp$ but it isn't a legal instance of type $\typ$ while $\intWidthTyp 2$ is a legal instance of both types $\surfaceTyp \exp$ and $\typ$. Thus, we need to define it for both type categories.
+At first glance, it might seem redundant to define this judgment for both $\surfaceTyp$ and $\typ$. However, it is important to note that although $\surfaceTyp$ is a subset of $\typ$ for most part, there are exceptions to that: when $\typ$ instantiates $\atyp$ in $\surfaceTyp$ definition to $\width$ while $\surfaceTyp$ instantiates it to $\exp$. For example, $\intWidthTyp {(3 + 2)}$ is legal instance of type $\surfaceTyp$ but it isn't a legal instance of type $\typ$ while $\intWidthTyp 2$ is a legal instance of both types $\surfaceTyp$ and $\typ$. Thus, we need to define it for both type categories.
 
 #### Base Types { #sec-base-t }
 
@@ -864,7 +866,7 @@ type is well-formed and it follows the nesting rules of P4.
        \isHeaderOrUnion {\typ} \\\\
        \compileTimeEval \exp = \size\\
        \size > 0
-       % \isValidNestedTyp {\headerStackTyp {\surfaceTyp \exp} \exp}
+       % \isValidNestedTyp {\headerStackTyp {\surfaceTyp} \exp}
        }
      { \typWellFormed {\headerStackTyp {\typName} \exp} }}
      \quad (\arrayT)
@@ -905,9 +907,9 @@ A header type is well-formed if its fields are distinct and its inner types foll
 
   \mprset {vskip=0.7ex}
   {\inferrule
-     { \typWellFormed {\surfaceTyps \exp} \\
-        \isValidNestedTyp {\tupleTyps {\surfaceTyp \exp}}}
-     { \typWellFormed {\tupleTyps {\surfaceTyp \exp}} }
+     { \typWellFormed {\surfaceTyps} \\
+        \isValidNestedTyp {\tupleTyps {\surfaceTyp}}}
+     { \typWellFormed {\tupleTyps {\surfaceTyp}} }
      \quad (\tupleT)}
 
   % \inferrule[List]
@@ -941,7 +943,7 @@ An enum is well-formed if its fields are distinct. Additionally, if it is a seri
 
   \mprset {vskip = 0.7ex}
     {\inferrule
-      {\widthInt {\surfaceTyp \exp} = \exp \\
+      {\widthInt {\surfaceTyp} = \exp \\
        % \isConstant \exp \\
        \compTimeKnown \exp\\\\
        \distinct \fields}
@@ -952,7 +954,7 @@ An enum is well-formed if its fields are distinct. Additionally, if it is a seri
 
   \mprset {vskip = 0.7ex}
     {\inferrule
-      {\lookupTypSynEnv {\VVal \typName} = \surfaceTyp \exp \\
+      {\lookupTypSynEnv {\VVal \typName} = \surfaceTyp \\
        \typWellFormed \enumTypDef
       }
       {\typWellFormed {\enumTyp {\VVal \typName} \typName \fields}}
@@ -983,9 +985,9 @@ Note that for a generic header, the rule checks that the fields only refer to ty
   \mprset {vskip = 0.7ex}
     {\inferrule
       {\distinct \fields \\
-       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps \exp} \\\\
-       \isValidNestedTyp {\headerTyps  \typParam \field {\surfaceTyp \exp}}}
-      { \typWellFormed {\headerTyps  \typParam \field {\surfaceTyp \exp}}}}
+       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps} \\\\
+       \isValidNestedTyp {\headerTyps  \typParam \field {\surfaceTyp}}}
+      { \typWellFormed {\headerTyps  \typParam \field {\surfaceTyp}}}}
     \quad (\headerTypWellT)
 
 ~ End InfRule
@@ -1025,10 +1027,10 @@ A struct type is well-formed if its fields are distinct and its inner types foll
 - $\boolTyp$
 - $\enumTypNoTypDef$
 - $\enumTypDef$
-- $\headerTyps \typParam \field {\surfaceTyp \exp}$
+- $\headerTyps \typParam \field {\surfaceTyp}$
 - $\headerUnionTyps \typParam \field {\typName}$
-- $\headerStackTyp {\surfaceTyp \exp} \exp $
-- $\structTyps \typParam \field {\surfaceTyp \exp}$
+- $\headerStackTyp {\surfaceTyp} \exp $
+- $\structTyps \typParam \field {\surfaceTyp}$
 - $\tupleTyps \typ$
 
 
@@ -1037,9 +1039,9 @@ A struct type is well-formed if its fields are distinct and its inner types foll
   \mprset {vskip = 0.7ex}
     {\inferrule
       {\distinct \fields \\
-       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps \exp} \\
-       \isValidNestedTyp {\structTyps  \typParam \field {\surfaceTyp \exp}}}
-      {\typWellFormed {\structTyps  \typParam \field {\surfaceTyp \exp}}}
+       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps} \\
+       \isValidNestedTyp {\structTyps  \typParam \field {\surfaceTyp}}}
+      {\typWellFormed {\structTyps  \typParam \field {\surfaceTyp}}}
     }
     \quad (\structTypWellT)
 
@@ -1530,7 +1532,7 @@ $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$ denotes slicing a the a (un)signed
    * $\integerTyp$
    * $\intWidthTyp \width$
    * $\bitWidthTyp \width$
-   * $\enumTyp {\surfaceTyp \exp} \typName \fields$ ```p4 spec only allows the underlying type to be int<w> or bit<w>```
+   * $\enumTyp {\surfaceTyp} \typName \fields$ ```p4 spec only allows the underlying type to be int<w> or bit<w>```
 - $\widthInt \typ$ checks if the type $\typ$ is a fixed-length integer, that is,
 if it is either $\bitWidthTyp \width$ or $\intWidthTyp \width$ and returns its width. 
 - $\insertImplCast \exp \typ$ inserts potential casts to try to type check an expression. It does so by looking into implicit cast rules for type $\typ$, denoted by $\implCast \typ {\VVal \typ}$. If it finds $\VVal \typ$ such that it facilitates the typing rules it inserts the cast (that is, it returns the expression $\cast {\VVal \typ} \exp$), otherwise, it returns $\exp$.
@@ -1709,8 +1711,8 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
    * $\integerTyp$
    * $\enumTypDef$
    * $\enumTypNoTypDef$
-   * $\headerTyps \typParam \field {\surfaceTyp \exp}$
-   * $\headerUnionTyps \typParam \field {\surfaceTyp \exp}$
+   * $\headerTyps \typParam \field {\surfaceTyp}$
+   * $\headerUnionTyps \typParam \field {\surfaceTyp}$
    * $\structTyps \typParam \field \typ$
 - $\concatCond {\typ_1} {\typ_2}$ is a helper function that determines the type of a concatenation expression based on type of its left operand:
   + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
@@ -1981,16 +1983,16 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
 
 ```done```
 
-The expression $\cast {\surfaceTyp \exp} \exp$ casts expression $\exp$ to type $\surfaceTyp \exp$. However, it is
+The expression $\cast {\surfaceTyp} \exp$ casts expression $\exp$ to type $\surfaceTyp$. However, it is
 not possible to cast an expression from every type to another type. This is done by the auxiliary judgment
-$\explCast {\surfaceTyp \exp} {\VVal {\surfaceTyp \exp}}$ which states that the explicit casting of
-$\surfaceTyp \exp$ to $\VVal {\surfaceTyp \exp}$ is legal.
+$\explCast {\surfaceTyp} {\VVal {\surfaceTyp}}$ which states that the explicit casting of
+$\surfaceTyp$ to $\VVal {\surfaceTyp}$ is legal.
 The $\castTypNameE$ rule type checks a cast expression to a type identifier and the $\castE$ rule
 type checks any other cast expression. 
 Specifically, it states that the cast expression
-$\cast {\surfaceTyp \exp} \exp$ translates to the expression $\cast {\surfaceTyp \exp} {\VVal \exp}$ with
-the type $\surfaceTyp \exp$ if expression $\exp$ is translated to $\VVal \exp$ and the explicit cast
-of $\typ$ to $\surfaceTyp \exp$ is legal. 
+$\cast {\surfaceTyp} \exp$ translates to the expression $\cast {\surfaceTyp} {\VVal \exp}$ with
+the type $\surfaceTyp$ if expression $\exp$ is translated to $\VVal \exp$ and the explicit cast
+of $\typ$ to $\surfaceTyp$ is legal. 
 
 - $\explCast {\typ_1} {\typ_2}$ is an auxiliary judgment for valid explicit cast
 of types.
@@ -2022,9 +2024,9 @@ done implicitly or explicitly, respectively.
        % \VVal \typ = \trans {\typ} {\emp} \\
        % \pprim \typ = \sat {\VVal \typ} \\
        % \typWellFormed {\VVal \typ} \\ %we don't even need to do this because the type has been generated.
-       \explCast {\typ} {\surfaceTyp \exp}}
+       \explCast {\typ} {\surfaceTyp}}
        % \explicitCastOK {\typ_2} {\pprim \typ}}
-     { \expenv {\cast {\surfaceTyp \exp} \exp} {\cast {\surfaceTyp \exp} {\VVal\exp}} {\surfaceTyp \exp} \less  }
+     { \expenv {\cast {\surfaceTyp} \exp} {\cast {\surfaceTyp} {\VVal\exp}} {\surfaceTyp} \less  }
      \quad (\castE)
 
 ~ End InfRule
@@ -2166,31 +2168,31 @@ meaning that it applies for both explicit and implicit casts. However, note that
 
   \inferrule
      { }
-     % \typEqEnv \emp {\surfaceTyp \exp} {\VVal {\surfaceTyp \exp}}}
-     { \explCast {\enumTypDef} { {\surfaceTyp \exp}}}
+     % \typEqEnv \emp {\surfaceTyp} {\VVal {\surfaceTyp}}}
+     { \explCast {\enumTypDef} { {\surfaceTyp}}}
      \quad (\rn{EnumToUnderlyingType}\rAE)
 
 \and
 
   \inferrule
      { }
-     % \typEqEnv \emp {\surfaceTyp \exp} {\VVal {\surfaceTyp \exp}}}
-     { \implCast {\enumTypDef} {\VVal {\surfaceTyp \exp}}}
+     % \typEqEnv \emp {\surfaceTyp} {\VVal {\surfaceTyp }}}
+     { \implCast {\enumTypDef} {\VVal {\surfaceTyp}}}
      \quad (\rn{EnumToUnderlyingType}\rAE)
 
 \and
 
   \inferrule
-     { \typEqEnv \emp {\surfaceTyp \exp} {\VVal {\surfaceTyp \exp}}}
-     { \explCast {\enumTypDef} {\enumTyp {\VVal {\surfaceTyp \exp}} {\VVal \typName} {\overline {\VVal \field}}}}
+     { \typEqEnv \emp {\surfaceTyp} {\VVal {\surfaceTyp}}}
+     { \explCast {\enumTypDef} {\enumTyp {\VVal {\surfaceTyp }} {\VVal \typName} {\overline {\VVal \field}}}}
      \quad (\rn{Enums}\rAE)
 
 \and
 
   \inferrule
      { }
-     % \typEqEnv \emp {\surfaceTyp \exp} {\VVal {\surfaceTyp \exp}}}
-     { \explCast {\surfaceTyp \exp} {\enumTyp { {\surfaceTyp \exp}} {\typName} {\fields}}}
+     % \typEqEnv \emp {\surfaceTyp} {\VVal {\surfaceTyp}}}
+     { \explCast {\surfaceTyp} {\enumTyp { {\surfaceTyp}} {\typName} {\fields}}}
      \quad (\rn{TypeToEnumWithUndrlyingType}\rAE)
 
   % \inferrule
@@ -2500,10 +2502,10 @@ Note that the expression has to be of a one of the types: record, extern, specia
   \mprset {vskip = 0.7 ex}
     {\inferrule
        { %\constEnv, \varEnv, \typEnv, \ctxt \vdash \\
-         \lookupTypEnv \typName = { \structTyps  \typParam {\VVal \field} {\VVal {\surfaceTyp \exp}}} \\
-         (\field : {\surfaceTyp \exp} ) \in \recordTypStructureClose {\VVal \field} {\VVal {\surfaceTyp \exp}}
+         \lookupTypEnv \typName = { \structTyps  \typParam {\VVal \field} {\VVal {\surfaceTyp}}} \\
+         (\field : {\surfaceTyp} ) \in \recordTypStructureClose {\VVal \field} {\VVal {\surfaceTyp}}
        }
-     { \expenv {\expMem \typName \field} {\expMem \typName \field} {\surfaceTyp \exp} {\dir} }}
+     { \expenv {\expMem \typName \field} {\expMem \typName \field} {\surfaceTyp} {\dir} }}
      \quad (\structMemE)
 
 \and
@@ -3136,9 +3138,9 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 ```done```
 
 - Note that $\typMem \typName \field $ in the rules below is a name and not an expression. We are overloading the syntax of type membership since from the context it is clear whether it represents an expression or a string.
-- $\valMatchTyp {\surfaceTyp \exp, \exp}$ checks if one of the followings holds:
-  + $\exp$ has the type $\surfaceTyp \exp$
-  + an implicit cast can be inserted for $\exp$ so that it has the type $\surfaceTyp \exp$
+- $\valMatchTyp {\surfaceTyp, \exp}$ checks if one of the followings holds:
+  + $\exp$ has the type $\surfaceTyp$
+  + an implicit cast can be inserted for $\exp$ so that it has the type $\surfaceTyp$
 
 ~ Begin InfRule
 
@@ -3155,25 +3157,25 @@ const S x = { 10, 20 }; //a = 10, b = 20.
   \mprset{vskip=0.7ex}
   {\inferrule
      { \typWellFormed \enumTypDef \\
-       % \widthInt {\surfaceTyp \exp} = \exp \\
+       % \widthInt {\surfaceTyp} = \exp \\
        % \isConstant \exp \\\\
        \compTimeKnown {\exps}\\\\
-       \valMatchTyp {\overline {\surfaceTyp \exp, \exp}}\\\\
+       \valMatchTyp {\overline {\surfaceTyp, \exp}}\\\\
        \VVal \typEnv = \insertToTypEnv \typName {\enumTypDef}\\\\
        \VVal \varEnv = \insertsToVarEnv {\typMem \typName \field} \enumTypDef \less\\\\
        \VVal \constEnv = \insertsToConstEnv {\typMem \typName \field} {\enumVal \typName \field}
        }
-     { \dclenv {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv }}
+     { \dclenv {\serEnumDcl {\surfaceTyp} \typName \field \exp} {\serEnumDcl {\surfaceTyp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv }}
      \quad (\serEnumD)
 
 \and
 
   \mprset{vskip=0.7ex}
   {\inferrule
-     { \lookupTypSynEnv {\VVal \typName} = \surfaceTyp \exp \\
-       \dclenv {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv
+     { \lookupTypSynEnv {\VVal \typName} = \surfaceTyp \\
+       \dclenv {\serEnumDcl {\surfaceTyp} \typName \field \exp} {\serEnumDcl {\surfaceTyp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv
        }
-     { \dclenv {\serEnumDcl {\VVal \typName} \typName \field \exp} {\serEnumDcl {\surfaceTyp \exp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+     { \dclenv {\serEnumDcl {\VVal \typName} \typName \field \exp} {\serEnumDcl {\surfaceTyp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
      \quad (\serEnumTypdefD)
 
 ~ End InfRule
@@ -3186,10 +3188,10 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
   \mprset {vskip = 0.7ex}
   {\inferrule
-    {\typWellFormed {\headerTyps  \typParam \field {\surfaceTyp \exp}}\\\\
-     \VVal \typEnv = \insertToTypEnv \typName {\headerTyps  \typParam \field {\surfaceTyp \exp}}
+    {\typWellFormed {\headerTyps  \typParam \field {\surfaceTyp}}\\\\
+     \VVal \typEnv = \insertToTypEnv \typName {\headerTyps  \typParam \field {\surfaceTyp}}
     }
-    {\dclenv {\headerDcl \typName \typParam \field {\surfaceTyp \exp}} {\headerDcl \typName \typParam \field {\surfaceTyp \exp}} {\varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
+    {\dclenv {\headerDcl \typName \typParam \field {\surfaceTyp}} {\headerDcl \typName \typParam \field {\surfaceTyp}} {\varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
   \quad (\headerD)
 
 ~ End InfRule 
@@ -3203,9 +3205,9 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
   \mprset {vskip = 0.7ex}
   {\inferrule
-    {\typWellFormed {\structTyps  \typParam \field {\surfaceTyp \exp}}\\\\
-    \VVal \typEnv = \insertToTypEnv \typName {\structTyps \typParam \field {\surfaceTyp \exp}}}
-    {\dclenv {\structDcl \typName \typParam \field {\surfaceTyp \exp}} {\structDcl \typName \typParam \field {\surfaceTyp \exp}} { \varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
+    {\typWellFormed {\structTyps  \typParam \field {\surfaceTyp}}\\\\
+    \VVal \typEnv = \insertToTypEnv \typName {\structTyps \typParam \field {\surfaceTyp }}}
+    {\dclenv {\structDcl \typName \typParam \field {\surfaceTyp}} {\structDcl \typName \typParam \field {\surfaceTyp}} { \varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
   \quad (\structD)
 
 ~ End InfRule 
@@ -3218,9 +3220,9 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
   \mprset {vskip = 0.7ex}
   {\inferrule
-    {\typWellFormed {\headerUnionTyps  \typParam \field {\surfaceTyp \exp}}\\\\
-     \VVal \typEnv = \insertToTypEnv \typName {\headerUnionTyps  \typParam \field {\surfaceTyp \exp}}}
-    {\dclenv {\headerUnionDcl \typName \typParam \field {\surfaceTyp \exp}} {\headerUnionDcl \typName \typParam \field {\surfaceTyp \exp}} { \varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
+    {\typWellFormed {\headerUnionTyps  \typParam \field {\surfaceTyp}}\\\\
+     \VVal \typEnv = \insertToTypEnv \typName {\headerUnionTyps  \typParam \field {\surfaceTyp}}}
+    {\dclenv {\headerUnionDcl \typName \typParam \field {\surfaceTyp}} {\headerUnionDcl \typName \typParam \field {\surfaceTyp}} { \varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
   \quad (\headerUnionD)
 
 ~ End InfRule 
@@ -3228,7 +3230,7 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 ## Parser Type Declaration { #sec-parser-typ-decl }
 
 ~ Begin InfRule
-% \parserTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}
+% \parserTypDcl \typName \typVars {\prmDefs {\surfaceTyp}}
 
   \mprset {vskip = 0.7ex}
   {\inferrule
@@ -3241,7 +3243,7 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 ## Package Type Declaration { #sec-package-typ-decl }
 
 ~ Begin InfRule
-% \packageTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}
+% \packageTypDcl \typName \typVars {\prmDefs {\surfaceTyp}}
 
   \mprset {vskip = 0.7ex}
   {\inferrule
@@ -3254,7 +3256,7 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 ## Control Type Declaration { #sec-control-typ-decl }
 
 ~ Begin InfRule
-% \controlTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}
+% \controlTypDcl \typName \typVars {\prmDefs {\surfaceTyp }}
 
   \mprset {vskip = 0.7ex}
   {\inferrule
@@ -3272,7 +3274,7 @@ const S x = { 10, 20 }; //a = 10, b = 20.
     {\inferrule
       {{x_1}'\\\\ %try out for Harim
        \VVal {x_1}}
-      {\dclenv {\typdefDcl {\surfaceTyp \exp} \typName} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}
+      {\dclenv {\typdefDcl {\surfaceTyp} \typName} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}
     }
     \quad (\typdefNameD)
 

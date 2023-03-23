@@ -100,11 +100,11 @@ Section Syntax.
   | TypSynthesized (typ: synthesizedTyp).
   (* | TypVoid. *)
 
-  Inductive Expression :=
-  | ExpBool (b: Bool)
-  | ExpString (s: P4String)
-  | ExpInt (i: P4Int)
-  | ExpSignedInt ().
+  (* Inductive expression := *)
+  (* | ExpBool (b: Bool) *)
+  (* | ExpString (s: P4String) *)
+  (* | ExpInt (i: P4Int) *)
+  (* | ExpSignedInt (). *)
 
 End Syntax. 
 

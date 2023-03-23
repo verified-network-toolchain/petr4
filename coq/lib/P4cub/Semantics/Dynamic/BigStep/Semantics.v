@@ -11,7 +11,7 @@ From Poulet4.P4cub.Semantics.Dynamic Require Export
   BigStep.Value.Embed.
 From RecordUpdate Require Import RecordSet.
 Import Val.ValueNotations ExprNotations ParserNotations
-  Val.LValueNotations StmtNotations RecordSetNotations
+  Val.LValueNotations StmtNotations
   Clmt.Notations RecordSetNotations.
 
 (** * Expression evaluation. *)
@@ -121,6 +121,16 @@ Variant signal : Set :=
   | Acpt                    (** parser accept *)
   | Rjct                    (** parser reject *)       
   | Rtrn (v : option Val.v) (** return *).
+
+Variant Embed_signal : signal -> Value.signal -> Prop :=
+| embed_cont : Embed_signal Cont Value.SContinue
+| embed_exit : Embed_signal Exit Value.SExit
+| embed_rjct : Embed_signal Rjct (Value.SReject "")
+| embed_acpt : Embed_signal Acpt Value.SContinue (* TODO: look at tofino, maybe return here *)
+| embed_rtrn_none : Embed_signal (Rtrn None) Value.SReturnNull
+| embed_rtrn_some v v' :
+  Embed v v' ->
+  Embed_signal (Rtrn (Some v)) (Value.SReturn v').
 
 Variant parser_signal : signal -> signal -> Prop :=
 | parser_acpt_cont : parser_signal Acpt Cont
@@ -354,8 +364,10 @@ Inductive stmt_big_step
     (List.flat_map
        (fun v => match v with PAOut v | PAInOut v => [v] | _ => [] end)
        vargs') light_out_vals ->
+  (** Signal back to p4cub. *)
+  Embed_signal sig light_sig ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Method ext meth τs eo) args ⧽
-    ⤋ ⧼ lv_update_signal olv sig (copy_out_from_args vargs vargs' ϵ), Cont, ψ ⧽
+    ⤋ ⧼ lv_update_signal olv sig (copy_out_from_args vargs vargs' ϵ), sig, ψ ⧽
 | sbs_invoke
     ϵ₁ ϵ₂ ϵ' eo lvo t (tbls : tenv) acts insts pats light_sets
     ψ (key : list (Expr.e * string)) actions def vs light_vals arefs
@@ -559,9 +571,6 @@ Variant top_big_step
            pfs (bind_constructor_args cparams cargs (top_insts tbs_env) pinsts)
            vs strt states ,, top_insts tbs_env |>)
   | tbs_instantiate_extern ext x τs cargs es extfs extinsts cparams vs :
-    (* TODO:
-       - Contructor args epislon needed in instance.
-       - What to do with constructor instance args? Add them to instance closure? *)
     top_decls tbs_env ext = Some (ExternDecl extfs extinsts cparams) ->
     Forall2 (expr_big_step []) es vs ->
     top_big_step
@@ -574,7 +583,47 @@ Variant top_big_step
            (bind_constructor_args cparams cargs (top_insts tbs_env) extinsts)
            vs
            ,, top_insts tbs_env |>).
-      
+
+Notation Target_Sem := (Target (tags_t:=unit) (Expression:=Expr.e)).
+
+Section ProgBigStep.
+  Context `{target  : Target_Sem}.
+
+  Inductive module_big_step
+    (insts : inst_env Val.v) (module_name : string)
+     (ϕ : extern_env) (ψ : extern_state) (input : list Val.v)
+    : extern_state -> list Val.v -> signal -> Prop :=.
+  (*| parser_module_big_step p_fun p_prsr ϵ ϵ' p_eps p_strt p_states
+      sig final ψ' :
+    (** Lookup parser instance. *)
+    insts module_name = Some (ParserInst p_fun p_prsr p_eps p_strt p_states) ->
+    (** Copyin. *)
+    copy_in input [] = Some ϵ ->
+    (** Parser terminates. *)
+    parser_signal final sig ->
+    (** Evaluate parser state machine. *)
+    ⧼ mk_stmt_eval_env target.(extern_sem) p_fun ϕ ψ, ϵ ++ p_eps,
+        CParserState
+          (length input) p_strt p_states p_prsr, p_strt ⧽ ⤋ ⧼ ϵ', final, ψ' ⧽ ->
+    module_big_step insts module_name ϕ ψ input ψ' (copy_out O input ϵ' []) sig. *)
+    
+
+  Definition prog_big_step
+    (prog : list TopDecl.d) (ϕ : extern_env)
+    (ψ : extern_state) (input_pkt : list bool)
+    (ψ' : extern_state) (output_pkt : list bool) : Prop := exists fs insts ds,
+    FoldLeft
+      (fun d env  => top_big_step env d) prog
+      (mk_top_bs_env ∅ ∅ ∅) (mk_top_bs_env fs insts ds)
+    /\ target.(exec_prog)
+        []
+        (fun pth ψ lvs ψ' lvs' lsig => exists vs vs' sig,
+             module_big_step insts (Exn.path_to_string pth) ϕ ψ vs ψ' vs sig
+             /\ Forall2 Embed vs lvs
+             /\ Forall2 Embed vs' lvs'
+             /\ Embed_signal sig lsig)
+        ψ input_pkt ψ' output_pkt.
+End ProgBigStep.
 
 Local Close Scope value_scope.
 Local Close Scope climate_scope.

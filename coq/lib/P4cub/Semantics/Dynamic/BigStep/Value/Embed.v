@@ -370,6 +370,76 @@ Section Embed.
       constructor; auto.
   Qed.
   
+  Definition get_singleton (val : ValueSet) : option (@ValueBase bool) :=
+    match val with
+    | ValSetSingleton b => mret b
+    | _ => None
+    end.
+
+  Fixpoint embed_pat (pat : Parser.pat) : option ValueSet :=
+    match pat with
+    | Parser.Wild => mret ValSetUniversal
+    | (w PW n)%pat => mret $ ValSetSingleton $ ValBaseBit $ to_lbool w n
+    | (w PS z)%pat => mret $ ValSetSingleton $ ValBaseInt $ to_lbool (Npos w) z
+    | Parser.Range p₁ p₂ =>
+      let* v₁ := get_singleton =<< embed_pat p₁ in
+      let^ v₂ := get_singleton =<< embed_pat p₂ in
+      ValSetRange v₁ v₂
+    | Parser.Mask p₁ p₂ =>
+      let* v₁ := get_singleton =<< embed_pat p₁ in
+      let^ v₂ := get_singleton =<< embed_pat p₂ in
+      ValSetMask v₁ v₂
+    | Parser.Lists ps => map_monad embed_pat ps >>| ValSetProd
+    end.
+
+    Lemma embed_pat_sound :
+      forall pat val, embed_pat pat = Some val -> embed_pat_valset pat val.
+    Proof.
+      induction pat using custom_pat_ind; cbn; intros.
+      - inv H. constructor.
+      - unfold option_bind in *.
+        destruct (embed_pat pat1) eqn:?; try discriminate.
+        destruct v; try discriminate. cbn in *.
+        destruct (embed_pat pat2); try discriminate.
+        destruct v; try discriminate. cbn in *. inv H.
+        constructor; auto.
+      - unfold option_bind in *.
+        destruct (embed_pat pat1) eqn:?; try discriminate.
+        destruct v; try discriminate. cbn in *.
+        destruct (embed_pat pat2); try discriminate.
+        destruct v; try discriminate. cbn in *. inv H.
+        constructor; auto.
+      - inv H. constructor.
+      - inv H. constructor.
+      - unfold option_bind in *. destruct (map_monad embed_pat ps) eqn:?; try discriminate.
+        inv H0. apply map_monad_some in Heqo. generalize dependent l.
+        induction ps; intros.
+        + inv Heqo. repeat constructor.
+        + inv Heqo. inv H. repeat constructor; auto.
+          eapply IHps in H5; eauto. inv H5. assumption.
+    Qed.
+
+    Lemma embed_pat_complete :
+      forall pat val, embed_pat_valset pat val -> embed_pat pat = Some val.
+    Proof.
+      induction pat using custom_pat_ind.
+      - intros. inv H. reflexivity.
+      - intros. inv H. cbn. unfold option_bind. erewrite IHpat1, IHpat2; eauto. reflexivity.
+      - intros. inv H. cbn. unfold option_bind. erewrite IHpat1, IHpat2; eauto. reflexivity.
+      - intros. inv H. reflexivity.
+      - intros. inv H. reflexivity.
+      - cbn. unfold option_bind.
+        assert (forall vss, embed_pat_valset (Parser.Lists ps) (ValSetProd vss) -> map_monad embed_pat ps = Some vss).
+        { induction ps; intros.
+          - inv H0. inv H3. reflexivity.
+          - inv H. inv H0. inv H2. cbn. unfold option_bind.
+            apply H3 in H1. rewrite H1. apply IHps with (vss := l') in H4.
+            + unfold map_monad, "∘" in *. rewrite H4. reflexivity.
+            + constructor. assumption.
+        }
+        intros. inv H1. erewrite H0; eauto. constructor. assumption.
+    Qed.
+
   Fixpoint snd_map {A : Type} {B : Type} (func : A -> B) (l : list (string * A)) :=
     match l with 
     | [] => []

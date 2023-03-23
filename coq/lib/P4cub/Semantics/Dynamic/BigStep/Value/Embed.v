@@ -335,7 +335,7 @@ Section Embed.
       * f_equal. apply to_lbool_lbool_to_val.
     Qed.
 
-  Definition unembed_valset (val : ValueSet) : option Parser.pat :=
+  Fixpoint unembed_valset (val : ValueSet) : option Parser.pat :=
     match val with
     | ValSetUniversal => mret Parser.Wild
     | ValSetSingleton v => unembed_valset_singleton v
@@ -347,13 +347,14 @@ Section Embed.
       let* p₁ := unembed_valset_singleton v₁ in
       let^ p₂ := unembed_valset_singleton v₂ in
       Parser.Mask p₁ p₂
+    | ValSetProd vss => map_monad unembed_valset vss >>| Parser.Lists
     | _ => None
     end.
 
   Lemma unembed_valset_sound :
     forall val pat, unembed_valset val = Some pat -> embed_pat_valset pat val.
   Proof.
-    intros. destruct val; try discriminate.
+    induction val using custom_ValueSet_ind; intros; try discriminate.
     - cbn in H. apply unembed_valset_singleton_sound. assumption.
     - inv H. constructor.
     - cbn in H. unfold option_bind in *.
@@ -368,6 +369,24 @@ Section Embed.
       destruct (unembed_valset_singleton hi) eqn:Hhi; try discriminate.
       inv H. apply unembed_valset_singleton_sound in Hhi.
       constructor; auto.
+    - cbn in *. unfold option_bind in *.
+      destruct (map_monad unembed_valset l) eqn:HSome; try discriminate. inv H0.
+      constructor. rewrite map_monad_some in HSome.
+      generalize dependent l0. induction l; intros.
+      + inv HSome. constructor.
+      + inv H. inv HSome. constructor; auto.
+  Qed.
+
+  Definition unembed_valsets : list ValueSet -> option (list Parser.pat) := map_monad unembed_valset.
+
+  Lemma unembed_valsets_sound :
+    forall vss pats,
+      unembed_valsets vss = Some pats -> Forall2 embed_pat_valset pats vss.
+  Proof.
+    unfold unembed_valsets. intros. rewrite map_monad_some in H.
+    generalize dependent pats. induction vss; intros.
+    - inv H. constructor.
+    - inv H. constructor; auto. apply unembed_valset_sound. assumption.
   Qed.
   
   Definition get_singleton (val : ValueSet) : option (@ValueBase bool) :=

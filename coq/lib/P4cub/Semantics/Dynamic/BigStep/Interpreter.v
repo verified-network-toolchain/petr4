@@ -284,4 +284,20 @@ Section Parser.
         mret $ Parser.Range (w1 PW n1) (w2 PW n2)
     | _ => None
     end.
+
+  Definition interpret_table_entry (entry : table_entry (Expression := Expr.e)) : option (Parser.pat * action_ref) :=
+    let 'mk_table_entry matches action_ref := entry in
+    let^ pats := unembed_valsets matches in
+    (Parser.Lists pats, action_ref).
+
+  Lemma interpret_table_entry_sound :
+    forall entry pat action_ref,
+      interpret_table_entry entry = Some (pat, action_ref) -> table_entry_big_step entry pat action_ref.
+  Proof.
+    unfold interpret_table_entry. intros. destruct entry.
+    cbn in *. unfold option_bind in *.
+    destruct (unembed_valsets matches) eqn:HSome; try discriminate. inv H.
+    constructor. apply unembed_valsets_sound. assumption.
+  Qed.
+
 End Parser.

@@ -49,46 +49,56 @@ Section Syntax.
                    (size: N)
   | TypTuple (types: list surfaceTyp).
 
-  Variant surfaceTypOrVoid :=
+  Variant variableTyp :=
+  | TypVariable (variable: P4String).
+
+  Variant functionTyp :=
   | TypSurface (typ: surfaceTyp)
-  | TypVoid.
+  | TypVoid
+  | TypVar (variable: variableTyp).
 
   Inductive declaredTyp :=
-  | TypHeader (type_params: list P4String)
+  | TypHeader (type_params: list variableTyp)
               (fields: P4String.AList tags_t surfaceTyp)
-  | TypHeaderUnion (type_params: list P4String)
+  | TypHeaderUnion (type_params: list variableTyp)
                    (fields: P4String.AList tags_t surfaceTyp)
-  | TypStruct (type_params: list P4String)
+  | TypStruct (type_params: list variableTyp)
               (fields: P4String.AList tags_t surfaceTyp)
   | TypEnum (name: P4String)
             (typ: option surfaceTyp)
             (members: list P4String)
-  | TypParser (type_params: list P4String)
+  | TypParser (type_params: list variableTyp)
               (parameters: list parameter)
-  | TypControl (type_params: list P4String)
+  | TypControl (type_params: list variableTyp)
                (parameters: list parameter)
-  | TypPackage (type_params: list P4String)
-               (wildcard_params: listP4String)
+  | TypPackage (type_params: list variableTyp)
+               (wildcard_params: list P4String)
                (parameters: list parameter).
 
   Inductive synthesizedTyp :=
-  | TypFunction (type_params: list P4String)
+  | TypFunction (type_params: list variableTyp)
                 (parameters: list parameter)
                 (kind: functionKind)
-                (ret: surfaceTypOrVoid)
-  | TypSet 
-  | TypExtern
-  | TypRecord
-  | TypNewTyp
-  | TypAction
-  | TypConstructor
-  | TypTable.
+                (ret: functionTyp)
+  | TypSet (typ: surfaceTyp)
+  | TypExtern (extern_name: P4String)
+  | TypRecord (type_params: list variableTyp)
+              (fields: P4String.AList tags_t surfaceTyp)
+  | TypNewTyp (name: P4String)
+              (typ: surfaceTyp)
+  | TypAction (data_params: list parameter)
+              (ctrl_params: list parameter)
+  | TypConstructor (type_params: list variableTyp)
+                   (wildcard_params: list P4String)
+                   (params: list parameter)
+                   (ret: functionTyp)
+  | TypTable (result_typ_name: P4String).
 
   Inductive typ :=
   | TypSurface (typ: surfaceTyp)
   | TypDeclared (typ: declaredTyp) 
-  | TypSynthesized (typ: synthesizedTyp)
-  | TypVoid.
+  | TypSynthesized (typ: synthesizedTyp).
+  (* | TypVoid. *)
 
   Inductive Expression :=
   | ExpBool (b: Bool)

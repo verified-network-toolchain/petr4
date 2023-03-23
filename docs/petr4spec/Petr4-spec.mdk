@@ -649,7 +649,7 @@ Two judgments are provided for types of P4 expressions:
 |~~~~:|:~~~~:|:~~~~|:~~~~|
 | $\declaredTyp$ | $::=$ |$\headerTyps \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{headers}$ |
 |   | $\vert$ | $\headerUnionTyps \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{header unions}$ |
-|   | $\vert$ | $\structTyps \typParam \field \typ$ | $\qquad \text{structs}$ |
+|   | $\vert$ | $\structTyps \typParam \field {\surfaceTyp \exp}$ | $\qquad \text{structs}$ |
 |   | $\vert$ | $\enumTypDef$ | $\qquad \text{serializable enums}$ |
 |   | $\vert$ | $\enumTypNoTypDef$ | $\qquad \text{enums}$ |
 |   | $\vert$ | $\parserTyp \typParams {\prmDefs \typ}$ | $\qquad \text{parsers}$ |

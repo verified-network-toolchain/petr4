@@ -109,11 +109,10 @@ Section Denote.
     | Typ.Var n => σ n
     | Typ.Array n t => Vec.t (denote_typ t) (N.to_nat n)
     | Typ.Struct b ts =>
-        HetVec.t denote_typ
-          (if b then
-             (Typ.Bool :: Vec.of_list ts)%vector
-           else
-             Vec.of_list ts)
+        if b then
+          HetVec.t denote_typ (Typ.Bool :: Vec.of_list ts)%vector
+        else
+          HetVec.t denote_typ (Vec.of_list ts)
     end.
   
   Fail Equations denote_typ : Typ.t -> Set := {
@@ -124,6 +123,10 @@ Section Denote.
       denote_typ (Typ.VarBit _) := N;
       denote_typ (Typ.Var n) := σ n;
       denote_typ (Typ.Array n t) := Vec.t (denote_typ t) (N.to_nat n);
-      denote_typ (Typ.Struct b ts) := HetVec.t denote_typ (Vec.of_list ts);
+      denote_typ (Typ.Struct b ts) :=
+        if b then
+          HetVec.t denote_typ (Typ.Bool :: Vec.of_list ts)%vector
+        else
+          HetVec.t denote_typ (Vec.of_list ts)
     }.
 End Denote.

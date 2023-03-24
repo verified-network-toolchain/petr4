@@ -1,10 +1,13 @@
 Require Import Coq.Strings.String.
 Require Import Poulet4.P4flat.Sig.
 Require Import Poulet4.P4flat.Spec.
+Require Import Coq.Classes.EquivDec.
 
 Module Dijkstra.
   Section Dijkstra.
     Variable (var: Type).
+    Context `{Equivalence var eq}.
+    Context `{EqDec var eq}.
     Variable (sig: signature).
     Inductive stmt : Type :=
     | GSkip

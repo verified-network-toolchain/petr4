@@ -39,13 +39,13 @@ Definition p4sig : Sig.signature :=
 Definition mk_action (name: string) : Spec.tm var p4sig :=
   @Spec.TFun _ p4sig (BAction name) [].
 
-Fixpoint lhs_to_var (e: Expr.e) : result string var :=
+Definition lhs_to_var (e: Expr.e) : result string var :=
   match e with
   | Expr.Var _ s _ => ok s
   | _ => error "lvals besides vars not implemented"
   end.
 
-Fixpoint e_to_tm (e: Expr.e) : result string (Spec.tm var p4sig) :=
+Definition e_to_tm (e: Expr.e) : result string (Spec.tm var p4sig) :=
   match e with
   | Expr.Bit width val =>
       ok (@Spec.TFun _ p4sig (BBitLit width val) [])
@@ -78,7 +78,7 @@ Fixpoint s_to_stmt (s: Stmt.s) : result string (stmt var p4sig) :=
                               GSeq (GAssume (Spec.FEq act_choice (mk_action name)))
                                    stmt')
                            actions) in
-      let actions_stmt := List.fold_right GSeq (GSkip _ _) actions_stmts in
+      let actions_stmt := List.fold_right GChoice (GSkip _ _) actions_stmts in
       ok (GSeq call_stmt actions_stmt)
   | Stmt.Var original_name (inl typ) tail =>
       (* declaration is a no-op. *)
@@ -101,7 +101,7 @@ Fixpoint s_to_stmt (s: Stmt.s) : result string (stmt var p4sig) :=
                   (GSeq (GAssume else_cond) fls_blk'))
   end.
 
-Fixpoint prog_to_stmt (p: TopDecl.prog) :=
+Definition prog_to_stmt (p: TopDecl.prog) :=
   let* (_, main_args) := TopDecl.find_decl "main" p
                          >>= TopDecl.expect_pkg in
   let* ctrl := match main_args with

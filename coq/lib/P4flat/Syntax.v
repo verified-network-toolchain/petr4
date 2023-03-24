@@ -2,7 +2,10 @@ Require Import Coq.PArith.BinPos Coq.ZArith.BinInt.
 Require Import Poulet4.P4cub.Syntax.AST.
 Require Export Poulet4.P4cub.Syntax.P4Field.
 Require Import Poulet4.P4light.Syntax.P4Int.
+Require Import Poulet4.Monads.Result.
 Import String.
+
+Local Open Scope string_scope.
 
 (** * P4flat AST *)
 
@@ -16,7 +19,7 @@ Module Lval.
   | Index (array : lv) (index : nat)
   | Member (struct: lv) (field : nat).
 End Lval.
-Locate  P4Int.
+
 Module Pattern.
   Inductive pat : Set :=
   | Wild                         (** wild-card/anything pattern *)
@@ -53,9 +56,9 @@ Module Stmt.
       (args : Expr.args)
       (returns : option Expr.e)
   | Table
-      (const_rules: list (list Pattern.pat * s))
       (ctrl_plane_name: string)
       (key: list Expr.e)
+      (actions: list (string * s))
   (** blocks of statements: *)
   | Var
       (original_name : string)
@@ -94,4 +97,40 @@ Module TopDecl.
 
   (** A p4flat program. *)
   Definition prog : Set := list d.
+
+  Definition d_name (decl: d) : string :=
+    match decl with
+    | Extern name _ _ _ _
+    | ControlBlock name _ _
+    | Pkg name _ => name
+    end.
+
+  Definition expect_extern (decl: d) :=
+    match decl with
+    | Extern extern_name type_params cparams expr_cparams methods =>
+        ok (extern_name, type_params, cparams, expr_cparams, methods)
+    | _ => error "got other decl"
+    end.
+
+  Definition expect_controlblock (decl: d) : result string (string * Expr.params * Stmt.s) :=
+    match decl with
+    | ControlBlock name params body => ok (name, params, body)
+    | _ => error "got other decl"
+    end.
+  
+  Definition expect_pkg (decl: d) : result string (string * list string) :=
+    match decl with
+    | Pkg name cargs => ok (name, cargs)
+    | _ => error "got other decl"
+    end.
+
+  Fixpoint find_decl (name: string) (p: prog) : result string d :=
+    match p with
+    | decl :: p' =>
+        if String.eqb (d_name decl) name
+        then ok decl
+        else find_decl name p'
+    | [] => error "decl not found"
+    end.
+  
 End TopDecl.

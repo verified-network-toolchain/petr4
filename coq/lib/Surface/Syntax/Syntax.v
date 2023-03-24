@@ -12,17 +12,14 @@ Section Syntax.
   Notation P4String := (P4String.t tags_t).
   Notation P4Int := (P4Int.t tags_t).
 
-  Variant parameter :=
-  | Parameter (direction: direction)
-              (typ: surfaceTyp)
-              (default_value: option expression)
-              (variable: P4String).
-
   Variant direction :=
   | In
   | Out
   | InOut
   | Directionless.
+
+  Variant variableTyp :=
+  | TypVariable (variable: P4String).
 
   Variant functionKind :=
   | FunParser
@@ -44,13 +41,10 @@ Section Syntax.
   | TypVarBit (width: N)
   | TypIdentifier (name: P4String)
   | TypSpecialization (base: surfaceTyp)
-                   (args: list surfaceType)
+                   (args: list surfaceTyp)
   | TypHeaderStack (typ: surfaceTyp)
                    (size: N)
   | TypTuple (types: list surfaceTyp).
-
-  Variant variableTyp :=
-  | TypVariable (variable: P4String).
 
   Variant functionTyp :=
   | TypSurface (typ: surfaceTyp)
@@ -73,7 +67,17 @@ Section Syntax.
                (parameters: list parameter)
   | TypPackage (type_params: list variableTyp)
                (wildcard_params: list P4String)
-               (parameters: list parameter).
+               (parameters: list parameter)
+  with parameter :=
+  | Param (dir: direction)
+          (typ: surfaceTyp)
+          (default_value: option expression)
+          (variable: P4String)
+  with expression :=
+  | ExpBool (b: bool)
+  | ExpString (s: P4String)
+  | ExpInt (i: P4Int).
+  (* | ExpSignedInt (). *)
 
   Inductive synthesizedTyp :=
   | TypFunction (type_params: list variableTyp)
@@ -95,16 +99,10 @@ Section Syntax.
   | TypTable (result_typ_name: P4String).
 
   Inductive typ :=
-  | TypSurface (typ: surfaceTyp)
-  | TypDeclared (typ: declaredTyp) 
-  | TypSynthesized (typ: synthesizedTyp).
+  | TypeSurface (typ: surfaceTyp)
+  | TypeDeclared (typ: declaredTyp) 
+  | TypeSynthesized (typ: synthesizedTyp).
   (* | TypVoid. *)
-
-  (* Inductive expression := *)
-  (* | ExpBool (b: Bool) *)
-  (* | ExpString (s: P4String) *)
-  (* | ExpInt (i: P4Int) *)
-  (* | ExpSignedInt (). *)
 
 End Syntax. 
 

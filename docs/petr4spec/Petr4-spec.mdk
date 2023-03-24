@@ -2472,6 +2472,8 @@ Note that the expression has to be of a one of the types: record, extern, specia
 - $\setValidity$ stands for both $\setValid$ and $\setInvalid$. ``todo: we dont have void type in tau rn``
 - $\nextOrLast$ stands for either $\next$ or $\last$.
 
+``reminder for parisa: you worked up to here. expression membership.``
+
 ~ Begin InfRule
 
   \inferrule

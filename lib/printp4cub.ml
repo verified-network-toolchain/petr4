@@ -55,11 +55,8 @@ let print_bin p b =
   in
   fprintf p "%s" s
 
-let print_paramarg printa printb p (ab : ('a,'b) paramarg) = 
-  match ab with
-  | PAIn a -> fprintf p "PAIn <%a>" printa a
-  | PAOut b -> fprintf p "PAOut <%a>" printb b
-  | PAInOut b -> fprintf p "PAInOut <%a>" printb b
+let print_inout printa printb p ({inn; out} : ('a,'b) InOut.t) =
+ fprintf p "@[inn: <%a>, out: <%a>@]" printa inn printb out
 
 let print_list ?(sep="") f p l =
   let print_item b x =
@@ -82,10 +79,10 @@ let print_fields print1 print2 p (f : ('a * 'b) list) =
   else ()
 
 
-let print_arrow printk printa printb p (ar: ('k,'a,'b) arrow) =
+let print_arrow printk printa printb p (ar: ('k,'a,'b) Arr.t) =
   fprintf p "@[paramargs: <%a>, rtrns: <%a>@]"
-    (print_fields printk (print_paramarg printa printb)) ar.paramargs
-    (print_option printb) ar.rtrns 
+    (print_inout printk printa) ar.inout
+    (print_option printb) ar.ret
 
 
 let print_string_string_field =
@@ -114,10 +111,9 @@ let rec print_type p (t:Typ.t) =
                                   print_bigint l  
   | Typ.Var n -> fprintf p "TVar <%a>" my_print_int n
 
-let print_params p (pa: Typ.params) = 
-  print_fields print_string (print_paramarg print_type print_type) p pa
+let print_params = print_inout (print_fields print_string print_type) (print_fields print_string print_type)
 
-let print_arrowT = print_arrow print_string print_type print_type
+let print_arrowT = print_arrow (print_fields print_string print_type) (print_fields print_string print_type) print_type
 
 let print_ct p = 
   function
@@ -193,8 +189,7 @@ let rec print_exp p =
         print_exp e2
 
 
-let print_args p (a : Exp.args) =
-  (print_list ~sep:"," (print_paramarg print_exp print_exp)) p a
+let print_args = print_inout (print_list ~sep:"," print_exp) (print_list ~sep:"," print_exp)
 
 let print_constructor_args p (c : Top.constructor_args) =
   (print_list ~sep:"," print_string) p c

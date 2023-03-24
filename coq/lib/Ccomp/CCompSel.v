@@ -148,19 +148,17 @@ Section CCompSel.
   Definition CTranslateExprList
     : list Exp.t -> StateT ClightEnv (result string) (list Clight.expr) :=
     state_list_map CTranslateExpr.
+
+  Definition CTranslateOutArg (e : Exp.t) : StateT ClightEnv (result string) Clight.expr :=
+    let* ct := State_lift (CTranslateType (typ_of_exp e)) in
+    let^ ce := CTranslateExpr e in
+    Eaddrof ce (Tpointer ct noattr).
   
-  Definition CTranslateArgs
-    : Exp.args -> StateT ClightEnv (result string) (list Clight.expr) :=
-    state_list_map
-      (fun (arg : paramarg Exp.t Exp.t) =>
-         match arg with
-         | PAIn e => CTranslateExpr e
-         | PAOut e
-         | PAInOut e =>
-             let* ct := State_lift (CTranslateType (typ_of_exp e)) in
-             let^ ce := CTranslateExpr e in
-             Eaddrof ce (Tpointer ct noattr)
-         end).
+  Definition CTranslateArgs (args : Exp.args)
+    : StateT ClightEnv (result string) (list Clight.expr) :=
+    let* innargs := state_list_map CTranslateExpr args.(InOut.inn) in
+    let^ outargs := state_list_map CTranslateOutArg args.(InOut.out) in
+    innargs ++ outargs.
   
   Definition ValidBitIndex (arg: Exp.t) (env: ClightEnv)
     : (result string) AST.ident :=
@@ -492,22 +490,28 @@ Section CCompSel.
          let* t := CTranslateType t in
          modify_state (M_Monad := identity_monad) (add_temp_arg t new_id) ;;
          state_return (M_Monad := identity_monad) (new_id, t)).
+
+  Definition CTranslateInParam '((_,t) : string * Typ.t)
+    : State ClightEnv (AST.ident * Ctypes.type) :=
+    let* new_id := new_ident in
+    let* ct := CTranslateType t in
+    modify_state (add_temp_arg ct new_id) ;;
+    mret (new_id, ct).
+
+  Definition CTranslateOutParam '((_,t) : string * Typ.t)
+    : State ClightEnv (AST.ident * Ctypes.type) :=
+    let* new_id := new_ident in
+    let* ct := CTranslateType t in
+    let cparam := Ctypes.Tpointer ct noattr in
+    modify_state (add_temp_arg ct new_id) ;;
+    mret (new_id, cparam).
   
   Definition CTranslateParams
-    : Typ.params -> State ClightEnv (list (AST.ident * Ctypes.type)) :=
-    state_list_map
-      (fun '(_,param) =>
-         let* new_id := new_ident in
-         let* '(ct, cparam) :=
-           match param with
-           | PAIn t =>
-               let^ ct := CTranslateType t in (ct, ct)
-           | PAOut t
-           | PAInOut t =>
-               let^ ct := CTranslateType t in (ct, Ctypes.Tpointer ct noattr)
-           end in
-         modify_state (add_temp_arg ct new_id) ;;
-         mret (new_id, cparam)).
+    (params : Typ.params)
+    : State ClightEnv (list (AST.ident * Ctypes.type)) :=
+    let* innparams := state_list_map CTranslateInParam params.(InOut.inn) in
+    let^ outparams := state_list_map CTranslateOutParam params.(InOut.out) in
+    innparams ++ outparams.
   
   Definition CTranslateExternParams (extern_params : list (string * string))
     : State ClightEnv (list (AST.ident * Ctypes.type)) :=
@@ -529,70 +533,56 @@ Section CCompSel.
     : Typ.params -> StateT ClightEnv (result string) Clight.statement :=
     (lift_monad statement_of_list)
       ∘ (state_list_mapi
-           (fun (name : nat) '((_,fn_param): string * paramarg Typ.t Typ.t) =>
+           (fun (name : nat) '((_,t): string *  Typ.t) =>
               let* '(oldid, tempid) := search_state (find_ident_temp_arg name) in
-              match fn_param with
-              | PAIn t =>
-                  let^ ct := State_lift (CTranslateType t) in
-                  Sassign (Evar tempid ct) (Evar oldid ct)
-              | PAOut t
-              | PAInOut t => 
-                  let^ ct := State_lift (CTranslateType t) in
-                  Sassign
-                    (Evar tempid ct)
-                    (Ederef (Evar oldid (Ctypes.Tpointer ct noattr)) ct)
-              end)).
+              let^ ct := State_lift (CTranslateType t) in
+              Sassign (Evar tempid ct) (Evar oldid ct))) ∘ InOut.inn.
   
   Definition CCopyOut
     : Typ.params ->
       StateT ClightEnv (result string) Clight.statement :=
     (lift_monad statement_of_list)
       ∘ (state_list_mapi
-           (fun (name: nat) '((_,fn_param): string * paramarg Typ.t Typ.t) =>
+           (fun (name: nat) '((_,t): string * Typ.t) =>
               let* (oldid, tempid) := search_state (find_ident_temp_arg name) in
-              match fn_param with
-              | PAIn t => 
-                  let^ ct := State_lift (CTranslateType t) in
-                  Sassign (Evar oldid ct) (Evar tempid ct)
-              | PAOut t
-              | PAInOut t =>
-                  let^ ct := State_lift (CTranslateType t) in
+              let^ ct := State_lift (CTranslateType t) in
                   Sassign
                     (Ederef (Evar oldid (Ctypes.Tpointer ct noattr)) ct)
-                    (Evar tempid ct)
-              end)).
+                    (Evar tempid ct))) ∘ InOut.out.
 
   (** Return the list of args for the params. *)
   Definition CFindTempArgs
     : Typ.params ->
       StateT ClightEnv (result string) (list Clight.expr) :=
     state_list_mapi
-      (fun (name: nat) '((_,fn_param): string * paramarg Typ.t Typ.t) =>
+      (fun (name: nat) '((_,t): string * Typ.t) =>
          let* (oldid, tempid) := search_state (find_ident_temp_arg name) in
-         match fn_param with 
-         | PAIn t
-         | PAOut t
-         | PAInOut t =>
-             State_lift (CTranslateType t >>| Evar tempid)
-         end).
+         State_lift (CTranslateType t >>| Evar tempid))
+      ∘ InOut.concat.
 
   (** Return the list of args for the params but adding directions.
       change the temp to ref temp if it is a out parameter. *)
   (* TODO: originally this function
      dropped state, should it do that? *)
   Definition CFindTempArgsForCallingSubFunctions
-    : Typ.params
-      -> StateT ClightEnv (result string) (list Clight.expr) :=
-    state_list_mapi
-      (fun (name: nat) '((_,fn_param): string * paramarg Typ.t Typ.t) =>
-         let* (oldid, tempid) := search_state (find_ident_temp_arg name) in
-         match fn_param with
-         | PAIn t => State_lift (CTranslateType t >>| Evar tempid)
-         | PAOut t
-         | PAInOut t =>
-             let^ ct := State_lift (CTranslateType t) in
-             Eaddrof (Evar tempid ct) (Tpointer ct noattr)
-         end).
+    (params : Typ.params)
+    : StateT ClightEnv (result string) (list Clight.expr) :=
+    let* inns :=
+      state_list_mapi
+        (ST:=ClightEnv) (M:=result string) (A:=string * Typ.t) (B:=Clight.expr)
+        (fun (name: nat) '((_,t): string * Typ.t) =>
+           let* '(_, tempid) := search_state (find_ident_temp_arg name) in
+           let^ ct := State_lift (CTranslateType t) in Evar tempid ct)
+        params.(InOut.inn) in
+    let^ outs :=
+      state_list_mapi
+        (ST:=ClightEnv) (M:=result string) (A:=string * Typ.t) (B:=Clight.expr)
+        (fun (name: nat) '((_,t): string * Typ.t) =>
+           let* (oldid, tempid) := search_state (find_ident_temp_arg name) in
+           let^ ct := State_lift (CTranslateType t) in
+           Eaddrof (Evar tempid ct) (Tpointer ct noattr))
+        params.(InOut.out) in
+    (inns ++ outs)%list.
 
   Definition
     CFindTempArgsForSubCallsWithExtern
@@ -604,9 +594,9 @@ Section CCompSel.
       List.map (fun '(x,t) => Etempvar x t) fn_eparams in
     e_call_args ++ call_args.
 
-  Definition CTranslateArrow '({|paramargs:=pas; rtrns:=ret|} : Typ.arrowT)
+  Definition CTranslateArrow '({|Arr.inout:=params; Arr.ret:=ret|} : Typ.arrow)
     : State ClightEnv (list (AST.ident * Ctypes.type) * Ctypes.type) :=
-    let* fn_params := CTranslateParams pas in
+    let* fn_params := CTranslateParams params in
     match ret with 
     | None => mret (fn_params, Ctypes.Tvoid)
     | Some return_t => 
@@ -936,8 +926,8 @@ Section CCompSel.
            architectures? *)
         if String.eqb t "packet_in" then
           if String.eqb f "extract" then
-            match nth_error args 0 with
-            | Some (PAOut arg) =>
+            match nth_error args.(InOut.out) 0 with
+            | Some arg =>
                 CTranslateExtract arg (typ_of_exp arg) e
             | _ => state_lift (Result.error "no out argument named hdr")
             end
@@ -945,16 +935,16 @@ Section CCompSel.
         else 
           if String.eqb t "packet_out" then
             if String.eqb f "emit" then
-              match nth_error args 0 with 
-              | Some (PAIn arg) => 
+              match nth_error args.(InOut.inn) 0 with 
+              | Some arg => 
                   CTranslateEmit arg (typ_of_exp arg) e
               | _ => state_lift (Result.error "no out argument named hdr")
               end
             else mret Sskip
           else
             if String.eqb f "mark_to_drop" then
-              match nth_error args 0 with
-              | Some (PAInOut arg) =>
+              match nth_error (InOut.inn args) 0 with
+              | Some arg =>
                   let^ elist := CTranslateArgs args in
                   Scall None mark_to_drop_function elist
               | _ => state_lift
@@ -1103,7 +1093,7 @@ Section CCompSel.
     let* env := get_state in
     let* fn_params := State_lift (CTranslateParams signature) in
     let fn_params := top_fn_params ++ ctrl_params ++ fn_params in 
-    let full_signature := top_signature ++ signature in
+    let full_signature := InOut.append top_signature signature in
     let* copyin := CCopyIn full_signature in
     let* copyout := CCopyOut full_signature in
     let* c_body := CTranslateStatement body in
@@ -1208,7 +1198,7 @@ Section CCompSel.
         let* env := get_state in
         let* '(fn_params, fn_return) := State_lift (CTranslateArrow signature) in
         let* env_params_created := get_state in
-        let paramargs := AST.paramargs signature in
+        let paramargs := Arr.inout signature in
         let* copyin := CCopyIn paramargs in
         let* copyout := CCopyOut paramargs in
         let* c_body := CTranslateStatement body in

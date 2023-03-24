@@ -178,10 +178,8 @@ Section Shift.
 
   Local Close Scope exp_scope.
   
-  Definition shift_arg
-    : paramarg Exp.t Exp.t ->
-      paramarg Exp.t Exp.t :=
-    paramarg_map_same $ shift_exp.
+  Definition shift_args : Exp.args -> Exp.args :=
+    InOut.map_uni shift_exp.
 
   Definition shift_call
     (fk : Call.t) : Call.t :=
@@ -238,24 +236,13 @@ Section Shift.
 
   Local Hint Rewrite shift_exp_map_0 : core.
 
-  Lemma shift_arg_0 : forall arg, shift_arg c 0 arg = arg.
+  Lemma shift_args_0 : forall args, shift_args c 0 args = args.
   Proof using.
-    intros []; unravel;
-      autorewrite with core; reflexivity.
+    intros []; unfold shift_args, InOut.map_uni, InOut.map.
+    do 2 autorewrite with core. reflexivity.
   Qed.
 
-  Local Hint Rewrite shift_arg_0 : core.
-
-  Lemma shift_arg_map_0 : forall args,
-      map (shift_arg c 0) args = args.
-  Proof using.
-    intros args;
-      induction args as [| arg args ih];
-      unravel; autorewrite with core;
-      f_equal; auto.
-  Qed.
-
-  Local Hint Rewrite shift_arg_map_0 : core.
+  Local Hint Rewrite shift_args_0 : core.
   
   Lemma shift_trns_0 : forall p, shift_trns c 0 p = p.
   Proof using.
@@ -286,15 +273,6 @@ Section Shift.
 
   Local Hint Rewrite shift_exp_add : core.
   
-  Lemma shift_arg_add : forall arg,
-      shift_arg c m (shift_arg c n arg)
-      = shift_arg c (m + n) arg.
-  Proof using.
-    intros [e | e | e]; unravel; autorewrite with core; reflexivity.
-  Qed.
-
-  Local Hint Rewrite shift_arg_add : core.
-  
   Lemma shift_trns_add : forall t,
       shift_trns c m (shift_trns c n t)
       = shift_trns c (m + n) t.
@@ -323,13 +301,13 @@ Section Shift.
 
   Local Hint Rewrite shift_exp_map_add : core.
   
-  Lemma shift_arg_map_add : forall args,
-      map (shift_arg c m) (map (shift_arg c n) args)
-      = map (shift_arg c (m + n)) args.
+  Lemma shift_args_add : forall args,
+      shift_args c m (shift_args c n args)
+      = shift_args c (m + n) args.
   Proof using.
-    intros args;
-      induction args as [| arg args ih]; unravel;
-      autorewrite with core; f_equal; auto.
+    intros [ia oa].
+    unfold shift_args, InOut.map_uni, InOut.map; cbn.
+    autorewrite with core. reflexivity.
   Qed.
 
   Lemma shift_call_add : forall cl,
@@ -346,10 +324,10 @@ Global Instance Shift_exp : Shift Exp.t := {
     shift_add := shift_exp_add
   }.
 
-Global Instance Shift_arg : Shift (paramarg Exp.t Exp.t) := {
-    shift := shift_arg;
-    shift_0 := shift_arg_0;
-    shift_add := shift_arg_add
+Global Instance Shift_args : Shift Exp.args := {
+    shift := shift_args;
+    shift_0 := shift_args_0;
+    shift_add := shift_args_add
   }.
 
 Global Instance Shift_trns : Shift Trns.t := {
@@ -380,7 +358,7 @@ Fixpoint shift_stm
   | Stm.Invoke e t
     => Stm.Invoke (option_map (shift_exp c a) e) t
   | Stm.App fk args
-    => Stm.App (shift_call c a fk) $ map (shift_arg c a) args
+    => Stm.App (shift_call c a fk) $ shift_args c a args
   |`let og := te `in b
     => `let og := map_sum id (shift_exp c a) te `in shift_stm (S c) a b
   | s₁ `; s₂ => shift_stm c a s₁ `; shift_stm c a s₂
@@ -396,7 +374,7 @@ Definition shift_ctrl
   | Ctrl.Table t key argss def =>
       Ctrl.Table
         t (map (fun '(e, mk) => (shift_exp c amt e, mk)) key)
-        (map (fun '(a, args) => (a, map (shift_arg c amt) args)) argss)
+        (map (fun '(a, args) => (a, shift_args c amt args)) argss)
         $ option_map (fun '(a, es) => (a, map (shift_exp c amt) es)) def
   end.
 
@@ -414,7 +392,7 @@ Local Close Scope stm_scope.
 Section Shiftstm.
   Local Hint Rewrite shift_exp_0 : core.
   Local Hint Rewrite shift_exp_map_0 : core.
-  Local Hint Rewrite shift_arg_map_0 : core.
+  Local Hint Rewrite shift_args_0 : core.
   Local Hint Rewrite shift_trns_0 : core.
   Local Hint Rewrite shift_call_0 : core.
   Local Hint Rewrite shift_exp_option_map_0 : core.
@@ -434,7 +412,7 @@ Section Shiftstm.
 
   Local Hint Rewrite shift_exp_add : core.
   Local Hint Rewrite shift_exp_map_add : core.
-  Local Hint Rewrite shift_arg_map_add : core.
+  Local Hint Rewrite shift_args_add : core.
   Local Hint Rewrite shift_trns_add : core.
   Local Hint Rewrite shift_call_add : core.
   Local Hint Rewrite shift_exp_option_map_add : core.
@@ -493,9 +471,9 @@ Section Rename.
   
   Local Close Scope exp_scope.
 
-  Definition rename_arg
-    : paramarg Exp.t Exp.t -> paramarg Exp.t Exp.t :=
-    paramarg_map_same $ rename_exp.
+  Definition rename_args
+    : Exp.args -> Exp.args :=
+    InOut.map_uni rename_exp.
 
   Definition rename_call (fk : Call.t)
     : Call.t :=
@@ -532,7 +510,7 @@ Fixpoint rename_stm (ρ : nat -> nat) (s : Stm.t) : Stm.t :=
   | Stm.Invoke e t
     => Stm.Invoke (option_map (rename_exp ρ) e) t
   | Stm.App fk args
-    => Stm.App fk $ map (rename_arg ρ) args
+    => Stm.App fk $ rename_args ρ args
   | `let og := te `in b
     => `let og := map_sum id (rename_exp ρ) te `in rename_stm (ext ρ) b
   | s₁ `; s₂ => rename_stm ρ s₁ `; rename_stm ρ s₂
@@ -572,9 +550,9 @@ Section TermSub.
   
   Local Close Scope exp_scope.
 
-  Definition exp_sub_arg
-    : paramarg Exp.t Exp.t -> paramarg Exp.t Exp.t :=
-    paramarg_map_same $ exp_sub_exp.
+  Definition exp_sub_args
+    : Exp.args -> Exp.args :=
+    InOut.map_uni exp_sub_exp.
 
   Definition exp_sub_trns (pe : Trns.t) : Trns.t :=
     match pe with
@@ -607,7 +585,7 @@ Fixpoint exp_sub_stm (σ : nat -> Typ.t -> String.string -> Exp.t) (s : Stm.t) :
   | e₁ `:= e₂ => exp_sub_exp σ e₁ `:= exp_sub_exp σ e₂
   | Stm.SetValidity b e => Stm.SetValidity b $ exp_sub_exp σ e
   | Stm.Invoke e t => Stm.Invoke (option_map (exp_sub_exp σ) e) t
-  | Stm.App fk args => Stm.App (exp_sub_call σ fk) $ List.map (exp_sub_arg σ) args
+  | Stm.App fk args => Stm.App (exp_sub_call σ fk) $ exp_sub_args σ args
   | `let og := te `in s => `let og := map_sum id (exp_sub_exp σ) te `in exp_sub_stm (exts σ) s
   | s₁ `; s₂ => exp_sub_stm σ s₁ `; exp_sub_stm σ s₂
   | `if e `then s₁ `else s₂ => `if exp_sub_exp σ e `then exp_sub_stm σ s₁ `else exp_sub_stm σ s₂

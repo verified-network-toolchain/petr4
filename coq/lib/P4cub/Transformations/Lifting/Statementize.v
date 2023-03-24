@@ -54,23 +54,18 @@ Fixpoint lift_exp (e : Exp.t) {struct e}
 Definition lift_exp_list : list Exp.t -> list Exp.t * list Exp.t :=
   lift_A_list shift_exp lift_exp.
 
-Definition lift_arg (arg : paramarg Exp.t Exp.t)
-  : paramarg Exp.t Exp.t * list Exp.t :=
-  match arg with
-  | PAIn e =>
-      let '(e, le) := lift_exp e in (PAIn e, le)
-  | PAOut e =>
-      let '(e, le) := lift_exp e in (PAOut e, le)
-  | PAInOut e =>
-      let '(e, le) := lift_exp e in (PAInOut e, le)
-  end.
+Definition lift_args (args : Exp.args) : Exp.args * list Exp.t :=
+  let '(args_inn, linn) := lift_exp_list $ InOut.inn args in
+  let '(args_out, lout) := lift_exp_list $ InOut.out args in
+  let '(args_inn, args_out, lout)
+    := shift_couple
+         (fun c a => map (shift_exp c a))
+         (fun c a => map (shift_exp c a))
+         args_inn args_out linn lout in
+  (InOut.mk_t args_inn args_out, (lout ++ linn)%list).
 
-Definition lift_args : Exp.args -> Exp.args * list Exp.t :=
-  lift_A_list shift_arg lift_arg.
-
-Definition lift_args_list
-  : list Exp.args -> list Exp.args * list Exp.t :=
-  lift_A_list (shift_list shift_arg) lift_args.
+Definition lift_args_list : list Exp.args -> list Exp.args * list Exp.t :=
+  lift_A_list shift_args lift_args.
 
 Fixpoint Unwind (es : list Exp.t) (s : Stm.t) : Stm.t :=
   match es with
@@ -129,7 +124,8 @@ Fixpoint lift_stm (s : Stm.t) : Stm.t :=
   | Stm.App fk args
     => let '(fk,lfk) := lift_call fk in
       let '(args,largs) := lift_args args in
-      let '(args, fk, lfk) := shift_couple (fun c a => map (shift_arg c a)) shift_call args fk largs lfk in
+      let '(args, fk, lfk) :=
+        shift_couple shift_args shift_call args fk largs lfk in
       Unwind (lfk ++ largs) (Stm.App fk args)
   | `let og := inl t `in s => `let og := inl t `in lift_stm s
   | `let og := inr e `in s =>
@@ -169,7 +165,7 @@ Definition lift_ctrl (cd : Ctrl.t) : list Ctrl.t * nat :=
         shift_triple
           (fun c a => option_map (prod_map_snd (List.map (shift_exp c a))))
           (fun c a => List.map (shift_exp c a))
-          (fun c a => List.map (List.map (shift_arg c a)))
+          (fun c a => List.map (shift_args c a))
           def es argss defes ees argsss in
       ((List.map (Ctrl.Var "" ∘ inr) argsss
           ++ List.map (Ctrl.Var "" ∘ inr) ees

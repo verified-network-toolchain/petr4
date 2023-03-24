@@ -181,18 +181,6 @@ Section LifteInduction.
       end.
 End LifteInduction.
 
-Variant Lift_arg :
-  Exp.arg -> Exp.arg -> list Exp.t -> Prop :=
-  | Lift_pain e e' es :
-    Lift_exp e e' es ->
-    Lift_arg (PAIn e) (PAIn e') es
-  | Lift_paout e e' es :
-    Lift_exp e e' es ->
-    Lift_arg (PAOut e) (PAOut e') es
-  | Lift_painout e e' es :
-    Lift_exp e e' es ->
-    Lift_arg (PAInOut e) (PAInOut e') es.
-
 Variant Lift_trns :
   Trns.t -> Trns.t -> list Exp.t ->  Prop :=
   | Lift_direct lbl :
@@ -229,6 +217,38 @@ Variant Lift_call :
       ess
   | Lift_inst_call x eargs :
     Lift_call (Call.Inst x eargs) (Call.Inst x eargs) [].
+
+Record Lift_args (args args' : Exp.args) (es : list Exp.t) : Set :=
+  { inn_args : list Exp.t ;
+    out_args : list Exp.t ;
+    inn_es : list Exp.t ;
+    out_es : list Exp.t ;
+    Lift_inn : Lift_A_list shift_exp Lift_exp args.(InOut.inn) inn_args inn_es;
+    Lift_out : Lift_A_list shift_exp Lift_exp args.(InOut.out) out_args out_es;
+    inn_args'_eq :
+    InOut.inn args'
+    = fst
+        (fst
+           (shift_couple
+              (fun c a => map (shift_exp c a))
+              (fun c a => map (shift_exp c a))
+              inn_args out_args inn_es out_es));
+    out_args'_eq :
+    InOut.out args'
+    = snd
+        (fst
+           (shift_couple
+              (fun c a => map (shift_exp c a))
+              (fun c a => map (shift_exp c a))
+              inn_args out_args inn_es out_es));
+    es_eq :
+    es
+    = snd
+        (shift_couple
+           (fun c a => map (shift_exp c a))
+           (fun c a => map (shift_exp c a))
+           inn_args out_args inn_es out_es) ++ inn_es
+  }.
 
 Inductive Lift_stm : Stm.t -> Stm.t -> Prop :=
 | Lift_stmkip :
@@ -268,15 +288,15 @@ Inductive Lift_stm : Stm.t -> Stm.t -> Prop :=
     (Unwind es (Stm.Invoke (Some e') t))
 | Lift_app fk fk' fkes args args' argses :
   Lift_call fk fk' fkes ->
-  Lift_A_list shift_arg Lift_arg args args' argses ->
+  Lift_args args args' argses ->
   Lift_stm
     (Stm.App fk args)
     (Unwind
-       (snd (shift_couple (fun c a => map (shift_arg c a)) shift_call args' fk' argses fkes)
+       (snd (shift_couple shift_args shift_call args' fk' argses fkes)
           ++ argses)
        (Stm.App
-           (snd (fst (shift_couple (fun c a => map (shift_arg c a)) shift_call args' fk' argses fkes)))
-           (fst (fst (shift_couple (fun c a => map (shift_arg c a)) shift_call args' fk' argses fkes)))))
+           (snd (fst (shift_couple shift_args shift_call args' fk' argses fkes)))
+           (fst (fst (shift_couple shift_args shift_call args' fk' argses fkes)))))
 | Lift_stmeq s1 s2 s1' s2' :
   Lift_stm s1 s1' ->
   Lift_stm s2 s2' ->
@@ -341,23 +361,6 @@ Section Liftlift.
 
   Local Hint Extern 5 => apply_Lift_lift_exp : core.
 
-  Lemma Lift_lift_arg : forall arg arg' es,
-      Lift_arg arg arg' es ->
-      lift_arg arg = (arg', es).
-  Proof.
-    intros arg arg' es h; inv h; cbn; auto.
-  Qed.
-
-  Local Hint Resolve Lift_lift_arg : core.
-
-  Ltac apply_Lift_lift_arg :=
-    match goal with
-    | h: Lift_arg _ _ _
-      |- _ => apply Lift_lift_arg in h; rewrite h
-    end.
-  
-  Local Hint Extern 5 => apply_Lift_lift_arg : core.
-
   Lemma Lift_lift_trns : forall pe pe' es,
       Lift_trns pe pe' es ->
       lift_trns pe = (pe',es).
@@ -389,16 +392,27 @@ Section Liftlift.
     end.
 
   Local Hint Extern 5 => apply_Forall3_Lift_lift_exp : core.
+
+  Lemma Lift_lift_exp_list : forall es es' ess,
+      Lift_A_list shift_exp Lift_exp es es' ess ->
+      lift_exp_list es = (es', ess).
+  Proof using.
+    eauto using Lift_A_list_lift_A_list.
+  Qed.
+
+  Ltac apply_Lift_lift_exp_list :=
+    match goal with
+    | h : Lift_A_list shift_exp Lift_exp _ _ _
+      |- _ => apply Lift_lift_exp_list in h; rewrite h
+    end.
+
+  Local Hint Extern 5 => apply_Lift_lift_exp_list : core.
   
   Lemma Lift_lift_call : forall fk fk' es,
       Lift_call fk fk' es ->
       lift_call fk = (fk', es).
   Proof.
     intros fk fk' es h; inv h; cbn; auto.
-    let_destr_pair.
-    eapply Lift_A_list_lift_A_list with (lifta:=lift_exp) in H; auto.
-    unfold lift_exp_list.
-    pair_fst_snd_eqns. reflexivity.
   Qed.
 
   Local Hint Resolve Lift_lift_call : core.
@@ -410,30 +424,34 @@ Section Liftlift.
       end.
 
   Local Hint Extern 5 => apply_Lift_lift_call : core.
-  
-  Lemma Forall3_Lift_lift_arg : forall args args' ess,
-      Forall3 Lift_arg args args' ess ->
-      map lift_arg args = combine args' ess.
-  Proof.
-    refine (Forall3_LiftA_map_lifta _ _ _). auto.
+
+  Lemma Lift_lift_args : forall args args' es,
+      Lift_args args args' es ->
+      lift_args args = (args', es).
+  Proof using.
+    intros [ia oa] [ia' oa'] es h.
+    unfold lift_args; unravel.
+    repeat let_destr_pair.
+    destruct h as [ia'' oa'' ies oes hinn hout hinneq houteq heq].
+    cbn in *. subst.
+    do 2 apply_Lift_lift_exp_list. reflexivity.
   Qed.
 
-  Ltac apply_Forall3_Lift_lift_arg :=
-    match goal with
-    | h : Forall3 Lift_arg _ _ _
-      |- _ => apply Forall3_Lift_lift_arg in h; rewrite h
-    end.
+  Local Hint Resolve Lift_lift_args : core.
 
-  Local Hint Extern 5 => apply_Forall3_Lift_lift_arg : core.
+  Ltac apply_Lift_lift_args :=
+      match goal with
+      | h: Lift_args _ _ _
+        |- _ => apply Lift_lift_args in h; rewrite h
+      end.
 
+  Local Hint Extern 5 => apply_Lift_lift_args : core.
+  
   Lemma Lift_lift_stm : forall s s',
       Lift_stm s s' -> lift_stm s = s'.
   Proof.
     intros s s' h; induction h; unravel; subst;
       repeat let_destr_pair; auto.
-    apply Lift_lift_call in H.
-    apply Lift_A_list_lift_A_list with (lifta:=lift_arg) in H0; auto.
-    do 2 pair_fst_snd_eqns. reflexivity.
   Qed.
 End Liftlift.
 
@@ -453,33 +471,6 @@ Section liftLift.
   Qed.
 
   Local Hint Resolve lift_Lift_exp : core.
-  
-  Corollary lift_Lift_exp_aux : forall e e' es,
-      lift_exp e = (e', es) -> Lift_exp e e' es.
-  Proof.
-    intros; pair_fst_snd_eqns; auto.
-  Qed.
-
-  Local Hint Resolve lift_Lift_exp_aux : core.
-  Local Hint Constructors Lift_arg : core.
-  
-  Lemma lift_Lift_arg : forall arg,
-      Lift_arg arg (fst (lift_arg arg)) (snd (lift_arg arg)).
-  Proof.
-    intros [e | e | e]; unravel;
-      let_destr_pair; cbn; auto.
-  Qed.
-
-  Local Hint Resolve lift_Lift_arg : core.
-
-  Corollary lift_Lift_arg_aux : forall arg arg' es,
-      lift_arg arg = (arg', es) ->
-      Lift_arg arg arg' es.
-  Proof.
-    intros; pair_fst_snd_eqns; auto.
-  Qed.
-
-  Local Hint Resolve lift_Lift_arg_aux : core.
   Local Hint Constructors Lift_trns : core.
   
   Lemma lift_Lift_trns : forall e,
@@ -490,15 +481,6 @@ Section liftLift.
   Qed.
 
   Local Hint Resolve lift_Lift_trns : core.
-
-  Corollary lift_Lift_trns_aux : forall e e' es,
-      lift_trns e = (e', es) ->
-      Lift_trns e e' es.
-  Proof.
-    intros; pair_fst_snd_eqns; auto.
-  Qed.
-
-  Local Hint Resolve lift_Lift_trns_aux : core.
   Local Hint Constructors Lift_call : core.
   Local Hint Resolve lift_A_list_Lift_A_list : core.
   
@@ -510,15 +492,16 @@ Section liftLift.
   Qed.
 
   Local Hint Resolve lift_Lift_call : core.
+  Local Hint Constructors Lift_args : core.
 
-  Lemma lift_Lift_call_aux : forall fk fk' es,
-      lift_call fk = (fk', es) ->
-      Lift_call fk fk' es.
+  Lemma lift_Lift_args : forall args,
+      Lift_args args (fst (lift_args args)) (snd (lift_args args)).
   Proof.
-    intros; pair_fst_snd_eqns; auto.
+    intros [ia oa]; unfold lift_args;
+      repeat let_destr_pair; eauto.
   Qed.
 
-  Local Hint Resolve lift_Lift_call_aux : core.
+  Local Hint Resolve lift_Lift_args : core.
   Local Hint Constructors Lift_stm : core.
 
   Lemma lift_Lift_stm : forall s,

@@ -113,7 +113,7 @@ Inductive type_call
   (Δ : nat) (Γ : list Typ.t) (fs : fenv) (c : ctx)
     : Call.t -> list Typ.t -> Typ.params -> Prop :=
 | type_call_funct f τs oe params ot :
-  fs f = Some (List.length τs, {|paramargs:=params; rtrns:=ot|}) ->
+  fs f = Some (List.length τs, {| Arr.inout:=params; Arr.ret:=ot|}) ->
   predop lexpr_ok oe ->
   relop (type_exp Δ Γ) oe (option_map (tsub_typ (gen_tsub τs)) ot) ->
   type_call Δ Γ fs c (Call.Funct f τs oe) τs params
@@ -125,7 +125,7 @@ Inductive type_call
 | type_call_method ei m τs oe params ot extern_insts methods :
   extern_call_ok extern_insts c ->
   extern_insts ei = Some (inl methods) ->
-  Field.get m methods = Some (List.length τs, {|paramargs:=params; rtrns:=ot|}) ->
+  Field.get m methods = Some (List.length τs, {| Arr.inout:=params; Arr.ret:=ot|}) ->
   predop lexpr_ok oe ->
   relop (type_exp Δ Γ) oe (option_map (tsub_typ (gen_tsub τs)) ot) ->
   type_call Δ Γ fs c (Call.Method ei m τs oe) τs params
@@ -135,15 +135,19 @@ Inductive type_call
   insts x = Some (inr (sig,extern_params,params)) ->
   type_call Δ Γ fs c (Call.Inst x exts) [] params.
 
-Definition type_arg
-  (Δ : nat) (Γ : list Typ.t) : Exp.arg -> Typ.param -> Prop :=
-  rel_paramarg
-    (type_exp Δ Γ)
-    (fun e τ => `⟨ Δ, Γ ⟩ ⊢ e ∈ τ /\ lexpr_ok e).
+Definition type_inn_arg
+  (Δ : nat) (Γ : list Typ.t) (e: Exp.t) '((_,τ) : String.string * Typ.t) : Prop :=
+  `⟨ Δ, Γ ⟩ ⊢ e ∈ τ.
+
+Definition type_out_arg
+  (Δ : nat) (Γ : list Typ.t) (e: Exp.t) '((_,τ) : String.string * Typ.t) : Prop :=
+  `⟨ Δ, Γ ⟩ ⊢ e ∈ τ /\ lexpr_ok e.
 
 Definition type_args
-  (Δ : nat) (Γ : list Typ.t) : Exp.args -> list Typ.param -> Prop :=
-  Forall2 (type_arg Δ Γ).
+  (Δ : nat) (Γ : list Typ.t) : Exp.args -> Typ.params -> Prop :=
+  InOut.Forall2
+    (type_inn_arg Δ Γ)
+    (type_out_arg Δ Γ).
 
 Reserved Notation "'`⧼' Δ , Γ , f , c ⧽ ⊢ s ⊣ sig" (at level 80, no associativity).
 
@@ -178,7 +182,7 @@ Inductive type_stm (Δ : nat) (Γ : list Typ.t) (fs : fenv)
 | type_app c params τs args fk :
   type_call Δ Γ fs c fk τs params ->
   Forall (typ_ok Δ) τs ->
-  type_args Δ Γ args (map (tsub_param (gen_tsub τs)) (map snd params)) ->
+  type_args Δ Γ args (tsub_params (gen_tsub τs) params) ->
   `⧼ Δ, Γ, fs, c ⧽ ⊢ Stm.App fk args ⊣ Signal.Cnt
 | type_invoke eo tbl tbls aa i n :
   tbls tbl = Some n ->
@@ -259,7 +263,7 @@ Variant type_ctrl (Γ : ctrl_type_env)
          exists ctrl_params data_params,
            actns Γ a = Some (ctrl_params, data_params)
            /\ type_args (ctype_vars Γ) (ctypes Γ)
-               data_args (List.map snd data_params))
+               data_args data_params)
       actions ->
     predop
       (fun '(a, es) =>
@@ -442,9 +446,9 @@ Inductive type_top (Γ : top_type_env)
                 type_params (map snd cparams)
                 exp_cparams extern_name ,, cnstrs Γ |>
 | type_function function_name type_params arrow body sig :
-  good_signal arrow sig ->
-  `⧼ type_params, bind_all (paramargs arrow) [], tfuncts Γ,
-      CFunction (rtrns arrow) ⧽ ⊢ body ⊣ sig ->
+  good_signal arrow.(Arr.ret) sig ->
+  `⧼ type_params, bind_all arrow.(Arr.inout) [], tfuncts Γ,
+      CFunction arrow.(Arr.ret) ⧽ ⊢ body ⊣ sig ->
   Γ ⊢tp Top.Funct
     function_name type_params arrow body
     ⊣ Γ <| tfuncts := function_name ↦ (type_params,arrow) ,, tfuncts Γ |>

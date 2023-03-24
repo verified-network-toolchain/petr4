@@ -444,7 +444,7 @@ Fixpoint lv_update (lv v : Exp.t) (ϵ : list Exp.t) : list Exp.t :=
   | _ => ϵ
   end.
 
-(** Create a new environment
+(*(** Create a new environment
     from a closure environment where
     values of [In] args are substituted
     into the function parameters. *)
@@ -458,9 +458,9 @@ Definition copy_in
              | PAOut lv
              | PAInOut lv => lv_lookup ϵcall lv
              end)
-    ▷ sequence.
+    ▷ sequence.*)
 
-(** Update call-site environment with
+(*(** Update call-site environment with
     out variables from function call evaluation. *)
 Definition copy_out
            (argsv : Exp.args) (ϵ_func : list Exp.t)
@@ -475,4 +475,4 @@ Definition copy_out
            | None   => ϵ_call
            | Some v => lv_update lv v ϵ_call
            end
-       end) ϵ_call argsv.
+       end) ϵ_call argsv.*)

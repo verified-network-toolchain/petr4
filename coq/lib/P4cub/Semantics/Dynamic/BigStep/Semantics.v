@@ -162,7 +162,7 @@ Variant ctx : Set :=
       (available_actions : aenv)
   | CFunction
   | CApplyBlock
-      (tables : tenv)
+      (tables : table_env)
       (available_actions : aenv)
       (available_controls : inst_env Val.t)
   | CParserState
@@ -236,30 +236,8 @@ Arguments eta_stm_eval_env {_}.
 Reserved Notation "⧼ Ψ , ϵ , c , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
          (at level 80, no associativity).
 
-Definition copy_out_from_arg
-  (input_arg : paramarg Val.t Lval.t) (output_arg : paramarg Val.t Val.t)
-  (ϵ_call : list Val.t) : list Val.t :=
-  match input_arg, output_arg with
-  | PAOut lv, PAOut v
-  | PAInOut lv, PAInOut v => lv_update lv v ϵ_call
-  | _, _ => ϵ_call
-  end.
-
-Fixpoint copy_out_from_args
-  (input_args : Argsv) (output_args : list (paramarg Val.t Val.t))
-  (ϵ_call : list Val.t) : list Val.t :=
-  match input_args, output_args with
-  | i :: iargs, o :: oargs => copy_out_from_args iargs oargs (copy_out_from_arg i o ϵ_call)
-  | _, _ => ϵ_call
-  end.
-
-Definition arg_big_step (ϵ : list Val.t) : Exp.arg -> Argv -> Prop :=
-  rel_paramarg
-    (exp_big_step ϵ)
-    (lexp_big_step ϵ).
-
 Definition args_big_step (ϵ : list Val.t) : Exp.args -> Argsv -> Prop :=
-  Forall2 (arg_big_step ϵ).
+  InOut.Forall2 (exp_big_step ϵ) (lexp_big_step ϵ).
 
 Variant eval_table_action
   : option (string * list Exp.t) -> option (@action_ref Exp.t) -> bool -> string -> list Exp.t -> Prop :=
@@ -304,46 +282,49 @@ Inductive stm_big_step
   ⟨ ϵ, e ⟩ ⇓ Val.Lists (Lst.Header oldb) vs ->
   ⧼ Ψ, ϵ, c, Stm.SetValidity b e ⧽ ⤋ ⧼ lv_update lv (Val.Lists (Lst.Header b) vs) ϵ, Cont, extrn_state Ψ ⧽
 | sbs_funct_call
-    ϵ ϵ' ϵ'' c ψ f τs args
-    eo vargs olv fun_clos body sig :
-  functs Ψ f = Some (FDecl fun_clos body) ->
+    ϵ c ψ f τs args out_inits out_vals prefix
+    eo vargs olv fun_clos params body sig :
+  length prefix = length vargs.(InOut.inn) ->
+  (** Lookup function definition. *)
+  functs Ψ f = Some (FDecl fun_clos params body) ->
   (** Evaluate l-expression. *)
   relop (lexp_big_step ϵ) eo olv ->
   (** Evaluate arguments. *)
   args_big_step ϵ args vargs ->
-  (** Copyin. *)
-  copy_in vargs ϵ = Some ϵ' ->
+  (** Initialize out arguments. *)
+  get_out_inits args.(InOut.out) = Some out_inits ->
   (** Evaluate the function body. *)
-  ⧼ Ψ <| functs := fun_clos |>, ϵ', CFunction,
-      tsub_stm (gen_tsub τs) body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
+  ⧼ Ψ <| functs := fun_clos |>, vargs.(InOut.inn) ++ out_inits, CFunction,
+      tsub_stm (gen_tsub τs) body ⧽ ⤋ ⧼ prefix ++ out_vals, sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stm.App (Call.Funct f τs eo) args ⧽
-    ⤋ ⧼ lv_update_signal olv sig (copy_out O vargs ϵ'' ϵ), Cont, ψ ⧽  
+    ⤋ ⧼ lv_update_signal olv sig (copy_out vargs.(InOut.out) out_vals ϵ), Cont, ψ ⧽  
 | sbs_action_call
-    ϵ ϵ' ϵ'' clos c ψ a ctrl_args data_args actions
-    vctrl_args vdata_args act_clos body sig :
+    ϵ ϵ' clos c ψ a ctrl_args data_args actions
+    ctrl_prefix data_prefix
+    vctrl_args vdata_args out_inits out_vals
+    act_clos cparams dparams body sig :
+  length vctrl_args = length ctrl_prefix ->
+  length vdata_args.(InOut.inn) = length data_prefix ->
+  length out_inits = length out_vals ->
   (** Get action from context. *)
   actions_of_ctx c actions ->
   (** Lookup action. *)
-  actions a = Some (ADecl clos act_clos body) ->
+  actions a = Some (ADecl clos act_clos cparams dparams body) ->
   (** Evaluate control-plane arguments. *)
   Forall2 (exp_big_step ϵ) ctrl_args vctrl_args ->
   (** Evaluate data-plane arguments. *)
   args_big_step ϵ data_args vdata_args ->
-  (** Copyin. *)
-  copy_in vdata_args ϵ = Some ϵ' ->
+  (** Initialize out arguments. *)
+  get_out_inits data_args.(InOut.out) = Some out_inits ->
   (** Evaluate the action body. *)
-  ⧼ Ψ, vctrl_args ++ ϵ' ++ clos, CAction act_clos,
-      body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
+  ⧼ Ψ, vctrl_args ++ vdata_args.(InOut.inn) ++ out_inits ++ clos, CAction act_clos,
+    body ⧽ ⤋ ⧼ ctrl_prefix ++ data_prefix ++ out_vals ++ ϵ', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stm.App (Call.Action a ctrl_args) data_args ⧽
-    ⤋ ⧼ copy_out O vdata_args ϵ'' ϵ, Cont, ψ ⧽
+    ⤋ ⧼ copy_out vdata_args.(InOut.out) out_vals ϵ, Cont, ψ ⧽
 | sbs_method_call
     ϵ c ψ ext meth τs args
-    eo vargs vargs' olv sig
+    eo vargs out_vals olv sig
     light_typs light_in_vals light_out_vals light_sig :
-  (** Invariant for cub arguments. *)
-  Forall2
-    (rel_paramarg eq (fun _ _ => True))
-    vargs vargs' ->
   (** Evaluate l-expression. *)
   relop (lexp_big_step ϵ) eo olv ->
   (** Evaluate arguments. *)
@@ -351,33 +332,25 @@ Inductive stm_big_step
   (** Embed type arguments in p4light. *)
   Forall2 (EmbedType (dummy_tags:=tt) (string_list:=[])) τs light_typs ->
   (** Embed in-arguments in p4light. *)
-  Forall2
-    Embed
-    (List.flat_map
-       (fun v => match v with PAIn v => [v] | _ => [] end)
-       vargs) light_in_vals ->
+  Forall2 Embed vargs.(InOut.inn) light_in_vals ->
   (** Evaluate the extern. *)
   exec_extern
     (extrn_env Ψ) (extrn_state Ψ)
     ext meth [] light_typs light_in_vals ψ light_out_vals light_sig ->
   (** Out-vals back to p4cub. *)
-  Forall2
-    Embed
-    (List.flat_map
-       (fun v => match v with PAOut v | PAInOut v => [v] | _ => [] end)
-       vargs') light_out_vals ->
+  Forall2 Embed out_vals light_out_vals ->
   (** Signal back to p4cub. *)
   Embed_signal sig light_sig ->
   ⧼ Ψ, ϵ, c, Stm.App (Call.Method ext meth τs eo) args ⧽
-    ⤋ ⧼ lv_update_signal olv sig (copy_out_from_args vargs vargs' ϵ), sig, ψ ⧽
+    ⤋ ⧼ lv_update_signal olv sig (copy_out vargs.(InOut.out) out_vals ϵ), sig, ψ ⧽
 | sbs_invoke
-    ϵ₁ ϵ₂ ϵ' eo lvo t (tbls : tenv) acts insts pats light_sets
-    ψ (key : list (Exp.t * string)) actions def vs light_vals arefs
+    ϵ₁ ϵ₂ ϵ' eo lvo t (tbls : table_env) acts insts pats light_sets
+    ψ key actions def vs light_vals arefs
     hit a idx ctrl_args data_args :
   (** Evaluate left hand expression *)
   relop (lexp_big_step (ϵ₁ ++ ϵ₂)) eo lvo ->
   (** Lookup table. *)
-  tbls t = Some (length ϵ₂, key, actions, def) ->
+  tbls t = Some (Table.mk_t (length ϵ₂) key actions def) ->
   (** Evaluate table key. *)
   Forall2 (exp_big_step ϵ₂) (map fst key) vs ->
   (** Evaluate table entries. *)
@@ -388,8 +361,7 @@ Inductive stm_big_step
   Forall2 embed_pat_valset pats light_sets ->
   (** Get action reference from control-plane with control-plane arguments. *)
   eval_table_action
-    def
-    (extern_match (combine light_vals (map snd key)) (combine light_sets arefs))
+    def (extern_match (combine light_vals (map snd key)) (combine light_sets arefs))
     hit a ctrl_args ->
   (** Find appropriate action data-plane arguments in table. *)
   Field.get a actions = Some data_args ->
@@ -410,40 +382,45 @@ Inductive stm_big_step
                  Val.Bit (BinNat.N.of_nat (length actions)) (Z.of_nat idx)])))
           (ϵ₁ ++ ϵ'), Cont, ψ ⧽
 | sbs_apply_control
-    ϵ ϵ' ϵ'' eps_clos tbls actions control_insts
-    c ext_args args vargs sig ψ
-    fun_clos inst_clos tbl_clos action_clos apply_block :
+    ϵ ϵ' eps_clos tbls actions control_insts
+    c ext_args args vargs sig ψ out_inits out_vals prefix
+    out_τs fun_clos inst_clos tbl_clos action_clos apply_block :
+  length vargs.(InOut.inn) = length prefix ->
   (** Lookup control instance. *)
   control_insts c
   = Some (ControlInst
-            fun_clos inst_clos tbl_clos
-            action_clos eps_clos apply_block) ->
+            fun_clos inst_clos tbl_clos action_clos
+            eps_clos out_τs apply_block) ->
   (** Evaluate arguments. *)
   args_big_step ϵ args vargs ->
-  (** Copyin. *)
-  copy_in vargs ϵ = Some ϵ' ->
+  (** Initialize out arguments. *)
+  get_out_inits args.(InOut.out) = Some out_inits ->
   (** Evaluate control apply block. *)
-  ⧼ Ψ <| functs := fun_clos |>, ϵ' ++ eps_clos, CApplyBlock tbl_clos action_clos inst_clos,
-      apply_block ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
+  ⧼ Ψ <| functs := fun_clos |>, InOut.inn vargs ++ out_inits ++ eps_clos,
+      CApplyBlock tbl_clos action_clos inst_clos,
+      apply_block ⧽ ⤋ ⧼ prefix ++ out_vals ++ ϵ', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, CApplyBlock tbls actions control_insts,
-    Stm.App (Call.Inst c ext_args) args ⧽ ⤋ ⧼ copy_out O vargs ϵ'' ϵ, Cont, ψ ⧽
+    Stm.App (Call.Inst c ext_args) args ⧽ ⤋ ⧼ copy_out vargs.(InOut.out) out_vals ϵ, Cont, ψ ⧽
 | sbs_apply_parser
-    ϵ ϵ' ϵ'' p_eps n strt states parsers ψ p
-    ext_args args vargs
-    p_fun p_prsr p_strt p_states final sig :
+    ϵ ϵ' p_eps n strt states parsers ψ p
+    ext_args args vargs out_inits out_vals prefix
+    out_τs p_fun p_prsr p_strt p_states final sig :
+  length vargs.(InOut.inn) = length prefix ->
+  length out_inits = length out_vals ->
   (** Lookup parser instance. *)
-  parsers p = Some (ParserInst p_fun p_prsr p_eps p_strt p_states) ->
+  parsers p = Some (ParserInst p_fun p_prsr p_eps out_τs p_strt p_states) ->
   (** Evaluate arguments. *)
   args_big_step ϵ args vargs ->
-  (** Copyin. *)
-  copy_in vargs ϵ = Some ϵ' ->
+  (** Initialize out arguments. *)
+  get_out_inits args.(InOut.out) = Some out_inits ->
   parser_signal final sig ->
   (** Evaluate parser state machine. *)
-  ⧼ Ψ <| functs := p_fun |>, ϵ' ++ p_eps,
+  ⧼ Ψ <| functs := p_fun |>, InOut.inn vargs ++ out_inits ++ p_eps,
       CParserState
-        (length args) p_strt p_states p_prsr, p_strt ⧽ ⤋ ⧼ ϵ'', final, ψ ⧽ ->
+        (InOut.length args)
+        p_strt p_states p_prsr, p_strt ⧽ ⤋ ⧼ prefix ++ out_vals ++ ϵ', final, ψ ⧽ ->
   ⧼ Ψ, ϵ, CParserState n strt states parsers,
-    Stm.App (Call.Inst p ext_args) args ⧽ ⤋ ⧼ copy_out O vargs ϵ'' ϵ, sig, ψ ⧽
+    Stm.App (Call.Inst p ext_args) args ⧽ ⤋ ⧼ copy_out vargs.(InOut.out) out_vals ϵ, sig, ψ ⧽
 | sbs_letin ϵ ϵ' c og te v v' s sig ψ :
   SumForall (fun τ => val_of_typ τ = Some v) (fun e => ⟨ ϵ, e ⟩ ⇓ v) te ->
   ⧼ Ψ, v :: ϵ, c, s ⧽ ⤋ ⧼ v' :: ϵ', sig, ψ ⧽ ->
@@ -468,7 +445,7 @@ Local Open Scope climate_scope.
 
 Record ctrl_bs_env : Set :=
   mk_ctrl_bs_env
-    { cbs_tables  : tenv;
+    { cbs_tables  : table_env;
       cbs_actions : aenv;
       cbs_epsilon : list Val.t }.
 
@@ -492,13 +469,13 @@ Variant ctrl_big_step
       cbs_env (Ctrl.Action a ctrl_params data_params body)
       (cbs_env
          <| cbs_actions :=
-         a ↦ ADecl (cbs_epsilon cbs_env) (cbs_actions cbs_env) body ,, cbs_actions cbs_env |>)
+         a ↦ ADecl (cbs_epsilon cbs_env) (cbs_actions cbs_env) (map snd ctrl_params) data_params body ,, cbs_actions cbs_env |>)
   | cbs_table t key actions def :
     ctrl_big_step
       cbs_env (Ctrl.Table t key actions def)
       (cbs_env
          <| cbs_tables :=
-         t ↦ (length (cbs_epsilon cbs_env), key, actions, def) ,, cbs_tables cbs_env |>).
+         t ↦ Table.mk_t (length (cbs_epsilon cbs_env)) key actions def ,, cbs_tables cbs_env |>).
 
 Definition ctrls_big_step
   : list Ctrl.t -> ctrl_bs_env -> ctrl_bs_env -> Prop :=
@@ -525,7 +502,10 @@ Variant top_big_step
       (tbs_env
          <| top_decls :=
          c ↦ ControlDecl
-           (top_functs tbs_env) (top_insts tbs_env) (map fst cparams) body s ,, top_decls tbs_env |>)
+           (top_functs tbs_env)
+           (top_insts tbs_env)
+           (map fst cparams) params
+           body s ,, top_decls tbs_env |>)
   | tbs_parser p cparams ecparams extparams params strt states :
     top_big_step
       tbs_env
@@ -533,7 +513,11 @@ Variant top_big_step
       (tbs_env
          <| top_decls :=
          p ↦ ParserDecl
-           (top_functs tbs_env) (top_insts tbs_env) (map fst cparams) strt states ,, top_decls tbs_env |>)
+           (top_functs tbs_env)
+           (top_insts tbs_env)
+           (map fst cparams)
+           params
+           strt states ,, top_decls tbs_env |>)
   | tbs_extern ext TS cparams ecparams methods :
     top_big_step
       tbs_env
@@ -545,9 +529,9 @@ Variant top_big_step
     top_big_step
       tbs_env
       (Top.Funct f TS arrow body)
-      (tbs_env <| top_functs := f ↦ FDecl (top_functs tbs_env) body ,, top_functs tbs_env |>)
-  | tbs_instantiate_control c x cargs es cparams local_decls apply_blk vs cbs_env cfs cinsts :
-    top_decls tbs_env c = Some (ControlDecl cfs cinsts cparams local_decls apply_blk) ->
+      (tbs_env <| top_functs := f ↦ FDecl (top_functs tbs_env) arrow.(Arr.inout) body ,, top_functs tbs_env |>)
+  | tbs_instantiate_control c x cargs es cparams out_τs local_decls apply_blk vs cbs_env cfs cinsts :
+    top_decls tbs_env c = Some (ControlDecl cfs cinsts cparams out_τs local_decls apply_blk) ->
     Forall2 (exp_big_step []) es vs ->
     ctrls_big_step
       local_decls
@@ -562,9 +546,9 @@ Variant top_big_step
          <| top_insts :=
          x ↦ ControlInst
            cfs (bind_constructor_args cparams cargs (top_insts tbs_env) cinsts)
-           (cbs_tables cbs_env) (cbs_actions cbs_env) vs apply_blk ,, top_insts tbs_env |>)
-  | tbs_instantiate_parser p x cargs es pfs pinsts cparams strt states vs :
-    top_decls tbs_env p = Some (ParserDecl pfs pinsts cparams strt states) ->
+           (cbs_tables cbs_env) (cbs_actions cbs_env) vs out_τs apply_blk ,, top_insts tbs_env |>)
+  | tbs_instantiate_parser p x cargs es pfs pinsts cparams out_τs strt states vs :
+    top_decls tbs_env p = Some (ParserDecl pfs pinsts cparams out_τs strt states) ->
     Forall2 (exp_big_step []) es vs ->
     top_big_step
       tbs_env
@@ -573,7 +557,7 @@ Variant top_big_step
          <| top_insts :=
          x ↦ ParserInst
            pfs (bind_constructor_args cparams cargs (top_insts tbs_env) pinsts)
-           vs strt states ,, top_insts tbs_env |>)
+           vs out_τs strt states ,, top_insts tbs_env |>)
   | tbs_instantiate_extern ext x τs cargs es extfs extinsts cparams vs :
     top_decls tbs_env ext = Some (ExternDecl extfs extinsts cparams) ->
     Forall2 (exp_big_step []) es vs ->
@@ -595,22 +579,36 @@ Section ProgBigStep.
 
   Inductive module_big_step
     (insts : inst_env Val.t) (module_name : string)
-     (ϕ : extern_env) (ψ : extern_state) (input : list Val.t)
-    : extern_state -> list Val.t -> signal -> Prop :=.
-  (*| parser_module_big_step p_fun p_prsr ϵ ϵ' p_eps p_strt p_states
-      sig final ψ' :
+     (ϕ : extern_env) (ψ : extern_state) (in_args : list Val.t)
+    : extern_state -> list Val.t -> signal -> Prop :=
+  | parser_module_big_step p_fun p_prsr ϵ ϵ' p_strt p_states
+      prefix out_inits out_vals params sig final ψ' :
+    length in_args = length prefix ->
     (** Lookup parser instance. *)
-    insts module_name = Some (ParserInst p_fun p_prsr p_eps p_strt p_states) ->
-    (** Copyin. *)
-    copy_in input [] = Some ϵ ->
+    insts module_name = Some (ParserInst p_fun p_prsr ϵ params p_strt p_states) ->
     (** Parser terminates. *)
     parser_signal final sig ->
+    (** Get initial out values. *)
+    sequence (map val_of_typ $ map snd $ InOut.out params) = Some out_inits ->
     (** Evaluate parser state machine. *)
-    ⧼ mk_stm_eval_env target.(extern_sem) p_fun ϕ ψ, ϵ ++ p_eps,
+    ⧼ mk_stm_eval_env target.(extern_sem) p_fun ϕ ψ, in_args ++ out_inits ++ ϵ,
         CParserState
-          (length input) p_strt p_states p_prsr, p_strt ⧽ ⤋ ⧼ ϵ', final, ψ' ⧽ ->
-    module_big_step insts module_name ϕ ψ input ψ' (copy_out O input ϵ' []) sig. *)
-    
+          (InOut.length params) p_strt p_states p_prsr, p_strt ⧽
+      ⤋ ⧼ prefix ++ out_vals ++ ϵ', final, ψ' ⧽ ->
+    module_big_step insts module_name ϕ ψ in_args ψ' out_vals sig
+  | control_big_step prefix out_inits out_vals ϵ ϵ' params
+      c_fun c_ctrl tbls acts apply_blk sig ψ' :
+    length in_args = length prefix ->
+    length out_inits = length out_vals ->
+    (** Get initial out values. *)
+    sequence (map val_of_typ $ map snd $ InOut.out params) = Some out_inits ->
+    (** Lookup control instance. *)
+    insts module_name = Some (ControlInst c_fun c_ctrl tbls acts ϵ params apply_blk) ->
+    (** Evaluate control apply block. *)
+    ⧼ mk_stm_eval_env target.(extern_sem) c_fun ϕ ψ, in_args ++ out_inits ++ ϵ,
+      CApplyBlock tbls acts c_ctrl, apply_blk ⧽
+      ⤋ ⧼ prefix ++ out_vals ++ ϵ', sig, ψ' ⧽ ->
+    module_big_step insts module_name ϕ ψ in_args ψ' out_vals sig.
 
   Definition prog_big_step
     (prog : list Top.t) (ϕ : extern_env)
@@ -621,11 +619,11 @@ Section ProgBigStep.
       (mk_top_bs_env ∅ ∅ ∅) (mk_top_bs_env fs insts ds)
     /\ target.(exec_prog)
         []
-        (fun pth ψ lvs ψ' lvs' lsig => exists vs vs' sig,
-             module_big_step insts (Exn.path_to_string pth) ϕ ψ vs ψ' vs sig
-             /\ Forall2 Embed vs lvs
-             /\ Forall2 Embed vs' lvs'
-             /\ Embed_signal sig lsig)
+        (fun pth ψ light_vs ψ' light_vs' light_sig => exists vs vs' sig,
+             module_big_step insts (Exn.path_to_string pth) ϕ ψ vs ψ' vs' sig
+             /\ Forall2 Embed vs light_vs
+             /\ Forall2 Embed vs' light_vs'
+             /\ Embed_signal sig light_sig)
         ψ input_pkt ψ' output_pkt.
 End ProgBigStep.
 

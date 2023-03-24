@@ -21,9 +21,6 @@ Inductive lifted_exp : Exp.t -> Prop :=
 | lifted_error err :
   lifted_exp (Exp.Error err).
 
-Definition lifted_arg : paramarg Exp.t Exp.t -> Prop :=
-  pred_paramarg_same lifted_exp.
-
 Variant lifted_rexp : Exp.t -> Prop :=
   | lifted_lifted_exp e :
     lifted_exp e ->
@@ -71,6 +68,9 @@ Variant lifted_trns : Trns.t -> Prop :=
     lifted_exp exp ->
     lifted_trns (Trns.Select exp default cases).
 
+Definition lifted_args : Exp.args -> Prop :=
+  InOut.Forall lifted_exp lifted_exp.
+
 Inductive lifted_stm : Stm.t -> Prop :=
 | lifted_skip :
   lifted_stm Stm.Skip
@@ -98,7 +98,7 @@ Inductive lifted_stm : Stm.t -> Prop :=
   lifted_stm (Stm.Seq s1 s2)
 | lifted_app fk args :
   lifted_call fk ->
-  Forall lifted_arg args ->
+  lifted_args args ->
   lifted_stm (Stm.App fk args)
 | lifted_ret eo :
   predop lifted_exp eo ->
@@ -123,7 +123,7 @@ Variant lifted_ctrl : Ctrl.t -> Prop :=
     lifted_ctrl (Ctrl.Action act cps dps body)
   | lifted_control_Table table_name key actions def :
     Forall lifted_exp (map fst key) ->
-    Forall (Forall lifted_arg) (map snd actions) ->
+    Forall lifted_args (map snd actions) ->
     predop (fun '(_,es) => Forall lifted_exp es) def ->
     lifted_ctrl (Ctrl.Table table_name key actions def).
 
@@ -160,6 +160,15 @@ Proof.
 Qed.
 
 Local Hint Resolve shift_lifted_exp : core.
+
+Lemma shift_list_lifted_exp : forall c a es,
+    Forall lifted_exp es ->
+    Forall lifted_exp (shift_list shift_exp c a es).
+Proof.
+  intros c a es h; induction h; unravel; auto.
+Qed.
+
+Local Hint Resolve shift_list_lifted_exp : core.
 
 Lemma rename_exp_lifted_rexp : forall ρ e,
     lifted_rexp e -> lifted_rexp (rename_exp ρ e).
@@ -493,6 +502,7 @@ Proof.
   rewrite Forall_forall in *. auto.
 Qed.
 
+Local Hint Resolve map_shift_exp_lifted : core.
 Local Hint Constructors predop : core.
 
 Lemma option_map_snd_shift_exp_lifted :
@@ -506,77 +516,73 @@ Proof.
     constructor; cbn; auto using map_shift_exp_lifted.
 Qed.
 
-Local Hint Constructors pred_paramarg : core.
+Local Hint Constructors InOut.Forall : core.
 
-Lemma lift_arg_lifted_arg : forall arg,
-    lifted_arg (fst (lift_arg arg))
-    /\ Forall lifted_rexp (snd (lift_arg arg)).
+Lemma lift_args_lifted_args : forall args,
+    lifted_args (fst (lift_args args))
+    /\ Forall lifted_rexp (snd (lift_args args)).
 Proof.
-  unfold lifted_arg,pred_paramarg_same.
-  intros arg;
-    destruct arg as [e | e | e]; unravel in *;
-    let_destr_pair; auto.
+  unfold lifted_args, lift_args.
+  intros [ia oa].
+  repeat let_destr_pair. unravel.
+  pose proof lift_exp_list_lifted_exp ia as [hinn hinnr].
+  pose proof lift_exp_list_lifted_exp oa as [hout houtr].
+  pose proof
+    shift_couple_lifted
+    (fun c a : nat => map (shift_exp c a)) _ map_shift_exp_lifted
+    (fun c a : nat => map (shift_exp c a)) _ map_shift_exp_lifted
+    _ _ _ _ hinn hout hinnr houtr as (hinn' & hout' & houtr').
+  rewrite Forall_app. auto.
 Qed.
   
-Local Hint Resolve lift_arg_lifted_arg : core.
+Local Hint Resolve lift_args_lifted_args : core.
 Local Hint Extern 5 =>
         lazymatch goal with
-          |- context [lift_arg ?arg]
-          => pose proof lift_arg_lifted_arg arg as [? ?]
+          |- context [lift_args ?arg]
+          => pose proof lift_args_lifted_args arg as [? ?]
         end : core.
 
-Lemma rename_arg_lifted_arg : forall ρ arg,
-    lifted_arg arg -> lifted_arg (rename_arg ρ arg).
+Lemma rename_arg_lifted_arg : forall ρ args,
+    lifted_args args -> lifted_args (rename_args ρ args).
 Proof.
-  unfold lifted_arg,pred_paramarg_same.
+  unfold lifted_args, rename_args, InOut.map_uni.
   intros ρ e h; inv h; unravel in *; auto.
+  constructor.
+  - rewrite InOut.map_inn.
+    rewrite Forall_map.
+    eauto using Forall_impl.
+  - rewrite InOut.map_out.
+    rewrite Forall_map.
+    eauto using Forall_impl.
 Qed.
 
 Local Hint Resolve rename_arg_lifted_arg : core.
 
-Lemma shift_lifted_arg : forall c a arg,
-    lifted_arg arg -> lifted_arg (shift_arg c a arg).
+Lemma shift_lifted_args : forall c a args,
+    lifted_args args -> lifted_args (shift_args c a args).
 Proof.
-  unfold lifted_arg,pred_paramarg_same.
-  intros c a e h; inv h; unravel in *; auto.
+  unfold lifted_args,shift_args,InOut.map_uni.
+  intros c a e h; inv h; unravel in *.
+  constructor.
+  - rewrite InOut.map_inn.
+    rewrite Forall_map.
+    eauto using Forall_impl.
+  - rewrite InOut.map_out.
+    rewrite Forall_map.
+    eauto using Forall_impl.
 Qed.
 
-Local Hint Resolve shift_lifted_arg : core.
-
-Lemma map_shift_arg_lifted : forall c amt args,
-    Forall lifted_arg args -> Forall lifted_arg (map (shift_arg c amt) args).
-Proof.
-  intros c a args h.
-  rewrite Forall_map.
-  rewrite Forall_forall in *. auto.
-Qed.
-
-Local Hint Resolve map_shift_arg_lifted : core.
+Local Hint Resolve shift_lifted_args : core.
 
 Lemma map_shift_args_lifted : forall c a argss,
-    Forall (Forall lifted_arg) argss ->
-    Forall (Forall lifted_arg) (map (map (shift_arg c a)) argss).
+    Forall lifted_args argss ->
+    Forall lifted_args (map (shift_args c a) argss).
 Proof.
   intros c a argss h.
   rewrite Forall_map.
   rewrite Forall_forall in *. auto.
 Qed.
 
-Lemma lift_args_lifted_args : forall args,
-    Forall lifted_arg (fst (lift_args args))
-    /\ Forall lifted_rexp (snd (lift_args args)).
-Proof.
-  intros args.
-  unfold lift_args.
-  apply lift_A_list_lifted; auto.
-Qed.
-
-Local Hint Resolve lift_args_lifted_args : core.
-Local Hint Extern 5 =>
-        lazymatch goal with
-          |- context [lift_args ?args]
-          => pose proof lift_args_lifted_args as [? ?]
-        end : core.
 Local Hint Constructors lifted_trns : core.
 
 Lemma shift_lifted_trns : forall c a e,
@@ -639,9 +645,6 @@ Lemma shift_lifted_call : forall ct amt c,
 Proof.
   intros ct amt c h; inv h; unravel; auto.
   - constructor; destruct oe; unravel; inv H; auto.
-  - constructor.
-    rewrite sublist.Forall_map; unravel.
-    rewrite Forall_forall in *; eauto.
   - constructor; destruct oe; unravel; inv H; auto.
 Qed.
 
@@ -687,7 +690,7 @@ Proof.
   - pose proof lift_call_lifted_call call as [hc1 hc2].
     pose proof lift_args_lifted_args args as [ha1 ha2].
     pose proof shift_couple_lifted
-      _ _ map_shift_arg_lifted _ _ shift_lifted_call
+      _ _ shift_lifted_args _ _ shift_lifted_call
       _ _ _ _ ha1 hc1 ha2 hc2 as [? [? ?]].
     apply Unwind_lifted; auto.
     autorewrite with core. auto.
@@ -699,13 +702,12 @@ Qed.
 Local Hint Resolve lift_stm_lifted_stm : core.
 
 Lemma lift_args_list_lifted : forall argss,
-    Forall (Forall lifted_arg) (fst (lift_args_list argss))
+    Forall lifted_args (fst (lift_args_list argss))
     /\ Forall lifted_rexp (snd (lift_args_list argss)).
 Proof.
   intro argss.
   unfold lift_args_list.
   apply lift_A_list_lifted; auto.
-  apply shift_list_lifted_list; auto.
 Qed.
 
 Local Hint Constructors lifted_ctrl : core.
@@ -750,8 +752,8 @@ Proof.
     assert ((fun c amt es => map (shift_exp c amt) es)
             = (fun c a : nat => map (shift_exp c a))) as hea by reflexivity.
     rewrite hea in h; clear hea.
-    assert ((fun c a argss => map (map (shift_arg c a)) argss)
-            = (fun c a : nat => map (map (shift_arg c a)))) as hea by reflexivity.
+    assert ((fun c a argss => map (shift_args c a) argss)
+            = (fun c a : nat => map (shift_args c a))) as hea by reflexivity.
     rewrite hea in h; clear hea.
     destruct h as (ho' & hes' & hargss' & hess' & hargsss').
     autorewrite with core. repeat rewrite Forall_map.
@@ -805,13 +807,7 @@ Proof.
       intros args' hin.
       rewrite in_map_iff in hin.
       destruct hin as (args & ? & hin); subst.
-      pose proof H0 _ hin as h.
-      clear dependent actions.
-      clear dependent key. clear table_name.
-      rewrite Forall_forall in *.
-      intros arg' hin.
-      rewrite in_map_iff in hin.
-      destruct hin as (arg & ? & hin); subst; auto.
+      pose proof H0 _ hin as h. eauto.
     + destruct def as [[da des] |];
         inv H1; constructor.
       rewrite Forall_forall in H3 |- *.

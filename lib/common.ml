@@ -310,8 +310,8 @@ let print_fun (f: Poulet4.P4flatToGCL.p4funs) : string =
     Bigint.to_string value
   | BTable name ->
     "table_symb__" ^ name
-  | BProj1 -> "fst"
-  | BProj2 -> "snd"
+  | BProj1 -> "first"
+  | BProj2 -> "second"
   | BAction act ->
     "action_symb__" ^ act
 
@@ -323,9 +323,11 @@ let rec print_tm vp tm : string =
   match tm with
   | TVar x -> vp x
   | TFun (f, args) ->
-    Printf.sprintf "(%s %s)"
-      (print_fun (Obj.magic f))
-      (print_tms vp args)
+    if List.length args > 0
+    then Printf.sprintf "(%s %s)"
+        (print_fun (Obj.magic f))
+        (print_tms vp args)
+    else print_fun (Obj.magic f)
 
 and print_tms vp tms : string =
   List.map ~f:(print_tm vp) tms
@@ -337,7 +339,7 @@ let rec print_fm vp fm =
   | FTrue -> "true"
   | FFalse -> "false"
   | FEq (t1, t2) ->
-    Printf.sprintf "(eq %s %s)" (print_tm vp t1) (print_tm vp t2)
+    Printf.sprintf "(= %s %s)" (print_tm vp t1) (print_tm vp t2)
   | FRel (r, args) ->
     Printf.sprintf "(%s %s)" (print_rel r) (print_tms vp args)
   | FNeg f ->
@@ -347,7 +349,7 @@ let rec print_fm vp fm =
   | FAnd (f1, f2) ->
     Printf.sprintf "(and %s %s)" (print_fm vp f1) (print_fm vp f2)
   | FImpl (f1, f2) ->
-    Printf.sprintf "(implies %s %s)" (print_fm vp f1) (print_fm vp f2)
+    Printf.sprintf "(=> %s %s)" (print_fm vp f1) (print_fm vp f2)
 
 let sum_printer (v: (string, string) P4light.sum) : string =
   match v with

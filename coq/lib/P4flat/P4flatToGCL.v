@@ -1,6 +1,6 @@
 Require Import Coq.Strings.String.
 Require Import Poulet4.P4flat.Syntax.
-Require Import Poulet4.P4flat.GCL.
+Require Import Poulet4.P4flat.GGCL.
 Require Import Poulet4.Monads.Result.
 Import ResultNotations.
 Import Dijkstra.

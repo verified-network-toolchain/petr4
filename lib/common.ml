@@ -300,3 +300,76 @@ module MakeDriver (IO: DriverIO) = struct
       run_interpreter interp_cfg
       >>= fun _ -> Ok ()
 end
+
+let print_fun (f: Poulet4.P4flatToGCL.p4funs) : string =
+  let open Poulet4.P4flatToGCL in
+  match f with
+  | BTrue -> "true"
+  | BFalse -> "false"
+  | BBitLit (width, value) ->
+    Bigint.to_string value
+  | BTable name ->
+    "table_symb__" ^ name
+  | BProj1 -> "fst"
+  | BProj2 -> "snd"
+  | BAction act ->
+    "action_symb__" ^ act
+
+let print_rel r : string =
+  failwith "no relation symbols..."
+
+let rec print_tm vp tm : string =
+  let open Poulet4.Spec in
+  match tm with
+  | TVar x -> vp x
+  | TFun (f, args) ->
+    Printf.sprintf "(%s %s)"
+      (print_fun (Obj.magic f))
+      (print_tms vp args)
+
+and print_tms vp tms : string =
+  List.map ~f:(print_tm vp) tms
+  |> String.concat ~sep:" "
+
+let rec print_fm vp fm =
+  let open Poulet4.Spec in
+  match fm with
+  | FTrue -> "true"
+  | FFalse -> "false"
+  | FEq (t1, t2) ->
+    Printf.sprintf "(eq %s %s)" (print_tm vp t1) (print_tm vp t2)
+  | FRel (r, args) ->
+    Printf.sprintf "(%s %s)" (print_rel r) (print_tms vp args)
+  | FNeg f ->
+    Printf.sprintf "(not %s)" (print_fm vp f)
+  | FOr (f1, f2) ->
+    Printf.sprintf "(or %s %s)" (print_fm vp f1) (print_fm vp f2)
+  | FAnd (f1, f2) ->
+    Printf.sprintf "(and %s %s)" (print_fm vp f1) (print_fm vp f2)
+  | FImpl (f1, f2) ->
+    Printf.sprintf "(implies %s %s)" (print_fm vp f1) (print_fm vp f2)
+
+let sum_printer (v: (string, string) P4light.sum) : string =
+  match v with
+  | Coq_inl var -> Printf.sprintf "%s__l" var
+  | Coq_inr var -> Printf.sprintf "%s__r" var
+
+let check_refinement ((prog_l, prog_r), rel) =
+  let wp =
+    Poulet4.GGCL.Dijkstra.seq_prod_wp
+      String.equal
+      String.equal
+      Poulet4.P4flatToGCL.p4sig in
+  match Poulet4.P4flatToGCL.prog_to_stmt prog_l,
+        Poulet4.P4flatToGCL.prog_to_stmt prog_r with
+  | Ok prog_l_gcl, Ok prog_r_gcl ->
+    let vc = wp prog_l_gcl prog_r_gcl rel in
+    Printf.printf "\n%s\n\n" (print_fm sum_printer vc);
+  | _, _ ->
+    Printf.printf "prog_to_stmt failure"
+
+let run_tbl () =
+  let tests = Poulet4.Examples.refinements in
+  Printf.printf "running table program refinement tests\n";
+  List.iter ~f:check_refinement tests;
+  Printf.printf "finished table program refinement tests\n"

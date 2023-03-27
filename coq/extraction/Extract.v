@@ -122,5 +122,7 @@ Separate Extraction
          Poulet4.P4cub.Transformations.Lifting.Statementize
          Poulet4.TLang.TLang
          Poulet4.P4flat.P4cubToP4flat
+         Poulet4.P4flat.P4flatToGCL
          Poulet4.P4flat.Examples
+         Poulet4.P4flat.GGCL
 .

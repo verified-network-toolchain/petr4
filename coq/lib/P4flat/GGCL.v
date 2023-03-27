@@ -1,7 +1,9 @@
 Require Import Coq.Strings.String.
+Require Import Coq.Classes.EquivDec.
 Require Import Poulet4.P4flat.Sig.
 Require Import Poulet4.P4flat.Spec.
-Require Import Coq.Classes.EquivDec.
+Require Import Poulet4.Monads.Result.
+Import ResultNotations.
 
 Module Dijkstra.
   Section Dijkstra.
@@ -46,13 +48,30 @@ Module Dijkstra.
     | GAssert phi => GAssert (Spec.fm_map_vars m phi)
     end.
 
-  (* Note this requires the two programs already agree on a signature
-     [sig], but you will want them to at least have disjoint table
-     signatures when dealing with table programs. *)
-  Definition seq_prod_prog {V1 V2 sig}
-             (s1: stmt V1 sig)
-             (s2: stmt V2 sig)
-    : stmt (V1 + V2) sig :=
-    (* <s1|; |s2> *)
-    GSeq (stmt_map_vars inl s1) (stmt_map_vars inr s2).
+  Section Products.
+    Context {V1: Type}.
+    Context `{Equivalence V1 eq}.
+    Context `{EqDec V1 eq}.
+    Context {V2: Type}.
+    Context `{Equivalence V2 eq}.
+    Context `{EqDec V2 eq}.
+    Context {sig: signature}.
+
+    (* Note this requires the two programs already agree on a signature
+       [sig], but you will want them to at least have disjoint table
+       signatures when dealing with table programs. *)
+    Definition seq_prod_prog
+               (s1: stmt V1 sig)
+               (s2: stmt V2 sig)
+      : stmt (V1 + V2) sig :=
+      (* <s1|; |s2> *)
+      GSeq (stmt_map_vars inl s1) (stmt_map_vars inr s2).
+
+    Definition seq_prod_wp
+            (s1: stmt V1 sig)
+            (s2: stmt V2 sig)
+            spec :=
+          wp _ _ (seq_prod_prog s1 s2) spec.
+
+  End Products.
 End Dijkstra.

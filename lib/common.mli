@@ -19,3 +19,4 @@ module MakeDriver (IO : DriverIO) : sig
   val run_compiler : Pass.compiler_cfg -> (unit, error) Result.t
   val run : Pass.cmd_cfg -> (unit, error) Result.t
 end
+val run_tbl : unit -> unit

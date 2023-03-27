@@ -143,12 +143,18 @@ let compiler_command =
 let interp_command =
   cfg_command ~summary:"run a P4 program" interp_flags Petr4.Unix.Driver.run_interpreter
 
+let tbl_command =
+  Command.basic ~summary:"EXPERIMENTAL: run table translation validation"
+    (Command.Param.return
+       (fun () -> Common.run_tbl ()))
+
 let command =
   Command.group ~summary:"petr4: a reference implementation of the p4_16 language"
     ["parse", parser_command;
      "check", checker_command;
      "compile", compiler_command;
-     "run", interp_command]
+     "run", interp_command;
+     "tbl", tbl_command]
 
 let () =
   Command_unix.run ~version: "0.1.2" command

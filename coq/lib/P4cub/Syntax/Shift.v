@@ -1,10 +1,12 @@
 From Poulet4 Require Import
-     Utils.Util.FunUtil
-     P4cub.Syntax.AST P4cub.Syntax.CubNotations
-     P4cub.Syntax.IndPrincip.
+  Utils.Util.FunUtil
+  Utils.VecUtil
+  P4cub.Syntax.AST P4cub.Syntax.CubNotations
+  P4cub.Syntax.IndPrincip.
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 Require Export Coq.Arith.Compare_dec.
+From Equations Require Import Equations.
 
 Record shifter : Set :=
   Shifter { cutoff : nat; amt : nat }.
@@ -81,6 +83,21 @@ Section Shift.
       => Trns.Select (shift_exp e) d cases
     end.
 End Shift.
+
+Section ShiftVec.
+  Import Vec.VectorNotations.
+  Local Open Scope vector_scope.
+  
+  Polymorphic Universe a.
+
+  Context {A : Type@{a}}.
+  Variable f : shifter -> A -> A.
+  Variable sh : shifter.
+
+  Polymorphic Equations shift_vec : forall {n : nat}, Vec.t A n -> Vec.t A n := {
+      shift_vec []               := [];
+      shift_vec (Vec.cons a n v) := f (smother sh n) a :: shift_vec v }.
+End ShiftVec.
 
 Section ShiftList.
   Context {A : Set}.

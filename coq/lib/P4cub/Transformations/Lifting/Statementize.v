@@ -2,10 +2,9 @@ Require Import Coq.Strings.String Coq.NArith.BinNat.
 From Poulet4 Require Import
      P4cub.Syntax.AST P4cub.Syntax.Auxiliary
      P4cub.Syntax.CubNotations P4cub.Syntax.Shift
-     Utils.ForallMap.
+     Utils.ForallMap
+     Utils.VecUtil.
 Import ListNotations.
-Require Coq.Vectors.Vector.
-Module Vec := Coq.Vectors.Vector.
 From Equations Require Import Equations.
 
 Open Scope nat_scope.
@@ -13,52 +12,33 @@ Open Scope string_scope.
 Open Scope list_scope.
 
 Section ShiftPairs.
-  (*Import Vec.VectorNotations.
-  Local Open Scope vector_scope.*)
+  Import Vec.VectorNotations.
+  Local Open Scope vector_scope.
   
   Polymorphic Universe a.
   Polymorphic Context {A : Type@{a}}.
   Polymorphic Variable f : shifter -> A -> A.
 
-  (*Polymorphic Equations shift_pairs :
+  Polymorphic Equations shift_pairs :
     forall {n : nat}, Vec.t (A * list Exp.t) n -> Vec.t (A * list Exp.t) n := {
-      [] := [];
-      (a, es) :: v :=
-        let m := vec_sum Vec.map (length (A:=Exp.t)) $ Vec.map snd v in
-        (f (Shifter (length es) m) a,*)
-          
-        
-             
-  
+      shift_pairs [] := [];
+      shift_pairs ((a, es) :: v) :=
+        let m := vec_sum $ Vec.map (length (A:=Exp.t)) $ Vec.map snd v in
+        (f (Shifter (length es) m) a,
+          shift_list shift_exp (Shifter 0 m) es) ::
+          Vec.map (fun '(a, es') => (f (Shifter 0 $ length es) a, es')) (shift_pairs v) }.
 
-  Polymorphic Fixpoint shift_pairs (l : list (A * list Exp.t)) : list (A * list Exp.t) :=
-    match l with
-    | [] => []
-    | (a, es) :: l
-      => let n := list_sum $ map (@length _) $ map snd l in
-        (f (Shifter (length es) n) a,
-          shift_list shift_exp (Shifter 0 n) es) ::
-          map (fun '(a, es') => (f (Shifter 0 $ length es) a, es')) (shift_pairs l)
-    end.
-  
-  Polymorphic Lemma shift_pairs_length : forall l,
-      length (shift_pairs l) = length l.
+  Polymorphic Lemma shift_pairs_inner_length : forall {n} (v : Vec.t _ n),
+      Vec.map (length (A:=Exp.t)) (Vec.map snd (shift_pairs v))
+      = Vec.map (length (A:=Exp.t)) (Vec.map snd v).
   Proof using.
-    intro l; induction l as [| [a es] l ih];
-      unravel; f_equal; auto.
-    rewrite map_length. assumption.                     
-  Qed.
-
-  Polymorphic Lemma shift_pairs_inner_length : forall l,
-      map (length (A:=Exp.t)) (map snd (shift_pairs l))
-      = map (length (A:=Exp.t)) (map snd l).
-  Proof using.
-    intro l; induction l as [| [a es] l ih];
-      unravel; f_equal; auto.
-    - rewrite shift_list_length.
-      reflexivity.
-    - rewrite map_snd_map,map_id.
-      assumption.
+    intros n v.
+    depind v; unravel.
+    - rewrite shift_pairs_equation_1. reflexivity.
+    - destruct h as [a es].
+      rewrite shift_pairs_equation_2. unravel.
+      rewrite vec_ignore_map_snd_map, shift_list_length.
+      f_equal. assumption.
   Qed.
 End ShiftPairs.
 

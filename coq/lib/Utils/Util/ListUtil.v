@@ -3,18 +3,6 @@ From Poulet4 Require Export Utils.Util.FunUtil Utils.Util.StringUtil Monads.Resu
 From Coq Require Export Lists.List micromega.Lia.
 Export ListNotations.
 Require VST.zlist.sublist.
-Require Coq.Vectors.Vector.
-Module Vec := Coq.Vectors.Vector.
-From Equations Require Import Equations.
-
-(** * Vector *)
-
-Module VecEquations.
-  Derive Signature NoConfusion NoConfusionHom for Vec.t.
-End VecEquations.
-
-Definition vec_sum {n : nat} (v : Vec.t nat n) : nat :=
-  Vec.fold_right Nat.add v 0.
 
 (** * List Tactics *)
 

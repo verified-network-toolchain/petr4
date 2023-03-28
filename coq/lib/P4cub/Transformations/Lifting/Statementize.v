@@ -4,15 +4,32 @@ From Poulet4 Require Import
      P4cub.Syntax.CubNotations P4cub.Syntax.Shift
      Utils.ForallMap.
 Import ListNotations.
+Require Coq.Vectors.Vector.
+Module Vec := Coq.Vectors.Vector.
+From Equations Require Import Equations.
 
 Open Scope nat_scope.
 Open Scope string_scope.
 Open Scope list_scope.
 
 Section ShiftPairs.
+  (*Import Vec.VectorNotations.
+  Local Open Scope vector_scope.*)
+  
   Polymorphic Universe a.
   Polymorphic Context {A : Type@{a}}.
   Polymorphic Variable f : shifter -> A -> A.
+
+  (*Polymorphic Equations shift_pairs :
+    forall {n : nat}, Vec.t (A * list Exp.t) n -> Vec.t (A * list Exp.t) n := {
+      [] := [];
+      (a, es) :: v :=
+        let m := vec_sum Vec.map (length (A:=Exp.t)) $ Vec.map snd v in
+        (f (Shifter (length es) m) a,*)
+          
+        
+             
+  
 
   Polymorphic Fixpoint shift_pairs (l : list (A * list Exp.t)) : list (A * list Exp.t) :=
     match l with

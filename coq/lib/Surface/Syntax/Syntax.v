@@ -57,7 +57,7 @@ Section Syntax.
   | PlusPlus
   | And
   | Or.
-
+(*add info, and option type. initially have none for type. *)
   Inductive surfaceTyp := 
   | TypBool
   | TypError
@@ -80,7 +80,7 @@ Section Syntax.
   | TypVar     (variable: variableTyp).
 
   Inductive declaredTyp :=
-  | TypHeader      (type_params: list variableTyp)
+  | TypHeader      (type_params: list variableTyp) (*needs to represent both before and after inference. *)
                    (fields: P4String.AList tags_t surfaceTyp)
   | TypHeaderUnion (type_params: list variableTyp)
                    (fields: P4String.AList tags_t surfaceTyp)

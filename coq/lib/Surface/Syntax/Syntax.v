@@ -18,9 +18,6 @@ Section Syntax.
   | InOut
   | Directionless.
 
-  Variant variableTyp :=
-  | TypVariable (variable: P4String).
-
   Variant functionKind :=
   | FunParser
   | FunControl
@@ -57,8 +54,9 @@ Section Syntax.
   | PlusPlus
   | And
   | Or.
+
 (*add info, and option type. initially have none for type. *)
-  Inductive surfaceTyp := 
+  Inductive typPreT := 
   | TypBool
   | TypError
   | TypMatchKind
@@ -68,45 +66,59 @@ Section Syntax.
   | TypBit            (width: N)
   | TypVarBit         (width: N)
   | TypIdentifier     (name: P4String)
-  | TypSpecialization (base: surfaceTyp)
-                      (args: list surfaceTyp)
-  | TypHeaderStack    (typ: surfaceTyp)
-                      (size: N)
-  | TypTuple          (types: list surfaceTyp).
-
-  Variant functionTyp :=
-  | TypSurface (typ: surfaceTyp)
-  | TypVoid
-  | TypVar     (variable: variableTyp).
-
-  Inductive declaredTyp :=
-  | TypHeader      (type_params: list variableTyp) (*needs to represent both before and after inference. *)
-                   (fields: P4String.AList tags_t surfaceTyp)
-  | TypHeaderUnion (type_params: list variableTyp)
-                   (fields: P4String.AList tags_t surfaceTyp)
-  | TypStruct      (type_params: list variableTyp)
-                   (fields: P4String.AList tags_t surfaceTyp)
+  | TypSpecialization (base: typ) (*surface*)
+                      (args: list typ) (*type arg*)
+  | TypHeaderStack    (typ: typ) (*surface*)
+                      (size: expression)
+  | TypTuple          (types: list typ) (*surface*)
+  | TypHeader      (type_params: list typ) (*type variable*)
+                   (*needs to represent both before and after inference. *)
+                   (fields: P4String.AList tags_t typ) (*surface*)
+  | TypHeaderUnion (type_params: list typ) (*variable type*)
+                   (fields: P4String.AList tags_t typ) (*surface*)
+  | TypStruct      (type_params: list typ) (*variable type*)
+                   (fields: P4String.AList tags_t typ) (*surface*)
   | TypEnum        (name: P4String)
-                   (typ: option surfaceTyp)
+                   (typ: option typ) (*surface*)
                    (members: list P4String)
-  | TypParser      (type_params: list variableTyp)
+  | TypParser      (type_params: list typ) (*type variable*)
                    (parameters: list parameter)
-  | TypControl     (type_params: list variableTyp)
+  | TypControl     (type_params: list typ) (*type variable*)
                    (parameters: list parameter)
-  | TypPackage     (type_params: list variableTyp)
+  | TypPackage     (type_params: list typ) (*type variable*)
                    (wildcard_params: list P4String)
                    (parameters: list parameter)
+  | TypFunction    (type_params: list typ) (*type variable*)
+                   (parameters: list parameter)
+                   (kind: functionKind)
+                   (ret: typ) (*surface+void+type variable*)
+  | TypSet         (typ: typ) (*surface*)
+  | TypExtern      (extern_name: P4String)
+  | TypRecord      (type_params: list P4String) (*type variable*)
+                   (fields: P4String.AList tags_t typ) (*surface*)
+  | TypNewTyp      (name: P4String)
+                   (typ: typ) (*surface*)
+  | TypAction      (data_params: list parameter)
+                   (ctrl_params: list parameter)
+  | TypConstructor (type_params: list typ) (*type variable*)
+                   (wildcard_params: list P4String)
+                   (params: list parameter)
+                   (ret: typ) (*surface+void+type variable*)
+  | TypTable       (result_typ_name: P4String)
+  | TypVoid        
+  | TypVar         (variable: P4String)
+  with typ :=
+  | MkType (tags: tags_t)
+           (typ: typPreT)
   with parameter :=
   | Param (dir: direction)
-          (typ: surfaceTyp)
+          (typ: typ) (*surface*)
           (default_value: option expression)
           (variable: P4String)
   with expressionPreT :=
   | ExpBool                   (b: bool)
   | ExpString                 (s: P4String)
   | ExpInt                    (i: P4Int)
-  (* | ExpSignedInt (*how come neither p4light nor surface has this*) *)
-  (* | ExpBitString (*how come neither p4light nor surface has this*) *)
   | ExpName                   (name: P4String) (*why would it be typed.name?*)
   | ExpArrayAccess            (array: expression)
                               (index: expression)
@@ -120,7 +132,7 @@ Section Syntax.
   | ExpBinaryOp               (op: binOp)
                               (arg1: expression)
                               (arg2: expression)
-  | ExpCast                   (typ: typ) (*this is different from p4 spec.*)
+  | ExpCast                   (typ: typ) (*surface*)
                               (expr: expression)
   | ExpTypeMember             (typ: P4String)
                               (mem: P4String)
@@ -131,9 +143,9 @@ Section Syntax.
                               (tru: expression)
                               (fls: expression)
   | ExpFunctionCall           (func: expression)
-                              (type_args: list surfaceTyp) (*can the IR have any type variables?*)
+                              (type_args: list typ) (*surface*)
                               (args: list argument)
-  | ExpAnonymousInstantiation (typ: surfaceTyp)
+  | ExpAnonymousInstantiation (typ: typ) (*surface*)
                               (args: list argument)
   | ExpBitmask                (expr: expression)
                               (mask: expression)
@@ -142,36 +154,13 @@ Section Syntax.
   with expression :=
   | MkExpression (tags: tags_t)
                  (expr: expressionPreT)
-                 (* (typ: typ) *)
+                 (typ: option typ)
                  (* (dir: direction) *)
   with argument :=
   | ExpArg      (value: expression) 
   | KeyValueArg (key: P4String)
                 (value: expression)
-  | MissingArg (*can the IR  have any missing?*)
-  with synthesizedTyp :=
-  | TypFunction    (type_params: list variableTyp)
-                   (parameters: list parameter)
-                   (kind: functionKind)
-                   (ret: functionTyp)
-  | TypSet         (typ: surfaceTyp)
-  | TypExtern      (extern_name: P4String)
-  | TypRecord      (type_params: list variableTyp)
-                   (fields: P4String.AList tags_t surfaceTyp)
-  | TypNewTyp      (name: P4String)
-                   (typ: surfaceTyp)
-  | TypAction      (data_params: list parameter)
-                   (ctrl_params: list parameter)
-  | TypConstructor (type_params: list variableTyp)
-                   (wildcard_params: list P4String)
-                   (params: list parameter)
-                   (ret: functionTyp)
-  | TypTable       (result_typ_name: P4String)
-  with typ :=
-  | TypeSurface (typ: surfaceTyp)
-  | TypeDeclared (typ: declaredTyp) 
-  | TypeSynthesized (typ: synthesizedTyp).
-  (* | TypVoid. *)
+  | MissingArg.
 
   Variant stmtSwitchLabel :=
   | StmtSwitchLabelDefault (tags: tags_t)
@@ -186,11 +175,11 @@ Section Syntax.
                               (lable: stmtSwitchLabel)
   with statementPreT := (*not sure why surface.ml has declaration in statements and p4light has variable and instantiation in it.*)
   | StmtMethodCall        (func: expression)
-                          (type_args: list surfaceTyp)
+                          (type_args: list typ) (*surface*)
                           (args: list argument)
   | StmtAssignment        (lhs: expression)
                           (rhs: expression)
-  | StmtdirectApplication (typ: surfaceTyp)
+  | StmtdirectApplication (typ: typ) (*surface*)
                           (args: list argument)
   | StmtConditional       (cond: expression)
                           (tru: statement)
@@ -204,7 +193,7 @@ Section Syntax.
   with statement :=
   | MkStatement (tags: tags_t)
                 (stmt: statementPreT)
-                (* (typ: typ). *)
+                (typ: option typ)
   with block :=
   | BlockEmpty (tags: tags_t)
   | BlockCons (statement: statement)
@@ -235,7 +224,7 @@ Section Syntax.
                 (transistion: parserTransition).
 
   Variant fieldType :=
-  | FieldType (typ: surfaceTyp)
+  | FieldType (typ: typ) (*surface*)
               (field: P4String).
 
   Variant methodPrototype :=
@@ -243,12 +232,12 @@ Section Syntax.
                         (name: P4String)
                         (params: list parameter)
   | ProtoAbstractMethod (tags: tags_t)
-                        (ret_type: surfaceTyp)
+                        (ret_type: typ) (*surface*)
                         (name: P4String)
                         (type_params: list P4String)
                         (params: list parameter)
   | ProtoMethod         (tags: tags_t)
-                        (ret_type: surfaceTyp)
+                        (ret_type: typ) (*surfce*)
                         (name: P4String)
                         (type_params: list P4String)
                         (params: list parameter).
@@ -260,7 +249,7 @@ Section Syntax.
 
   Variant actionRef :=
   | TabActionRef (tags: tags_t)
-                 (name: P4String) (*it's name in surface.ml.*)
+                 (name: P4String) (*TODO: it's name in surface.ml.*)
                  (args: list argument).
 
   Variant tableEntry :=
@@ -284,10 +273,10 @@ Section Syntax.
                        (const: bool).
 
   Inductive declarationPreT :=
-  | DeclConstant         (typ: surfaceTyp)
+  | DeclConstant         (typ: typ) (*surface*)
                          (name: P4String)
                          (value: expression)
-  | DeclInstantiation    (typ: surfaceTyp)
+  | DeclInstantiation    (typ: typ) (*surface*)
                          (args: list argument)
                          (name: P4String)
                          (init: list declaration)
@@ -303,19 +292,19 @@ Section Syntax.
                          (constructor_params: list parameter)
                          (locals: list declaration)
                          (apply: block)
-  | DeclFunction         (ret_typ: functionTyp)
+  | DeclFunction         (ret_typ: typ) (*surface+void+type variable*)
                          (name: P4String)
                          (type_params: list P4String)
                          (params: list parameter)
                          (body: block)
-  | DeclExternFunction   (ret_type: surfaceTyp)
+  | DeclExternFunction   (ret_type: typ) (*surface*)
                          (name: P4String)
                          (type_params: list P4String)
                          (params: list parameter)
-  | DeclVariable         (typ: surfaceTyp)
+  | DeclVariable         (typ: typ) (*surface*)
                          (name: P4String)
                          (init: option expression)
-  | DeclValueSet         (typ: surfaceTyp)
+  | DeclValueSet         (typ: typ) (*surface*)
                          (name: P4String)
                          (size: expression)
   | DeclAction           (name: P4String)
@@ -334,7 +323,7 @@ Section Syntax.
   | DeclMatchKind        (members: list P4String)
   | DeclEnumTyp          (name: P4String)
                          (members: list P4String)
-  | DeclSerializableEnum (typ: surfaceTyp)
+  | DeclSerializableEnum (typ: typ) (*surface*)
                          (name: P4String)
                          (members: P4String.AList tags_t expression)
   | DeclControlTyp       (name: P4String)
@@ -350,13 +339,13 @@ Section Syntax.
                          (type_params: list P4String)
                          (methods: list methodPrototype)
   | DeclTypeDef          (name: P4String)
-                         (typ_or_dcl: (surfaceTyp + declaration))
+                         (typ_or_dcl: (typ + declaration)) (*surface*)
   | DeclNewType          (name: P4String)
-                         (typ_or_dcl: (surfaceTyp + declaration))
+                         (typ_or_dcl: (typ + declaration)) (*surface*)
   with declaration :=
   | MkDeclaration (tags: tags_t)
-                  (decl: declarationPreT).
-                  (* (typ: typ). *)
+                  (decl: declarationPreT)
+                  (typ: option typ).
 
 
 End Syntax. 

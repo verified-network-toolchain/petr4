@@ -13,36 +13,6 @@ Import RecordSetNotations.
 Local Open Scope exp_scope.
 Local Open Scope stm_scope.
 
-Goal forall e es,
-    shift_pairs shift_exp [(e,es)] = [(e,es)].
-Proof.
-  intros; cbn; rewrite shift_exp_0 , shift_explist_0. reflexivity.
-Qed.
-
-Goal forall e1 e2 es1 es2,
-    shift_pairs shift_exp [(e2,es2);(e1,es1)]
-    = [(shift_exp (Shifter (length es2) (length es1)) e2,
-         shift_list shift_exp (Shifter 0 (length es1)) es2);
-       (shift_exp (Shifter 0 (length es2)) e1, es1)].
-Proof.
-  intros; unravel.
-  rewrite add_0_r, shift_explist_0, shift_exp_0.
-  reflexivity.
-Qed.
-
-Goal forall e1 e2 e3 es1 es2 es3,
-    shift_pairs shift_exp [(e3,es3);(e2,es2);(e1,es1)]
-    = [(shift_exp (Shifter (length es3) (length es2 + length es1)) e3,
-            shift_list shift_exp (Shifter 0 (length es2 + length es1)) es3);
-       (shift_exp (Shifter 0 (length es3)) (shift_exp (Shifter (length es2) (length es1)) e2),
-         shift_list shift_exp (Shifter 0 (length es1)) es2);
-       (shift_exp (Shifter 0 (length es3 + length es2)) e1, es1)].
-Proof.
-  intros; unravel.
-  rewrite add_0_r, shift_explist_0, shift_exp_0, shift_exp_add.
-  reflexivity.
-Qed.
-
 Inductive Lift_exp
   : Exp.t -> Exp.t -> list Exp.t -> Prop :=
 | Lift_bool (b : bool) :

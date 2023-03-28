@@ -117,7 +117,7 @@ Section ShiftList.
       cbn; f_equal; auto.
   Qed.
 End ShiftList.
-
+  
 Lemma shift_exp_add : forall m n e,
     shift_exp (Shifter 0 m) (shift_exp (Shifter 0 n) e) = shift_exp (Shifter 0 (m + n)) e.
 Proof.
@@ -229,6 +229,22 @@ Fixpoint shift_ctrls
 
 Local Close Scope stm_scope.
 
+Section ShiftList.
+  Context {A : Set}.
+  Variable f : shifter -> A -> A.
+  
+  Hypothesis shift_f_0 : forall c a, f (Shifter c 0) a = a.
+  
+  Lemma shift_list_0 : forall l c,
+      shift_list f (Shifter c 0) l = l.
+  Proof using A f shift_f_0.
+    intro l; induction l as [| a l ih]; intro c; unravel; trivial.
+    unfold smother,RecordSet.set,cutoff,amt.
+    rewrite shift_f_0, ih. reflexivity.
+  Qed.
+End ShiftList.
+
+
 Section Shift0.
   Local Hint Rewrite shift_exp_0 : core.
   Local Hint Rewrite shift_exp_0_map : core.
@@ -236,9 +252,9 @@ Section Shift0.
   Lemma shift_explist_0 : forall es c,
       shift_list shift_exp (Shifter c 0) es = es.
   Proof.
-    intro es; induction es as [| e es ih];
-      intro c; unravel; unfold smother, RecordSet.set; cbn;
-      autorewrite with core; f_equal; auto.
+    intros es c.
+    apply shift_list_0.
+    exact shift_exp_0.
   Qed.
   
   Local Hint Rewrite shift_arg_0 : core.

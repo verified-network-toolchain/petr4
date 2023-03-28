@@ -324,7 +324,7 @@ The following describes the metavariables used in this document:
 
 In this section, we provide the signatures used throughout this document including the judgment forms (``TODO: revise``), environment signatures (``TODO: revise``), and function signatures (``TODO: maybe add``).
 
-* we may need to adjust the type well-formed judgment depending on whehter we need type and extern envs anymore or not. 
+* we may need to adjust the type well-formed judgment depending on whether we still need type and/or extern envs. 
 
 ~ Center
 | **judgment name**   |   **judgment form** | ** where to find rules ** |
@@ -347,10 +347,10 @@ In this section, we provide the signatures used throughout this document includi
 
 # Syntax { #sec-syntax }
 
-In the following we present P4 syntax. Note that we omitted annotations and meta-information since they are not required for type checking. Some notes about the syntax follows:
+In the following we present P4 syntax. Note that we omitted annotations and meta-information since they are not required for type checking. Some notes about the syntax follow:
 
-- Surface types are the types that a developer can use and write down while writing a P4 program. The surface type presented is parametrized by a type variable and it instantiates to $\surfaceTyp \exp$ for the types that a programers writes in their P4 program.
-  + Note that similar to P4, we categorize $\errTyp$ and $\matchKindTyp$ types as surface types, however, their members are declared by a P4 program/library. The reason behind this is the need to have arguments of these types, such as the example below which is taken from P4 spec:
+- Surface types are the types that a developer can write down and use while writing a P4 program. The surface type presented is parametrized by a type variable, and it instantiates to $\surfaceTyp \exp$ for the types that a programmer writes in their P4 program.
+  + Note that similar to P4, we categorize $\errTyp$ and $\matchKindTyp$ types as surface types; however, their members are declared by a P4 program/library. The reason behind this is the need to have arguments of these types, such as the example below, which is taken from P4 spec:
 
 ~ Begin P4Example
 extern void verify(in bool condition, in error err);
@@ -363,9 +363,9 @@ ParserModel.verify(bool condition, error err) {
 }
 ~ End P4Example
 
-- Parameters, denoted by $\prmDef \typKind$, are paremeterized by the type they have, that is, $\typKind$ represent a type where it can either be $\surfaceTyp \atyp$ or $\typ$. This is because they are used in different places and depending on where they are used they may have a different type. 
-- For simplicity, we use the expanded format of parameter in most rules to have fine access to its direction and type. However, we often don't need its initializer so we omit that. Keep in mind that a parameter could or could not have an initializer.
-- Direction is optional in parameter declaration. However, for simpilicity, we just use  $\less$ to denote a missing direction. 
+- Parameters, denoted by $\prmDef \typKind$, are paremeterized by the type they have, that is, $\typKind$ represents a type that can either be $\surfaceTyp \atyp$ or $\typ$. This is because they are used in different places, and depending on where they are used, they may have a different type. 
+- For simplicity, we use the expanded format of parameter in most rules to have fine access to its direction and type. However, we often don't need its initializer so we omit it. Keep in mind that a parameter may or may not have an initializer.
+- Direction is optional in parameter declaration; however, for simplicity, we just use  $\less$ to denote a missing direction. 
 
 ~ Begin P4Syntax
 **Surface types:**
@@ -687,17 +687,17 @@ Two judgments are provided for types of P4 expressions:
 
 ## Type Well-Formed Judgment { #sec-type-well-formed }
 
-This judgment is overloaded and it checks if a surface type and more generally a type is well-formed or not. This judgment is used to check if a surface type is well-formed when it is used in expressions or if a type is well-formed when it is declared. Specifically, it has two forms $\typWellFormed {\surfaceTyp \exp}$ and $\typWellFormed {\typ}$ which state that the type $\surfaceTyp \exp$ and $\typ$, respectively, are well-formed under the type environment $\typEnv$ and extern environment $\externEnv$. In other words, this judgment checks that types are syntactically correct.
+This judgment is overloaded and checks if a surface type—and more generally a type—is well-formed or not. This judgment is used to check if a surface type is well-formed when it is used in expressions or if a type is well-formed when it is declared. Specifically, it has two forms, $\typWellFormed {\surfaceTyp \exp}$ and $\typWellFormed {\typ}$, which state that the type $\surfaceTyp \exp$ and $\typ$, respectively, are well-formed under the type environment $\typEnv$ and extern environment $\externEnv$. In other words, this judgment checks that types are syntactically correct.
 
 ### Surface Types Well-Formedness { #sec-surface-typ-well-formed }
 
 ``todo: rewrite explanation``
 
-At first glance, it might seem redundant to define this judgment for both $\surfaceTyp \exp$ and $\typ$. However, it is important to note that although $\surfaceTyp \exp$ is a subset of $\typ$ for most part, there are exceptions to that: when $\typ$ instantiates $\atyp$ in $\surfaceTyp \atyp$ definition to $\width$ while $\surfaceTyp \exp$ instantiates it to $\exp$. For example, $\intWidthTyp {(3 + 2)}$ is legal instance of type $\surfaceTyp \exp$ but it isn't a legal instance of type $\typ$ while $\intWidthTyp 2$ is a legal instance of both types $\surfaceTyp \exp$ and $\typ$. Thus, we need to define it for both type categories.
+At first glance, it might seem redundant to define this judgment for both $\surfaceTyp \exp$ and $\typ$. However, it is important to note that although $\surfaceTyp \exp$ is a subset of $\typ$ for most part, there are exceptions to that: when $\typ$ instantiates $\atyp$ in $\surfaceTyp \atyp$ definition to $\width$ while $\surfaceTyp \exp$ instantiates it to $\exp$. For example, $\intWidthTyp {(3 + 2)}$ is legal instance of type $\surfaceTyp \exp$ but isn't a legal instance of type $\typ$, while $\intWidthTyp 2$ is a legal instance of both types $\surfaceTyp \exp$ and $\typ$. Thus, we need to define it for both type categories.
 
 #### Base Types { #sec-base-t }
 
-Some of the base types are well-formed unconditionally since there is not any room for an error while constructing a value of these types. For example, the $\boolTyp$ only has two constructors $\mathit{true}$ and $\mathit{false}$ which do not take any argument so there is no room to construct a value incorrectly.
+Some of the base types are well-formed unconditionally since there is not any room for an error while constructing a value of these types. For example, the $\boolTyp$ only has two constructors, $\mathit{true}$ and $\mathit{false}$, which do not take any argument so there is no room to construct a value incorrectly.
 
 
 ~ Begin InfRule
@@ -892,7 +892,7 @@ environment $\env$, a tuple type is well-formed if all its types are well-formed
 follows the nesting typing rules of P4. 
 
 ``todo: add isvalidenestedtyp for tuples. the text below is taken from headers. 
-A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function which for a header type the inner types can be one of the followings:``
+A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function. For a header type, the inner types can be one of the following:``
 
 - $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
 - $\intWidthTyp \exp$ and $\compTimeKnown \exp$
@@ -1181,7 +1181,7 @@ the form $\typEqEnv {\overline {(\var, \prim \var)}} {\typ_1} {\typ_2} $ which s
 Type unification attempts to unify two expression types, that is, it attempts to come up with constraints that allow the two types to be equivalent. The constraints are just assignments of types to unknown type variables (given as $\typVars$). 
 
 - type unification for type produces by type checking, i.e., typed.type.t
-- both types are reduced first. for brevity we omit the reduction from rules. so type 1 and type 2 in rules are already reduced.
+- both types are reduced first. for brevity, we omit the reduction from rules, so type 1 and type 2 in rules are already reduced.
 
 ~ Begin InfRule
 
@@ -1421,7 +1421,7 @@ section 8.12.5. of P4 spec (**DISCUSS**))
 ```done```
 
 Base constructors such as boolean, string, and all integer constructors simply construct values of their type. 
-The rule $\boolE$ states that a boolean expression in surface syntax has the type $\boolTyp$, it translates to the same boolean expression in the IR syntax, and has the $\less$ direction.
+The rule $\boolE$ states that a boolean expression in surface syntax has the type $\boolTyp$, translates to the same boolean expression in the IR syntax, and has the $\less$ direction.
 The rules $\stringE$, $\integerE$, $\bitStringE$, and $\signedIntE$ are similar to $\boolE$. 
 
 ~ Begin InfRule
@@ -1489,9 +1489,9 @@ checks that the expression $\exp$ with type $\typ$ fits one of the following:
    * $\typ = \bitWidthTyp \width$
 - $\compTimeKnown \exp$ checks if the value of expression $\exp$ is known during the
 compilation. It does so by evaluating the expression $\exp$ at compile time, if that is
-possible then we know the value at compile time. Otherwise, if the expression $\exp$ is
+possible, then we know the value at compile time. However, if the expression $\exp$ is
 a specialized type, extern, package, control, or parser but we cannot evaluate it at
-compile time we still consider it known at compile time.
+compile time, we still consider it known at compile time.
 - $\compileTimeEval \exp$ evaluates the expression $\exp$ at compile time and returns its value if $\exp$ is a well-typed expression.
 
 ~ Begin InfRule
@@ -1524,7 +1524,7 @@ compile time we still consider it known at compile time.
 ```done```
 ```under the $\cte$ context```
 
-$\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$ denotes slicing a the a (un)signed fixed-length integer $\exp_1$ from bit $\exp_2$ to $\exp_3$.
+$\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$ denotes slicing a (un)signed fixed-length integer $\exp_1$ from bit $\exp_2$ to $\exp_3$.
 
 
 - $\isNumOrEnum \typ$ checks if $\typ$ is one of the following:
@@ -1695,7 +1695,7 @@ $\rn{LogicalOps}\rAE(\ops=\intoOp {\&\&}, \intoOp \logor)$
 applies to both **logical and** and **logical or**, that is, while reading the rule,
 one can substitute $\ops$ for either $\intoOp {\&\&}$ or $\intoOp \logor$.
 
-The type system first looks into binary operation rules without inserting any implicit cast. If it cannot derive a tree for a given expression, then it looks into the rules that insert implicit casts. Note that some binary operations such as bitstring concatenation only allows for implicit cast of a serializable enum to its underlying type. 
+The type system first looks into binary operation rules without inserting any implicit cast. If it cannot derive a tree for a given expression, then it looks into the rules that insert implicit casts. Note that some binary operations such as bitstring concatenation only allow for the implicit cast of a serializable enum to its underlying type. 
 
 The following helpers are used in the binary operation rules:
 
@@ -1722,12 +1722,12 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
     $\concatCond {\typ_1} {\typ_2} = \intWidthTyp {\width_1 + \width_2}$
   + if $\typ_1 = \intWidthTyp {\width_1}, \typ_2 = \intWidthTyp {\width_2}$, then
     $\concatCond {\typ_1} {\typ_2} = \intWidthTyp {\width_1 + \width_2}$
-- $\nonNeg \exp$ evaluates an expression at compile time and check if it is a non-negative.
-- $\shiftCond {\typ} {\exp}$ checks whether one of the following holds:
+- $\nonNeg \exp$ evaluates an expression at compile time and checks if it is non-negative.
+- $\shiftCond {\typ} {\exp}$ checks whether one of the following hold:
   + $\typ = \bitWidthTyp \width$
   + $\typ = \integerTyp$, $\compTimeKnown \exp$, and $\nonNeg \exp$ 
-- $\ifIntComp \typ \exp$ returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-know.
-- $\insertEnumImplCast {\exp} {\typ}$ inserts implicit cast only when $\typ$ is serializable enum.
+- $\ifIntComp \typ \exp$ returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-known.
+- $\insertEnumImplCast {\exp} {\typ}$ inserts an implicit cast only when $\typ$ is a serializable enum.
 
 ~ Begin InfRule
 
@@ -1998,11 +1998,11 @@ of types.
 The [casting auxiliary judgment][#sec-cast-helper] defines rules for implicitly
 and explicitly casting one type to another. Specifically, the judgment
 $\castenv \ {\typ_1} {\typ_2}$ states that under the type environment $\typEnv$ and type sysnonym store $\typSynEnv$,
-the type $\typ_1$ can be casted to type $\typ_2$ either explicitly or implicitly.
-However, if the arrow is subscripted with $i$ or $e$ it states that the cast is only
+the type $\typ_1$ can be casted to type $\typ_2$, either explicitly or implicitly.
+However, if the arrow is subscripted with $i$ or $e$, it states that the cast is only
 done implicitly or explicitly, respectively.
-- Note that there is no need to check the well-formness of the type $\typ$ generated while type checking expression $\exp$ since it has been generated by the type system and we know it is well-formed.
--  Note that you can cast to a non-surface type by just using its name. So you may need to look up the type identifier before going into the cast auxiliary. For example, $E$ is an enum in $b = (E) x$. So we need to look up $E$ and then go from there. That is exactly what the $\castTypNameE$ rule does. 
+- Note that there is no need to check the well-formedness of the type $\typ$ generated while type checking expression $\exp$, since it has been generated by the type system, and we therefore know it is well-formed.
+-  Note that you can cast to a non-surface type by just using its name, so you may need to look up the type identifier before going into the cast auxiliary. For example, $E$ is an enum in $b = (E) x$. So we need to look up $E$ and then go from there. That is exactly what the $\castTypNameE$ rule does. 
 
 
 ~ Begin InfRule
@@ -2033,7 +2033,7 @@ done implicitly or explicitly, respectively.
 ### Cast Auxiliary Judgment { #sec-cast-helper }
 
 This auxiliary judgment states if casting of a type to another, either explicitly or implicitly or both, is valid. 
-The arrow subscription with $e$ or $i$ indicates if a rule only applies for explicit or implicit cast only, respectively. Otherwise, the arrow does not have a subscription,
+The arrow subscription with $e$ or $i$ indicates that a rule only applies for explicit or implicit cast only, respectively. Otherwise, the arrow does not have a subscription,
 meaning that it applies for both explicit and implicit casts. However, note that when a rule uses recursive casts, the recursion must use the same kind of cast even when the arrow does not indicate if the cast is explicit or implicit.
 
 - Reminder: a list has a tuple type.
@@ -2433,7 +2433,7 @@ meaning that it applies for both explicit and implicit casts. However, note that
 A membership expression denoted by a dot, that is, $a.\name$ looks if $\name$ exists in $a$. And it can be a type, error, or expression membership depending on what $a$ is.
 An expression member looks up a _member_ in an expression.
 The member could be a field in
-a record type such as struct and header, or it could be a method in an extern or specialized type, or a special look up of an element of an array such as next, last, size, and last index.  
+a record type, such as struct and header, or it could be a method in an extern or specialized type, or a special look up of an element of an array such as next, last, size, and last index.  
 
 
 The rules $\typeMemE$ and $\errMemE$ are rather simple.

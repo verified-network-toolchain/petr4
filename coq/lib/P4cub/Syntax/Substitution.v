@@ -126,7 +126,7 @@ Section Sub.
     ; rtrns := option_map tsub_typ ret |}.
 
   Definition tsub_cparams : Top.constructor_params -> Top.constructor_params :=
-    List.map (FunUtil.map_snd tsub_insttyp).
+    List.map (prod_map_snd tsub_insttyp).
 End Sub.
 
 Definition tsub_method
@@ -159,13 +159,13 @@ Definition tsub_top (σ : nat -> Typ.t) (d : Top.t) : Top.t :=
   | Top.Extern ename tparams cparams expr_cparams methods =>
       let σ' := exts `^ tparams σ in
       let cparams' :=
-        List.map (FunUtil.map_snd $ tsub_insttyp σ') cparams in
+        List.map (prod_map_snd $ tsub_insttyp σ') cparams in
       let expr_cparams' :=
         map (tsub_typ σ') expr_cparams in
       let methods' := Field.map (tsub_method σ') methods in
       Top.Extern ename tparams cparams' expr_cparams' methods'
   | Top.Control cname cparams expr_cparams eparams params body apply_blk =>
-      let cparams' := map (FunUtil.map_snd $ tsub_insttyp σ) cparams in
+      let cparams' := map (prod_map_snd $ tsub_insttyp σ) cparams in
       let expr_cparams' :=
         map (tsub_typ σ) expr_cparams in
       let params' := map_snd (tsub_param σ) params in
@@ -173,7 +173,7 @@ Definition tsub_top (σ : nat -> Typ.t) (d : Top.t) : Top.t :=
       let apply_blk' := tsub_stm σ apply_blk in
       Top.Control cname cparams' expr_cparams' eparams params' body' apply_blk'
   | Top.Parser pn cps expr_cparams eps ps strt sts =>
-      let cps' := map (FunUtil.map_snd $ tsub_insttyp σ) cps in
+      let cps' := map (prod_map_snd $ tsub_insttyp σ) cps in
       let expr_cparams' :=
         map (tsub_typ σ) expr_cparams in
       let ps' := map_snd (tsub_param σ) ps in

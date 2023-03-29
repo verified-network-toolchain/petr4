@@ -276,29 +276,10 @@ Section Expr.
 
 End Expr.
 
-Section Parser.
-
-  Variable ϵ : list Val.v.
-
-  Open Scope pat_scope.
-
-  Definition interpret_pre_match (e : @MatchPreT unit) : option Parser.pat :=
-    match e with
-    | MatchDontCare => mret $ Parser.Wild
-    | MatchMask l1 l2 =>
-        let* (w1, n1) := to_bit =<< interpret_expr [] =<< unembed_expr l1 in
-        let* (w2, n2) := to_bit =<< interpret_expr [] =<< unembed_expr l2 in
-        guard (N.eqb w1 w2) ;;
-        mret $ Parser.Mask (w1 PW n1) (w2 PW n2)
-    | MatchRange l1 l2 =>
-        let* (w1, n1) := to_bit =<< interpret_expr [] =<< unembed_expr l1 in
-        let* (w2, n2) := to_bit =<< interpret_expr [] =<< unembed_expr l2 in
-        guard (N.eqb w1 w2) ;;
-        mret $ Parser.Range (w1 PW n1) (w2 PW n2)
-    | _ => None
-    end.
-
-End Parser.
+Definition interpret_table_entry (entry : table_entry (Expression := Expr.e)) : option (Parser.pat * action_ref) :=
+  let 'mk_table_entry matches action_ref := entry in
+  let^ pats := unembed_valsets matches in
+  (Parser.Lists pats, action_ref).
 
 Definition interpret_actions_of_ctx ctx :=
   match ctx with

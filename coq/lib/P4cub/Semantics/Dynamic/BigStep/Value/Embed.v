@@ -307,6 +307,88 @@ Section Embed.
     Forall2 embed_pat_valset ps vss ->
     embed_pat_valset (Parser.Lists ps) (ValSetProd vss).
 
+  Definition unembed_valset_singleton (v : @ValueBase bool) : option Parser.pat :=
+    match v with
+    | ValBaseBit bits => mret $ uncurry Parser.Bit $ BitArith.from_lbool bits
+    | ValBaseInt bits =>
+      let (w, z) := BitArith.from_lbool bits in
+      match w with
+      | N0 => None
+      | Npos w => mret $ Parser.Int w z
+      end
+    | _ => None
+    end.
+
+  Lemma unembed_valset_singleton_sound :
+    forall v pat,
+      unembed_valset_singleton v = Some pat ->
+        embed_pat_valset pat (ValSetSingleton v).
+  Proof.
+    intros. destruct v; try discriminate.
+    - inv H. cbn.
+      replace (ValBaseBit value) with (ValBaseBit (to_lbool (Z.to_N (Zcomplements.Zlength value)) (BitArith.lbool_to_val value 1 0))).
+      * constructor.
+      * f_equal. apply to_lbool_lbool_to_val.
+    - inv H. destruct (Z.to_N _) eqn:?; try discriminate. inv H1.
+      replace (ValBaseInt value) with (ValBaseInt (to_lbool (Z.to_N (Zcomplements.Zlength value)) (BitArith.lbool_to_val value 1 0))).
+      * rewrite Heqn. constructor.
+      * f_equal. apply to_lbool_lbool_to_val.
+    Qed.
+
+  Fixpoint unembed_valset (val : ValueSet) : option Parser.pat :=
+    match val with
+    | ValSetUniversal => mret Parser.Wild
+    | ValSetSingleton v => unembed_valset_singleton v
+    | ValSetRange v₁ v₂ =>
+      let* p₁ := unembed_valset_singleton v₁ in
+      let^ p₂ := unembed_valset_singleton v₂ in
+      Parser.Range p₁ p₂
+    | ValSetMask v₁ v₂ =>
+      let* p₁ := unembed_valset_singleton v₁ in
+      let^ p₂ := unembed_valset_singleton v₂ in
+      Parser.Mask p₁ p₂
+    | ValSetProd vss => map_monad unembed_valset vss >>| Parser.Lists
+    | _ => None
+    end.
+
+  Lemma unembed_valset_sound :
+    forall val pat, unembed_valset val = Some pat -> embed_pat_valset pat val.
+  Proof.
+    induction val using custom_ValueSet_ind; intros; try discriminate.
+    - cbn in H. apply unembed_valset_singleton_sound. assumption.
+    - inv H. constructor.
+    - cbn in H. unfold option_bind in *.
+      destruct (unembed_valset_singleton value) eqn:Hvalue; try discriminate.
+      apply unembed_valset_singleton_sound in Hvalue.
+      destruct (unembed_valset_singleton mask) eqn:Hmask; try discriminate.
+      inv H. apply unembed_valset_singleton_sound in Hmask.
+      constructor; auto.
+    - cbn in H. unfold option_bind in *.
+      destruct (unembed_valset_singleton lo) eqn:Hlo; try discriminate.
+      apply unembed_valset_singleton_sound in Hlo.
+      destruct (unembed_valset_singleton hi) eqn:Hhi; try discriminate.
+      inv H. apply unembed_valset_singleton_sound in Hhi.
+      constructor; auto.
+    - cbn in *. unfold option_bind in *.
+      destruct (map_monad unembed_valset l) eqn:HSome; try discriminate. inv H0.
+      constructor. rewrite map_monad_some in HSome.
+      generalize dependent l0. induction l; intros.
+      + inv HSome. constructor.
+      + inv H. inv HSome. constructor; auto.
+  Qed.
+
+  Definition unembed_valsets : list ValueSet -> option (list Parser.pat) := map_monad unembed_valset.
+
+  Lemma unembed_valsets_sound :
+    forall vss pats,
+      unembed_valsets vss = Some pats -> Forall2 embed_pat_valset pats vss.
+  Proof.
+    unfold unembed_valsets. intros. rewrite map_monad_some in H.
+    generalize dependent pats. induction vss; intros.
+    - inv H. constructor.
+    - inv H. constructor; auto. apply unembed_valset_sound. assumption.
+  Qed.
+  
   Definition get_singleton (val : ValueSet) : option (@ValueBase bool) :=
     match val with
     | ValSetSingleton b => mret b

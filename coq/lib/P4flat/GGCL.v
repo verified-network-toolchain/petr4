@@ -10,18 +10,24 @@ Module Dijkstra.
     Variable (var: Type).
     Context `{Equivalence var eq}.
     Context `{EqDec var eq}.
-    Variable (sig: signature).
+    Variables (sort_sym fun_sym rel_sym: vocab).
+    Context `{@EqDec fun_sym eq eq_equivalence}.
+    Context `{@EqDec rel_sym eq eq_equivalence}.
+    Context `{@EqDec sort_sym eq eq_equivalence}.
+    Variable (sig: signature sort_sym fun_sym rel_sym).
+
     Inductive stmt : Type :=
     | GSkip
     | GAssign (lhs : var)
-              (rhs : Spec.tm var sig)
+              (rhs : Spec.tm var fun_sym)
     | GSeq (g1 g2 : stmt)
     | GChoice (g1 g2 : stmt)
-    | GAssume (phi : Spec.fm var sig)
-    | GAssert (phi : Spec.fm var sig).
+    | GAssume (phi : Spec.fm var fun_sym rel_sym)
+    | GAssert (phi : Spec.fm var fun_sym rel_sym).
 
     (* Naive WP. *)
-    Fixpoint wp (s: stmt) (phi: Spec.fm var sig) : Spec.fm var sig :=
+    Fixpoint wp (s: stmt) (phi: Spec.fm var fun_sym rel_sym)
+      : Spec.fm var fun_sym rel_sym :=
       match s with
       | GSkip => phi
       | GAssign lhs rhs => Spec.fm_subst lhs rhs phi
@@ -32,15 +38,16 @@ Module Dijkstra.
       end.
 
   End Dijkstra.
-  Arguments GAssign {var sig}.
-  Arguments GSeq {var sig}.
-  Arguments GChoice {var sig}.
-  Arguments GAssume {var sig}.
-  Arguments GAssert {var sig}.
+  Arguments GAssign {var fun_sym rel_sym}.
+  Arguments GSeq    {var fun_sym rel_sym}.
+  Arguments GChoice {var fun_sym rel_sym}.
+  Arguments GAssume {var fun_sym rel_sym}.
+  Arguments GAssert {var fun_sym rel_sym}.
 
-  Fixpoint stmt_map_vars {V W sig} (m: V -> W) (s: stmt V sig) : stmt W sig :=
+  Fixpoint stmt_map_vars {V W fun_sym rel_sym} (m: V -> W) (s: stmt V fun_sym rel_sym)
+    : stmt W fun_sym rel_sym :=
     match s with
-    | GSkip _ _ => GSkip _ _
+    | GSkip _ _ _ => GSkip _ _ _
     | GAssign lhs rhs => GAssign (m lhs) (Spec.tm_map_vars m rhs)
     | GSeq g1 g2 => GSeq (stmt_map_vars m g1) (stmt_map_vars m g2) 
     | GChoice g1 g2 => GChoice (stmt_map_vars m g1) (stmt_map_vars m g2)
@@ -55,23 +62,27 @@ Module Dijkstra.
     Context {V2: Type}.
     Context `{Equivalence V2 eq}.
     Context `{EqDec V2 eq}.
-    Context {sig: signature}.
+    Variables (sort_sym fun_sym rel_sym: vocab).
+    Context `{@EqDec fun_sym eq eq_equivalence}.
+    Context `{@EqDec rel_sym eq eq_equivalence}.
+    Context `{@EqDec sort_sym eq eq_equivalence}.
+    Variable (sig: signature sort_sym fun_sym rel_sym).
 
     (* Note this requires the two programs already agree on a signature
        [sig], but you will want them to at least have disjoint table
        signatures when dealing with table programs. *)
     Definition seq_prod_prog
-               (s1: stmt V1 sig)
-               (s2: stmt V2 sig)
-      : stmt (V1 + V2) sig :=
+               (s1: stmt V1 fun_sym rel_sym)
+               (s2: stmt V2 fun_sym rel_sym)
+      : stmt (V1 + V2) fun_sym rel_sym :=
       (* <s1|; |s2> *)
       GSeq (stmt_map_vars inl s1) (stmt_map_vars inr s2).
 
     Definition seq_prod_wp
-            (s1: stmt V1 sig)
-            (s2: stmt V2 sig)
-            spec :=
-          wp _ _ (seq_prod_prog s1 s2) spec.
+               (s1: stmt V1 fun_sym rel_sym)
+               (s2: stmt V2 fun_sym rel_sym)
+               spec :=
+      wp _ _ _ (seq_prod_prog s1 s2) spec.
 
   End Products.
 End Dijkstra.

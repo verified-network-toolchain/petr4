@@ -40,15 +40,15 @@ Definition seq_tables : P4flat.Syntax.TopDecl.prog :=
   ].
 
 (* List of programs (p, q, s) such that s |= p <= q *)
-Definition refinements : list (TopDecl.prog * TopDecl.prog * fm (var + var) p4sig) :=
+Definition refinements : list (TopDecl.prog * TopDecl.prog * fm (var + var) p4funs p4rels) :=
   [(one_table, seq_tables, FEq (TVar (inl "x_one_table")) (TVar (inr "x_seq_tables")))].
 
 Eval cbv in (prog_to_stmt one_table).
 Eval cbv in (prog_to_stmt seq_tables).
-Definition my_spec : fm (var + var) p4sig :=
+Definition my_spec : fm (var + var) p4funs p4rels :=
   FEq (TVar (inl "x_one_table")) (TVar (inr "x_seq_tables")).
 Eval cbv in (let* one := prog_to_stmt one_table in
              let* seq := prog_to_stmt seq_tables in
-             ok (GGCL.Dijkstra.wp _ _
-                                 (GGCL.Dijkstra.seq_prod_prog one seq)
+             ok (GGCL.Dijkstra.wp _ _ _
+                                 (GGCL.Dijkstra.seq_prod_prog _ _ one seq)
                                  my_spec)).

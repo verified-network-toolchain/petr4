@@ -2,21 +2,40 @@
     using dependently typed syntax.  *)
 Require Import Coq.Strings.String.
 Require Import Poulet4.P4flat.Sig.
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.Option.
 Require Import Coq.Classes.EquivDec.
+Require Import Poulet4.Utils.AList.
 
 Section FOL.
   Variable (var: Type).
   Context `{Equivalence var eq}.
   Context `{EqDec var eq}.
-  Variable (sig: signature).
+  Variables (sort_sym fun_sym rel_sym: vocab).
+  Context `{@EqDec fun_sym eq eq_equivalence}.
+  Context `{@EqDec rel_sym eq eq_equivalence}.
+  Context `{@EqDec sort_sym eq eq_equivalence}.
+  Variable (sig: signature sort_sym fun_sym rel_sym).
 
   (* First-order terms (either functions or variables). *)
   Inductive tm: Type :=
   | TVar (v: var)
-  | TFun (f: sig.(sig_funs))
+  | TFun (f: fun_sym)
          (args: list tm).
 
-  (* First-order formulas. *)
+  Definition ctx :=
+    AList var sort_sym eq.
+
+  Definition check_tm (c: ctx) (t: tm) : option sort_sym :=
+    match t with
+    | TVar v =>
+        AList.get c v
+    | TFun f args =>
+        let* '(arg_sorts, ret_sort) := AList.get sig.(sig_funs) f in
+        mret ret_sort
+    end.
+
+  (* Quantifier-free formulas. *)
   Inductive fm: Type :=
   (* True and False *)
   | FTrue
@@ -24,7 +43,7 @@ Section FOL.
   (* Equality *)
   | FEq (t1 t2: tm)
   (* A relation (with arguments) *)
-  | FRel (r: sig.(sig_rels))
+  | FRel (r: rel_sym)
          (args: list tm)
   (* Negation, disjunction, conjunction, and implication *)
   | FNeg (f: fm)
@@ -64,27 +83,27 @@ Section FOL.
 
 End FOL.
 
-Arguments TVar {var sig}.
-Arguments TFun {var sig}.
-Arguments FEq {var sig}.
-Arguments FRel {var sig}.
-Arguments FNeg {var sig}.
-Arguments FOr {var sig}.
-Arguments FAnd {var sig}.
-Arguments FImpl {var sig}.
-Arguments tm_subst {var _ _ sig} x e t.
-Arguments fm_subst {var _ _ sig} x e f.
+Arguments TVar {var fun_sym}.
+Arguments TFun {var fun_sym}.
+Arguments FEq {var fun_sym rel_sym}.
+Arguments FRel {var fun_sym rel_sym}.
+Arguments FNeg {var fun_sym rel_sym}.
+Arguments FOr {var fun_sym rel_sym}.
+Arguments FAnd {var fun_sym rel_sym}.
+Arguments FImpl {var fun_sym rel_sym}.
+Arguments tm_subst {var _ _ fun_sym} x e t.
+Arguments fm_subst {var _ _ fun_sym rel_sym} x e f.
 
-Fixpoint tm_map_vars {V W sig} (m: V -> W) (t: tm V sig) : tm W sig :=
+Fixpoint tm_map_vars {V W fun_sym} (m: V -> W) (t: tm V fun_sym) : tm W fun_sym :=
   match t with
   | TVar v => TVar (m v)
   | TFun f args => TFun f (List.map (tm_map_vars m) args)
   end.
 
-Fixpoint fm_map_vars {V W sig} (m: V -> W) (f: fm V sig) : fm W sig :=
+Fixpoint fm_map_vars {V W fun_sym rel_sym} (m: V -> W) (f: fm V fun_sym rel_sym) : fm W fun_sym rel_sym :=
   match f with
-  | FTrue _ _ => FTrue _ _
-  | FFalse _ _ => FFalse _ _
+  | FTrue _ _ _ => FTrue _ _ _
+  | FFalse _ _ _ => FFalse _ _ _
   | FEq t1 t2 => FEq (tm_map_vars m t1) (tm_map_vars m t2)
   | FRel r args => FRel r (List.map (tm_map_vars m) args)
   | FNeg f => fm_map_vars m f

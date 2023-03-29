@@ -747,6 +747,80 @@ Proof.
     assert (0 <= z) by lia. now apply div_2_mod_2_pow.
 Qed.
 
+Fixpoint to_lbool'' (width : nat) (value : Z) : list bool :=
+  match width with
+  | 0%nat => []
+  | S n => Z.odd value :: to_lbool'' n (value / 2)
+  end.
+
+Lemma to_lbool'_app : forall width value res,
+  P4Arith.le_to_lbool' width value res = (P4Arith.le_to_lbool' width value [] ++ res)%list.
+Proof.
+  induction width; intros.
+  - auto.
+  - simpl.
+    rewrite IHwidth.
+    rewrite IHwidth with (res := [Z.odd value]).
+    list_solve.
+Qed.
+
+Lemma to_lbool''_to_lbool' : forall width value,
+  rev (to_lbool'' width value) = P4Arith.le_to_lbool' width value [].
+Proof.
+  induction width; intros.
+  - auto.
+  - simpl.
+    rewrite to_lbool'_app. f_equal.
+    rewrite IHwidth.
+    auto.
+Qed.
+
+Lemma to_lbool_lbool_to_val : forall bs,
+  P4Arith.to_lbool (Z.to_N (Zlength bs))
+      (P4Arith.BitArith.lbool_to_val bs 1 0)
+  = bs.
+Proof.
+  intros.
+  unfold P4Arith.to_lbool, BitArith.lbool_to_val.
+  rewrite <- to_lbool''_to_lbool', <- Zlength_rev.
+  rewrite <- (rev_involutive bs) at 3.
+  generalize (rev bs). clear bs. intro bs. f_equal.
+  induction bs.
+  - auto.
+  - replace (N.to_nat (Z.to_N (Zlength (a :: bs))))
+      with (S (N.to_nat (Z.to_N (Zlength bs)))) by list_solve.
+    simpl.
+    rewrite P4Arith.BitArith.le_lbool_to_val_1_0.
+    rewrite P4Arith.BitArith.le_lbool_to_val_1_0 with (o := 2).
+    destruct a.
+    + replace (Z.odd (P4Arith.BitArith.le_lbool_to_val bs 1 0 * 2 + 1)) with true. 2 : {
+        rewrite Z.add_comm.
+        rewrite Z.mul_comm.
+        rewrite Z.odd_add_mul_2.
+        auto.
+      }
+      rewrite Z.div_add_l by lia.
+      replace (1 / 2) with 0 by auto.
+      rewrite Z.add_0_r.
+      f_equal; auto.
+    + replace (Z.odd (P4Arith.BitArith.le_lbool_to_val bs 1 0 * 2 + 0)) with false. 2 : {
+        rewrite Z.add_comm.
+        rewrite Z.mul_comm.
+        rewrite Z.odd_add_mul_2.
+        auto.
+      }
+      rewrite Z.div_add_l by lia.
+      replace (1 / 2) with 0 by auto.
+      rewrite Z.add_0_r.
+      f_equal; auto.
+Qed.
+
+Lemma bit_to_from_bool :
+  forall bits, uncurry to_lbool (BitArith.from_lbool bits) = bits.
+Proof.
+  exact to_lbool_lbool_to_val.
+Qed.
+
 Lemma bit_from_to_bool: forall w v,
     BitArith.from_lbool (to_lbool w v) = (w, BitArith.mod_bound w v).
 Proof.

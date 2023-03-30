@@ -1,0 +1,135 @@
+p4 program:
+\n
+/*
+Copyright 2013-present Barefoot Networks, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include <core.p4>
+#include <v1model.p4>
+
+header hdr {
+    bit<8>  e;
+    bit<16> t;
+    bit<8>  l;
+    bit<8> r;
+    bit<8>  v;
+}
+
+struct Header_t {
+    hdr h;
+}
+struct Meta_t {}
+
+parser p(packet_in b, out Header_t h, inout Meta_t m, inout standard_metadata_t sm) {
+    state start {
+        b.extract(h.h);
+        transition accept;
+    }
+}
+
+control vrfy(inout Header_t h, inout Meta_t m) { apply {} }
+control update(inout Header_t h, inout Meta_t m) { apply {} }
+control egress(inout Header_t h, inout Meta_t m, inout standard_metadata_t sm) { apply {} }
+control deparser(packet_out b, in Header_t h) { apply { b.emit(h.h); } }
+
+control ingress(inout Header_t h, inout Meta_t m, inout standard_metadata_t standard_meta) {
+
+    action a() { standard_meta.egress_spec = 0; }
+    action a_with_control_params(bit<9> x) { standard_meta.egress_spec = x; }
+
+    table t_lpm {
+
+  	key = {
+            h.h.l : lpm;
+        }
+
+	actions = {
+            a;
+            a_with_control_params;
+        }
+
+	default_action = a;
+
+        const entries = {
+            0x11 &&& 0xF0 : a_with_control_params(11);
+            0x12          : a_with_control_params(12);
+            _             : a_with_control_params(13);
+        }
+    }
+
+    apply {
+        t_lpm.apply();
+    }
+}
+
+
+V1Switch(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
+\n
+\n
+# header hdr { bit<8>  e; bit<16> t; bit<8>  l; bit<8> r; bit<1>  v; }
+
+# t_lpm tests
+expect 11 0b **** 11 ** ** $
+packet  0 0b 0000 11 00 b0
+
+expect 11 0b **** 10 ** ** $
+packet  0 0b 0000 10 00 b0
+
+expect 12 0c **** 12 ** ** $
+packet  0 0c 0000 12 00 b0
+
+expect 13 0d **** FF ** ** $
+packet  0 0d 0000 FF 00 b0
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Packet matched the expected packet.
+Packet:   port 13 pkt 0d0000ff00b0
+
+Packet matched the expected packet.
+Packet:   port 12 pkt 0c00001200b0
+
+Packet matched the expected packet.
+Packet:   port 11 pkt 0b00001000b0
+
+Packet matched the expected packet.
+Packet:   port 11 pkt 0b00001100b0
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Adding interface pcap11 as port 11 (files)
+Adding interface pcap12 as port 12 (files)
+Adding interface pcap13 as port 13 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmpusekr74g
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpusekr74g/table-entries-lpm-bmv2.json /petr4/ci-test/testdata/p4_16_samples/table-entries-lpm-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 10049 --device-id 959 -i 0@pcap0 -i 11@pcap11 -i 12@pcap12 -i 13@pcap13 .././tmpusekr74g/table-entries-lpm-bmv2.json
+Running simple_switch_CLI --thrift-port 10049
+STF Command: expect 11 0b **** 11 ** ** $
+STF Command: packet  0 0b 0000 11 00 b0
+STF Command: expect 11 0b **** 10 ** ** $
+STF Command: packet  0 0b 0000 10 00 b0
+STF Command: expect 12 0c **** 12 ** ** $
+STF Command: packet  0 0c 0000 12 00 b0
+STF Command: expect 13 0d **** FF ** ** $
+STF Command: packet  0 0d 0000 FF 00 b0
+simple_switch exit code -15
+Execution completed
+Comparing outputs

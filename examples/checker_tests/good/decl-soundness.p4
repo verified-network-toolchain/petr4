@@ -14,8 +14,6 @@ enum Choice {
     Second
 }
 
-const bit<32> compute = 0;
-
 control compute(inout hdr h)
 {
     apply {

@@ -1,4 +1,0 @@
-(library
-  (name petr4test)
-  (libraries core core_unix core_unix.sys_unix ANSITerminal alcotest petr4 poulet4)
-  (preprocess (pps ppx_jane ppx_deriving_yojson ppx_deriving.show)))

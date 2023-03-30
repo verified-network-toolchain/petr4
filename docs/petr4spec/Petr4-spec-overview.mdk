@@ -1,0 +1,19 @@
+# Overview { #sec-overview }
+
+A P4 program is mainly a list of declarations and a declaration could be declaring a
+parser or control plane, instantiating an object, calling a (extern) function or method,
+and defining a type or an object. Each declaration may contain multiple statements and
+expressions within it.
+Thus, in order to formalize P4's type system we need to:
+
+- have consistent and clear [notation][#sec-notation]
+- formalize [P4's syntax][#sec-syntax]
+- formalize type related rules, including [type well-formedness][#sec-type-well-formed], [type equality][#sec-type-eq], [type unification][#sec-type-unify]
+- formalize [expressions typing][#sec-exp-typing]
+- formalize [statements typing][#sec-stmt-typing]
+- formalize [declarations typing][#sec-decl-typing]
+
+Furthermore, for readers who are less familiar with programming languages fundamentals we provide a [summary of programming languages terminology][#sec-terminology] and a [developer's guide to reading inference rules][#sec-guide].
+
+Additionally, for developers and experts starting to work on Petr4 we provide a summary of its architecture and connect P4's formalization to Petr4's implementation in Appendix[#sec-petr4].
+

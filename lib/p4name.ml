@@ -8,7 +8,7 @@ let to_bare : t -> t = function
   | BareName n
   | QualifiedName (_, n) -> BareName n
 
-let name_info name : P4info.t =
+let name_tags name : P4info.t =
   match name with
   | BareName name -> name.tags
   | QualifiedName (prefix, name) ->
@@ -25,7 +25,11 @@ let name_eq n1 n2 =
      s1.str = s2.str
   | _ -> false
 
-let name_only n =
+let p4string_name_only n =
   match n with
-  | BareName s -> s.str
-  | QualifiedName (_, s) -> s.str
+  | BareName s
+  | QualifiedName (_, s) -> s
+
+let name_only n =
+  (p4string_name_only n).str
+

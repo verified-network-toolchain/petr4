@@ -60,8 +60,9 @@ let checker_flags : Pass.checker_cfg Command.Param.t =
     in
     Pass.{ cfg_parser;
            cfg_p4surface = parse_ext_flag output_p4surface;
-           cfg_gen_loc   = Pass.cfg_of_bool gen_loc;
+           (* normalize must come before gen_loc *)
            cfg_normalize = Pass.cfg_of_bool normalize;
+           cfg_gen_loc   = Pass.cfg_of_bool gen_loc;
            cfg_p4light   = parse_ext_flag output_p4light }]
 
 

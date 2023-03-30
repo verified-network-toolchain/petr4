@@ -21,7 +21,7 @@ let rec shift_bitstring_right (v : Bigint.t) (o : Bigint.t)
   end
 
 let power_of_two (w : Bigint.t) : Bigint.t =
-  shift_bitstring_left Bigint.one w  
+  shift_bitstring_left Bigint.one w
 
 let rec width (n: Bigint.t) : int =
   if Bigint.(n < zero)

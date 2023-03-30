@@ -5,7 +5,7 @@ The Petr4 project is developing the formal semantics of the [P4
 Language](https://p4.org) backed by an independent reference implementation.
 
 # POPL'21 artifact
-See https://cornell-netlab.github.io/petr4/ or check out the `gh-pages` branch
+See https://verified-network-toolchain.github.io/petr4/ or check out the `gh-pages` branch
 for information on the Petr4 artifact.
 
 ## Getting Started
@@ -29,6 +29,8 @@ for information on the Petr4 artifact.
    ```
 
 #### Installing from source
+You can use the [scripts](https://github.com/verified-network-toolchain/petr4/tree/main/.github/scripts) to install Petr4. 
+Alternatively, follow theses steps:
 1. Check the installed version of OCaml:
     ```
     ocamlc -v
@@ -43,6 +45,10 @@ for information on the Petr4 artifact.
    ```
    opam install coq
    opam install bignum
+   ```
+   If this doesn't work, install the dependencies manually.
+   ```
+   opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriving_yojson yojson js_of_ocaml js_of_ocaml-lwt js_of_ocaml-ppx
    ```
 
 1. Build bundled dependencies.

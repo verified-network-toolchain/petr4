@@ -1,0 +1,85 @@
+p4 program:
+\n
+/*
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include <core.p4>
+#include <v1model.p4>
+
+/** Test extern function. Set d <- s. */
+extern void extern_func(out bit<32> d, bit<32> s);
+
+header hdr {
+  bit<32> a;
+}
+
+control compute(inout hdr h)
+{
+    apply {
+        // Test enum lowering
+        extern_func(h.a, 0xff);
+    }
+}
+
+#include "arith-inline-skeleton.p4"
+\n
+\n
+# header = { int<32> a }
+# In the output a = 0x000000ff
+
+packet 0 00000000 00000000
+expect 0 000000ff 00000000
+
+packet 0 beefca0e a5dffd5a
+expect 0 000000ff a5dffd5a
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Uncaught exception:
+  
+  (Failure "unknown v1 extern")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from Petr4__Eval.MakeInterpreter.eval_extern_call in file "lib/eval.ml", line 1034, characters 30-68
+Called from Petr4__Eval.MakeInterpreter.eval_method_call in file "lib/eval.ml", line 392, characters 33-73
+Called from Stdlib__list.fold_left in file "list.ml", line 121, characters 24-34
+Called from Base__List0.fold in file "src/list0.ml" (inlined), line 21, characters 22-52
+Called from Petr4__Eval.MakeInterpreter.eval_block in file "lib/eval.ml", line 573, characters 4-86
+Called from Petr4__Eval.MakeInterpreter.eval_control in file "lib/eval.ml", line 1303, characters 27-65
+Called from Petr4__Eval.MakeInterpreter.eval_app in file "lib/eval.ml", line 419, characters 23-81
+Called from Petr4__Eval.MakeInterpreter.eval_method_call in file "lib/eval.ml", line 392, characters 33-73
+Called from Stdlib__list.fold_left in file "list.ml", line 121, characters 24-34
+Called from Base__List0.fold in file "src/list0.ml" (inlined), line 21, characters 22-52
+Called from Petr4__Eval.MakeInterpreter.eval_block in file "lib/eval.ml", line 573, characters 4-86
+Called from Petr4__Eval.MakeInterpreter.eval_control in file "lib/eval.ml", line 1303, characters 27-65
+Called from Petr4__Eval.MakeInterpreter.eval_app in file "lib/eval.ml", line 419, characters 23-81
+Called from Petr4__V1model.PreV1Switch.eval_v1control in file "lib/v1model.ml", line 510, characters 20-58
+Called from Petr4__V1model.PreV1Switch.eval_pipeline in file "lib/v1model.ml", line 622, characters 13-105
+Called from Petr4__Eval.MakeInterpreter.eval in file "lib/eval.ml", line 1421, characters 25-66
+Called from Petr4__Eval.MakeInterpreter.eval_main in file "lib/eval.ml" (inlined), line 1426, characters 33-61
+Called from Petr4__Eval.MakeInterpreter.eval_program in file "lib/eval.ml", line 1440, characters 26-59
+Called from P4stf__Test.MakeRunner.run_test in file "p4stf/test.ml", line 101, characters 28-110
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 106, characters 31-65
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Writing temporary files into  ./tmp1em1isjl
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmp1em1isjl/extern-funcs-bmv2.json /petr4/ci-test/testdata/p4_16_samples/extern-funcs-bmv2.p4
+Exit code  1
+Error compiling
+/petr4/ci-test/testdata/p4_16_samples/extern-funcs-bmv2.p4(19): [--Werror=unknown] error: extern_func: unknown extern function
+extern void extern_func(out bit<32> d, bit<32> s);
+            ^^^^^^^^^^^
+
+*** Test failed

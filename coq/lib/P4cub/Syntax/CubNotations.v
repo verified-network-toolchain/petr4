@@ -1,87 +1,73 @@
 Require Import Poulet4.P4cub.Syntax.AST.
 Import String.
 
-Module ExprNotations.
-  Import Expr.
+Declare Scope typ_scope.
+Delimit Scope typ_scope with typ.
+(*Coercion Var : nat >-> Typ.t.*)
+Notation "'bit' '<' w '>'"
+  := (Typ.Bit w)
+       (at level 0, no associativity) : typ_scope.
+Notation "'int' '<' w '>'"
+  := (Typ.Int w)
+       (at level 0, no associativity) : typ_scope.
 
-  Declare Scope ty_scope.
-  Delimit Scope ty_scope with ty.
-  Coercion TVar : nat >-> t.
-  Notation "'bit' '<' w '>'"
-    := (TBit w)
-         (at level 0, no associativity) : ty_scope.
-  Notation "'int' '<' w '>'"
-    := (TInt w)
-         (at level 0, no associativity) : ty_scope.
+Declare Scope una_scope.
+Delimit Scope una_scope with una.
+Notation "'`!'" := Una.Not (at level 0) : una_scope.
+Notation "'`~'" := Una.BitNot (at level 0) : una_scope.
+Notation "'`-'" := Una.Minus (at level 0) : una_scope.
 
-  Declare Scope uop_scope.
-  Delimit Scope uop_scope with uop.
-  Notation "'`!'" := Not (at level 0) : uop_scope.
-  Notation "'`~'" := BitNot (at level 0) : uop_scope.
-  Notation "'`-'" := UMinus (at level 0) : uop_scope.
-  
-  Declare Scope bop_scope.
-  Delimit Scope bop_scope with bop.
-  Notation "'`+'" := Plus (at level 0) : bop_scope.
-  Notation "'`-'" := Minus (at level 0) : bop_scope.
-  Notation "'|+|'" := PlusSat (at level 0) : bop_scope.
-  Notation "'|-|'" := MinusSat (at level 0) : bop_scope.
-  Notation "×" := Times (at level 0) : bop_scope.
-  Notation "'<<'" := Shl (at level 0) : bop_scope.
-  Notation "'>>'" := Shr (at level 0) : bop_scope.
-  Notation "'≤'" := Le (at level 0) : bop_scope.
-  Notation "'≥'" := Ge (at level 0) : bop_scope.
-  Notation "'`<'" := Lt (at level 0): bop_scope.
-  Notation "'`>'" := Gt (at level 0): bop_scope.
-  Notation "'`=='" := Eq (at level 0): bop_scope.
-  Notation "'!='" := NotEq (at level 0): bop_scope.
-  Notation "&" := BitAnd (at level 0): bop_scope.
-  Notation "^" := BitXor (at level 0): bop_scope.
-  Notation "'`∣'" := BitOr (at level 0): bop_scope.
-  Notation "'`&&'" := And (at level 0): bop_scope.
-  Notation "'`||'" := Or (at level 0): bop_scope.
-  Notation "'`++'" := PlusPlus (at level 0): bop_scope.
+Declare Scope bin_scope.
+Delimit Scope bin_scope with bin.
+Notation "'`+'" := Bin.Plus (at level 0) : bin_scope.
+Notation "'`-'" := Bin.Minus (at level 0) : bin_scope.
+Notation "'|+|'" := Bin.PlusSat (at level 0) : bin_scope.
+Notation "'|-|'" := Bin.MinusSat (at level 0) : bin_scope.
+Notation "×" := Bin.Times (at level 0) : bin_scope.
+Notation "'<<'" := Bin.Shl (at level 0) : bin_scope.
+Notation "'>>'" := Bin.Shr (at level 0) : bin_scope.
+Notation "'≤'" := Bin.Le (at level 0) : bin_scope.
+Notation "'≥'" := Bin.Ge (at level 0) : bin_scope.
+Notation "'`<'" := Bin.Lt (at level 0): bin_scope.
+Notation "'`>'" := Bin.Gt (at level 0): bin_scope.
+Notation "'`=='" := Bin.Eq (at level 0): bin_scope.
+Notation "'!='" := Bin.NotEq (at level 0): bin_scope.
+Notation "&" := Bin.BitAnd (at level 0): bin_scope.
+Notation "^" := Bin.BitXor (at level 0): bin_scope.
+Notation "'`∣'" := Bin.BitOr (at level 0): bin_scope.
+Notation "'`&&'" := Bin.And (at level 0): bin_scope.
+Notation "'`||'" := Bin.Or (at level 0): bin_scope.
+Notation "'`++'" := Bin.PlusPlus (at level 0): bin_scope.
 
-  Declare Scope expr_scope.
-  Delimit Scope expr_scope with expr.
-  Coercion Bool : bool >-> e.
-  Notation "w '`W' n" := (Bit w n) (at level 0): expr_scope.
-  Notation "w '`S' n" := (Int w n) (at level 0): expr_scope.
-  Notation "x '`[' hi ':' lo ']'"
-    := (Slice x hi lo) (at level 10, left associativity) : expr_scope.
-End ExprNotations.
+Declare Scope exp_scope.
+Delimit Scope exp_scope with exp.
+(*Coercion Bool : bool >-> Exp.e.*)
+Notation "w '`W' n" := (Exp.Bit w n) (at level 0): exp_scope.
+Notation "w '`S' n" := (Exp.Int w n) (at level 0): exp_scope.
+Notation "x '`[' hi ':' lo ']'"
+  := (Exp.Slice x hi lo) (at level 10, left associativity) : exp_scope.
 
-Module StmtNotations.
-  Import Stmt.
+Declare Scope stm_scope.
+Delimit Scope stm_scope with stm.
 
-  Declare Scope stmt_scope.
-  Delimit Scope stmt_scope with stmt.
+Notation "e1 '`:=' e2"
+  := (Stm.Asgn e1 e2)
+       (at level 40, no associativity): stm_scope.
+Notation "'`let' x ':=' e '`in' s"
+  := (Stm.LetIn x e s)
+       (at level 48, right associativity): stm_scope.
+Notation "s1 '`;' s2"
+  := (Stm.Seq s1 s2)
+       (at level 49, right associativity): stm_scope.
+Notation "'`if' e '`then' s1 '`else' s2"
+  := (Stm.Cond e s1 s2)
+       (at level 60, no associativity): stm_scope.
 
-  Notation "e1 '`:=' e2"
-    := (Assign e1 e2)
-         (at level 40, no associativity): stmt_scope.
-  Notation "s1 '`;' s2"
-    := (Seq s1 s2)
-         (at level 49, right associativity): stmt_scope.
-  Notation "'If' e 'Then' s1 'Else' s2"
-    := (Conditional e s1 s2)
-         (at level 60, no associativity): stmt_scope.
-End StmtNotations.
-
-Module ParserNotations.
-  Import Parser.
-
-  Coercion Name : nat >-> state_label.
-
-  Declare Scope pat_scope.
-  Delimit Scope pat_scope with pat.
-  Notation "w 'PW' n" := (Bit w n) (at level 0, no associativity) : pat_scope.
-  Notation "w 'PS' z" := (Int w z) (at level 0, no associativity) : pat_scope.
-  Notation "p1 '..' p2"
-    := (Range p1 p2)
-         (at level 13, right associativity) : pat_scope.
-End ParserNotations.
-
-Module AllCubNotations.
-  Export ExprNotations StmtNotations ParserNotations.
-End AllCubNotations.
+(* Coercion Name : nat >-> state_label.*)
+Declare Scope pat_scope.
+Delimit Scope pat_scope with pat.
+Notation "w 'PW' n" := (Pat.Bit w n) (at level 0, no associativity) : pat_scope.
+Notation "w 'PS' z" := (Pat.Int w z) (at level 0, no associativity) : pat_scope.
+Notation "p1 '..' p2"
+  := (Pat.Range p1 p2)
+       (at level 13, right associativity) : pat_scope.

@@ -8,7 +8,7 @@ Module G := GCL.GCL.
 Module F := GCL.Form.
 Module BV := GCL.BitVec.
 Module E := GCL.E.
-Module ST := Stmt.
+Module ST := Stm.
 
 Definition asm_eq (s : string) (w : nat) (r : BV.t) : ToGCL.target :=
   G.GAssume (F.bveq (BV.BVVar s w) r).

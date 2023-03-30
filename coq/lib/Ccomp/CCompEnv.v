@@ -54,25 +54,25 @@ Section CEnv.
         Member_plain $"priority" (tptr (Tstruct _BitVec noattr))] noattr.
   
   Definition standard_metadata_cub_fields := [
-      (*ingress_port:*) Expr.TBit (Npos 9) ;
-      (*egress_spec:*) Expr.TBit (Npos 9) ;
-      (*egress_port:*) Expr.TBit (Npos 9) ;
-      (*instance_type:*) Expr.TBit (Npos 32) ;
-      (*packet_length:*) Expr.TBit (Npos 32) ;
-      (*enq_timestamp*) Expr.TBit (Npos 32) ;
-      (*enq_qdepth*) Expr.TBit (Npos 19) ;
-      (*deq_timedelta*) Expr.TBit (Npos 32) ;
-      (*deq_qdepth*) Expr.TBit (Npos 19) ;
-      (*ingress_global_timestamp*) Expr.TBit (Npos 48) ;
-      (*egress_global_timestamp*) Expr.TBit (Npos 48) ;
-      (*mcast_grp*) Expr.TBit (Npos 16) ;
-      (*egress_rid*) Expr.TBit (Npos 16) ;
-      (*checksum_error*) Expr.TBit (Npos 1) ;
-      (*parser_error*) Expr.TError ;
-      (*priority*) Expr.TBit (Npos 3) ].
+      (*ingress_port:*) Typ.Bit (Npos 9) ;
+      (*egress_spec:*) Typ.Bit (Npos 9) ;
+      (*egress_port:*) Typ.Bit (Npos 9) ;
+      (*instance_type:*) Typ.Bit (Npos 32) ;
+      (*packet_length:*) Typ.Bit (Npos 32) ;
+      (*enq_timestamp*) Typ.Bit (Npos 32) ;
+      (*enq_qdepth*) Typ.Bit (Npos 19) ;
+      (*deq_timedelta*) Typ.Bit (Npos 32) ;
+      (*deq_qdepth*) Typ.Bit (Npos 19) ;
+      (*ingress_global_timestamp*) Typ.Bit (Npos 48) ;
+      (*egress_global_timestamp*) Typ.Bit (Npos 48) ;
+      (*mcast_grp*) Typ.Bit (Npos 16) ;
+      (*egress_rid*) Typ.Bit (Npos 16) ;
+      (*checksum_error*) Typ.Bit (Npos 1) ;
+      (*parser_error*) Typ.Error ;
+      (*priority*) Typ.Bit (Npos 3) ].
 
   Definition standard_metadata_cub := 
-    Expr.TStruct false standard_metadata_cub_fields.
+    Typ.Struct false standard_metadata_cub_fields.
   
   Arguments gvar_info {_}.
   Arguments gvar_init {_}.
@@ -129,7 +129,7 @@ Section CEnv.
         vars : (list (AST.ident * Ctypes.type))
                  
       ; (** P4cub types associated with clight type defs (headers, structs) *)
-        composites : (list (Expr.t * Ctypes.composite_definition))
+        composites : (list (Typ.t * Ctypes.composite_definition))
                        
       ; (** Name generator counter. *) (* TODO maybe use state monad instead? *)
         identGenerator : IdentGen.generator
@@ -144,7 +144,7 @@ Section CEnv.
            * AST.ident (** Temp variable assigned to first ident *))
           
       ; (* TODO: maybe remove, not needed, unused? *)
-        instantiationCarg : TopDecl.constructor_args
+        instantiationCarg : Top.constructor_args
                               
       ; (** Used for main instantiation,
             now main function explicitly written,
@@ -159,13 +159,13 @@ Section CEnv.
         numStrMap : Env.t Z AST.ident
                           
       ; (** Maps the name to their corresponding top declarations like parser or control. *)
-        topdecltypes : Env.t string TopDecl.d
+        topdecltypes : Env.t string Top.t
 
       ; (** Table names to tables. *)
         tables :
         Env.t
           string (** table name *)
-          ((list (Expr.e * string)) (** key *) * (list (string * Expr.args)) (** actions *))
+          ((list (Exp.t * string)) (** key *) * (list (string * Exp.args)) (** actions *))
 
       ; (** Parser states are functions.
             These are parser's args.
@@ -264,12 +264,12 @@ Section CEnv.
      ; identGenerator := gen' }}.
   
   Definition add_composite_typ 
-    (p4t : Expr.t) (composite_def : Ctypes.composite_definition)
+    (p4t : Typ.t) (composite_def : Ctypes.composite_definition)
     (env: ClightEnv) : ClightEnv := 
     env <| composites := (p4t, composite_def) :: env.(composites) |>.
 
   Definition add_tpdecl
-    (name: string) (decl: TopDecl.d) (env: ClightEnv) : ClightEnv := 
+    (name: string) (decl: Top.t) (env: ClightEnv) : ClightEnv := 
     let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
     {{ env with topMap := Env.bind name new_ident env.(topMap)
      ; identGenerator := gen' }}.
@@ -365,8 +365,8 @@ Section CEnv.
     end.
 
   Definition add_Table
-    (name : string) (key : list (Expr.e * string))
-    (actions : list (string * Expr.args)) (env: ClightEnv) : ClightEnv :=
+    (name : string) (key : list (Exp.t * string))
+    (actions : list (string * Exp.args)) (env: ClightEnv) : ClightEnv :=
     let (gen', new_id) := IdentGen.gen_next env.(identGenerator) in
     let gvar :=
       {| gvar_info := (Tstruct _Table noattr)
@@ -395,7 +395,7 @@ Section CEnv.
      ; tempOfArg := from.(tempOfArg) }}.
 
   Definition set_instantiate_cargs
-    (cargs: TopDecl.constructor_args) (env: ClightEnv) : ClightEnv :=
+    (cargs: Top.constructor_args) (env: ClightEnv) : ClightEnv :=
     env <| instantiationCarg := cargs |>.
  
   Definition set_main_init (init: Clight.statement) (env: ClightEnv) : ClightEnv :=
@@ -426,8 +426,8 @@ Section CEnv.
     end.
 
   Fixpoint lookup_composite_rec
-    (composites : list (Expr.t * composite_definition))
-    (p4t: Expr.t) : result string composite_definition :=
+    (composites : list (Typ.t * composite_definition))
+    (p4t: Typ.t) : result string composite_definition :=
     match composites with
     | nil => Result.error "can't find the composite"
     | (head, comp) :: tl => if (head == p4t) 
@@ -436,12 +436,12 @@ Section CEnv.
     end.
 
   Definition lookup_composite
-    (p4t: Expr.t) (env: ClightEnv) : result string composite_definition :=
+    (p4t: Typ.t) (env: ClightEnv) : result string composite_definition :=
     lookup_composite_rec env.(composites) p4t.
 
   Fixpoint
     lookup_composite_id_rec
-    (composites : list (Expr.t * composite_definition))
+    (composites : list (Typ.t * composite_definition))
     (id: ident): result string composite_definition :=
     match composites with
     | nil => Result.error "can't find the composite by id"
@@ -455,8 +455,8 @@ Section CEnv.
     lookup_composite_id_rec env.(composites) id.
 
   Fixpoint set_H_rec
-    (composites :  list (Expr.t * composite_definition))
-    (p4t: Expr.t) : result string ident := 
+    (composites :  list (Typ.t * composite_definition))
+    (p4t: Typ.t) : result string ident := 
   match composites with
   | nil => Result.error "can't find the composite in Set_H"
   | (head, comp) :: tl => if (head == p4t)  then 
@@ -468,15 +468,15 @@ Section CEnv.
                           set_H_rec tl p4t
   end.
 
-  Definition set_H (p4t: Expr.t) (env: ClightEnv) : result string ClightEnv :=
+  Definition set_H (p4t: Typ.t) (env: ClightEnv) : result string ClightEnv :=
     let^ H_id := set_H_rec env.(composites) p4t in
     env <| v1model_H := H_id |>.
 
   Definition get_H (env: ClightEnv) := env.(v1model_H).
 
   Fixpoint set_M_rec
-    (composites :  list (Expr.t * composite_definition))
-    (p4t: Expr.t) : result string ident := 
+    (composites :  list (Typ.t * composite_definition))
+    (p4t: Typ.t) : result string ident := 
     match composites with
     | nil => Result.error "can't find the composite in Set_M"
     | (head, comp) :: tl => if (head == p4t) then
@@ -488,7 +488,7 @@ Section CEnv.
                             (set_M_rec tl p4t)
     end.
   
-  Definition set_M (p4t: Expr.t) (env: ClightEnv) : result string ClightEnv :=
+  Definition set_M (p4t: Typ.t) (env: ClightEnv) : result string ClightEnv :=
     let^ M_id := set_M_rec env.(composites) p4t in
     env <| v1model_M := M_id |>.
 
@@ -527,7 +527,7 @@ Section CEnv.
         (Env.find pid env.(fenv))
         "failed to lookup the function" in (pid, f).
 
-  Definition lookup_topdecl (name: string) (env: ClightEnv) : result string TopDecl.d := 
+  Definition lookup_topdecl (name: string) (env: ClightEnv) : result string Top.t := 
     Result.from_opt
       (Env.find name env.(topdecltypes))
       "failed to lookup the top declaration".
@@ -573,7 +573,7 @@ Section CEnv.
   
   Definition find_table (name: string) (env: ClightEnv)
     : result string
-        (ident * list (Expr.e * string) * list (string * Expr.args)) := 
+        (ident * list (Exp.t * string) * list (string * Exp.args)) := 
     match Env.find name env.(tblMap), Env.find name env.(tables) with
     | Some id, Some (keys, actions) => Result.ok (id, keys, actions)
     | _, _ => Result.error "can't find table"
@@ -585,7 +585,7 @@ Section CEnv.
         (Env.find name env.(extern_instance_types))
         "can't find extern name".
 
-  Definition get_instantiate_cargs (env: ClightEnv) : TopDecl.constructor_args := 
+  Definition get_instantiate_cargs (env: ClightEnv) : Top.constructor_args := 
     env.(instantiationCarg).
 
   Definition get_top_args (env: ClightEnv) : list (Clight.expr) := env.(top_args).

@@ -1,105 +1,103 @@
 From Poulet4 Require Import Utils.Envn
      P4cub.Syntax.AST P4cub.Syntax.CubNotations.
-Import String AllCubNotations.
+Import String.
 
-Definition infer_or_nop (fs : list Expr.t) (mem : nat) (t : Expr.t) :=
+Definition infer_or_nop (fs : list Typ.t) (mem : nat) (t : Typ.t) :=
   match nth_error fs mem with
   | None => t
   | Some t => t
   end.
 
-Fixpoint inf_e  (e : Expr.e) : Expr.e :=
+Fixpoint inf_exp  (e : Exp.t) : Exp.t :=
   match e with
-  | Expr.Bool _
-  | Expr.Bit _ _
-  | Expr.VarBit _ _ _
-  | Expr.Int _ _
-  | Expr.Error _
-  | Expr.Var _ _ _ => e
-  | Expr.Slice hi lo e =>
-      Expr.Slice hi lo $ inf_e e
-  | Expr.Cast t e =>
-      Expr.Cast t $ inf_e e
-  | Expr.Uop rt op e =>
-      Expr.Uop rt op $ inf_e e
-  | Expr.Bop rt op e1 e2 =>
-      Expr.Bop rt op (inf_e e1) $ inf_e e2
-  | Expr.Lists l es => Expr.Lists l $ List.map inf_e es
-  | Expr.Index t e1 e2 => Expr.Index t (inf_e e1) $ inf_e e2
-  | Expr.Member (Expr.TStruct _ fs as argtype) mem arg =>
+  | Exp.Bool _
+  | Exp.Bit _ _
+  | Exp.VarBit _ _ _
+  | Exp.Int _ _
+  | Exp.Error _
+  | Exp.Var _ _ _ => e
+  | Exp.Slice hi lo e =>
+      Exp.Slice hi lo $ inf_exp e
+  | Exp.Cast t e =>
+      Exp.Cast t $ inf_exp e
+  | Exp.Uop rt op e =>
+      Exp.Uop rt op $ inf_exp e
+  | Exp.Bop rt op e1 e2 =>
+      Exp.Bop rt op (inf_exp e1) $ inf_exp e2
+  | Exp.Lists l es => Exp.Lists l $ List.map inf_exp es
+  | Exp.Index t e1 e2 => Exp.Index t (inf_exp e1) $ inf_exp e2
+  | Exp.Member (Typ.Struct _ fs as argtype) mem arg =>
       let t := infer_or_nop fs mem argtype in
-      Expr.Member t mem (inf_e arg)
-  | Expr.Member t mem arg => Expr.Member t mem $ inf_e arg
+      Exp.Member t mem (inf_exp arg)
+  | Exp.Member t mem arg => Exp.Member t mem $ inf_exp arg
   end.
 
-Definition inf_arg : paramarg Expr.e Expr.e -> paramarg Expr.e Expr.e :=
-  paramarg_map_same inf_e.
+Definition inf_arg : paramarg Exp.t Exp.t -> paramarg Exp.t Exp.t :=
+  paramarg_map_same inf_exp.
 
-Definition inf_fun_kind (fk : Stmt.fun_kind) : Stmt.fun_kind :=
-  match fk with
-  | Stmt.Funct f τs ret    => Stmt.Funct f τs $ option_map inf_e ret
-  | Stmt.Method e m τs ret => Stmt.Method e m τs $ option_map inf_e ret
-  | Stmt.Action a cargs    => Stmt.Action a $ map inf_e cargs
+Definition inf_call (c : Call.t) : Call.t :=
+  match c with
+  | Call.Funct f τs ret    => Call.Funct f τs $ option_map inf_exp ret
+  | Call.Method e m τs ret => Call.Method e m τs $ option_map inf_exp ret
+  | Call.Action a cargs    => Call.Action a $ map inf_exp cargs
+  | Call.Inst _ _          => c
   end.
 
-Definition inf_transition  (transition : Parser.pt) :=
+Definition inf_trns  (transition : Trns.t) :=
   match transition with
-  | Parser.Direct s =>
-      Parser.Direct s
-  | Parser.Select discriminee default cases =>
-      Parser.Select
-        (inf_e discriminee)
+  | Trns.Direct s =>
+      Trns.Direct s
+  | Trns.Select discriminee default cases =>
+      Trns.Select
+        (inf_exp discriminee)
         default cases
   end.
 
-Fixpoint inf_s  (s : Stmt.s) : Stmt.s :=
+Fixpoint inf_stm  (s : Stm.t) : Stm.t :=
   match s with
-  | Stmt.Skip
-  | Stmt.Exit          => s
-  | Stmt.Return e      => Stmt.Return $ option_map inf_e e
-  | Stmt.Transition e  => Stmt.Transition $ inf_transition e
-  | (lhs `:= rhs)%stmt => (inf_e lhs `:= inf_e rhs)%stmt
-  | Stmt.Invoke e t
-    => Stmt.Invoke (option_map inf_e e) t
-  | Stmt.Call fk args
-    => Stmt.Call (inf_fun_kind fk) $ map inf_arg args
-  | Stmt.Apply ci ext_args args =>
-      let args' := map inf_arg args in
-      Stmt.Apply ci ext_args args
-  | Stmt.Var x e s => Stmt.Var x (map_sum id inf_e e) $ inf_s s
-  | (s1 `; s2)%stmt => (inf_s s1 `; inf_s s2)%stmt
-  | (If g Then tru Else fls)%stmt
-    => (If inf_e g Then inf_s tru Else inf_s fls)%stmt
+  | Stm.Skip
+  | Stm.Exit          => s
+  | Stm.Ret e      => Stm.Ret $ option_map inf_exp e
+  | Stm.Trans e  => Stm.Trans $ inf_trns e
+  | (lhs `:= rhs)%stm => (inf_exp lhs `:= inf_exp rhs)%stm
+  | Stm.Invoke e t
+    => Stm.Invoke (option_map inf_exp e) t
+  | Stm.App fk args
+    => Stm.App (inf_call fk) $ map inf_arg args
+  | (`let x := e `in s)%stm => (`let x := map_sum id inf_exp e `in inf_stm s)%stm
+  | (s1 `; s2)%stm => (inf_stm s1 `; inf_stm s2)%stm
+  | (`if g `then tru `else fls)%stm
+    => (`if inf_exp g `then inf_stm tru `else inf_stm fls)%stm
   end.
 
-Definition inf_Cd  (d : Control.d) :=
+Definition inf_Cd  (d : Ctrl.t) :=
   match d with
-  | Control.Var og te =>
-      Control.Var og $ map_sum id inf_e te
-  | Control.Action a cps dps body =>
-      Control.Action a cps dps $ inf_s body
-  | Control.Table t key acts def =>
-      Control.Table
-        t (map (fun '(e,mk) => (inf_e e, mk)) key)
+  | Ctrl.Var og te =>
+      Ctrl.Var og $ map_sum id inf_exp te
+  | Ctrl.Action a cps dps body =>
+      Ctrl.Action a cps dps $ inf_stm body
+  | Ctrl.Table t key acts def =>
+      Ctrl.Table
+        t (map (fun '(e,mk) => (inf_exp e, mk)) key)
         (map (fun '(a,args) => (a, map inf_arg args)) acts)
-        $ option_map (fun '(x,es) => (x, map inf_e es)) def
+        $ option_map (fun '(x,es) => (x, map inf_exp es)) def
   end.
 
-Definition inf_d  (d : TopDecl.d) : TopDecl.d :=
+Definition inf_top  (d : Top.t) : Top.t :=
   match d with
-  | TopDecl.Extern _ _ _ _ _ => d
-  | TopDecl.Instantiate cname iname type_args cargs expr_cargs =>
-      let expr_cargs' := map inf_e expr_cargs in
-      TopDecl.Instantiate cname iname type_args cargs expr_cargs'
-  | TopDecl.Control cname cparams expr_cparams eparams params body apply_blk =>
+  | Top.Extern _ _ _ _ _ => d
+  | Top.Instantiate cname iname type_args cargs expr_cargs =>
+      let expr_cargs' := map inf_exp expr_cargs in
+      Top.Instantiate cname iname type_args cargs expr_cargs'
+  | Top.Control cname cparams expr_cparams eparams params body apply_blk =>
       let body' := map inf_Cd body in
-      let apply_blk' := inf_s apply_blk in
-      TopDecl.Control cname cparams expr_cparams eparams params body' apply_blk'
-  | TopDecl.Parser pn cps expr_cparams eps ps strt sts =>
-      let start' := inf_s strt in
-      let states' := map inf_s sts in
-      TopDecl.Parser pn cps expr_cparams eps ps start' states'
-  | TopDecl.Funct f tparams params body =>
-      let body' := inf_s body in
-      TopDecl.Funct f tparams params body'
+      let apply_blk' := inf_stm apply_blk in
+      Top.Control cname cparams expr_cparams eparams params body' apply_blk'
+  | Top.Parser pn cps expr_cparams eps ps strt sts =>
+      let start' := inf_stm strt in
+      let states' := map inf_stm sts in
+      Top.Parser pn cps expr_cparams eps ps start' states'
+  | Top.Funct f tparams params body =>
+      let body' := inf_stm body in
+      Top.Funct f tparams params body'
   end.

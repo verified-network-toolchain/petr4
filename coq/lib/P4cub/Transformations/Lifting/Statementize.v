@@ -6,12 +6,65 @@ From Poulet4 Require Import
      Utils.VecUtil.
 Import ListNotations.
 From Equations Require Import Equations.
+Require Poulet4.Utils.ProdN.
 
 Open Scope nat_scope.
 Open Scope string_scope.
 Open Scope list_scope.
 
 Section ShiftPairs.
+  Import ProdN.ProdNNotations.
+  Local Open Scope prodn_scope.
+
+  Polymorphic Universes a.
+
+  Polymorphic Equations prodn_shift_pairs :
+    forall {n : nat} {AS : Vec.t Type@{a} n},
+      ProdN.t (Vec.map (fun A => shifter -> A -> A) AS) ->
+      ProdN.t (Vec.map (fun A => ProdN.prod A (list Exp.t))%type AS) ->
+      ProdN.t (Vec.map (fun A => ProdN.prod A (list Exp.t))%type AS) := {
+        prodn_shift_pairs (AS:=Vec.nil) [] [] := [];
+        prodn_shift_pairs (AS:=Vec.cons _ _ _) (f :: fs) (ProdN.pair a es :: p) :=
+          let '(ProdN.pair _ ess) := ProdN.unzip _ (*p*) in
+          let m :=
+            vec_sum
+              $ Vec.map (length (A:=Exp.t))
+              $ ProdN.to_vec ess in
+          let rec := prodn_shift_pairs fs p in
+          let '(ProdN.pair pa ess') := ProdN.unzip _ (*prodn_shift_pairs fs p*) in
+          let pa' := ProdN.map (ProdN.map _ (*fs*) (ProdN.rep _ (Shifter 0 $ length es))) pa in
+          _ (*(f (Shifter (length es) m) a, shift_list shift_exp (Shifter 0 m) es)*) :: _ (*ProdN.zip pa' ess'*) }.
+  Next Obligation.
+    exact n0.
+  Defined.
+  Next Obligation.
+    unfold prodn_shift_pairs_obligations_obligation_1,
+      prodn_shift_pairs_obligations_obligation_2.
+    rewrite vec_map_rep_r.
+    apply (prodn_shift_pairs _ _ fs p).
+  Defined.
+  Next Obligation.
+    exact n0.
+  Defined.
+  Next Obligation.
+    unfold prodn_shift_pairs_obligations_obligation_1,
+      prodn_shift_pairs_obligations_obligation_2,
+      prodn_shift_pairs_obligations_obligation_5,
+      prodn_shift_pairs_obligations_obligation_6 in *.
+  Admitted.
+  Next Obligation.
+    unfold prodn_shift_pairs_obligations_obligation_1,
+      prodn_shift_pairs_obligations_obligation_2,
+      prodn_shift_pairs_obligations_obligation_4,
+      prodn_shift_pairs_obligations_obligation_5,
+      prodn_shift_pairs_obligations_obligation_6,
+      prodn_shift_pairs_obligations_obligation_8 in *.
+    refine (ProdN.map (ProdN.map _ (*fs*) (ProdN.rep _ (Shifter 0 $ length es))) pa).
+    rewrite vec_map2_same.
+    do 2 rewrite vec_map_rep_l.
+    rewrite Vec.map_map.
+    
+  Defined.
   Import Vec.VectorNotations.
   Local Open Scope vector_scope.
   

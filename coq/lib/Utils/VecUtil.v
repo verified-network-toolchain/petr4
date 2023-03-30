@@ -14,8 +14,57 @@ Section Lemmas.
   Import Vec.VectorNotations.
   Local Open Scope vector_scope.
   
-  Polymorphic Universes a b c.
-  Polymorphic Context {A : Type@{a}} {B : Type@{b}} {C : Type@{c}}.
+  Polymorphic Universe a.
+  Polymorphic Context {A : Type@{a}}.
+
+  Polymorphic Fixpoint vec_rep (n : nat) (a : A) : Vec.t A n :=
+    match n with
+    | O => []
+    | S n => a :: vec_rep n a
+    end.
+  
+  Polymorphic Universes b.
+  Polymorphic Context {B : Type@{b}}.
+
+  Polymorphic Lemma vec_map2_same : forall {n : nat} (f : A -> A -> B) (v : Vec.t A n),
+      Vec.map2 f v v = Vec.map (fun a => f a a) v.
+  Proof using.
+    intros n f v.
+    depind v; unravel; f_equal; auto.
+  Qed.
+
+  Polymorphic Equations vec_zip : forall {n : nat},
+      Vec.t A n -> Vec.t B n -> Vec.t (A * B) n := {
+      vec_zip [] [] := [];
+      vec_zip (a :: va) (b :: vb) := (a, b) :: vec_zip va vb
+    }.
+
+  Polymorphic Equations vec_unzip : forall {n : nat},
+      Vec.t (A * B) n -> Vec.t A n * Vec.t B n := {
+      vec_unzip [] := ([], []);
+      vec_unzip ((a, b) :: v) :=
+        let '(va, vb) := vec_unzip v in (a :: va, b :: vb)
+    }.
+
+  Polymorphic Universes c.
+  Polymorphic Context {C : Type@{c}}.
+  
+  Polymorphic Lemma vec_map_rep_r : forall (g : B -> A -> C) {n : nat} (v : Vec.t B n) (a : A),
+      Vec.map2 g v (vec_rep n a) = Vec.map (fun b => g b a) v.
+  Proof using.
+    intros g n v a.
+    depind v; unravel; trivial.
+    f_equal. auto.
+  Qed.
+
+  Polymorphic Lemma vec_map_rep_l : forall (g : A -> B -> C) {n : nat} (v : Vec.t B n) (a : A),
+      Vec.map2 g (vec_rep n a) v = Vec.map (g a) v.
+  Proof using.
+    intros g n v a.
+    depind v; unravel; trivial.
+    f_equal. auto.
+  Qed.
+  
   Polymorphic Variable f : B -> C.
 
   Polymorphic Lemma vec_map_snd_map : forall {n : nat} (v : Vec.t (A * B) n),

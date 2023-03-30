@@ -12,6 +12,11 @@ Section Syntax.
   Notation P4String := (P4String.t tags_t).
   Notation P4Int := (P4Int.t tags_t).
 
+  Variant name :=
+  | BareName      (name: P4String)
+  | QualifiedName (namespaces: list P4String)
+                  (name: P4String).
+
   Variant direction :=
   | In
   | Out
@@ -55,7 +60,6 @@ Section Syntax.
   | And
   | Or.
 
-(*add info, and option type. initially have none for type. *)
   Inductive typPreT := 
   | TypBool
   | TypError
@@ -72,7 +76,6 @@ Section Syntax.
                       (size: expression)
   | TypTuple          (types: list typ) (*surface*)
   | TypHeader         (type_params: list typVarTyp)
-                      (*type variable or their assignment*)
                       (fields: P4String.AList tags_t typ) (*surface*)
   | TypHeaderUnion    (type_params: list typVarTyp) (*variable type*)
                       (fields: P4String.AList tags_t typ) (*surface*)
@@ -105,12 +108,11 @@ Section Syntax.
                       (params: list parameter)
                       (ret: typ) (*surface+void+type variable*)
   | TypTable          (result_typ_name: P4String)
-  | TypVoid        
-  (* | TypVar         (variable: P4String) *)
+  | TypVoid
   with typ :=
   | MkType (tags: tags_t)
            (typ: typPreT)
-  with typVarTyp :=
+  with typVarTyp := (*type variable or their assignment*)
   | TypVarTyp (type_var: P4String)
               (type: option typ)
   with parameter :=
@@ -122,7 +124,7 @@ Section Syntax.
   | ExpBool                   (b: bool)
   | ExpString                 (s: P4String)
   | ExpInt                    (i: P4Int)
-  | ExpName                   (name: P4String) (*why would it be typed.name?*)
+  | ExpName                   (name: name)
   | ExpArrayAccess            (array: expression)
                               (index: expression)
   | ExpBitStringAccess        (bits: expression)
@@ -165,42 +167,14 @@ Section Syntax.
                 (value: expression)
   | MissingArg.
 
+  Variant fieldType :=
+  | FieldType (typ: typ) (*surface*)
+              (field: P4String).
+
   Variant stmtSwitchLabel :=
   | StmtSwitchLabelDefault (tags: tags_t)
   | StmtSwitchLabelName    (tags: tags_t)
                            (label: P4String).
-
-  Inductive stmtSwitchCases :=
-  | StmtSwitchCaseAction      (tags: tags_t)
-                              (lable: stmtSwitchLabel)
-                              (code: block)
-  | StmtSwitchCaseFallThrough (tags: tags_t)
-                              (lable: stmtSwitchLabel)
-  with statementPreT := (*not sure why surface.ml has declaration in statements and p4light has variable and instantiation in it.*)
-  | StmtMethodCall        (func: expression)
-                          (type_args: list typ) (*surface*)
-                          (args: list argument)
-  | StmtAssignment        (lhs: expression)
-                          (rhs: expression)
-  | StmtdirectApplication (typ: typ) (*surface*)
-                          (args: list argument)
-  | StmtConditional       (cond: expression)
-                          (tru: statement)
-                          (fls: option statement)
-  | StmtBlock             (block: block)
-  | StmtExit
-  | StmtEmpty
-  | StmtReturn            (expr: option expression)
-  | StmtSwitch            (expr: expression)
-                          (cases: list stmtSwitchCases)
-  with statement :=
-  | MkStatement (tags: tags_t)
-                (stmt: statementPreT)
-                (typ: option typ)
-  with block :=
-  | BlockEmpty (tags: tags_t)
-  | BlockCons (statement: statement)
-              (rest: block).
 
   Variant tableOrParserMatch :=
   | MatchDefault    (tags: tags_t)
@@ -213,24 +187,7 @@ Section Syntax.
                (matches: list tableOrParserMatch)
                (next: P4String).
 
-  Variant parserTransition :=
-  | ParserDirect (tags: tags_t)
-                 (next: P4String)
-  | ParserSelect (tags: tags_t)
-                 (exprs: list expression)
-                 (cases: list parserCase).
-
-  Variant parserState :=
-  | ParserState (tags: tags_t)
-                (name: P4String)
-                (statements: list statement)
-                (transistion: parserTransition).
-
-  Variant fieldType :=
-  | FieldType (typ: typ) (*surface*)
-              (field: P4String).
-
-  Variant methodPrototype :=
+    Variant methodPrototype :=
   | ProtoConstructor    (tags: tags_t)
                         (name: P4String)
                         (params: list parameter)
@@ -252,7 +209,7 @@ Section Syntax.
 
   Variant actionRef :=
   | TabActionRef (tags: tags_t)
-                 (name: P4String) (*TODO: it's name in surface.ml.*)
+                 (name: name) 
                  (args: list argument).
 
   Variant tableEntry :=
@@ -275,7 +232,50 @@ Section Syntax.
                        (value: expression)
                        (const: bool).
 
-  Inductive declarationPreT :=
+  Inductive stmtSwitchCases :=
+  | StmtSwitchCaseAction      (tags: tags_t)
+                              (lable: stmtSwitchLabel)
+                              (code: block)
+  | StmtSwitchCaseFallThrough (tags: tags_t)
+                              (lable: stmtSwitchLabel)
+  with statementPreT := (*why surface.ml has declaration in statements and p4light has variable and instantiation in it? *)
+  | StmtMethodCall        (func: expression)
+                          (type_args: list typ) (*surface*)
+                          (args: list argument)
+  | StmtAssignment        (lhs: expression)
+                          (rhs: expression)
+  | StmtdirectApplication (typ: typ) (*surface*)
+                          (args: list argument)
+  | StmtConditional       (cond: expression)
+                          (tru: statement)
+                          (fls: option statement)
+  | StmtBlock             (block: block)
+  | StmtExit
+  | StmtEmpty
+  | StmtReturn            (expr: option expression)
+  | StmtSwitch            (expr: expression)
+                          (cases: list stmtSwitchCases)
+  | StmtDeclaration       (dcl: declaration) (*can only be variable or constant decl.*)
+  with statement :=
+  | MkStatement (tags: tags_t)
+                (stmt: statementPreT)
+                (typ: option typ)
+  with block :=
+  | BlockEmpty (tags: tags_t)
+  | BlockCons (statement: statement)
+              (rest: block)
+  with parserTransition :=
+  | ParserDirect (tags: tags_t)
+                 (next: P4String)
+  | ParserSelect (tags: tags_t)
+                 (exprs: list expression)
+                 (cases: list parserCase)
+  with parserState :=
+  | ParserState (tags: tags_t)
+                (name: P4String)
+                (statements: list statement)
+                (transistion: parserTransition)
+  with declarationPreT :=
   | DeclConstant         (typ: typ) (*surface*)
                          (name: P4String)
                          (value: expression)

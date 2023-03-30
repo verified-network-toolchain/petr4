@@ -571,6 +571,13 @@ Section Stmt.
           let* (ϵ'', final, ψ) := interpret_stmt fuel (Ψ <| functs := p_fun |>) (ϵ' ++ p_eps) ctx' p_strt in
           let^ sig := interpret_parser_signal final in
           (copy_out O vargs ϵ'' ϵ, sig, ψ)
+        | CApplyBlock tbls actions control_insts =>
+          let? 'ControlInst fun_clos inst_clos tbl_clos action_clos eps_clos apply_block := control_insts p in
+          let* vargs := interpret_args ϵ args in
+          let* ϵ' := copy_in vargs ϵ in
+          let ctx' := CApplyBlock tbl_clos action_clos inst_clos in
+          let^ (ϵ'', sig, ψ) := interpret_stmt fuel (Ψ <| functs := fun_clos |>) (ϵ' ++ eps_clos) ctx' apply_block in
+          (copy_out O vargs ϵ'' ϵ, Cont, ψ)
         | _ => None
         end
       | Stmt.Conditional e s1 s2 =>
@@ -646,16 +653,23 @@ Section Stmt.
         inv H. do 2 destruct p. inv H1. apply IHfuel in Heqo4.
         econstructor; eauto.
     - destruct c; try discriminate.
-      destruct (available_parsers instance_name) eqn:?; try discriminate.
-      destruct i; try discriminate. cbn in *. unfold option_bind in *.
-      destruct (interpret_args ϵ args) eqn:Eargs; try discriminate.
-      apply interpret_args_sound in Eargs.
-      destruct (copy_in l ϵ) eqn:Ecopyin; try discriminate.
-      destruct (interpret_stmt _ _ _ _ _) eqn:Estmt; try discriminate.
-      do 2 destruct p.
-      destruct (interpret_parser_signal s) eqn:Esignal; try discriminate. inv H.
-      apply interpret_parser_signal_sound in Esignal.
-      eapply IHfuel in Estmt. econstructor; eauto.
+      + destruct (available_controls instance_name) eqn:?; try discriminate.
+        destruct i; try discriminate. cbn in *. unfold option_bind in *.
+        destruct (interpret_args ϵ args) eqn:Eargs; try discriminate.
+        apply interpret_args_sound in Eargs.
+        destruct (copy_in l ϵ) eqn:Ecopyin; try discriminate.
+        destruct (interpret_stmt _ _ _ _ _) eqn:Estmt; try discriminate. inv H.
+        do 2 destruct p. eapply IHfuel in Estmt. inv H1. econstructor; eauto.
+      + destruct (available_parsers instance_name) eqn:?; try discriminate.
+        destruct i; try discriminate. cbn in *. unfold option_bind in *.
+        destruct (interpret_args ϵ args) eqn:Eargs; try discriminate.
+        apply interpret_args_sound in Eargs.
+        destruct (copy_in l ϵ) eqn:Ecopyin; try discriminate.
+        destruct (interpret_stmt _ _ _ _ _) eqn:Estmt; try discriminate.
+        do 2 destruct p.
+        destruct (interpret_parser_signal s) eqn:Esignal; try discriminate. inv H.
+        apply interpret_parser_signal_sound in Esignal.
+        eapply IHfuel in Estmt. econstructor; eauto.
     - unfold option_bind in *.
       destruct (initialized_value ϵ expr) eqn:E; try discriminate.
       apply initialized_value_sound in E.

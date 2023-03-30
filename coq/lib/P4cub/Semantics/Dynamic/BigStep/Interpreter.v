@@ -506,31 +506,33 @@ Section Stmt.
     destruct sig; intros; inv H; constructor.
   Qed.
 
+  Lemma wild :
+    forall (A : Type) (e : A) (c : ctx), match c with CAction _ | _ => e end = e.
+  Proof.
+    intros. hnf.  destruct c; reflexivity.
+  Qed.
+
   Fixpoint interpret_stmt (fuel : Fuel) (Ψ : stmt_eval_env ext_sem) (ϵ : list Val.v) (c : ctx) (s : Stmt.s) : option (list Val.v * signal * extern_state) :=
     match fuel with
     | MoreFuel fuel =>
-      match s with
-      | Stmt.Skip => mret (ϵ, Cont, extrn_state Ψ)
-      | Stmt.Exit => mret (ϵ, Exit, extrn_state Ψ)
-      | Stmt.Return e => interpret_return Ψ ϵ e
-      | Stmt.Transition trns =>
-        match c with
-        | CParserState n start states parsers =>
-          let* lbl := interpret_parser_expr ϵ trns in
-          match get_final_state lbl with
-          | Some sig => mret (ϵ, sig, extrn_state Ψ)
-          | None =>
-            guard (n <=? List.length ϵ) ;;
-            let* (ϵ₁, ϵ₂) := split_at (List.length ϵ - n) ϵ in
-            let* state := get_state_block start states lbl in
-            let ctx := CParserState n start states parsers in
-            let^ (ϵ₃, sig, ψ) := interpret_stmt fuel Ψ ϵ₂ ctx state in
-            (ϵ₁ ++ ϵ₃, sig, ψ)
-          end
-        | _ => None
+      match s, c with
+      | Stmt.Skip, _ => mret (ϵ, Cont, extrn_state Ψ)
+      | Stmt.Exit, _ => mret (ϵ, Exit, extrn_state Ψ)
+      | Stmt.Return e, _ => interpret_return Ψ ϵ e
+      | Stmt.Transition trns, CParserState n start states parsers =>
+        let* lbl := interpret_parser_expr ϵ trns in
+        match get_final_state lbl with
+        | Some sig => mret (ϵ, sig, extrn_state Ψ)
+        | None =>
+          guard (n <=? List.length ϵ) ;;
+          let* (ϵ₁, ϵ₂) := split_at (List.length ϵ - n) ϵ in
+          let* state := get_state_block start states lbl in
+          let ctx := CParserState n start states parsers in
+          let^ (ϵ₃, sig, ψ) := interpret_stmt fuel Ψ ϵ₂ ctx state in
+          (ϵ₁ ++ ϵ₃, sig, ψ)
         end
-      | Stmt.Assign e1 e2 => interpret_assign Ψ ϵ e1 e2
-      | Stmt.Call (Stmt.Funct f τs eo) args =>
+      | Stmt.Assign e1 e2, _ => interpret_assign Ψ ϵ e1 e2
+      | Stmt.Call (Stmt.Funct f τs eo) args, _ =>
         let* FDecl fun_clos body := functs Ψ f in
         let* olv := interpret_relop (interpret_lexpr ϵ) eo in
         let* vargs := interpret_args ϵ args in
@@ -540,7 +542,7 @@ Section Stmt.
         let^ (ϵ'', sig, ψ) := interpret_stmt fuel env ϵ' CFunction body in
         let ϵ''' := lv_update_signal olv sig (copy_out O vargs ϵ'' ϵ) in
         (ϵ''', Cont, ψ)
-      | Stmt.Call (Stmt.Action a ctrl_args) data_args =>
+      | Stmt.Call (Stmt.Action a ctrl_args) data_args, _ =>
         let* actions := interpret_actions_of_ctx c in
         let* ADecl clos act_clos body := actions a in
         let* vctrl_args := interpret_exprs ϵ ctrl_args in
@@ -549,41 +551,38 @@ Section Stmt.
         let action_env := vctrl_args ++ ϵ' ++ clos in
         let^ (ϵ'', sig, ψ) := interpret_stmt fuel Ψ action_env (CAction act_clos) body in
         (copy_out O vdata_args ϵ'' ϵ, Cont, ψ)
-      | Stmt.Var og te s =>
+      | Stmt.Var og te s, _ =>
         let* v := initialized_value ϵ te in
         let* (ϵ', sig, ψ) := interpret_stmt fuel Ψ (v :: ϵ) c s in
         let^ ϵ' := tl_error ϵ' in
         (ϵ', sig, ψ)
-      | Stmt.Seq s1 s2 =>
+      | Stmt.Seq s1 s2, _ =>
         let* (ϵ', sig, ψ) := interpret_stmt fuel Ψ ϵ c s1 in
         match sig with
         | Cont => interpret_stmt fuel (Ψ <| extrn_state := ψ |>) ϵ' c s2
         | Exit | Rtrn _ | Rjct => mret (ϵ', sig, ψ)
         | Acpt => None
         end
-      | Stmt.Apply p ext_args args =>
-        match c with
-        | CParserState n strt states parsers =>
-          let? 'ParserInst p_fun p_prsr p_eps p_strt p_states := parsers p in
-          let* vargs := interpret_args ϵ args in
-          let* ϵ' := copy_in vargs ϵ in
-          let ctx' := CParserState (List.length args) p_strt p_states p_prsr in
-          let* (ϵ'', final, ψ) := interpret_stmt fuel (Ψ <| functs := p_fun |>) (ϵ' ++ p_eps) ctx' p_strt in
-          let^ sig := interpret_parser_signal final in
-          (copy_out O vargs ϵ'' ϵ, sig, ψ)
-        | CApplyBlock tbls actions control_insts =>
-          let? 'ControlInst fun_clos inst_clos tbl_clos action_clos eps_clos apply_block := control_insts p in
-          let* vargs := interpret_args ϵ args in
-          let* ϵ' := copy_in vargs ϵ in
-          let ctx' := CApplyBlock tbl_clos action_clos inst_clos in
-          let^ (ϵ'', sig, ψ) := interpret_stmt fuel (Ψ <| functs := fun_clos |>) (ϵ' ++ eps_clos) ctx' apply_block in
-          (copy_out O vargs ϵ'' ϵ, Cont, ψ)
-        | _ => None
-        end
-      | Stmt.Conditional e s1 s2 =>
+      | Stmt.Invoke eo t, CApplyBlock tbls acts insts => None
+      | Stmt.Apply p ext_args args, CParserState n strt states parsers =>
+        let? 'ParserInst p_fun p_prsr p_eps p_strt p_states := parsers p in
+        let* vargs := interpret_args ϵ args in
+        let* ϵ' := copy_in vargs ϵ in
+        let ctx' := CParserState (List.length args) p_strt p_states p_prsr in
+        let* (ϵ'', final, ψ) := interpret_stmt fuel (Ψ <| functs := p_fun |>) (ϵ' ++ p_eps) ctx' p_strt in
+        let^ sig := interpret_parser_signal final in
+        (copy_out O vargs ϵ'' ϵ, sig, ψ)
+      | Stmt.Apply c ext_args args, CApplyBlock tbls actions control_insts =>
+        let? 'ControlInst fun_clos inst_clos tbl_clos action_clos eps_clos apply_block := control_insts c in
+        let* vargs := interpret_args ϵ args in
+        let* ϵ' := copy_in vargs ϵ in
+        let ctx' := CApplyBlock tbl_clos action_clos inst_clos in
+        let^ (ϵ'', sig, ψ) := interpret_stmt fuel (Ψ <| functs := fun_clos |>) (ϵ' ++ eps_clos) ctx' apply_block in
+        (copy_out O vargs ϵ'' ϵ, Cont, ψ)
+      | Stmt.Conditional e s1 s2, _ =>
         let? 'Val.Bool b := interpret_expr ϵ e in
         interpret_stmt fuel Ψ ϵ c $ if b then s1 else s2
-      | _ => None
+      | _, _ => None
       end
     | NoFuel => None
     end.
@@ -593,8 +592,8 @@ Section Stmt.
       interpret_stmt fuel Ψ ϵ c s = Some (ϵ' , sig , ψ) ->
         ⧼ Ψ , ϵ , c , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽.
   Proof.
-    induction fuel; try discriminate. destruct s; try discriminate; cbn; intros.
-    - inv H. constructor.
+    induction fuel; try discriminate. destruct s eqn:?; try discriminate; cbn; intros.
+    - inv H; constructor.
     - unfold option_bind in *. 
       destruct (interpret_relop (interpret_expr ϵ) e) eqn:?;
       try discriminate. inv H. destruct e; cbn in *.
@@ -607,15 +606,15 @@ Section Stmt.
     - unfold option_bind in *. destruct c eqn:E; try discriminate.
       destruct (interpret_parser_expr ϵ trns) eqn:?; try discriminate.
       apply interpret_parser_expr_sound in Heqo.
-      destruct (get_final_state s) eqn:?.
+      destruct (get_final_state _) eqn:?.
       + inv H. apply get_final_state_sound in Heqo0.
         econstructor; eauto.
       + destruct (parser_arg_length <=? List.length ϵ) eqn:?; try discriminate. cbn in *.
         apply Nat.leb_le in Heqb.
         destruct (split_at (List.length ϵ - parser_arg_length) ϵ) eqn:?; 
         try discriminate. destruct p as [ϵ₁ ϵ₂].
-        destruct (get_state_block start states s) eqn:?; try discriminate.
-        destruct (interpret_stmt fuel Ψ ϵ₂ (CParserState parser_arg_length start states available_parsers) s0) eqn:?; 
+        destruct (get_state_block start states _) eqn:?; try discriminate.
+        destruct (interpret_stmt fuel Ψ ϵ₂ _ _) eqn:?; 
         try discriminate. inv H. repeat destruct p. inv H1.
         apply IHfuel in Heqo3.
         apply split_at_partition in Heqo1 as ?.
@@ -623,7 +622,7 @@ Section Stmt.
         assert (List.length ϵ₂ = parser_arg_length) by lia. subst.
         econstructor; eauto. apply intermediate_iff_not_final.
         unfold "~". intros. inv H.
-        assert (get_final_state s <> Some x).
+        assert (get_final_state s0 <> Some x).
         { unfold "~". intros. rewrite H in Heqo0. discriminate. }
         apply get_final_state_complete in H1. contradiction.
     - apply interpret_assign_sound. assumption.
@@ -653,6 +652,7 @@ Section Stmt.
         inv H. do 2 destruct p. inv H1. apply IHfuel in Heqo4.
         econstructor; eauto.
     - destruct c; try discriminate.
+    - destruct c; try discriminate.
       + destruct (available_controls instance_name) eqn:?; try discriminate.
         destruct i; try discriminate. cbn in *. unfold option_bind in *.
         destruct (interpret_args ϵ args) eqn:Eargs; try discriminate.
@@ -667,7 +667,7 @@ Section Stmt.
         destruct (copy_in l ϵ) eqn:Ecopyin; try discriminate.
         destruct (interpret_stmt _ _ _ _ _) eqn:Estmt; try discriminate.
         do 2 destruct p.
-        destruct (interpret_parser_signal s) eqn:Esignal; try discriminate. inv H.
+        destruct (interpret_parser_signal _) eqn:Esignal; try discriminate. inv H.
         apply interpret_parser_signal_sound in Esignal.
         eapply IHfuel in Estmt. econstructor; eauto.
     - unfold option_bind in *.
@@ -676,8 +676,8 @@ Section Stmt.
       destruct (interpret_stmt _ _ _ _ _) eqn:?; try discriminate.
       do 2 destruct p. apply IHfuel in Heqo. destruct (tl_error l) eqn:?; try discriminate.
       inv H. destruct l; try discriminate. cbn in *. inv Heqo0. econstructor; eauto.
-    - unfold option_bind in *. destruct (interpret_stmt fuel Ψ ϵ c s1) eqn:?; try discriminate.
-      do 2 destruct p. apply IHfuel in Heqo. destruct s.
+    - unfold option_bind in *. destruct (interpret_stmt fuel Ψ ϵ c _) eqn:?; try discriminate.
+      do 2 destruct p. apply IHfuel in Heqo. destruct s0.
       + apply IHfuel in H. econstructor; eauto.
       + inv H. constructor; auto; constructor.
       + discriminate.

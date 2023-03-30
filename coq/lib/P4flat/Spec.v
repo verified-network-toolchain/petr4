@@ -4,11 +4,17 @@ Require Import Coq.Strings.String.
 Require Import Poulet4.P4flat.Sig.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
+Require Import Poulet4.Monads.Result.
 Require Import Coq.Classes.EquivDec.
 Require Import Poulet4.Utils.AList.
+Require Import Poulet4.Utils.Util.ListUtil.
+
+Local Open Scope string_scope.
+Local Open Scope bool_scope.
 
 Section FOL.
   Variable (var: Type).
+  Variable (var_to_string: var -> string).
   Context `{Equivalence var eq}.
   Context `{EqDec var eq}.
   Variables (sort_sym fun_sym rel_sym: vocab).
@@ -26,13 +32,54 @@ Section FOL.
   Definition ctx :=
     AList var sort_sym eq.
 
-  Definition check_tm (c: ctx) (t: tm) : option sort_sym :=
+  Definition ctx_get : ctx -> var -> result string sort_sym :=
+    fun c v =>
+      from_opt (AList.get c v)
+               ("Variable not found in ctx.").
+
+  Definition check_ctx (c: ctx) :=
+    List.forallb (fun '(v, sort) => sig_check_sort sig sort) c.
+
+  Fixpoint check_tm (c: ctx) (t: tm) (s: sort_sym) : bool :=
     match t with
     | TVar v =>
-        AList.get c v
+        match ctx_get c v with
+        | Ok s' => s' ==b s
+        | Error _ => false
+        end
     | TFun f args =>
-        let* '(arg_sorts, ret_sort) := AList.get sig.(sig_funs) f in
-        mret ret_sort
+        match sig_get_fun sig f with
+        | Ok (arg_sorts, ret_sort) =>
+            (ret_sort ==b s) &&
+              (fix check_tms ts ss :=
+                 match ts, ss with
+                 | t :: ts, s :: ss =>
+                     check_tm c t s && check_tms ts ss
+                 | [], [] => true
+                 | _, _ => false
+                 end) args arg_sorts
+        | Error _ => false
+        end
+    end.
+
+  Definition check_tms c :=
+    fix check_tms ts ss :=
+      match ts, ss with
+      | t :: ts, s :: ss =>
+          check_tm c t s && check_tms ts ss
+      | [], [] => true
+      | _, _ => false
+      end.
+
+  Definition type_tm (c: ctx) (t: tm) : result string sort_sym :=
+    match t with
+    | TVar v =>
+        ctx_get c v
+    | TFun f args =>
+        let* '(arg_sorts, ret_sort) := sig_get_fun sig f in
+        if check_tms c args arg_sorts
+        then mret ret_sort
+        else Error "Ill-sorted argument to function symbol."
     end.
 
   (* Quantifier-free formulas. *)
@@ -50,6 +97,29 @@ Section FOL.
   | FOr (f1 f2: fm)
   | FAnd (f1 f2: fm)
   | FImpl (f1 f2: fm).
+
+  Fixpoint check_fm (c: ctx) (f: fm) : bool :=
+    match f with
+    | FTrue => true
+    | FFalse => true
+    | FEq t1 t2 =>
+        match let* sort1 := type_tm c t1 in
+              let* sort2 := type_tm c t2 in
+              mret (sort1 ==b sort2) with
+        | Ok b => b
+        | Error _ => false
+        end
+    | FRel r args =>
+        match let* 'arg_sorts := sig_get_rel sig r in
+              mret (check_tms c args arg_sorts) with
+        | Ok b => b
+        | Error _ => false
+        end
+    | FNeg f => check_fm c f
+    | FOr f1 f2 => check_fm c f1 && check_fm c f2
+    | FAnd f1 f2 => check_fm c f1 && check_fm c f2
+    | FImpl f1 f2 => check_fm c f1 && check_fm c f2
+    end.
 
   Fixpoint tm_subst (x: var) (e: tm) (t: tm) : tm :=
     match t with

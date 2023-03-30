@@ -407,3 +407,11 @@ Proof.
   apply f_equal with (f:=List.length (A:=A)) in h.
   rewrite !app_length in h. lia.
 Qed.
+
+
+Definition no_dups
+           {A: Type}
+           (eqA_dec : forall (x y : A), {x = y} + {x <> y})
+           (l: list A) : bool :=
+  if List.list_eq_dec eqA_dec l (List.nodup eqA_dec l)
+  then true else false.

@@ -308,7 +308,7 @@ let print_fun (f: Poulet4.P4flatToGCL.p4funs) : string =
   | BFalse -> "false"
   | BBitLit (width, value) ->
     Bigint.to_string value
-  | BTable name ->
+  | BTable (name, _) ->
     "table_symb__" ^ name
   | BProj1 -> "first"
   | BProj2 -> "second"
@@ -325,7 +325,7 @@ let rec print_tm vp tm : string =
   | TFun (f, args) ->
     if List.length args > 0
     then Printf.sprintf "(%s %s)"
-        (print_fun (Obj.magic f))
+        (print_fun f)
         (print_tms vp args)
     else print_fun (Obj.magic f)
 
@@ -360,8 +360,7 @@ let check_refinement ((prog_l, prog_r), rel) =
   let wp =
     Poulet4.GGCL.Dijkstra.seq_prod_wp
       String.equal
-      String.equal
-      Poulet4.P4flatToGCL.p4sig in
+      String.equal in
   match Poulet4.P4flatToGCL.prog_to_stmt prog_l,
         Poulet4.P4flatToGCL.prog_to_stmt prog_r with
   | Ok prog_l_gcl, Ok prog_r_gcl ->

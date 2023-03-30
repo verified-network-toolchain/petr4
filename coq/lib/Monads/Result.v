@@ -16,6 +16,12 @@ Definition is_ok {Err A : Type} (x : result Err A) : Prop :=
   | _ => False
   end.
 
+Definition is_okb {Err A : Type} (x : result Err A) : bool :=
+  match x with
+  | Ok x => true
+  | _ => false
+  end.
+
 Definition is_error {Err A: Type} (x : result Err A) : Prop :=
   match x with
   | Error x => True

@@ -491,11 +491,20 @@ Section Stmt.
     - constructor. apply interpret_expr_sound. assumption.
   Qed.
 
-  Definition get_bool (v : Val.v) : option bool :=
-    match v with
-    | Val.Bool b => mret b
+  Definition interpret_parser_signal (sig : signal) : option signal :=
+    match sig with
+    | Acpt => mret Cont
+    | Rjct => mret Rjct
+    | Exit => mret Exit
     | _ => None
     end.
+
+  Lemma interpret_parser_signal_sound :
+    forall sig sig',
+      interpret_parser_signal sig = Some sig' -> parser_signal sig sig'.
+  Proof.
+    destruct sig; intros; inv H; constructor.
+  Qed.
 
   Fixpoint interpret_stmt (fuel : Fuel) (Ψ : stmt_eval_env ext_sem) (ϵ : list Val.v) (c : ctx) (s : Stmt.s) : option (list Val.v * signal * extern_state) :=
     match fuel with
@@ -552,8 +561,20 @@ Section Stmt.
         | Exit | Rtrn _ | Rjct => mret (ϵ', sig, ψ)
         | Acpt => None
         end
+      | Stmt.Apply p ext_args args =>
+        match c with
+        | CParserState n strt states parsers =>
+          let? 'ParserInst p_fun p_prsr p_eps p_strt p_states := parsers p in
+          let* vargs := interpret_args ϵ args in
+          let* ϵ' := copy_in vargs ϵ in
+          let ctx' := CParserState (List.length args) p_strt p_states p_prsr in
+          let* (ϵ'', final, ψ) := interpret_stmt fuel (Ψ <| functs := p_fun |>) (ϵ' ++ p_eps) ctx' p_strt in
+          let^ sig := interpret_parser_signal final in
+          (copy_out O vargs ϵ'' ϵ, sig, ψ)
+        | _ => None
+        end
       | Stmt.Conditional e s1 s2 =>
-        let* b : bool := get_bool =<< interpret_expr ϵ e in
+        let? 'Val.Bool b := interpret_expr ϵ e in
         interpret_stmt fuel Ψ ϵ c $ if b then s1 else s2
       | _ => None
       end
@@ -624,6 +645,17 @@ Section Stmt.
         destruct (interpret_stmt _ _ _ _ _) eqn:?; try discriminate. 
         inv H. do 2 destruct p. inv H1. apply IHfuel in Heqo4.
         econstructor; eauto.
+    - destruct c; try discriminate.
+      destruct (available_parsers instance_name) eqn:?; try discriminate.
+      destruct i; try discriminate. cbn in *. unfold option_bind in *.
+      destruct (interpret_args ϵ args) eqn:Eargs; try discriminate.
+      apply interpret_args_sound in Eargs.
+      destruct (copy_in l ϵ) eqn:Ecopyin; try discriminate.
+      destruct (interpret_stmt _ _ _ _ _) eqn:Estmt; try discriminate.
+      do 2 destruct p.
+      destruct (interpret_parser_signal s) eqn:Esignal; try discriminate. inv H.
+      apply interpret_parser_signal_sound in Esignal.
+      eapply IHfuel in Estmt. econstructor; eauto.
     - unfold option_bind in *.
       destruct (initialized_value ϵ expr) eqn:E; try discriminate.
       apply initialized_value_sound in E.

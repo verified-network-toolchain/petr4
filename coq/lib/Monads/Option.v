@@ -18,6 +18,16 @@ Global Instance option_monad_inst : Monad option :=
     mbind := option_bind;
   }.
 
+Notation "'let?' ' pat ':=' c1 'in' c2" := (option_bind _ _ c1 (fun x => 
+  match x with 
+  | pat => c2 
+  | _ => None
+  end))
+( at level 61, pat pattern, 
+  format "'let?'  ' pat  ':='  c1  'in' '//' c2", c1 at next level, 
+  right associativity
+) : monad_scope.
+
 Definition option_fail {A : Type} : option A := None.
 
 Fixpoint reduce_option {A : Type} (acts: list (option A)) (f : A -> A -> A) (base: A) : option A :=

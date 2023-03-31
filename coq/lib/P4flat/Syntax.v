@@ -58,7 +58,7 @@ Module Stmt.
   | Table
       (ctrl_plane_name: string)
       (key: list Expr.e)
-      (actions: list (string * s))
+      (actions: list (string * Expr.params * s))
   (** blocks of statements: *)
   | Var
       (original_name : string)

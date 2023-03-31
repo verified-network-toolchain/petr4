@@ -16,8 +16,8 @@ Definition one_table : P4flat.Syntax.TopDecl.prog :=
       [("x_one_table", PAInOut (Expr.TBit 8))]
       (Stmt.Table "t_one_table"
                   [Expr.Var (Expr.TBit 8%N) "x_one_table" db]
-                  [("nop", Stmt.Skip);
-                   ("set_x", Stmt.Assign (Expr.Var (Expr.TBit 8) "x_one_table" db) (Expr.Bit 8 0))]);
+                  [("nop", [], Stmt.Skip);
+                   ("set_x", [], Stmt.Assign (Expr.Var (Expr.TBit 8) "x_one_table" db) (Expr.Bit 8 0))]);
     TopDecl.Pkg "main" ["C_one_table"]
   ].
 
@@ -30,12 +30,12 @@ Definition seq_tables : P4flat.Syntax.TopDecl.prog :=
       (Stmt.Seq
          (Stmt.Table "t1_seq_tables"
                      [Expr.Var (Expr.TBit 8%N) "x_seq_tables" db]
-                     [("nop", Stmt.Skip);
-                      ("set_x", Stmt.Assign (Expr.Var (Expr.TBit 8) "x_seq_tables" db) (Expr.Bit 8 0))])
+                     [("nop", [], Stmt.Skip);
+                      ("set_x", [], Stmt.Assign (Expr.Var (Expr.TBit 8) "x_seq_tables" db) (Expr.Bit 8 0))])
          (Stmt.Table "t2_seq_tables"
                      [Expr.Var (Expr.TBit 8%N) "x_seq_tables" db]
-                     [("nop", Stmt.Skip);
-                      ("set_x", Stmt.Assign (Expr.Var (Expr.TBit 8) "x_seq_tables" db) (Expr.Bit 8 0))]));
+                     [("nop", [], Stmt.Skip);
+                      ("set_x", [], Stmt.Assign (Expr.Var (Expr.TBit 8) "x_seq_tables" db) (Expr.Bit 8 0))]));
     TopDecl.Pkg "main" ["C_seq_tables"]
   ].
 
@@ -47,8 +47,11 @@ Eval cbv in (prog_to_stmt one_table).
 Eval cbv in (prog_to_stmt seq_tables).
 Definition my_spec : fm (var + var) p4funs p4rels :=
   FEq (TVar (inl "x_one_table")) (TVar (inr "x_seq_tables")).
-Eval cbv in (let* one := prog_to_stmt one_table in
-             let* seq := prog_to_stmt seq_tables in
-             ok (GGCL.Dijkstra.wp _ _ _
-                                 (GGCL.Dijkstra.seq_prod_prog _ _ one seq)
-                                 my_spec)).
+Eval cbv in (let comp :=
+               let* one := prog_to_stmt one_table in
+               let* seq := prog_to_stmt seq_tables in
+               mret (GGCL.Dijkstra.wp _ _ _
+                                      (GGCL.Dijkstra.seq_prod_prog _ _ one seq)
+                                      my_spec)
+             in
+             lift_monad fst (comp initial_p4sig)).

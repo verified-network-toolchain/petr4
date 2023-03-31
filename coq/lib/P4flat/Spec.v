@@ -17,22 +17,22 @@ Section FOL.
   Variable (var_to_string: var -> string).
   Context `{Equivalence var eq}.
   Context `{EqDec var eq}.
-  Variables (sort_sym fun_sym rel_sym: vocab).
-  Context `{@EqDec fun_sym eq eq_equivalence}.
+  Variables (sort_sym func_sym rel_sym: vocab).
+  Context `{@EqDec func_sym eq eq_equivalence}.
   Context `{@EqDec rel_sym eq eq_equivalence}.
   Context `{@EqDec sort_sym eq eq_equivalence}.
-  Variable (sig: signature sort_sym fun_sym rel_sym).
+  Variable (sig: signature sort_sym func_sym rel_sym).
 
   (* First-order terms (either functions or variables). *)
   Inductive tm: Type :=
   | TVar (v: var)
-  | TFun (f: fun_sym)
+  | TFun (f: func func_sym)
          (args: list tm).
 
   Definition ctx :=
-    AList var sort_sym eq.
+    AList var (sort sort_sym) eq.
 
-  Definition ctx_get : ctx -> var -> result string sort_sym :=
+  Definition ctx_get : ctx -> var -> result string (sort sort_sym) :=
     fun c v =>
       from_opt (AList.get c v)
                ("Variable not found in ctx.").
@@ -40,7 +40,7 @@ Section FOL.
   Definition check_ctx (c: ctx) :=
     List.forallb (fun '(v, sort) => sig_check_sort sig sort) c.
 
-  Fixpoint check_tm (c: ctx) (t: tm) (s: sort_sym) : bool :=
+  Fixpoint check_tm (c: ctx) (t: tm) (s: sort sort_sym) : bool :=
     match t with
     | TVar v =>
         match ctx_get c v with
@@ -71,7 +71,7 @@ Section FOL.
       | _, _ => false
       end.
 
-  Definition type_tm (c: ctx) (t: tm) : result string sort_sym :=
+  Definition type_tm (c: ctx) (t: tm) : result string (sort sort_sym) :=
     match t with
     | TVar v =>
         ctx_get c v
@@ -90,7 +90,7 @@ Section FOL.
   (* Equality *)
   | FEq (t1 t2: tm)
   (* A relation (with arguments) *)
-  | FRel (r: rel_sym)
+  | FRel (r: rel rel_sym)
          (args: list tm)
   (* Negation, disjunction, conjunction, and implication *)
   | FNeg (f: fm)
@@ -153,24 +153,24 @@ Section FOL.
 
 End FOL.
 
-Arguments TVar {var fun_sym}.
-Arguments TFun {var fun_sym}.
-Arguments FEq {var fun_sym rel_sym}.
-Arguments FRel {var fun_sym rel_sym}.
-Arguments FNeg {var fun_sym rel_sym}.
-Arguments FOr {var fun_sym rel_sym}.
-Arguments FAnd {var fun_sym rel_sym}.
-Arguments FImpl {var fun_sym rel_sym}.
-Arguments tm_subst {var _ _ fun_sym} x e t.
-Arguments fm_subst {var _ _ fun_sym rel_sym} x e f.
+Arguments TVar {var func_sym}.
+Arguments TFun {var func_sym}.
+Arguments FEq {var func_sym rel_sym}.
+Arguments FRel {var func_sym rel_sym}.
+Arguments FNeg {var func_sym rel_sym}.
+Arguments FOr {var func_sym rel_sym}.
+Arguments FAnd {var func_sym rel_sym}.
+Arguments FImpl {var func_sym rel_sym}.
+Arguments tm_subst {var _ _ func_sym} x e t.
+Arguments fm_subst {var _ _ func_sym rel_sym} x e f.
 
-Fixpoint tm_map_vars {V W fun_sym} (m: V -> W) (t: tm V fun_sym) : tm W fun_sym :=
+Fixpoint tm_map_vars {V W func_sym} (m: V -> W) (t: tm V func_sym) : tm W func_sym :=
   match t with
   | TVar v => TVar (m v)
   | TFun f args => TFun f (List.map (tm_map_vars m) args)
   end.
 
-Fixpoint fm_map_vars {V W fun_sym rel_sym} (m: V -> W) (f: fm V fun_sym rel_sym) : fm W fun_sym rel_sym :=
+Fixpoint fm_map_vars {V W func_sym rel_sym} (m: V -> W) (f: fm V func_sym rel_sym) : fm W func_sym rel_sym :=
   match f with
   | FTrue _ _ _ => FTrue _ _ _
   | FFalse _ _ _ => FFalse _ _ _

@@ -252,8 +252,8 @@ module MakeDriver (IO: DriverIO) = struct
            flatten_declctx prog
            >>= hoist_clight_effects
            >>= print_p4cub cfg
-           >>= to_clight
-           >>= print_clight cfg_ccomp
+           (* >>= to_clight
+           >>= print_clight cfg_ccomp *)
            >>= fun x -> Ok ()
         end
 

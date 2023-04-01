@@ -84,67 +84,12 @@ Definition collect_hdrs_args (p:Typ.params) : option (Field.fs nat nat) :=
   | _ => None
   end.
 
-  Compute ("hdr",
+  Definition test_header := [("hdr",
   (PAOut
    (Typ.Struct false
-    [Typ.Struct true [Typ.Bit 48; Typ.Bit 48; Typ.Bit 16]]))).
-    
-(* Fixpoint collect_hdrs_stmt (ctxt:Field.fs nat nat) (st: Stm.s) : option (Field.fs nat nat) :=
-  match st with 
-  | Stmt.Var name expr _ => 
-      match expr with 
-      | inl typ =>
-          match type_size ctxt typ with
-          | Some sz => Some ((name, sz)::ctxt)
-          | None => None
-          end
-      | inr e => 
-          match type_size_e ctxt e with
-          | Some sz => Some ((name, sz)::ctxt)
-          | None => None
-          end
-      end *)
-  (* | Stmt.SExternMethodCall "packet_in" "extract" _ {|paramargs := params; rtrns := _|} _ => (* Packet extract calls *) 
-      match params with 
-      | (_, PAOut (Expr.EExprMember header mem _ _))::[] => (* extract only returns PAOut?*)
-          match type_size ctxt header with 
-            | Some sz => Some ((mem,sz)::ctxt)
-            | None => None
-          end
-      | _ => None
-      end 
-  | Stmt.Seq s1 s2 =>
-      match (collect_hdrs_stmt ctxt s1) with
-      | Some ctxt' => collect_hdrs_stmt ctxt' s2
-      | None => None
-      end
-  | _ => Some ctxt
-  end. *)
-
-(* Collect headers from a state *)
-(* Definition collect_hdrs_state (ctxt:Field.fs string nat) (state : Parser.state_block) : option (Field.fs string nat) :=
-  collect_hdrs_stmt ctxt state.(Parser.stmt).
-
-(* Collect all headers from a list of states, mapping each header to its size *)
-Definition collect_hdrs_states (states : Field.fs string (Parser.state_block tags_t)) : option (Field.fs string nat) :=
-  List.fold_left  (fun accum state =>  
-    match accum, state with 
-    | (Some ctxt'), (_, s1) => collect_hdrs_state ctxt' s1
-    | None, (_, s2) => collect_hdrs_state [] s2
-    end) states None. *)
-
-
-(* Collect all headers from a program *)
-(* Fixpoint collect_hdrs (prog: Top.t) : (Field.fs string nat):=
-  match prog with 
-    | TopDecl.TPParser p _ eps params st states i => 
-      match collect_hdrs_states states with
-      | Some ctxt => ctxt
-      | None => []
-      end
-    | TopDecl.TPSeq d1 d2 _ => List.app (collect_hdrs d1) (collect_hdrs d2)
-    | _ => []
-  end. *)
+    [Typ.Struct true [Typ.Bit 48; Typ.Bit 48; Typ.Bit 16]])))] : (Typ.params).
+  
+  Compute collect_hdrs_args test_header.
 
 (* Create Fin type headers, hdrs might not be needed as everything is *)
 Definition mk_hdr_type (hdrs: Field.fs nat nat) : Type := Fin.t (List.length hdrs).
@@ -259,35 +204,23 @@ Fixpoint expr_size (hdrs: Field.fs nat nat) (e:Exp.t) : nat :=
     | Exp.Bit w val => N.to_nat w
     | Exp.Int w val => Pos.to_nat w
     | Exp.Var t str_name name => 
-      match type_size hdrs t with 
+      match type_size t with 
       | Some size => size
       | None => 0
       end
-    (* | Exp.Header fields valid => 
-      List.fold_left (fun accum f => 
-        match f with 
-          | (_, t2) => accum + (expr_size hdrs t2)
-        end) fields 0 *)
     | Exp.Slice hi lo arg => (Init.Nat.min (1 + Pos.to_nat hi) (expr_size hdrs arg) -
     Pos.to_nat lo)
     | Exp.Member result_type mem arg => 
-      match type_size hdrs result_type with
+      match type_size result_type with
         | Some field_size => field_size
         | None => 0
       end
     | _ => 0
     end.
-  (* | Expr.EHeader fields valid i => Some (expr ) *)
-  (* slice size not right *)
-  (* | Expr.ESlice arg hi lo i => (Init.Nat.min (1 + Pos.to_nat hi) (expr_size hdrs arg) -
-  Pos.to_nat lo)
-  | _ => 0
-  end. *)
 
 (* Translate P4cub expression to P4a *)
-Fixpoint translate_expr (hdrs: Field.fs nat nat) (e:Exp.t): option (expr (hdr_map hdrs) (expr_size hdrs e)) := 
+Fixpoint translate_expr (ctxt: Field.fs nat nat) (hdrs: Field.fs nat nat) (e:Exp.t): option (expr (hdr_map hdrs) (expr_size hdrs e)) := 
   match e with 
-  (* | Expr.EHeader fields valid i => Some (EHdr ) *)
   | Exp.Slice hi lo arg => 
       match translate_expr hdrs arg with
         | Some e1 => Some (ESlice _ e1 (Pos.to_nat hi) (Pos.to_nat lo) )
@@ -422,7 +355,13 @@ Definition translate_parser (prog:Top.t) : option (list (state (mk_st_type (find
     end.  *)
 End P4AComp.
 
-(* TODO: 
+(* 
+ctxt => maps debruijn to headers in P4A
+hdrs => maps headers to their respective sizes
+
+
+
+TODO: 
 
 Look at 2nd arg of 4th arg of TParser
 get TStruct => collect header + name => map to nat

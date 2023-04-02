@@ -379,7 +379,7 @@ Inductive stmt_big_step
   (** Evaluate table key. *)
   Forall2 (expr_big_step ϵ₂) (map fst key) vs ->
   (** Evaluate table entries. *)
-  Forall3 table_entry_big_step (extern_get_entries ψ []) pats arefs ->
+  Forall3 table_entry_big_step (extern_get_entries Ψ.(extrn_state) []) pats arefs ->
   (** Embed p4cub patterns in p4light value sets. *)
   Forall2 embed_pat_valset pats light_sets ->
   (** Get action reference from control-plane with control-plane arguments. *)

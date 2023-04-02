@@ -459,6 +459,18 @@ Section Embed.
         intros. inv H1. erewrite H0; eauto. constructor. assumption.
     Qed.
 
+    Definition embed_pats := map_monad embed_pat.
+
+    Lemma embed_pats_sound :
+      forall pats vals,
+        embed_pats pats = Some vals -> Forall2 embed_pat_valset pats vals.
+    Proof.
+      unfold embed_pats. intros. rewrite map_monad_some in H.
+      generalize dependent vals. induction pats; cbn; intros.
+      - inv H. constructor.
+      - inv H. constructor; auto. apply embed_pat_sound. assumption.
+    Qed.
+
   Fixpoint snd_map {A : Type} {B : Type} (func : A -> B) (l : list (string * A)) :=
     match l with 
     | [] => []

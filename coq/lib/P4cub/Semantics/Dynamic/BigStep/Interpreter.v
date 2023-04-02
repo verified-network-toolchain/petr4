@@ -281,6 +281,37 @@ Definition interpret_table_entry (entry : table_entry (Expression := Expr.e)) : 
   let^ pats := unembed_valsets matches in
   (Parser.Lists pats, action_ref).
 
+Lemma interpret_table_entry_sound :
+  forall entry pat action_ref,
+    interpret_table_entry entry = Some (pat, action_ref) -> table_entry_big_step entry pat action_ref.
+Proof.
+  unfold interpret_table_entry. intros. destruct entry.
+  cbn in *. unfold option_bind in *.
+  destruct (unembed_valsets matches) eqn:HSome; try discriminate. inv H.
+  constructor. apply unembed_valsets_sound. assumption.
+Qed.
+
+Definition interpret_table_entries entries := 
+  let^ l := map_monad interpret_table_entry entries in
+  List.split l.
+
+Lemma interpret_table_entries_sound :
+  forall entries pats arefs,
+    interpret_table_entries entries = Some (pats, arefs) -> Forall3 table_entry_big_step entries pats arefs.
+Proof.
+  unfold interpret_table_entries. cbn. intros. unfold option_bind in *.
+  destruct (map_monad _ _) eqn:Hsome; try discriminate.
+  rewrite map_monad_some in Hsome.
+  generalize dependent pats. generalize dependent arefs. generalize dependent l.
+  induction entries; intros; inv H; inv Hsome; cbn in *.
+  - inv H1. constructor.
+  - destruct y, (split l') eqn:E. inv H1.
+    apply interpret_table_entry_sound in H2.
+    eapply IHentries in H4.
+    + econstructor; eauto.
+    + f_equal. assumption.
+Qed.
+
 Definition interpret_actions_of_ctx ctx :=
   match ctx with
   | CAction a => mret a
@@ -506,10 +537,24 @@ Section Stmt.
     destruct sig; intros; inv H; constructor.
   Qed.
 
-  Lemma wild :
-    forall (A : Type) (e : A) (c : ctx), match c with CAction _ | _ => e end = e.
+  Definition interpret_table_action (def : option (string * list Expr.e)) (aref : option (@action_ref Expr.e)) :=
+    match aref, def with
+    | Some (mk_action_ref a opt_ctrl_args), _ =>
+      let^ ctrl_args := sequence opt_ctrl_args in
+      (true, a, ctrl_args)
+    | None, Some (a, ctrl_args) => mret (false, a, ctrl_args)
+    | None, None => None
+    end.
+
+  Lemma interpret_table_action_sound :
+    forall def aref hit a ctrl_args,
+      interpret_table_action def aref = Some (hit, a, ctrl_args) ->
+        eval_table_action def aref hit a ctrl_args.
   Proof.
-    intros. hnf.  destruct c; reflexivity.
+    unfold interpret_table_action. intros. destruct aref.
+    - destruct a0. destruct (sequence args) eqn:Hsome; try discriminate.
+      cbn in *. inv H. constructor. apply sequence_Forall2. assumption.
+    - destruct def; try discriminate. destruct p. inv H. constructor.
   Qed.
 
   Fixpoint interpret_stmt (fuel : Fuel) (Ψ : stmt_eval_env ext_sem) (ϵ : list Val.v) (c : ctx) (s : Stmt.s) : option (list Val.v * signal * extern_state) :=
@@ -563,7 +608,15 @@ Section Stmt.
         | Exit | Rtrn _ | Rjct => mret (ϵ', sig, ψ)
         | Acpt => None
         end
-      | Stmt.Invoke eo t, CApplyBlock tbls acts insts => None
+      | Stmt.Invoke eo t, CApplyBlock tbls acts insts =>
+        let* (n, key, actions, def) := tbls t in
+        guard (n <=? List.length ϵ) ;;
+        let* (ϵ₁, ϵ₂) := split_at (List.length ϵ - n) ϵ in
+        let* vs := interpret_exprs ϵ₂ $ map fst key in
+        let* (pats, arefs) := interpret_table_entries $ extern_get_entries Ψ.(extrn_state) [] in
+        let* light_sets := embed_pats pats in
+        (* let aref := extern_match $ combine light_vals $ map snd key in *)
+        None
       | Stmt.Apply p ext_args args, CParserState n strt states parsers =>
         let? 'ParserInst p_fun p_prsr p_eps p_strt p_states := parsers p in
         let* vargs := interpret_args ϵ args in
@@ -651,7 +704,17 @@ Section Stmt.
         destruct (interpret_stmt _ _ _ _ _) eqn:?; try discriminate. 
         inv H. do 2 destruct p. inv H1. apply IHfuel in Heqo4.
         econstructor; eauto.
-    - destruct c; try discriminate.
+    - admit. (* destruct c; try discriminate.
+      unfold option_bind in *.
+      destruct (tables table_name) eqn:Htables; try discriminate. repeat destruct p.
+      destruct (n <=? List.length ϵ) eqn:Hlen; try discriminate. cbn in *.
+      apply Nat.leb_le in Hlen.
+      destruct (split_at (List.length ϵ - n) ϵ) eqn:Hϵ; try discriminate.
+      destruct p as [ϵ₁ ϵ₂]. apply split_at_partition in Hϵ as Hpartition.
+      apply split_at_length_l2 in Hϵ as Hϵ₂.
+      assert (List.length ϵ₂ = n) by lia.
+      destruct (interpret_exprs ϵ₂ $ map fst l0) eqn:Hes; try discriminate.
+      apply interpret_exprs_sound in Hes.  *)
     - destruct c; try discriminate.
       + destruct (available_controls instance_name) eqn:?; try discriminate.
         destruct i; try discriminate. cbn in *. unfold option_bind in *.
@@ -688,6 +751,6 @@ Section Stmt.
       apply interpret_expr_sound in Heqo.
       destruct v; try discriminate. cbn in *. unfold "$" in *.
       apply IHfuel in H. econstructor; eauto.
-  Qed.
+  Admitted.
 
 End Stmt.

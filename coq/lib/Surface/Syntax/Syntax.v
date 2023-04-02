@@ -3,115 +3,138 @@ Require Import Coq.Strings.String.
 
 From Coq Require Import Numbers.BinNums Classes.EquivDec.
 
+From Poulet4.P4light.Syntax Require Import Info.
+
 From Poulet4.P4light.Syntax Require P4String P4Int.
 
 
 Section Syntax.
 
-  Context {tags_t: Type}.
-  Notation P4String := (P4String.t tags_t).
-  Notation P4Int := (P4Int.t tags_t).
+  Notation P4String := (P4String.t Info).
+  Notation P4Int := (P4Int.t Info).
 
   Variant name :=
-  | BareName      (name: P4String)
-  | QualifiedName (namespaces: list P4String)
+  | BareName      (tags: Info)
+                  (name: P4String)
+  | QualifiedName (tags: Info)
+                  (namespaces: list P4String)
                   (name: P4String).
 
   Variant direction :=
-  | In
-  | Out
-  | InOut
-  | Directionless.
+  | In            (tags: Info)
+  | Out           (tags: Info)
+  | InOut         (tags: Info)
+  | Directionless (tags: Info).
 
   Variant functionKind :=
-  | FunParser
-  | FunControl
-  | FunExtern
-  | FunTable
-  | FunAction
-  | FunFunction
-  | FunBuiltin.
+  | FunParser   (tags: Info)
+  | FunControl  (tags: Info)
+  | FunExtern   (tags: Info)
+  | FunTable    (tags: Info)
+  | FunAction   (tags: Info)
+  | FunFunction (tags: Info)
+  | FunBuiltin  (tags: Info).
 
   Variant uniOp : Type :=
-  | Not
-  | BitNot
-  | UMinus.
+  | Not    (tags: Info)
+  | BitNot (tags: Info)
+  | UMinus (tags: Info).
 
   Variant binOp : Type :=
-  | Plus
-  | PlusSat
-  | Minus
-  | MinusSat
-  | Mul
-  | Div
-  | Mod
-  | Shl
-  | Shr
-  | Le
-  | Ge
-  | Lt
-  | Gt
-  | Eq
-  | NotEq
-  | BitAnd
-  | BitXor
-  | BitOr
-  | PlusPlus
-  | And
-  | Or.
+  | Plus     (tags: Info)
+  | PlusSat  (tags: Info)
+  | Minus    (tags: Info)
+  | MinusSat (tags: Info)
+  | Mul      (tags: Info)
+  | Div      (tags: Info)
+  | Mod      (tags: Info)
+  | Shl      (tags: Info)
+  | Shr      (tags: Info)
+  | Le       (tags: Info)
+  | Ge       (tags: Info)
+  | Lt       (tags: Info)
+  | Gt       (tags: Info)
+  | Eq       (tags: Info)
+  | NotEq    (tags: Info)
+  | BitAnd   (tags: Info)
+  | BitXor   (tags: Info)
+  | BitOr    (tags: Info)
+  | PlusPlus (tags: Info)
+  | And      (tags: Info)
+  | Or       (tags: Info).
 
-  Inductive typPreT := 
-  | TypBool
-  | TypError
-  | TypMatchKind
-  | TypInteger
-  | TypString
-  | TypInt            (width: N)
-  | TypBit            (width: N)
-  | TypVarBit         (width: N)
-  | TypIdentifier     (name: P4String)
-  | TypSpecialization (base: typ) (*surface*)
+  Inductive typ :=
+  | TypBool           (tags: Info)
+  | TypError          (tags: Info)
+  | TypMatchKind      (tags: Info)
+  | TypInteger        (tags: Info)
+  | TypString         (tags: Info)
+  | TypInt            (tags: Info)
+                      (width: N)
+  | TypBit            (tags: Info)
+                      (width: N)
+  | TypVarBit         (tags: Info)
+                      (width: N)
+  | TypIdentifier     (tags: Info)
+                      (name: P4String)
+  | TypSpecialization (tags: Info)
+                      (base: typ) (*surface*)
                       (args: list typ) (*type arg*)
-  | TypHeaderStack    (typ: typ) (*surface*)
+  | TypHeaderStack    (tags: Info)
+                      (typ: typ) (*surface*)
                       (size: expression)
-  | TypTuple          (types: list typ) (*surface*)
-  | TypHeader         (type_params: list typVarTyp)
-                      (fields: P4String.AList tags_t typ) (*surface*)
-  | TypHeaderUnion    (type_params: list typVarTyp) (*variable type*)
-                      (fields: P4String.AList tags_t typ) (*surface*)
-  | TypStruct         (type_params: list typVarTyp) (*variable type*)
-                      (fields: P4String.AList tags_t typ) (*surface*)
-  | TypEnum           (name: P4String)
+  | TypTuple          (tags: Info)
+                      (types: list typ) (*surface*)
+  | TypHeader         (tags: Info)
+                      (type_params: list typVarTyp)
+                      (fields: P4String.AList Info typ) (*surface*)
+  | TypHeaderUnion    (tags: Info)
+                      (type_params: list typVarTyp) (*variable type*)
+                      (fields: P4String.AList Info typ) (*surface*)
+  | TypStruct         (tags: Info)
+                      (type_params: list typVarTyp) (*variable type*)
+                      (fields: P4String.AList Info typ) (*surface*)
+  | TypEnum           (tags: Info)
+                      (name: P4String)
                       (typ: option typ) (*surface*)
                       (members: list P4String)
-  | TypParser         (type_params: list typVarTyp) (*type variable*)
+  | TypParser         (tags: Info)
+                      (type_params: list typVarTyp) (*type variable*)
                       (parameters: list parameter)
-  | TypControl        (type_params: list typVarTyp) (*type variable*)
+  | TypControl        (tags: Info)
+                      (type_params: list typVarTyp) (*type variable*)
                       (parameters: list parameter)
-  | TypPackage        (type_params: list typVarTyp) (*type variable*)
+  | TypPackage        (tags: Info)
+                      (type_params: list typVarTyp) (*type variable*)
                       (wildcard_params: list P4String)
                       (parameters: list parameter)
-  | TypFunction       (type_params: list typVarTyp) (*type variable*)
+  | TypFunction       (tags: Info)
+                      (type_params: list typVarTyp) (*type variable*)
                       (parameters: list parameter)
                       (kind: functionKind)
                       (ret: typ) (*surface+void+type variable*)
-  | TypSet            (typ: typ) (*surface*)
-  | TypExtern         (extern_name: P4String)
-  | TypRecord         (type_params: list typVarTyp) (*type variable*)
-                      (fields: P4String.AList tags_t typ) (*surface*)
-  | TypNewTyp         (name: P4String)
+  | TypSet            (tags: Info)
                       (typ: typ) (*surface*)
-  | TypAction         (data_params: list parameter)
+  | TypExtern         (tags: Info)
+                      (extern_name: P4String)
+  | TypRecord         (tags: Info)
+                      (type_params: list typVarTyp) (*type variable*)
+                      (fields: P4String.AList Info typ) (*surface*)
+  | TypNewTyp         (tags: Info)
+                      (name: P4String)
+                      (typ: typ) (*surface*)
+  | TypAction         (tags: Info)
+                      (data_params: list parameter)
                       (ctrl_params: list parameter)
-  | TypConstructor    (type_params: list typVarTyp) (*type variable*)
+  | TypConstructor    (tags: Info)
+                      (type_params: list typVarTyp) (*type variable*)
                       (wildcard_params: list typVarTyp)
                       (params: list parameter)
                       (ret: typ) (*surface+void+type variable*)
-  | TypTable          (result_typ_name: P4String)
-  | TypVoid
-  with typ :=
-  | MkType (tags: tags_t)
-           (typ: typPreT)
+  | TypTable          (tags: Info)
+                      (result_typ_name: P4String)
+  | TypVoid           (tags: Info)
+  | TypDontCare       (tags: Info)
   with typVarTyp := (*type variable or their assignment*)
   | TypVarTyp (type_var: P4String)
               (type: option typ)
@@ -128,10 +151,10 @@ Section Syntax.
   | ExpArrayAccess            (array: expression)
                               (index: expression)
   | ExpBitStringAccess        (bits: expression)
-                              (lo: expression)
+                              (low: expression)
                               (high: expression)
   | ExpList                   (value: list expression)
-  | ExpRecord                 (entries: P4String.AList tags_t expression)
+  | ExpRecord                 (entries: P4String.AList Info expression)
   | ExpUnaryOp                (op: uniOp)
                               (arg: expression)
   | ExpBinaryOp               (op: binOp)
@@ -152,14 +175,14 @@ Section Syntax.
                               (args: list argument)
   | ExpAnonymousInstantiation (typ: typ) (*surface*)
                               (args: list argument)
-  | ExpBitmask                (expr: expression)
+  | ExpBitMask                (expr: expression)
                               (mask: expression)
   | ExpRange                  (low: expression)
                               (high: expression)
   with expression :=
-  | MkExpression (tags: tags_t)
+  | MkExpression (tags: Info)
+                 (type: option typ)
                  (expr: expressionPreT)
-                 (typ: option typ)
                  (* (dir: direction) *)
   with argument :=
   | ExpArg      (value: expression) 
@@ -167,84 +190,84 @@ Section Syntax.
                 (value: expression)
   | MissingArg.
 
-  Variant fieldType :=
-  | FieldType (typ: typ) (*surface*)
-              (field: P4String).
+  (* Variant fieldType := *)
+  (* | FieldType (typ: typ) (*surface*) *)
+  (*             (field: P4String). *)
 
   Variant stmtSwitchLabel :=
-  | StmtSwitchLabelDefault (tags: tags_t)
-  | StmtSwitchLabelName    (tags: tags_t)
+  | StmtSwitchLabelDefault (tags: Info)
+  | StmtSwitchLabelName    (tags: Info)
                            (label: P4String).
 
   Variant tableOrParserMatch :=
-  | MatchDefault    (tags: tags_t)
-  | MatchDontCare   (tags: tags_t)
-  | MatchExpression (tags: tags_t)
+  | MatchDefault    (tags: Info)
+  | MatchDontCare   (tags: Info)
+  | MatchExpression (tags: Info)
                     (expr: expression).
 
   Variant parserCase :=
-  | ParserCase (tags: tags_t)
+  | ParserCase (tags: Info)
                (matches: list tableOrParserMatch)
                (next: P4String).
 
-    Variant methodPrototype :=
-  | ProtoConstructor    (tags: tags_t)
+  Variant methodPrototype :=
+  | ProtoConstructor    (tags: Info)
                         (name: P4String)
                         (params: list parameter)
-  | ProtoAbstractMethod (tags: tags_t)
+  | ProtoAbstractMethod (tags: Info)
                         (ret_type: typ) (*surface*)
                         (name: P4String)
                         (type_params: list typVarTyp)
                         (params: list parameter)
-  | ProtoMethod         (tags: tags_t)
+  | ProtoMethod         (tags: Info)
                         (ret_type: typ) (*surfce*)
                         (name: P4String)
                         (type_params: list typVarTyp)
                         (params: list parameter).
 
   Variant tableKey :=
-  | TabKey (tags: tags_t)
+  | TabKey (tags: Info)
            (key: expression)
            (match_kind: P4String).
 
   Variant actionRef :=
-  | TabActionRef (tags: tags_t)
+  | TabActionRef (tags: Info)
                  (name: name) 
                  (args: list argument).
 
   Variant tableEntry :=
-  | TabEntry (tags: tags_t)
+  | TabEntry (tags: Info)
              (matches: list tableOrParserMatch)
              (action: actionRef).
 
   Variant tableProperty :=
-  | TableKey           (tags: tags_t)
+  | TableKey           (tags: Info)
                        (keys: list tableKey)
-  | TableActions       (tags: tags_t)
+  | TableActions       (tags: Info)
                        (actions: list actionRef)
-  | TableEntries       (tags: tags_t)
+  | TableEntries       (tags: Info)
                        (entries: list tableEntry)
-  | TableDefaultAction (tags: tags_t)
+  | TableDefaultAction (tags: Info)
                        (action: actionRef)
                        (const: bool)
-  | TableCustom        (tags: tags_t)
+  | TableCustom        (tags: Info)
                        (name: P4String)
                        (value: expression)
                        (const: bool).
 
   Inductive stmtSwitchCases :=
-  | StmtSwitchCaseAction      (tags: tags_t)
+  | StmtSwitchCaseAction      (tags: Info)
                               (lable: stmtSwitchLabel)
                               (code: block)
-  | StmtSwitchCaseFallThrough (tags: tags_t)
+  | StmtSwitchCaseFallThrough (tags: Info)
                               (lable: stmtSwitchLabel)
-  with statementPreT := (*why surface.ml has declaration in statements and p4light has variable and instantiation in it? *)
+  with statementPreT := 
   | StmtMethodCall        (func: expression)
                           (type_args: list typ) (*surface*)
                           (args: list argument)
   | StmtAssignment        (lhs: expression)
                           (rhs: expression)
-  | StmtdirectApplication (typ: typ) (*surface*)
+  | StmtDirectApplication (typ: typ) (*surface*)
                           (args: list argument)
   | StmtConditional       (cond: expression)
                           (tru: statement)
@@ -255,23 +278,23 @@ Section Syntax.
   | StmtReturn            (expr: option expression)
   | StmtSwitch            (expr: expression)
                           (cases: list stmtSwitchCases)
-  | StmtDeclaration       (dcl: declaration) (*can only be variable or constant decl.*)
+  | StmtDeclaration       (decl: declaration) (*can only be variable or constant decl.*)
   with statement :=
-  | MkStatement (tags: tags_t)
+  | MkStatement (tags: Info)
+                (type: option typ)
                 (stmt: statementPreT)
-                (typ: option typ)
   with block :=
-  | BlockEmpty (tags: tags_t)
-  | BlockCons (statement: statement)
-              (rest: block)
+  | BlockEmpty (tags: Info)
+  | BlockCons  (statement: statement)
+               (rest: block)
   with parserTransition :=
-  | ParserDirect (tags: tags_t)
+  | ParserDirect (tags: Info)
                  (next: P4String)
-  | ParserSelect (tags: tags_t)
+  | ParserSelect (tags: Info)
                  (exprs: list expression)
                  (cases: list parserCase)
   with parserState :=
-  | ParserState (tags: tags_t)
+  | ParserState (tags: Info)
                 (name: P4String)
                 (statements: list statement)
                 (transistion: parserTransition)
@@ -317,18 +340,18 @@ Section Syntax.
   | DeclTable            (name: P4String)
                          (props: list tableProperty)
   | DeclHeaderTyp        (name: P4String)
-                         (fields: list fieldType)
+                         (fields: P4String.AList Info typ)
   | DeclHeaderUnionTyp   (name: P4String)
-                         (fields: list fieldType)
+                         (fields: P4String.AList Info typ)
   | DeclStructTyp        (name: P4String)
-                         (fields: list fieldType)
+                         (fields: P4String.AList Info typ)
   | DeclError            (members: list P4String)
   | DeclMatchKind        (members: list P4String)
   | DeclEnumTyp          (name: P4String)
                          (members: list P4String)
   | DeclSerializableEnum (typ: typ) (*surface*)
                          (name: P4String)
-                         (members: P4String.AList tags_t expression)
+                         (members: P4String.AList Info expression)
   | DeclControlTyp       (name: P4String)
                          (type_params: list typVarTyp)
                          (params: list parameter)
@@ -346,9 +369,12 @@ Section Syntax.
   | DeclNewType          (name: P4String)
                          (typ_or_dcl: (typ + declaration)) (*surface*)
   with declaration :=
-  | MkDeclaration (tags: tags_t)
-                  (decl: declarationPreT)
-                  (typ: option typ).
+  | MkDeclaration (tags: Info)
+                  (type: option typ)
+                  (decl: declarationPreT).
+
+  Variant program :=
+  | Program (decls: list declaration).
 
 
 End Syntax. 

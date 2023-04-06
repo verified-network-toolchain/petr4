@@ -1118,6 +1118,17 @@ and eval_to_positive_int env tags expr =
   then value
   else failwith "expected positive integer" (*~info:(info: P4info.t)]*)
 
+and eval_to_nonneg_int env tags expr =
+  let value =
+    expr
+    |> type_expression env ExprCxConstant
+    |> compile_time_eval_bigint env
+  in
+  if Bigint.(value >= zero)
+  then value
+  else failwith "expected non-negative integer" (*~info:(info: P4info.t)]*)
+
+
 and gen_wildcard env: P4string.t =
   let str = Renamer.freshen_name (Checker_env.renamer env) "__wild" in
   {tags = P4info.dummy; str}
@@ -1135,8 +1146,8 @@ and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (typ: Surface.Ty
   | Integer _ -> ret TypInteger
   | String _ -> ret TypString
   | IntType {tags; expr} -> ret @@ TypInt (eval_to_positive_int env tags expr)
-  | BitType {tags; expr} -> ret @@ TypBit (eval_to_positive_int env tags expr)
-  | VarBit {tags; expr} -> ret @@ TypVarBit (eval_to_positive_int env tags expr)
+  | BitType {tags; expr} -> ret @@ TypBit (eval_to_nonneg_int env tags expr)
+  | VarBit {tags; expr} -> ret @@ TypVarBit (eval_to_nonneg_int env tags expr)
   | TypeName {name = nm; _} ->
     ret @@ TypTypeName (P4name.p4string_name_only nm)
   | SpecializedType {base; args; tags} ->

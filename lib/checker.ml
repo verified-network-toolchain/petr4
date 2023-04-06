@@ -2288,8 +2288,9 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | TypInt _, TypInteger ->
     explicit
   | TypEnum (name, Some t, members), TypEnum (_, Some t', _)
-  | TypEnum (name, Some t, members), t'
-  | t', TypEnum (name, Some t, members) ->
+  | t, TypEnum (name, Some t', members) ->
+    explicit && type_equality env [] t t'
+  | TypEnum (name, Some t, members), t' ->
     type_equality env [] t t'
   | TypNewType (name1, typ1),
     TypNewType (name2, typ2) ->

@@ -1317,12 +1317,14 @@ and expr_of_arg (arg: Argument.t): Expression.t option =
 and is_well_formed_type env (typ: coq_P4Type) : bool =
   match saturate_type env typ with
   (* Base types *)
+  | TypBit w
+  | TypVarBit w ->
+    Bigint.(w >= zero)
+  | TypInt w ->
+    Bigint.(w > zero)
   | TypBool
   | TypString
   | TypInteger
-  | TypInt _
-  | TypBit _
-  | TypVarBit _
   | TypError
   | TypMatchKind
   | TypVoid -> true

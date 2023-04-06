@@ -250,7 +250,6 @@ module MakeDriver (IO: DriverIO) = struct
   let run_compiler (cfg: Pass.compiler_cfg) =
     run_checker cfg.cfg_checker
     >>= to_p4cub cfg
-
     >>= begin fun prog ->
         match cfg.cfg_backend with
         | Skip -> Ok ()
@@ -375,12 +374,11 @@ let check_refinement ((prog_l, prog_r), rel) =
         Poulet4.P4flatToGCL.prog_to_stmt prog_r Poulet4.P4flatToGCL.initial_p4sig with
   | Ok (prog_l_gcl, _), Ok (prog_r_gcl, _) ->
     let vc = wp prog_l_gcl prog_r_gcl rel in
-    Printf.printf "\n%s\n\n" (print_fm sum_printer vc);
+    Printf.printf "(declare-const x_one_table__l Int)\n (declare-const x_seq_tables__r Int)\n \n (declare-datatypes (T1 T2) ((Pair (mk-pair (first T1) (second T2)))))\n (declare-fun table_symb__t_one_table (Int) (Pair Int Int))\n \n (declare-fun table_symb__t1_seq_tables (Int) (Pair Int Int))\n (declare-fun table_symb__t2_seq_tables (Int) (Pair Int Int))\n \n (define-const action_symb__nop Int 0)\n (define-const action_symb__set_x Int 1)\n";
+    Printf.printf "\n(assert (not %s))\n(check-sat)\n(reset)\n" (print_fm sum_printer vc);
   | _, _ ->
     Printf.printf "prog_to_stmt failure"
 
 let run_tbl () =
   let tests = Poulet4.Examples.refinements in
-  Printf.printf "running table program refinement tests\n";
   List.iter ~f:check_refinement tests;
-  Printf.printf "finished table program refinement tests\n"

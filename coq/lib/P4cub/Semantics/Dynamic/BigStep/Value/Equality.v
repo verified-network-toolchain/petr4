@@ -1,24 +1,23 @@
 Require Import Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Syntax
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.IndPrincip
         Poulet4.P4cub.Syntax.Equality Coq.ZArith.BinInt Coq.NArith.BinNat.
-Import Val ValueNotations.
 
 (** Computational Value equality *)
-Fixpoint eqbv (v1 v2 : v) : bool :=
-  let fix lstruct (vs1 vs2 : list v) : bool :=
+Fixpoint eqb_val (v1 v2 : Val.t) : bool :=
+  let fix lstruct (vs1 vs2 : list Val.t) : bool :=
     match vs1, vs2 with
     | [], [] => true
-    | v1::vs1, v2::vs2 => eqbv v1 v2 && lstruct vs1 vs2
+    | v1::vs1, v2::vs2 => eqb_val v1 v2 && lstruct vs1 vs2
     | [], _::_ | _::_, [] => false
     end in
   match v1, v2 with
-  | Bool b1, Bool b2 => eqb b1 b2
-  | Int w1 n1, Int w2 n2 => (w1 =? w2)%positive && (n1 =? n2)%Z
-  | Bit w1 n1, Bit w2 n2 => (w1 =? w2)%N && (n1 =? n2)%Z
-  | VarBit m1 w1 n1, VarBit m2 w2 n2 => (m1 =? m2)%N && (w1 =? w2)%N && (n1 =? n2)%Z
-  | Error err1, Error err2
+  | Val.Bool b1, Val.Bool b2 => eqb b1 b2
+  | Val.Int w1 n1, Val.Int w2 n2 => (w1 =? w2)%positive && (n1 =? n2)%Z
+  | Val.Bit w1 n1, Val.Bit w2 n2 => (w1 =? w2)%N && (n1 =? n2)%Z
+  | Val.VarBit m1 w1 n1, Val.VarBit m2 w2 n2 => (m1 =? m2)%N && (w1 =? w2)%N && (n1 =? n2)%Z
+  | Val.Error err1, Val.Error err2
     => if equiv_dec err1 err2 then true else false
-  | Lists ls1 vs1, Lists ls2 vs2
+  | Val.Lists ls1 vs1, Val.Lists ls2 vs2
     => lists_eqb ls1 ls2 && lstruct vs1 vs2
   | _,          _          => false
   end.
@@ -33,9 +32,9 @@ Local Hint Rewrite lists_eqb_refl.
 Local Hint Resolve lists_eqb_eq : core.
 Local Hint Extern 0 => equiv_dec_refl_tactic : core.
 
-Lemma eqbv_refl : forall V : v, eqbv V V = true.
+Lemma eqb_val_refl : forall V : Val.t, eqb_val V V = true.
 Proof.
-  induction V using custom_v_ind; simpl in *;
+  induction V using custom_val_ind; simpl in *;
     autorewrite with core; simpl; auto;
     try ind_list_Forall;
     intuition; autorewrite with core; simpl;
@@ -68,9 +67,9 @@ Ltac eauto_too_dumb :=
     |- _ => apply IH in H; clear IH
   end.
   
-Lemma eqbv_eq : forall v1 v2 : v, eqbv v1 v2 = true -> v1 = v2.
+Lemma eqb_val_eq : forall v1 v2 : Val.t, eqb_val v1 v2 = true -> v1 = v2.
 Proof.
-  induction v1 using custom_v_ind; intros []; intros;
+  induction v1 using custom_val_ind; intros []; intros;
     simpl in *; try discriminate;
     repeat destruct_andb;
     repeat (eq_true_terms); unfold equiv in *; auto; f_equal;
@@ -87,21 +86,21 @@ Proof.
         end.
 Qed.
 
-Local Hint Resolve eqbv_refl : core.
-Local Hint Resolve eqbv_eq : core.
+Local Hint Resolve eqb_val_refl : core.
+Local Hint Resolve eqb_val_eq : core.
 
-Lemma eqbv_eq_iff : forall v1 v2 : v, eqbv v1 v2 = true <-> v1 = v2.
+Lemma eqb_val_eq_iff : forall v1 v2 : Val.t, eqb_val v1 v2 = true <-> v1 = v2.
 Proof.
   intros; split; intros; subst; auto.
 Qed.
 
-Local Hint Resolve eqbv_eq_iff : core.
+Local Hint Resolve eqb_val_eq_iff : core.
 
-Lemma eqbv_reflect : forall v1 v2, reflect (v1 = v2) (eqbv v1 v2).
+Lemma eqb_val_reflect : forall v1 v2, reflect (v1 = v2) (eqb_val v1 v2).
 Proof.
   intros; reflect_split; auto; subst.
-  rewrite eqbv_refl in Heqb; discriminate.
+  rewrite eqb_val_refl in Heqb; discriminate.
 Qed.
 
-Global Instance ValueEqDec : EqDec v eq :=
-  { equiv_dec := fun v1 v2 => reflect_dec _ _ (eqbv_reflect v1 v2) }.
+Global Instance ValueEqDec : EqDec Val.t eq :=
+  { equiv_dec := fun v1 v2 => reflect_dec _ _ (eqb_val_reflect v1 v2) }.

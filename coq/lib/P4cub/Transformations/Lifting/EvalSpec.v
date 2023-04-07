@@ -2,17 +2,17 @@ Require Export Coq.micromega.Lia Poulet4.P4cub.Syntax.Syntax Coq.Arith.PeanoNat.
 From Poulet4.P4cub Require Export Syntax.Shift Semantics.Dynamic.BigStep.BigStep
   Transformations.Lifting.Lift Semantics.Dynamic.BigStep.Properties
   Transformations.Lifting.Statementize Transformations.Lifting.LiftSpec.
-Import Nat AllCubNotations (*Clmt.Notations*) Val.ValueNotations.
+Import Nat.
 
 (** Big-step evaluation specification for lifting in [Statementize.v] *)
 
 Open Scope list_scope.
 
 Section EvalDeclList.
-  Variable ϵ : list Val.v.
+  Variable ϵ : list Val.t.
     
-  Definition eval_decl_list : list Expr.e -> list Val.v -> Prop :=
-    relate_decl_list expr_big_step ϵ.
+  Definition eval_decl_list : list Exp.t -> list Val.t -> Prop :=
+    relate_decl_list exp_big_step ϵ.
 
   Local Hint Resolve relate_decl_list_length : core.
   
@@ -22,13 +22,13 @@ Section EvalDeclList.
     unfold eval_decl_list. eauto.
   Qed.
   
-  Local Hint Resolve shift_e_eval : core.
+  Local Hint Resolve shift_exp_eval : core.
   Local Hint Resolve relate_decl_list_app : core.
     
   Lemma eval_decl_list_app : forall vs1 vs2 es1 es2,
       eval_decl_list es1 vs1 ->
       eval_decl_list es2 vs2 ->
-      eval_decl_list (shift_list shift_e (Shifter 0 (length es1)) es2 ++ es1) (vs2 ++ vs1).
+      eval_decl_list (shift_list shift_exp (Shifter 0 (length es1)) es2 ++ es1) (vs2 ++ vs1).
   Proof using.
     unfold eval_decl_list. eauto.
   Qed.
@@ -38,7 +38,7 @@ Section EvalDeclList.
   Lemma shift_pairs_type_snd : forall ess vss,
       Forall2 eval_decl_list (map snd ess) vss ->
       eval_decl_list
-        (concat (map snd (shift_pairs shift_e ess)))
+        (concat (map snd (shift_pairs shift_exp ess)))
         (concat vss).
   Proof using.
     unfold eval_decl_list. eauto.
@@ -49,35 +49,35 @@ Section EvalDeclList.
       Forall3 (fun vs e v => ⟨ vs ++ ϵ, e ⟩ ⇓ v) vss es vs ->
       Forall2 eval_decl_list ess vss ->
       Forall2
-        (expr_big_step (concat vss ++ ϵ))
-        (map fst (shift_pairs shift_e (combine es ess))) vs.
+        (exp_big_step (concat vss ++ ϵ))
+        (map fst (shift_pairs shift_exp (combine es ess))) vs.
   Proof using.
     Local Hint Resolve shift_pairs_relate_fst : core.
-    Local Hint Resolve shift_e_eval : core.
+    Local Hint Resolve shift_exp_eval : core.
     unfold eval_decl_list. eauto.
   Qed.
 End EvalDeclList.
 
-Section EvalExpr.
-  Variable ϵ : list Val.v.
+Section EvalExp.
+  Variable ϵ : list Val.t.
 
   Local Hint Resolve eval_decl_list_length : core.
   Local Hint Resolve eval_decl_list_app : core.
   Local Hint Constructors relate_decl_list : core.
   Local Hint Resolve relate_decl_list_length : core.
   Local Hint Resolve relate_decl_list_app : core.
-  Local Hint Constructors expr_big_step : core.
-  Local Hint Resolve shift_e_eval : core.
+  Local Hint Constructors exp_big_step : core.
+  Local Hint Resolve shift_exp_eval : core.
   Local Hint Constructors Forall3 : core.
   
-  Lemma Lift_e_good : forall e v,
+  Lemma Lift_exp_good : forall e v,
       ⟨ ϵ, e ⟩ ⇓ v -> forall e' es,
-        Lift_e e e' es -> exists vs,
+        Lift_exp e e' es -> exists vs,
           eval_decl_list ϵ es vs /\ ⟨ vs ++ ϵ, e' ⟩ ⇓ v.
   Proof using.
     unfold eval_decl_list;
     intros e v hev;
-      induction hev using custom_expr_big_step_ind;
+      induction hev using custom_exp_big_step_ind;
       intros E Es hn; inv hn; eauto.
     - pose proof IHhev _ _ H5 as (vs & hvs & hv).
       exists (v' :: vs). split; eauto.
@@ -93,7 +93,7 @@ Section EvalExpr.
       rewrite (eval_decl_list_length _ _ _ hvs2).
       rewrite (eval_decl_list_length _ _ _ hvs1).
       econstructor; eauto.
-      eapply shift_e_eval with (us := []); assumption.
+      eapply shift_exp_eval with (us := []); assumption.
     - firstorder eauto.
     - pose proof IHhev1 _ _ H5 as (vs1 & hvs1 & hv1); clear IHhev1.
       pose proof IHhev2 _ _ H6 as (vs2 & hvs2 & hv2); clear IHhev2.
@@ -102,7 +102,7 @@ Section EvalExpr.
       rewrite (eval_decl_list_length _ _ _ hvs1).
       rewrite (eval_decl_list_length _ _ _ hvs2).
       econstructor; eauto.
-      eapply shift_e_eval with (us := []); eassumption.
+      eapply shift_exp_eval with (us := []); eassumption.
     - pose proof Forall2_specialize_Forall3
         _ _ _ _ _ _ H0 as h; clear H0.
       assert (hlenesvs : length es = length vs)
@@ -134,29 +134,29 @@ Section EvalExpr.
         assumption.
   Qed.
 
-  Local Hint Resolve Lift_e_good : core.
-  Local Hint Constructors parser_expr_big_step : core.
+  Local Hint Resolve Lift_exp_good : core.
+  Local Hint Constructors trns_big_step : core.
 
-  Lemma Lift_trans_good : forall pe lbl,
+  Lemma Lift_trns_good : forall pe lbl,
       p⟨ ϵ, pe ⟩ ⇓ lbl -> forall pe' es,
-        Lift_trans pe pe' es -> exists vs,
+        Lift_trns pe pe' es -> exists vs,
           eval_decl_list ϵ es vs /\ p⟨ vs ++ ϵ, pe' ⟩ ⇓ lbl.
   Proof using.
     intros pe lbl he pe' es hl.
     inv he; inv hl; unfold eval_decl_list; eauto.
-    pose proof Lift_e_good _ _ H _ _ H5 as (vs & hvs & hv).
+    pose proof Lift_exp_good _ _ H _ _ H5 as (vs & hvs & hv).
     eauto.
   Qed.
 
-  Local Hint Resolve Lift_trans_good : core.
+  Local Hint Resolve Lift_trns_good : core.
   Local Hint Resolve shift_lv_eval : core.
-  Local Hint Constructors lexpr_big_step : core.
+  Local Hint Constructors lexp_big_step : core.
   Local Hint Resolve relate_decl_list_det : core.
-  Local Hint Resolve expr_deterministic : core.
+  Local Hint Resolve exp_deterministic : core.
 
-  Lemma Lift_e_good_lv : forall e lv,
+  Lemma Lift_exp_good_lv : forall e lv,
       l⟨ ϵ, e ⟩ ⇓ lv -> forall e' es,
-        Lift_e e e' es -> exists vs lv',
+        Lift_exp e e' es -> exists vs lv',
           eval_decl_list ϵ es vs
           /\ l⟨ vs ++ ϵ, e' ⟩ ⇓ lv'
           /\ lv_lookup ϵ lv = lv_lookup (vs ++ ϵ) lv'.
@@ -164,28 +164,28 @@ Section EvalExpr.
     unfold eval_decl_list.
     intros e lv H; induction H;
       intros e' es h; inv h; unravel; eauto.
-    - pose proof IHlexpr_big_step _ _ H5 as (vs & lv' & hvs & hlv' & hlu);
-        clear IHlexpr_big_step.
+    - pose proof IHlexp_big_step _ _ H5 as (vs & lv' & hvs & hlv' & hlu);
+        clear IHlexp_big_step.
       assert (exists v v', ⟨ϵ, e⟩ ⇓ v /\ slice_val hi lo v = Some v')
         as (v & v' & hv & hv').
       { (* TODO: need typing? *) admit. }
-      exists (v' :: vs), (Val.Var 0). cbn.
+      exists (v' :: vs), (Lval.Var 0). cbn.
       repeat split; eauto.
       + constructor; auto.
         econstructor; eauto.
-        pose proof Lift_e_good _ _ hv _ _ H5 as (vs' & hvs' & hv'').
+        pose proof Lift_exp_good _ _ hv _ _ H5 as (vs' & hvs' & hv'').
         assert (vs' = vs) by eauto; subst.
         assumption.
-      + pose proof lexpr_expr_big_step
+      + pose proof lexp_exp_big_step
           _ _ _ _ H hv as hlveq.
         rewrite hlveq.
         destruct v; cbn in *; inv hv'; f_equal.
-    - pose proof IHlexpr_big_step _ _ H5 as (vs & lv' & hvs & hlv' & hlu).
+    - pose proof IHlexp_big_step _ _ H5 as (vs & lv' & hvs & hlv' & hlu).
       eexists; repeat esplit; eauto; cbn.
       rewrite hlu. unfold option_bind.
       reflexivity.
-    - pose proof Lift_e_good _ _ H _ _ H7 as (vs2 & hvs2 & hv2).
-      pose proof IHlexpr_big_step _ _ H6 as (vs1 & lv1 & hvs1 & hlv1 & hlu).
+    - pose proof Lift_exp_good _ _ H _ _ H7 as (vs2 & hvs2 & hv2).
+      pose proof IHlexp_big_step _ _ H6 as (vs1 & lv1 & hvs1 & hlv1 & hlu).
       eexists; repeat esplit; eauto; cbn; rewrite <- app_assoc.
       + rewrite (relate_decl_list_length _ _ _ _ hvs1),
           (relate_decl_list_length _ _ _ _ hvs2).
@@ -196,12 +196,12 @@ Section EvalExpr.
         rewrite shift_lv_lookup with (rs := []) (us := vs2) (lv := lv1); cbn.
         rewrite hlu. unravel. reflexivity.
   Admitted.
-End EvalExpr.
+End EvalExp.
 
 Section StatementLifting.
   Context `{ext_sem : Extern_Sem}.
 
-  Local Hint Constructors stmt_big_step : core.
+  Local Hint Constructors stm_big_step : core.
   Local Hint Constructors SumForall : core.
 
   (** Specification of [unwind_vars]. *)
@@ -226,26 +226,26 @@ Section StatementLifting.
   Local Hint Resolve eval_decl_list_app : core.
   Local Hint Resolve relate_decl_list_length : core.
   Local Hint Resolve relate_decl_list_app : core.
-  Local Hint Resolve shift_s_eval : core.
+  Local Hint Resolve shift_stm_eval : core.
   Local Hint Constructors relop : core.
   Local Hint Constructors ctx_cutoff : core.
   Local Hint Resolve ctx_cutoff_le : core.
   
-  Lemma Lift_s_good : forall Ψ ϵ ϵ' c s sig ψ,
+  Lemma Lift_stm_good : forall Ψ ϵ ϵ' c s sig ψ,
       ctx_cutoff (length ϵ) c ->
       ⧼ Ψ, ϵ, c, s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ -> forall s',
-          Lift_s s s' ->
+          Lift_stm s s' ->
           ⧼ Ψ, ϵ, c, s' ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽.
   Proof using.
     intros Psi eps eps' c s sg psi hc hs;
       induction hs; intros σ hσ; inv hσ; eauto.
     - inv H.
-      pose proof Lift_e_good _ _ _ H2 _ _ H1 as (vs & hvs & hv).
+      pose proof Lift_exp_good _ _ _ H2 _ _ H1 as (vs & hvs & hv).
       eauto.
     - inv hc. (*eapply eval_decl_list_Unwind; eauto.*) admit.
     - admit.
-    - pose proof Lift_e_good_lv _ _ _ H _ _ H3 as (vs1 & hvs1 & hv1).
-      pose proof Lift_e_good _ _ _ H0 _ _ H5 as (vs2 & hvs2 & hv2).
+    - pose proof Lift_exp_good_lv _ _ _ H _ _ H3 as (vs1 & hvs1 & hv1).
+      pose proof Lift_exp_good _ _ _ H0 _ _ H5 as (vs2 & hvs2 & hv2).
       eapply eval_decl_list_Unwind; eauto. admit. admit.
     - admit.
     - admit.
@@ -256,23 +256,23 @@ Section StatementLifting.
     - econstructor; eauto.
       eapply IHhs; cbn; eauto.
     - inv H.
-      pose proof Lift_e_good _ _ _ H1 _ _ H4 as (vs & hvs & hv).
+      pose proof Lift_exp_good _ _ _ H1 _ _ H4 as (vs & hvs & hv).
       eapply eval_decl_list_Unwind; eauto.
-      apply sbs_var with (v := v) (v' := v'); auto.
+      apply sbs_letin with (v := v) (v' := v'); auto.
       replace (v :: vs ++ ϵ) with ([v] ++ vs ++ ϵ) by reflexivity.
       replace (v' :: vs ++ ϵ') with ([v'] ++ vs ++ ϵ') by reflexivity.
       replace 1 with (length [v]) by reflexivity.
       rewrite (eval_decl_list_length _ _ _ hvs). 
-      eapply shift_s_eval; cbn; eauto.
+      eapply shift_stm_eval; cbn; eauto.
       apply IHhs; cbn; eauto.
     - eapply sbs_seq_cont; eauto.
       apply IHhs2; auto.
       erewrite <- sbs_length by eauto; assumption.
-    - pose proof Lift_e_good _ _ _ H _ _ H3 as (vs & hvs & hv).
+    - pose proof Lift_exp_good _ _ _ H _ _ H3 as (vs & hvs & hv).
       rewrite (eval_decl_list_length _ _ _ hvs).
       eapply eval_decl_list_Unwind; eauto.
       econstructor; eauto.
-      replace 0 with (@length Val.v []) by reflexivity.
+      replace 0 with (@length Val.t []) by reflexivity.
       replace (vs ++ ϵ) with ([] ++ vs ++ ϵ) by reflexivity.
       replace (vs ++ ϵ') with ([] ++ vs ++ ϵ') by reflexivity.
       destruct b; eauto.

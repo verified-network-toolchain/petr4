@@ -7,14 +7,14 @@ Definition tenv : Set :=
   Clmt.t
     string (** table name. *)
     (nat (** number of variables in scope. Tables have dynamic scope. *)
-     * list (Expr.e * string) (** table key. *)
-     * list (string * Expr.args) (** actions. *)
-     * option (string * list Expr.e)) (** default action. *).
+     * list (Exp.t * string) (** table key. *)
+     * list (string * Exp.args) (** actions. *)
+     * option (string * list Exp.t)) (** default action. *).
 
 (** Function declarations and closures. *)
 Inductive fdecl: Set :=
 | FDecl (fs : Clmt.t string fdecl) (** function closure *)
-        (body : Stmt.s) (** function body *).
+        (body : Stm.t) (** function body *).
 
 (** Function names to closures. *)
 Definition fenv: Set := Clmt.t string fdecl.
@@ -22,9 +22,9 @@ Definition fenv: Set := Clmt.t string fdecl.
 (** Action declarations and closures. *)
 Inductive adecl: Set :=
 | ADecl
-    (clos : list Val.v) (** value closure *)
+    (clos : list Val.t) (** value closure *)
     (actions : Clmt.t string adecl) (** action closure *)
-    (body : Stmt.s) (** action body *).
+    (body : Stm.t) (** action body *).
 
 (** Action names to closures. *)
 Definition aenv: Set := Clmt.t string adecl.
@@ -40,13 +40,13 @@ Section Inst.
       (tbls : tenv) (** table closure *)
       (actions : aenv) (** action closure *)
       (epsilon : list V) (** constructor args *)
-      (apply_blk : Stmt.s)  (** control instance apply block *)
+      (apply_blk : Stm.t)  (** control instance apply block *)
   | ParserInst
       (fs : fenv) (** function closure *)
       (insts : Clmt.t string inst) (** instance closure *)
       (epsilon : list V) (** constructor args *)
-      (strt : Stmt.s) (** start state *)
-      (states : list Stmt.s) (** other states *)
+      (strt : Stm.t) (** start state *)
+      (states : list Stm.t) (** other states *)
   | ExternInst
       (fs : fenv) (** function closure *)
       (insts : Clmt.t string inst) (** instance closure *)
@@ -57,7 +57,7 @@ Section Inst.
 
   Definition bind_constructor_args
     (cparams : list string)
-    (cargs : TopDecl.constructor_args)
+    (cargs : Top.constructor_args)
     (instance_site closure : inst_env) : inst_env :=
     List.fold_right
       (fun '(param, arg) cls =>
@@ -70,29 +70,29 @@ Section Inst.
 
   (** Closures for control,parser, & extern declarations.
       For instantiable declarations. *)
-  Inductive top_decl_closure : Set :=
+  Inductive top_closure : Set :=
   | ControlDecl
       (fs : fenv) (** function closure *)
       (insts : inst_env) (** control instance closure *)
       (cparams : list string) (** constructor param names *)
-      (body : list Control.d) (** declarations inside control *)
-      (apply_block : Stmt.s) (** apply block *)
+      (body : list Ctrl.t) (** declarations inside control *)
+      (apply_block : Stm.t) (** apply block *)
   | ParserDecl
       (fs : fenv) (** function closure *)
       (insts : inst_env) (** parser instance closure *)
       (cparams : list string) (** constructor param names *)
-      (strt : Stmt.s) (** start state *)
-      (states : list Stmt.s) (** parser states *)
+      (strt : Stm.t) (** start state *)
+      (states : list Stm.t) (** parser states *)
   | ExternDecl
       (fs : fenv) (** function closure *)
       (insts : Clmt.t string inst) (** instance closure *)
       (cparams : list string) (** constructor param names *)
   (** function closure *).
 
-  Definition top_decl_env: Set := Clmt.t string top_decl_closure.
+  Definition top_env: Set := Clmt.t string top_closure.
 End Inst.
 
 Arguments inst : clear implicits.
 Arguments inst_env : clear implicits.
-Arguments top_decl_closure : clear implicits.
-Arguments top_decl_env : clear implicits.
+Arguments top_closure : clear implicits.
+Arguments top_env : clear implicits.

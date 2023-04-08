@@ -96,6 +96,20 @@ Section Checker.
   Definition type_eq (typ1 typ2: typ) : bool :=
     false.
 
+  Definition mask_type (type_expr type_mask: typ) : result Exn.t typ :=
+    match type_expr, type_mask with
+    | TypBit _ w, TypBit _ w'
+      => if (w == w')
+        then ok type_mask
+        else error (Exn.Other "mask incorrect")
+    | TypBit w _, TypInteger _
+      => ok type_mask
+    | TypInteger _, TypBit w _
+      => ok type_mask
+    | _, _
+      => error (Exn.Other "mask incorrect")
+    end.
+
   Fixpoint type_expression (env: checkerEnvs) (tags: Info) (expr: expression) : result Exn.t typ :=
     match expr with
     | MkExpression tags type expr =>
@@ -214,10 +228,16 @@ Section Checker.
         (*   => TypBool tags *)
         (* | ExpAnonymousInstantiation typ args *)
         (*   => TypBool tags *)
-        (* | ExpBitMask expr mask *)
-        (*   => TypBool tags *)
-        (* | ExpRange low high *)
-        (*   => TypBool tags *)
+        | ExpBitMask expr mask
+          => let* type_expr := type_expression env tags expr in
+            let* type_mask := type_expression env tags mask in
+            mask_type type_expr type_mask
+        | ExpRange low high
+          => let* type_low  := type_expression env tags low in
+            let* type_high := type_expression env tags high in
+            if andb (type_eq type_low type_high) (is_fixed_width_int type_low)
+            then ok (TypSet tags type_low)
+            else error (Exn.Other "range types incorrect")
         | _ => error (Exn.Other "filling out the func")
         end
     end.

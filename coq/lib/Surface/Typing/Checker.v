@@ -203,7 +203,7 @@ Section Checker.
         (* | ExpTypeMember typ mem *)
           (* => TypBool tags *)
         (* | ExpErrorMember mem *)
-        (*   => TypBool tags *)
+          (* =>  *)
         (* | ExpExpressionMember expr mem *)
         (*   => TypBool tags *)
         | ExpTernary cond tru fls

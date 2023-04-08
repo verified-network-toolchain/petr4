@@ -274,7 +274,7 @@ infrulehelper {
 P4's type system is currently distributed between its language specification and its reference implementation p4c. Unfortunately, this state of affairs results in ambiguity while reasoning through the behavior of a P4 program, evident from the many issues opened on P4's GitHub repository. 
 In this document, we provide a formalization of P4's type system to unify the expected behavior of P4 programs. 
 The target audience of this document includes language designers and compiler experts
-that work (or starting to work) on P4 as well as developers and debuggers that work
+that work (or are starting to work) on P4 as well as developers and debuggers that work
 with P4 and require a deep understanding of it.
 ~ End Abstract
 
@@ -302,7 +302,7 @@ In this section, we introduce the notation used throughout this document:
 - $\mathit{is\_X} (\typ)$ checks if the type $\typ$ is of the specific kind/type/structure $X$.
  
 We use a variety of metavariables.
-_Metavariables_ are place holders for values of a type. For example, $\bool$ stands for expressions $\tru$ or $\fls$. Keep in mind that $\tru$ and $\fls$ both are expressions that have the type $\boolTyp$. As another example, in most programming references $foo$, $bar$, and $baz$ are used as metavariables, often for functions. 
+_Metavariables_ are place holders for values of a type. For example, $\bool$ stands for expressions $\tru$ or $\fls$. Keep in mind that $\tru$ and $\fls$ both are expressions that have the type $\boolTyp$. As another example, in most programming references $\mathit{foo}$, $\mathit{bar}$, and $\mathit{baz}$ are used as metavariables, often for functions. 
 The following describes the metavariables used in this document:
 
 ~ Center
@@ -317,6 +317,7 @@ The following describes the metavariables used in this document:
 | $\wildcardParam$ | wild card type parameters |
 | $\field$ | field names |
 | $\atyp$ | meta type variable |
+| $\val$ | values |
 ~
 
 
@@ -343,16 +344,18 @@ In this section, we provide the signatures used throughout this document includi
 | type environment | $\typEnv$ | $\typName \rightarrow \typ$ |
 | variable environment | $\varEnv$ | $\name \rightarrow (\typ, \dir)$ |
 | extern environment | $\externEnv$ | $\name \rightarrow \mathit{externmethod}$ |
+| type parameter environment | $\typParEnv$ | $\typName \rightarrow \typ$ |
+| type synonym environment | $\typSynEnv$| $\name \rightarrow \typName$ |
+| constant environment | $\constEnv$ | $\name \rightarrow \val $ |
 ~
 
 # Syntax { #sec-syntax }
 
 In the following we present P4 syntax. Note that we omitted annotations and meta-information since they are not required for type checking. Some notes about the syntax follow:
 
-``todo: fix the explanation``
 
-- Surface types are the types that a developer can use and write down while writing a P4 program. The surface type presented is parametrized by a type variable and it instantiates to $\surfaceTyp$ for the types that a programers writes in their P4 program.
-  + Note that similar to P4, we categorize $\errTyp$ and $\matchKindTyp$ types as surface types, however, their members are declared by a P4 program/library. The reason behind this is the need to have arguments of these types, such as the example below which is taken from P4 spec:
+- Surface types are the types that a developer can write down and use while writing a P4 program. 
+  + Note that similar to P4, we categorize $\errTyp$ and $\matchKindTyp$ types as surface types; however, their members are declared by a P4 program/library. The reason behind this is the need to have arguments of these types, such as the example below, which is taken from P4 spec:
 
 ~ Begin P4Example
 extern void verify(in bool condition, in error err);
@@ -365,9 +368,9 @@ ParserModel.verify(bool condition, error err) {
 }
 ~ End P4Example
 
-- Parameters, denoted by $\prmDef \typKind$, are paremeterized by the type they have, that is, $\typKind$ represent a type where it can either be $\surfaceTyp$ or $\typ$. This is because they are used in different places and depending on where they are used they may have a different type. 
-- For simplicity, we use the expanded format of parameter in most rules to have fine access to its direction and type. However, we often don't need its initializer so we omit that. Keep in mind that a parameter could or could not have an initializer.
-- Direction is optional in parameter declaration. However, for simpilicity, we just use  $\less$ to denote a missing direction. 
+- Parameters, denoted by $\prmDef$, have a direction, type, and name.
+- For simplicity, we use the expanded format of parameter in most rules to have fine access to its direction and type. However, we often don't need its initializer so we omit it. Keep in mind that a parameter may or may not have an initializer.
+- Direction is optional in parameter declaration; however, for simplicity, we just use  $\less$ to denote a missing direction. 
 
 ~ Begin P4Syntax
 **Surface types:**
@@ -382,8 +385,8 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\intWidthTyp \atyp$ | $\qquad \text{fixed-width signed integers}$ |
 |   | $\vert$ | $\bitWidthTyp \atyp$ | $\qquad \text{fixed-width unsigned integers}$ |
 |   | $\vert$ | $\varbitTyp \atyp$ | $\qquad \text{variable-width integers with a maximum width}$ |
-|   | $\vert$ | $\typName$ | $\qquad \text{type identifier}$ |
-|   | $\vert$ | $\spcTyp {\typName} {\typArg}$ | $\qquad \text{specialized type}$ |
+|   | $\vert$ | $\typName$ | $\qquad \text{type identifiers}$ |
+|   | $\vert$ | $\spcTyp {\typName} {\typArg}$ | $\qquad \text{specialized types}$ |
 |   | $\vert$ | $\headerStackTyp {\surfaceTyp} \exp$ | $\qquad \text{header stacks}$ |
 |   | $\vert$ | $\tupleTyps {\typArg}$ | $\qquad \text{tuples}$ |
 { .booktable }
@@ -421,15 +424,15 @@ ParserModel.verify(bool condition, error err) {
 | $\dir$ | $::=$ | $\inDir$ | $\qquad \text{copy-in}$ |
 |   | $\vert$ | $\out$ | $\qquad \text{copy-out}$ |
 |   | $\vert$ | $\inout$ | $\qquad \text{copy-in-out}$ |
-|   | $\vert$ | $\less$ | $\qquad \text{direction-less}$ |
+|   | $\vert$ | $\less$ | $\qquad \text{directionless}$ |
 { .booktable }
 
 **Parameters:**
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\prmDef \atyp$ | $::=$ | $\dir \, \atyp \, \var$ | $\qquad \text{parameters}$ |
-|   | $\vert$ | $\dir \, \atyp \, \var = \exp$ | $\qquad \text{parameters with value}$ |
+| $\prmDef$ | $::=$ | $\dir \, \surfaceTyp \, \var$ | $\qquad \text{parameters}$ |
+|   | $\vert$ | $\dir \, \surfaceTyp \, \var = \exp$ | $\qquad \text{parameters with value}$ |
 { .booktable }
 
 
@@ -537,7 +540,11 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\return \exp$ | $\qquad \text{return}$ |
 |   | $\vert$ | $\retNothing$ | $\qquad \text{return nothing}$ |
 |   | $\vert$ | $\switch \exp \switchCases$ | $\qquad \text{switch}$ |
-|   | $\vert$ | $\dcl$ | $\qquad \text{declaration}$ |
+|   | $\vert$ | $\constDcl {\surfaceTyp }\var \exp$ | $\qquad \text{constants}$ |
+|   | $\vert$ | $\inst {\surfaceTyp}\args \var \stmts$ | $\qquad \text{instantiations (initialized)}$ |
+|   | $\vert$ | $\instNoBlock {\surfaceTyp}\args \var$ | $\qquad \text{instantiations (uninitialized)}$ |
+|   | $\vert$ | $\varDclInit {\surfaceTyp}\var \exp$ | $\qquad \text{local variables (initialized)}$ |
+|   | $\vert$ | $\varDcl {\surfaceTyp}\var$ | $\qquad \text{local variables (uninitialized)}$ |
 { .booktable }
 
 **Parser states:**
@@ -571,9 +578,9 @@ ParserModel.verify(bool condition, error err) {
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\extMethod$ | $::=$ | $\constructor \var {\prmDef {\surfaceTyp}}$ | $\qquad \text{constructors}$ |
-|   | $\vert$ | $\abstractMethod {\surfaceTyp }\var \typVar {\prmDef {\surfaceTyp}}$ | $\qquad \text{abstract methods}$ |
-|   | $\vert$ | $\methodDef {\surfaceTyp}\var \typVar {\prmDef {\surfaceTyp }}$ | $\qquad \text{methods}$ |
+| $\extMethod$ | $::=$ | $\constructor \var {\prmDef}$ | $\qquad \text{constructors}$ |
+|   | $\vert$ | $\abstractMethod {\surfaceTyp }\var \typVar {\prmDef}$ | $\qquad \text{abstract methods}$ |
+|   | $\vert$ | $\methodDef {\surfaceTyp}\var \typVar {\prmDef}$ | $\qquad \text{methods}$ |
 { .booktable }
 
 **Declarations:**
@@ -583,14 +590,14 @@ ParserModel.verify(bool condition, error err) {
 | $\dcl$ | $::=$ | $\constDcl {\surfaceTyp }\var \exp$ | $\qquad \text{constants}$ |
 |   | $\vert$ | $\inst {\surfaceTyp}\args \var \stmts$ | $\qquad \text{instantiations (initialized)}$ |
 |   | $\vert$ | $\instNoBlock {\surfaceTyp}\args \var$ | $\qquad \text{instantiations (uninitialized)}$ |
-|   | $\vert$ | $\parserDcl \var \typVars {\overline { {\prmDef {\surfaceTyp}}}} {\overline {\VVal {\prmDef {\surfaceTyp}}}} \dcls \states$ | $\qquad \text{parsers}$ |
-|   | $\vert$ | $\controlDcl \var \typVars {\overline { {\prmDef {\surfaceTyp}}}} {\overline {\VVal {\prmDef {\surfaceTyp}}}} \dcls \stmts$ | $\qquad \text{controls}$ |
-|   | $\vert$ | $\funcDcl {\funcProTyp}\var \typVars {\prmDefs {\surfaceTyp}} \stmts$ | $\qquad \text{functions}$ |
-|   | $\vert$ | $\externFuncDcl {\surfaceTyp}\var \typVars {\prmDefs {\surfaceTyp}}$ | $\qquad \text{extern functions}$ |
+|   | $\vert$ | $\parserDcl \var \typVars {\overline { {\prmDef}}} {\overline {\VVal {\prmDef}}} \dcls \states$ | $\qquad \text{parsers}$ |
+|   | $\vert$ | $\controlDcl \var \typVars {\overline { {\prmDef}}} {\overline {\VVal {          \prmDef}}} \dcls \stmts$ | $\qquad \text{controls}$ |
+|   | $\vert$ | $\funcDcl {\funcProTyp}\var \typVars {\prmDefs} \stmts$ | $\qquad \text{functions}$ |
+|   | $\vert$ | $\externFuncDcl {\surfaceTyp}\var \typVars {\prmDefs}$ | $\qquad \text{extern functions}$ |
 |   | $\vert$ | $\varDclInit {\surfaceTyp}\var \exp$ | $\qquad \text{local variables (initialized)}$ |
 |   | $\vert$ | $\varDcl {\surfaceTyp}\var$ | $\qquad \text{local variables (uninitialized)}$ |
 |   | $\vert$ | $\valSetDcl {\surfaceTyp}\exp \var$ | $\qquad \text{parser value sets}$ |
-|   | $\vert$ | $\actionDcl \var {\prmDefs {\surfaceTyp}} \stmts$ | $\qquad \text{actions}$ |
+|   | $\vert$ | $\actionDcl \var {\prmDefs} \stmts$ | $\qquad \text{actions}$ |
 |   | $\vert$ | $\tableDcl \var \props$ | $\qquad \text{tables}$ |
 |   | $\vert$ | $\headerDcl \typName \typParam \field {\surfaceTyp}$ | $\qquad \text{header types}$ |
 |   | $\vert$ | $\headerUnionDcl \typName \typParam \field {\surfaceTyp}$ | $\qquad \text{header union types}$ |
@@ -604,9 +611,9 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\typdefDcl \dcl \typName$ | $\qquad \text{type definitions (declarations)}$ |
 |   | $\vert$ | $\newtypeDcl  {\surfaceTyp}\typName$ | $\qquad \text{generative type definitions}$ |
 |   | $\vert$ | $\newtypeDcl  \dcl \typName$ | $\qquad \text{generative type definitions (declarations)}$ |
-|   | $\vert$ | $\controlTypDcl \typName \typVars {\prmDefs {\surfaceTyp}}$ | $\qquad \text{control types}$ |
-|   | $\vert$ | $\parserTypDcl \typName \typVars {\prmDefs {\surfaceTyp}}$ | $\qquad \text{parser types}$ |
-|   | $\vert$ | $\packageTypDcl \typName \typVars {\prmDefs {\surfaceTyp}}$ | $\qquad \text{package types}$ |
+|   | $\vert$ | $\controlTypDcl \typName \typVars {\prmDefs}$ | $\qquad \text{control types}$ |
+|   | $\vert$ | $\parserTypDcl \typName \typVars {\prmDefs}$ | $\qquad \text{parser types}$ |
+|   | $\vert$ | $\packageTypDcl \typName \typVars {\prmDefs}$ | $\qquad \text{package types}$ |
 { .booktable }
 
 **Programs:**
@@ -653,23 +660,23 @@ Two judgments are provided for types of P4 expressions:
 |   | $\vert$ | $\structTyps \typParam \field {\surfaceTyp}$ | $\qquad \text{structs}$ |
 |   | $\vert$ | $\enumTypDef$ | $\qquad \text{serializable enums}$ |
 |   | $\vert$ | $\enumTypNoTypDef$ | $\qquad \text{enums}$ |
-|   | $\vert$ | $\parserTyp \typParams {\prmDefs \typ}$ | $\qquad \text{parsers}$ |
-|   | $\vert$ | $\controlTyp \typParams {\prmDefs \typ}$ | $\qquad \text{controls}$ |
-|   | $\vert$ | $\packageTyp \typParams {\prmDefs \typ}$ | $\qquad \text{packages}$ |
+|   | $\vert$ | $\parserTyp \typParams {\prmDefs}$ | $\qquad \text{parsers}$ |
+|   | $\vert$ | $\controlTyp \typParams {\prmDefs}$ | $\qquad \text{controls}$ |
+|   | $\vert$ | $\packageTyp \typParams {\prmDefs}$ | $\qquad \text{packages}$ |
 { .booktable }
 
 **Synthesized types:**
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\synTyp$ | $::=$ | $\funcType \kind \typParams {\prmDefs \typ} {\surfaceTypOrVoidOrVar}$ | $\qquad \text{functions}$ |
+| $\synTyp$ | $::=$ | $\funcType \kind \typParams {\prmDefs } {\surfaceTypOrVoidOrVar}$ | $\qquad \text{functions}$ |
 |   | $\vert$ | $\setTyp {\surfaceTyp}$ | $\qquad \text{sets}$ |
 |   | $\vert$ | $\externTyp \name$ | $\qquad \text{externs}$ |
 |   | $\vert$ | $\recordTyps \field {\surfaceTyp}$ | $\qquad \text{records}$ |
 |   | $\vert$ | $\matchKindTyp$ | $\qquad \text{match kinds}$ |
 |   | $\vert$ | $\newTypeTyp \typVar {\surfaceTyp}$ | $\qquad \text{reference}$ |
-|   | $\vert$ | $\actionTyp {\overline { {\prmDef \typ}}} {\overline {\VVal {\prmDef \typ}}}$ | $\qquad \text{actions}$ |
-|   | $\vert$ | $\constructorTyp \typParams {\prmDefs \typ} \typ$ | $\qquad \text{constructors}$ |
+|   | $\vert$ | $\actionTyp {\overline { {\prmDef}}} {\overline {\VVal {\prmDef}}}$ | $\qquad \text{actions}$ |
+|   | $\vert$ | $\constructorTyp \typParams {\prmDefs} \typ$ | $\qquad \text{constructors}$ |
 |   | $\vert$ | $\tableTyp \name$ | $\qquad \text{tables}$ |
 { .booktable }
 
@@ -691,10 +698,6 @@ Two judgments are provided for types of P4 expressions:
 This judgment is overloaded and it checks if a surface type and more generally a type is well-formed or not. This judgment is used to check if a surface type is well-formed when it is used in expressions or if a type is well-formed when it is declared. Specifically, it has two forms $\typWellFormed {\surfaceTyp}$ and $\typWellFormed {\typ}$ which state that the type $\surfaceTyp$ and $\typ$, respectively, are well-formed under the type environment $\typEnv$ and extern environment $\externEnv$. In other words, this judgment checks that types are syntactically correct.
 
 ### Surface Types Well-Formedness { #sec-surface-typ-well-formed }
-
-``todo: rewrite explanation for surface type``
-
-At first glance, it might seem redundant to define this judgment for both $\surfaceTyp$ and $\typ$. However, it is important to note that although $\surfaceTyp$ is a subset of $\typ$ for most part, there are exceptions to that: when $\typ$ instantiates $\atyp$ in $\surfaceTyp$ definition to $\width$ while $\surfaceTyp$ instantiates it to $\exp$. For example, $\intWidthTyp {(3 + 2)}$ is legal instance of type $\surfaceTyp$ but it isn't a legal instance of type $\typ$ while $\intWidthTyp 2$ is a legal instance of both types $\surfaceTyp$ and $\typ$. Thus, we need to define it for both type categories.
 
 #### Base Types { #sec-base-t }
 
@@ -736,26 +739,26 @@ Some of the base types are well-formed unconditionally since there is not any ro
      { \typWellFormed \stringTyp }
      \quad (\stringT)
 
-\and
+% \and
 
-  \inferrule
-     {1 < \width}
-     { \typWellFormed {\intWidthTyp \width} }
-     \quad (\intWidthT)
+%   \inferrule
+%      {1 < \width}
+%      { \typWellFormed {\intWidthTyp \width} }
+%      \quad (\intWidthT)
 
-\and
+% \and
 
-  \inferrule
-     {0 \leq \width} % p4 spec has this
-     { \typWellFormed {\bitWidthTyp \width} }
-     \quad (\bitWidthT)
+%   \inferrule
+%      {0 \leq \width} % p4 spec has this
+%      { \typWellFormed {\bitWidthTyp \width} }
+%      \quad (\bitWidthT)
 
-\and
+% \and
 
-  \inferrule
-     {0 \leq \width}
-     { \typWellFormed {\varbitTyp \width} }
-     \quad (\varbitT)
+%   \inferrule
+%      {0 \leq \width}
+%      { \typWellFormed {\varbitTyp \width} }
+%      \quad (\varbitT)
 
 \and
 
@@ -943,7 +946,7 @@ An enum is well-formed if its fields are distinct. Additionally, if it is a seri
 
   \mprset {vskip = 0.7ex}
     {\inferrule
-      {\widthInt {\surfaceTyp} = \exp \\
+      {\widthInt {\surfaceTyp} = \width \\
        % \isConstant \exp \\
        \compTimeKnown \exp\\\\
        \distinct \fields}
@@ -967,7 +970,7 @@ An enum is well-formed if its fields are distinct. Additionally, if it is a seri
 
 ```done..only have to add the nesting rules for instantiation of generic header```
 
-A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function which for a header type the inner types can be one of the followings:
+A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function. For a header type the inner types can be one of the followings:
 
 ``todo: check if this is complete and according to p4 spec. ``
 
@@ -1018,7 +1021,7 @@ A header union can have zero or more fields of type header. Note that in order f
 
 ```done```
 
-A struct type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function which for a struct type the inner types can be one of the followings:
+A struct type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function. For a struct type the inner types can be one of the followings:
 
 - $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
 - $\intWidthTyp \exp$ and $\compTimeKnown \exp$
@@ -1181,8 +1184,8 @@ the form $\typEqEnv {\overline {(\var, \prim \var)}} {\typ_1} {\typ_2} $ which s
 
 Type unification attempts to unify two expression types, that is, it attempts to come up with constraints that allow the two types to be equivalent. The constraints are just assignments of types to unknown type variables (given as $\typVars$). 
 
-- type unification for type produces by type checking, i.e., typed.type.t
-- both types are reduced first. for brevity, we omit the reduction from rules, so type 1 and type 2 in rules are already reduced.
+- Type unification for type produces by type checking, i.e., typed.type.t
+- Both types are reduced first. for brevity, we omit the reduction from rules, so type 1 and type 2 in rules are already reduced.
 
 ~ Begin InfRule
 
@@ -1534,7 +1537,7 @@ $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$ denotes slicing a (un)signed fixed
    * $\bitWidthTyp \width$
    * $\enumTyp {\surfaceTyp} \typName \fields$ ```p4 spec only allows the underlying type to be int<w> or bit<w>```
 - $\widthInt \typ$ checks if the type $\typ$ is a fixed-length integer, that is,
-if it is either $\bitWidthTyp \width$ or $\intWidthTyp \width$ and returns its width. 
+it returns the width if the type is either $\bitWidthTyp \width$ or $\intWidthTyp \width$. 
 - $\insertImplCast \exp \typ$ inserts potential casts to try to type check an expression. It does so by looking into implicit cast rules for type $\typ$, denoted by $\implCast \typ {\VVal \typ}$. If it finds $\VVal \typ$ such that it facilitates the typing rules it inserts the cast (that is, it returns the expression $\cast {\VVal \typ} \exp$), otherwise, it returns $\exp$.
 
 ~ Begin InfRule
@@ -2472,7 +2475,7 @@ Note that the expression has to be of a one of the types: record, extern, specia
 - $\setValidity$ stands for both $\setValid$ and $\setInvalid$. ``todo: we dont have void type in tau rn``
 - $\nextOrLast$ stands for either $\next$ or $\last$.
 
-``reminder for parisa: you worked up to here. expression membership.``
+``reminder for parisa: you worked up to here. expression membership. also, typename.mem is type membership and not expression. ``
 
 ~ Begin InfRule
 
@@ -3130,7 +3133,7 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
 ~ End InfRule
 
-## method call
+## Method call
 
 * lists can be used to be passed as arguments to methods (section 8.12).
 
@@ -3159,7 +3162,7 @@ const S x = { 10, 20 }; //a = 10, b = 20.
   \mprset{vskip=0.7ex}
   {\inferrule
      { \typWellFormed \enumTypDef \\
-       % \widthInt {\surfaceTyp} = \exp \\
+       % \widthInt {\surfaceTyp} = \width \\
        % \isConstant \exp \\\\
        \compTimeKnown {\exps}\\\\
        \valMatchTyp {\overline {\surfaceTyp, \exp}}\\\\
@@ -3232,7 +3235,7 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 ## Parser Type Declaration { #sec-parser-typ-decl }
 
 ~ Begin InfRule
-% \parserTypDcl \typName \typVars {\prmDefs {\surfaceTyp}}
+% \parserTypDcl \typName \typVars {\prmDefs}
 
   \mprset {vskip = 0.7ex}
   {\inferrule
@@ -3245,7 +3248,7 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 ## Package Type Declaration { #sec-package-typ-decl }
 
 ~ Begin InfRule
-% \packageTypDcl \typName \typVars {\prmDefs {\surfaceTyp}}
+% \packageTypDcl \typName \typVars {\prmDefs}
 
   \mprset {vskip = 0.7ex}
   {\inferrule
@@ -3258,7 +3261,7 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 ## Control Type Declaration { #sec-control-typ-decl }
 
 ~ Begin InfRule
-% \controlTypDcl \typName \typVars {\prmDefs {\surfaceTyp }}
+% \controlTypDcl \typName \typVars {\prmDefs}
 
   \mprset {vskip = 0.7ex}
   {\inferrule

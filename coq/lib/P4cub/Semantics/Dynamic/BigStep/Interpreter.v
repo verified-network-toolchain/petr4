@@ -68,24 +68,13 @@ Section Exp.
     - intros. inv H. constructor.
     - intros. inv H. constructor.
     - intros. inv H. constructor. assumption.
-    - simpl. unfold option_bind. intros.
-      destruct (interpret_exp e); try discriminate.
-      econstructor; eauto.
-    - simpl. unfold option_bind. intros.
-      destruct (interpret_exp e); try discriminate.
-      econstructor; eauto.
-    - simpl. unfold option_bind. intros.
-      destruct (interpret_exp e); try discriminate.
-      econstructor; eauto.
-    - simpl. unfold option_bind. intros.
-      destruct (interpret_exp e1); try discriminate.
-      destruct (interpret_exp e2); try discriminate.
-      econstructor; eauto.
+    - simpl. unfold option_bind. intros. option_solve. econstructor; eauto.
+    - simpl. unfold option_bind. intros. option_solve. econstructor; eauto.
+    - simpl. unfold option_bind. intros. option_solve. econstructor; eauto.
+    - simpl. unfold option_bind. intros. repeat option_solve. econstructor; eauto.
     - simpl. unfold option_bind, map_monad, "∘". intros.
-      destruct (sequence (map interpret_exp es)) eqn:E; try discriminate.
-      inv H0.
-      apply sequence_Forall2 in E.
-      apply Forall2_map_comm_fwd in E.
+      option_solve E. inv H0.
+      apply sequence_Forall2 in E. apply Forall2_map_comm_fwd in E.
       constructor. generalize dependent l0.
       induction es; intros; inv H; inv E; constructor; auto.
     - simpl. unfold option_bind, interpret_index, index, to_bit. intros.
@@ -95,8 +84,7 @@ Section Exp.
       destruct t; destruct t0; try discriminate.
       econstructor; eauto.
     - simpl. unfold option_bind, index. intros.
-      destruct (interpret_exp e); try discriminate.
-      destruct t; try discriminate.
+      repeat option_solve. destruct t; try discriminate.
       econstructor; eauto.
     - intros. unravel in *. inv H. constructor.
     Qed.
@@ -178,16 +166,13 @@ Section Exp.
     Proof.
       induction e; try discriminate; intros; inv H; unfold option_bind in *.
       - constructor.
-      - destruct (interpret_lexp e) eqn:?; try discriminate. inv H1.
-        constructor. auto.
+      - option_solve ?. inv H1. constructor. auto.
       - unfold to_bit in *.
-        destruct (interpret_lexp e1); try discriminate.
-        destruct (interpret_exp e2) eqn:?; try discriminate.
+        option_solve. destruct (interpret_exp e2) eqn:?; try discriminate.
         destruct t0; try discriminate.
         inv H1. econstructor; eauto. 
         apply interpret_exp_sound. eauto.
-      - destruct (interpret_lexp e); try discriminate.
-        inv H1. constructor. auto.
+      - option_solve. inv H1. constructor. auto.
     Qed.
 
     Lemma interpret_lexp_complete :
@@ -230,8 +215,7 @@ Section Exp.
     Proof.
       intros. destruct pat; inv H.
       - constructor.
-      - unfold option_bind in *.
-        destruct (interpret_exp discriminee) eqn:?; try discriminate.
+      - unfold option_bind in *. option_solve ?.
         inv H1. constructor. apply interpret_exp_sound. assumption.
     Qed.
 
@@ -267,6 +251,6 @@ Lemma interpret_table_entry_sound :
 Proof.
   unfold interpret_table_entry. intros. destruct entry.
   cbn in *. unfold option_bind in *.
-  destruct (unembed_valsets matches) eqn:HSome; try discriminate. inv H.
+  option_solve HSome. inv H.
   constructor. apply unembed_valsets_sound. assumption.
 Qed.

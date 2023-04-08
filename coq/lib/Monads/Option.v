@@ -29,6 +29,18 @@ Fixpoint reduce_option {A : Type} (acts: list (option A)) (f : A -> A -> A) (bas
 
 Definition guard (b : bool) : option unit := if b then Some tt else None.
 
+Tactic Notation "option_solve" :=
+  match goal with
+  | H: (match ?x with Some _ => _ | None => None end) = Some _ |- _ =>
+    destruct x; try discriminate
+  end.
+
+Tactic Notation "option_solve" simple_intropattern(E) :=
+  match goal with
+  | H: (match ?x with Some _ => _ | None => None end) = Some _ |- _ =>
+    destruct x eqn:E; try discriminate
+  end.
+
 Global Hint Unfold option_bind : core.
 
 Lemma sequence_length :

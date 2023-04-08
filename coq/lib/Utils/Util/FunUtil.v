@@ -61,8 +61,8 @@ Section MapProd.
   Definition map_fst '((a,c) : A * C) : B * C := (f a, c).
 
   Definition map_snd '((c,a) : C * A) : C * B := (c, f a).
-  
-  End MapProd.
+End MapProd.
+
 Fixpoint n_compose {A : Type} (n : nat) (f : A -> A) (x : A) : A :=
   match n with
   | O => x

@@ -84,6 +84,18 @@ Section Checker.
   Definition binary_op_typing (env: checkerEnvs) (op: binOp) (arg1: expression) (type_arg1: typ) (arg2: expression) (type_arg2: typ) : result Exn.t typ :=
     error (Exn.Other "fill out later.").
 
+  (*dummy function definition. fill in later. TODO.*)
+  Definition cast (env:checkerEnvs) (typ1 typ2: typ) : bool :=
+    false.
+
+  (*dummy function definition. fill in later. TODO.*)
+  Definition lookup_type (type: P4String) (env: checkerEnvs) : result Exn.t typ :=
+    error (Exn.Other "fill out later.").
+
+  (*dummy function definition. fill in later. TODO.*)
+  Definition type_eq (typ1 typ2: typ) : bool :=
+    false.
+
   Fixpoint type_expression (env: checkerEnvs) (tags: Info) (expr: expression) : result Exn.t typ :=
     match expr with
     | MkExpression tags type expr =>
@@ -159,16 +171,45 @@ Section Checker.
           => let* type_arg1 := type_expression env tags arg1 in
             let* type_arg2 := type_expression env tags arg2 in
             binary_op_typing env op arg1 type_arg1 arg2 type_arg2
-        (* | ExpCast typ expr *)
-        (*   => TypBool tags *)
+        | ExpCast typ expr
+          => let* type_expr := type_expression env tags expr in
+            match type_expr with
+            | TypIdentifier tags name
+              => let* typ' := lookup_type name env in
+                let cast_ok := cast env typ typ' in
+                if cast_ok
+                then ok typ
+                else error (Exn.Other "cast incorrect")
+            | _
+              => let cast_ok := cast env typ type_expr in
+                if cast_ok
+                then ok typ
+                else error (Exn.Other "cast incorrect")
+            end
         (* | ExpTypeMember typ mem *)
-        (*   => TypBool tags *)
+          (* => TypBool tags *)
         (* | ExpErrorMember mem *)
         (*   => TypBool tags *)
         (* | ExpExpressionMember expr mem *)
         (*   => TypBool tags *)
-        (* | ExpTernary cond tru fls *)
-        (*   => TypBool tags *)
+        | ExpTernary cond tru fls
+          => let* type_cond := type_expression env tags cond in
+            let* type_tru  := type_expression env tags tru in
+            let* type_fls  := type_expression env tags fls in
+            match type_cond with
+            | TypBool _
+              => match type_tru with
+                | TypInteger _
+                  => if andb (is_integer type_fls)
+                            (compile_time_known env cond)
+                    then ok type_tru
+                    else error (Exn.Other "ternary type incorrect")
+                | _ => if type_eq type_tru type_fls
+                      then ok type_tru
+                      else error (Exn.Other "mismatch type tru fls ternary")
+                end
+            | _ => error (Exn.Other "ternary condition type incorrect")
+            end
         (* | ExpFunctionCall func type_args args *)
         (*   => TypBool tags *)
         (* | ExpAnonymousInstantiation typ args *)

@@ -2716,7 +2716,7 @@ that case it translates the conditional expression by translating all its subexp
       % \typ_1 = \typ_2 \\
       % \typ_1 \eq \integerTyp \\
       \compTimeKnown {\exp_1}}
-     {\expenv {\ternary {\exp_1} {\exp_2} {\exp_3}} {\ternary {\VVal {\exp_1}} {\VVal {\exp_2}} {\VVal {\exp_3}}} {\typ_1} \less }
+     {\expenv {\ternary {\exp_1} {\exp_2} {\exp_3}} {\ternary {\VVal {\exp_1}} {\VVal {\exp_2}} {\VVal {\exp_3}}} {\integerTyp} \less }
      \quad (\ternaryIntE)}
 
 ~ End InfRule

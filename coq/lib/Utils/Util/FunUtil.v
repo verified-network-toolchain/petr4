@@ -43,12 +43,14 @@ Ltac some_inv :=
   | H: Some _ = Some _ |- _ => inv H
   end.
 
-Ltac match_some_inv :=
+Tactic Notation "match_some_inv" "as" simple_intropattern(E) :=
   match goal with
   | H: match ?trm with Some _ => _ | None => _ end = Some _
-    |- _ => destruct trm as [? |] eqn:? ; cbn in *;
+    |- _ => destruct trm as [? |] eqn:E ; cbn in *;
           try discriminate
   end.
+
+Tactic Notation "match_some_inv" := match_some_inv as ?.
 
 (** * Utility Functions *)
 
@@ -59,8 +61,8 @@ Section MapProd.
   Definition map_fst '((a,c) : A * C) : B * C := (f a, c).
 
   Definition map_snd '((c,a) : C * A) : C * B := (c, f a).
-End MapProd.
-
+  
+  End MapProd.
 Fixpoint n_compose {A : Type} (n : nat) (f : A -> A) (x : A) : A :=
   match n with
   | O => x

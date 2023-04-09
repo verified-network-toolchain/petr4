@@ -73,6 +73,12 @@ Section Checker.
     | _            => false
     end.
 
+  Definition is_error (type: typ) : bool :=
+    match type with
+    | TypError _ => true
+    | _          => false
+    end.
+
   (*dummy function definition. fill in later. TODO.*)
   Definition to_nat (val: Val) : nat := 0.
 
@@ -93,6 +99,18 @@ Section Checker.
     error (Exn.Other "fill out later.").
 
   (*dummy function definition. fill in later. TODO.*)
+  Definition lookup_var (type: P4String) (env: checkerEnvs) : result Exn.t (typ * direction) :=
+    error (Exn.Other "fill out later.").
+
+  (*dummy function definition. fill in later. TODO.*)
+  Definition append_error (mem: P4String) : P4String :=
+    mem.
+
+  (*dummy function definition. fill in later. TODO.*)
+  Definition append_type (typ: P4String) (mem: P4String) : P4String :=
+    mem.
+
+  (*dummy function definition. fill in later. TODO.*)
   Definition type_eq (typ1 typ2: typ) : bool :=
     false.
 
@@ -109,6 +127,10 @@ Section Checker.
     | _, _
       => error (Exn.Other "mask incorrect")
     end.
+
+  (*dummy function definition. fill in later. TODO.*)
+  Definition type_expression_member (env: checkerEnvs) (type_expr: typ) (mem: P4String) : result Exn.t typ :=
+    error (Exn.Other "fill in later.").
 
   Fixpoint type_expression (env: checkerEnvs) (tags: Info) (expr: expression) : result Exn.t typ :=
     match expr with
@@ -200,12 +222,17 @@ Section Checker.
                 then ok typ
                 else error (Exn.Other "cast incorrect")
             end
-        (* | ExpTypeMember typ mem *)
-          (* => TypBool tags *)
-        (* | ExpErrorMember mem *)
-          (* =>  *)
-        (* | ExpExpressionMember expr mem *)
-        (*   => TypBool tags *)
+        | ExpTypeMember typ mem
+          => let* (t, d) := lookup_var (append_type typ mem) env in
+            ok t
+        | ExpErrorMember mem (*discuss with nate. error member is redundant. type member would take care of it.*)
+          => let* (t, d) := lookup_var (append_error mem) env in
+            if is_error t
+            then ok t
+            else error (Exn.Other "error member type incorrect")
+        | ExpExpressionMember expr mem
+          => let* type_expr := type_expression env tags expr in
+            type_expression_member env type_expr mem
         | ExpTernary cond tru fls
           => let* type_cond := type_expression env tags cond in
             let* type_tru  := type_expression env tags tru in

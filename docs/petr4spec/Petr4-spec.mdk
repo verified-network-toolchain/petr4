@@ -2432,7 +2432,7 @@ meaning that it applies for both explicit and implicit casts. However, note that
 
 ## Membership Rules { #sec-mem-e }
 
-``type member (typeMember rule is correct for enums and done.) and error member are old``
+``type member (typeMember rule is correct for enums and done.) error member rule done.``
 
 A membership expression denoted by a dot, that is, $a.\name$ looks if $\name$ exists in $a$. And it can be a type, error, or expression membership depending on what $a$ is.
 An expression member looks up a _member_ in an expression.
@@ -3307,15 +3307,21 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
 ~ End InfRule
 
-## Error  Declaration { #sec-error-decl }
+## Error Declaration { #sec-error-decl }
+
+```done```
+
+The newly declared error fields must not already exists in the type environment.
 
 ~ Begin InfRule
 % \errDcl \fields
 
   \mprset {vskip = 0.7ex}
   {\inferrule
-    {}
-    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+    {\lookupTypEnv {\overline {\errMem \field}} = \emp \\\\
+       \VVal \varEnv = \insertsToVarEnv {\errMem  \field} \errTyp \less\\\\
+       \VVal \constEnv = \insertsToConstEnv {\errMem \field} {\errVal  \field}}
+    {\dclenv {\errDcl \fields} {\errDcl \fields} {\VVal \varEnv} {\VVal \constEnv} {\typEnv} \typSynEnv}}
   \quad (\errD)
 
 ~ End InfRule 

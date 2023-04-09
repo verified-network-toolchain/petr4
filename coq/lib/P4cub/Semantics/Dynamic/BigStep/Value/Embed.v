@@ -197,6 +197,8 @@ Section Embed.
     | Val.Error v  => ValBaseError v
     end.
   
+  Definition embed_list := List.map embed.
+  
   Inductive embed_exp : Exp.t -> EXP -> Prop :=
   | embed_MkExpression e e' i t d :
     embed_pre_exp e e' ->
@@ -523,6 +525,13 @@ Section Embed.
       unravel in *; auto.
     apply Forall_map_Forall2 in H.
     destruct ls; eauto.
+  Qed.
+
+  Lemma embed_list_sound vs : Forall2 Embed vs (List.map embed vs).
+  Proof.
+    apply Forall_map_Forall2. induction vs; constructor.
+    - apply embed_Embed.
+    - assumption.
   Qed.
 
   Infix "^" := Z.pow.

@@ -263,8 +263,7 @@ Lemma interpret_table_entry_sound :
     interpret_table_entry entry = Some (pat, action_ref) -> table_entry_big_step entry pat action_ref.
 Proof.
   unfold interpret_table_entry. intros. destruct entry.
-  cbn in *. unfold option_bind in *.
-  destruct (unembed_valsets matches) eqn:HSome; try discriminate. inv H.
+  unravel in *. match_some_inv. some_inv.
   constructor. apply unembed_valsets_sound. assumption.
 Qed.
 
@@ -276,13 +275,12 @@ Lemma interpret_table_entries_sound :
   forall entries pats arefs,
     interpret_table_entries entries = Some (pats, arefs) -> Forall3 table_entry_big_step entries pats arefs.
 Proof.
-  unfold interpret_table_entries. cbn. intros. unfold option_bind in *.
-  destruct (map_monad _ _) eqn:Hsome; try discriminate.
-  rewrite map_monad_some in Hsome.
+  unfold interpret_table_entries. unravel. intros.
+  match_some_inv as Hsome. some_inv. rewrite map_monad_some in Hsome.
   generalize dependent pats. generalize dependent arefs. generalize dependent l.
-  induction entries; intros; inv H; inv Hsome; cbn in *.
-  - inv H1. constructor.
-  - destruct y, (split l') eqn:E. inv H1.
+  induction entries.
+  - intros. inv Hsome. inv H1. constructor.
+  - intros. inv Hsome. inv H1. destruct y, (split l') eqn:E. inv H0.
     apply interpret_table_entry_sound in H2.
     eapply IHentries in H4.
     + econstructor; eauto.
@@ -291,8 +289,7 @@ Qed.
 
 Definition interpret_actions_of_ctx ctx :=
   match ctx with
-  | CAction a => mret a
-  | CApplyBlock _ aa _ => mret aa
+  | CAction a | CApplyBlock _ a _ => mret a
   | _ => None
   end.
 
@@ -375,6 +372,17 @@ Section Stm.
     | Some x => f x >>| Some
     end.
 
+  Lemma interpret_relop_sound :
+    forall
+      (A B : Type) (f : A -> option B) (R : A -> B -> Prop)
+      (H : forall x y, f x = Some y -> R x y) x y,
+        interpret_relop f x = Some y -> relop R x y.
+  Proof.
+    intros. destruct x; unravel in *.
+    - match_some_inv. some_inv. constructor. auto.
+    - some_inv. constructor.
+  Qed.
+
   Definition interpret_return Ψ ϵ e :=
     let^ v := interpret_relop (interpret_exp ϵ) e in
     (ϵ, Rtrn v , extrn_state Ψ).
@@ -408,13 +416,11 @@ Section Stm.
     forall ϵ e v, 
       interpret_arg ϵ e = Some v -> arg_big_step ϵ e v.
   Proof.
-    destruct e; cbn; unfold option_bind; intros.
-    - destruct (interpret_exp ϵ a) eqn:E; try discriminate. inv H.
-      constructor. apply interpret_exp_sound. assumption.
-    - destruct (interpret_lexp ϵ b) eqn:E; try discriminate. inv H.
-      constructor. apply interpret_lexp_sound. assumption.
-    - destruct (interpret_lexp ϵ b) eqn:E; try discriminate. inv H.
-      constructor. apply interpret_lexp_sound. assumption.
+    destruct e; cbn; unfold option_bind; intros; 
+    match_some_inv; some_inv; constructor.
+    - apply interpret_exp_sound. assumption.
+    - apply interpret_lexp_sound. assumption.
+    - apply interpret_lexp_sound. assumption.
   Qed.
 
   Lemma interpret_arg_complete :
@@ -442,14 +448,10 @@ Section Stm.
     forall ϵ es vs,
       interpret_args ϵ es = Some vs -> args_big_step ϵ es vs.
   Proof.
-    induction es.
-    - cbn. intros. inv H. constructor.
-    - cbn. unfold option_bind. intros.
-      destruct (interpret_arg ϵ a) eqn:E; try discriminate.
-      destruct (sequence (map (interpret_arg ϵ) es)) eqn:E'; try discriminate.
-      inv H. constructor.
-      + apply interpret_arg_sound. assumption.
-      + apply IHes. assumption.
+    intros. unfold interpret_args in *. rewrite map_monad_some in H.
+    induction H; constructor.
+    - apply interpret_arg_sound. assumption.
+    - assumption.
   Qed.
 
   Lemma interpret_args_complete :
@@ -530,7 +532,7 @@ Section Stm.
   Proof.
     unfold interpret_table_action. intros. destruct aref.
     - destruct a0. destruct (sequence args) eqn:Hsome; try discriminate.
-      cbn in *. inv H. constructor. apply sequence_Forall2. assumption.
+      cbn in *. some_inv. constructor. apply sequence_Forall2. assumption.
     - destruct def; try discriminate. destruct p. inv H. constructor.
   Qed.
 
@@ -585,16 +587,33 @@ Section Stm.
         | Exit | Rtrn _ | Rjct => mret (ϵ', sig, ψ)
         | Acpt => None
         end
-      | Stm.Invoke eo t, CApplyBlock tbls acts insts => None
+      | Stm.Invoke eo t, CApplyBlock tbls acts insts =>
         (* TODO: fix after semantics fixed *)
-        (* let* (n, key, actions, def) := tbls t in
+        let* (n, key, actions, def) := tbls t in
+        let* lvo := interpret_relop (interpret_lexp ϵ) eo in
         guard (n <=? List.length ϵ) ;;
         let* (ϵ₁, ϵ₂) := split_at (List.length ϵ - n) ϵ in
         let* vs := interpret_exps ϵ₂ $ map fst key in
         let* (pats, arefs) := interpret_table_entries $ extern_get_entries Ψ.(extrn_state) [] in
+        let light_vals := embed_list vs in
         let* light_sets := embed_pats pats in
-        (* let aref := extern_match $ combine light_vals $ map snd key in *)
-        None *)
+        let aref := extern_match (combine light_vals (map snd key)) (combine light_sets arefs) in
+        let* (hit, a, ctrl_args) := interpret_table_action def aref in
+        let* data_args := Field.get a actions in
+        let* idx := Field.get_index a actions in
+        let? '(ϵ', Cont, ψ) := interpret_stmt fuel Ψ ϵ₂ (CApplyBlock tbls acts insts) (Stm.App (Call.Action a ctrl_args) data_args) in
+        let sig := 
+          lv_update_signal
+            lvo
+            (Rtrn
+              (Some 
+              (Val.Lists
+                  Lst.Struct
+                  [Val.Bool hit; Val.Bool (negb hit);
+                  Val.Bit (BinNat.N.of_nat (List.length actions)) (Z.of_nat idx)])))
+            (ϵ₁ ++ ϵ')
+        in
+        mret (sig, Cont, ψ )
       | Stm.App (Call.Inst p ext_args) args, CParserState n strt states parsers =>
         let? 'ParserInst p_fun p_prsr p_eps p_strt p_states := parsers p in
         let* vargs := interpret_args ϵ args in
@@ -625,28 +644,19 @@ Section Stm.
   Proof.
     induction fuel; try discriminate. destruct s eqn:?; try discriminate; cbn; intros.
     - inv H; constructor.
-    - unfold option_bind in *. 
-      destruct (interpret_relop (interpret_exp ϵ) e) eqn:?;
-      try discriminate. inv H. destruct e; cbn in *.
-      + unfold option_bind in *. destruct (interpret_exp ϵ' t) eqn:?; cbn in *.
-        * inv Heqo. do 2 constructor.
-          apply interpret_exp_sound. assumption.
-        * discriminate.
-      + inv Heqo. repeat constructor.
-    - inv H. constructor.
-    - unfold option_bind in *. destruct c eqn:E; try discriminate.
-      destruct (interpret_parser_exp ϵ trns) eqn:?; try discriminate.
-      apply interpret_parser_exp_sound in Heqo.
+    - unfold option_bind in *. match_some_inv. some_inv. destruct e; cbn in *.
+      + unfold option_bind in *. match_some_inv. some_inv.
+        do 2 constructor. apply interpret_exp_sound. assumption.
+      + some_inv. repeat constructor.
+    - some_inv. constructor.
+    - unravel in *. unfold option_bind in *. destruct c eqn:E; try discriminate.
+      match_some_inv. apply interpret_parser_exp_sound in Heqo.
       destruct (get_final_state _) eqn:?.
       + inv H. apply get_final_state_sound in Heqo0.
         econstructor; eauto.
       + destruct (parser_arg_length <=? List.length ϵ) eqn:?; try discriminate. cbn in *.
-        apply Nat.leb_le in Heqb.
-        destruct (split_at (List.length ϵ - parser_arg_length) ϵ) eqn:?; 
-        try discriminate. destruct p as [ϵ₁ ϵ₂].
-        destruct (get_state_block start states _) eqn:?; try discriminate.
-        destruct (interpret_stmt fuel Ψ ϵ₂ _ _) eqn:?; 
-        try discriminate. inv H. repeat destruct p. inv H1.
+        apply Nat.leb_le in Heqb. match_some_inv. destruct p as [ϵ₁ ϵ₂].
+        repeat match_some_inv. some_inv. repeat destruct p. inv H1.
         apply IHfuel in Heqo3.
         apply split_at_partition in Heqo1 as ?.
         apply split_at_length_l2 in Heqo1 as ?.
@@ -658,62 +668,51 @@ Section Stm.
         apply get_final_state_complete in H1. contradiction.
     - apply interpret_assign_sound. assumption.
     - unfold option_bind in *. destruct call eqn:E; try discriminate.
-      destruct (functs Ψ function_name) eqn:?; try discriminate.
-      destruct f. 
-      destruct (interpret_relop (interpret_lexp ϵ) returns) eqn:?; try discriminate.
-      destruct (interpret_args ϵ args) eqn:?; try discriminate.
-      destruct (copy_in l ϵ) eqn:?; try discriminate.
-      destruct (interpret_stmt fuel _ _ _ _) eqn:?; try discriminate.
-      inv H. do 2 destruct p. inv H1.
-      apply interpret_args_sound in Heqo1.
-      apply IHfuel in Heqo3. econstructor; eauto.
-      destruct returns; cbn in *; unfold option_bind in *.
-      + destruct (interpret_lexp ϵ t) eqn:?; try discriminate. inv Heqo0.
-        apply interpret_lexp_sound in Heqo4. constructor. assumption.
-      + inv Heqo0. constructor.
-      + destruct (interpret_actions_of_ctx c) eqn:?; try discriminate.
-        apply interpret_actions_of_ctx_sound in Heqo.
-        destruct (a action_name) eqn:?; try discriminate. destruct a0.
-        destruct (interpret_exps ϵ control_plane_args) eqn:?; try discriminate.
+      + destruct (functs Ψ function_name) eqn:?; try discriminate.
+        destruct f. repeat match_some_inv. some_inv. do 2 destruct p. inv H1.
+        apply interpret_args_sound in Heqo1.
+        apply IHfuel in Heqo3. econstructor; eauto.
+        eapply interpret_relop_sound; eauto.
+        apply interpret_lexp_sound.
+      + repeat match_some_inv. apply interpret_actions_of_ctx_sound in Heqo.
+        destruct a0. repeat match_some_inv. some_inv. repeat destruct p. inv H1.
         apply interpret_exps_sound in Heqo1.
-        destruct (interpret_args ϵ args) eqn:?; try discriminate.
         apply interpret_args_sound in Heqo2.
-        destruct (copy_in _ _) eqn:?; try discriminate.
-        destruct (interpret_stmt _ _ _ _ _) eqn:?; try discriminate. 
-        inv H. do 2 destruct p. inv H1. apply IHfuel in Heqo4.
-        econstructor; eauto.
+        apply IHfuel in Heqo4. econstructor; eauto.
       + destruct c; try discriminate.
-        * destruct (available_controls instance_name) eqn:?; try discriminate.
-          destruct i; try discriminate. cbn in *. unfold option_bind in *.
-          destruct (interpret_args ϵ args) eqn:Eargs; try discriminate.
-          apply interpret_args_sound in Eargs.
-          destruct (copy_in l ϵ) eqn:Ecopyin; try discriminate.
-          destruct (interpret_stmt _ _ _ _ _) eqn:Estmt; try discriminate. inv H.
-          do 2 destruct p. eapply IHfuel in Estmt. inv H1. econstructor; eauto.
-        * destruct (available_parsers instance_name) eqn:?; try discriminate.
-          destruct i; try discriminate. cbn in *. unfold option_bind in *.
-          destruct (interpret_args ϵ args) eqn:Eargs; try discriminate.
-          apply interpret_args_sound in Eargs.
-          destruct (copy_in l ϵ) eqn:Ecopyin; try discriminate.
-          destruct (interpret_stmt _ _ _ _ _) eqn:Estmt; try discriminate.
-          do 2 destruct p.
-          destruct (interpret_parser_signal _) eqn:Esignal; try discriminate. inv H.
+        * match_some_inv. destruct i; try discriminate.
+          match_some_inv as Eargs. apply interpret_args_sound in Eargs.
+          match_some_inv as Ecopyin. match_some_inv as Estmt. some_inv.
+          repeat destruct p. inv H1. eapply IHfuel in Estmt.
+          econstructor; eauto.
+        * match_some_inv. destruct i; try discriminate.
+          match_some_inv as Eargs. apply interpret_args_sound in Eargs.
+          match_some_inv as Ecopyin. match_some_inv as Estmt.
+          repeat destruct p. match_some_inv as Esignal. some_inv.
           apply interpret_parser_signal_sound in Esignal.
           eapply IHfuel in Estmt. econstructor; eauto.
     - (* Table Invocations *)
-      (* TODO : fix after semantics changed *)
-      destruct c; discriminate.
-      (* destruct c; try discriminate.
-      unfold option_bind in *.
-      destruct (tables table_name) eqn:Htables; try discriminate. repeat destruct p.
+      destruct c; try discriminate. unravel in *.
+      match_some_inv as Htables. repeat destruct p. match_some_inv as Hlhs.
       destruct (n <=? List.length ϵ) eqn:Hlen; try discriminate. cbn in *.
-      apply Nat.leb_le in Hlen.
-      destruct (split_at (List.length ϵ - n) ϵ) eqn:Hϵ; try discriminate.
+      apply Nat.leb_le in Hlen. match_some_inv as Hϵ.
       destruct p as [ϵ₁ ϵ₂]. apply split_at_partition in Hϵ as Hpartition.
       apply split_at_length_l2 in Hϵ as Hϵ₂.
       assert (List.length ϵ₂ = n) by lia.
-      destruct (interpret_exps ϵ₂ $ map fst l0) eqn:Hes; try discriminate.
-      apply interpret_exps_sound in Hes.  *)
+      match_some_inv as Hes.
+      apply interpret_exps_sound in Hes.
+      match_some_inv as Hentries. repeat destruct p.
+      apply interpret_table_entries_sound in Hentries.
+      match_some_inv. match_some_inv as Haction.
+      repeat destruct p.
+      apply interpret_table_action_sound in Haction.
+      match_some_inv. match_some_inv. match_some_inv as Hstmt.
+      repeat destruct p. destruct s1; try discriminate. some_inv.
+      eapply IHfuel in Hstmt.
+      econstructor; eauto.
+      + eapply interpret_relop_sound; eauto. apply interpret_lexp_sound.
+      + apply embed_list_sound.
+      + apply embed_pats_sound. assumption.
     - unfold option_bind in *.
       destruct (initialized_value ϵ init) eqn:E; try discriminate.
       apply initialized_value_sound in E.

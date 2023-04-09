@@ -2434,7 +2434,9 @@ meaning that it applies for both explicit and implicit casts. However, note that
 
 ``type member (typeMember rule is correct for enums and done.) error member rule done.``
 
-A membership expression denoted by a dot, that is, $a.\name$ looks if $\name$ exists in $a$. And it can be a type, error, or expression membership depending on what $a$ is.
+``type member can be error, enum, probably can be extern object, package, instantiation, parser, control, extern function, value set, action, table(?), match kind. basically anywhere that we have an insert to var env (which is insert_type_of in checker.ml)``
+
+A membership expression denoted by a dot, that is, $a.\name$ looks if $\name$ exists in $a$ where $a$ can be a type or an expression.
 An expression member looks up a _member_ in an expression.
 The member could be a field in
 a record type, such as struct and header, or it could be a method in an extern or specialized type, or a special look up of an element of an array such as next, last, size, and last index.  
@@ -2442,17 +2444,6 @@ a record type, such as struct and header, or it could be a method in an extern o
 
 The rules $\typeMemE$ and $\errMemE$ are rather simple.
 They just look up $\name$ extended with the type or error, respectively, in the environment. For example, the $\typeMemE$ states that under the environment $\env$ and context $\ctxt$, the expression $\typMem \typ \name$ is the same in the IR and has the type $\typ$ and direction $\less$ if $\typMem \typ \name$ exists in $\env$.
-
-The rule $\expMemE$ states that under the environment $\env$ and context $\ctxt$, the
-expression $\expMem \exp \name$ translates to the expression $\expMem {\VVal \exp} \name$ with type $\pprim \typ$ and direction $\less$ where $\VVal \exp$ is the translation of the expression $\exp$ and $\pprim \typ$ is the type of the member $\name$ from the reduced type of expression $\exp$ (that is, $\reduce \typ$) which is returned by the expression member auxiliary judgment. 
-
-- The [expression member auxiliary judgment][#sec-exp-mem-helper] is a helper judgment
-for the $\expMemE$ rule.
-It has the form $\fieldAccessEnv \ctxt \name \typ {\VVal \typ}$
-which states that under environment $\env$ and context $\ctxt$, the member $\name$
-has the type $\VVal \typ$ in an expression of type $\typ$.
-Simply stated, it looks up the type of the member from the expression passed from the $\expMemE$ rule. 
-Note that the expression has to be of a one of the types: record, extern, specialized, or array.
 
 - $\sizingMem$ stands for methods: $\minSizeBits$, $\minSizeBytes$, $\maxSizeBits$, and $\maxSizeBytes$.
 - $\getFieldTyp \typ$ returns the fields and their types for a type that has some sort of fields in its declaration which includes the following types:
@@ -2475,7 +2466,7 @@ Note that the expression has to be of a one of the types: record, extern, specia
 - $\setValidity$ stands for both $\setValid$ and $\setInvalid$. ``todo: we dont have void type in tau rn``
 - $\nextOrLast$ stands for either $\next$ or $\last$.
 
-``reminder for parisa: you worked up to here. expression membership. also, typename.mem is type membership and not expression. ``
+``reminder for parisa: you worked up to here. expression membership. ``
 
 ~ Begin InfRule
 
@@ -2490,17 +2481,6 @@ Note that the expression has to be of a one of the types: record, extern, specia
      {\lookupEnv {\errMem \name} = (\errTyp, \dir)  }
      {\expenv {\errMem \name} {\errMem \name} \errTyp \less  }
      \quad (\errMemE)
-
-\and
-
-  \inferrule
-     { \expenv \exp {\VVal \exp} {\typ} \dir \\
-       \reduce \typ = \VVal \typ \\
-       % \structTypDef = \VVal \typ\\
-       \fieldAccessEnv \ctxt \name {\VVal \typ} {\pprim \typ}
-       }
-     { \expenv {\expMem \exp \name} {\expMem {\VVal \exp} \name} {\pprim \typ} {\less} }
-     \quad (\expMemE)
 
 \and
 
@@ -2553,7 +2533,7 @@ Note that the expression has to be of a one of the types: record, extern, specia
          \isHeaderOrUnion \typ}
        {\expenv {\expMem \exp \isValid} {\expMem {\VVal \exp} \isValid} \boolTyp \less }
     }
-  \quad (isValidmembership)
+  \quad (\isValidMemE)
 
 \and
 
@@ -2563,7 +2543,7 @@ Note that the expression has to be of a one of the types: record, extern, specia
          \isHeader \typ}
        {\expenv {\expMem \exp \setValidity} {\expMem {\VVal \exp} \setValidity} \voidTyp \less }
     }
-  \quad (setvaliditymembership)
+  \quad (\setValidMemE)
 
 \and
 
@@ -2572,7 +2552,7 @@ Note that the expression has to be of a one of the types: record, extern, specia
      {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir}
      {\expenv {\expMem \exp \sizeMem} {\expMem {\VVal \exp} \sizeMem} {\bitWidthTyp {32}} \less}
   }
-  \quad (sizemembership-headerstack)
+  \quad (\sizeMemHeaderStackE)
 
 \and
 
@@ -2581,7 +2561,7 @@ Note that the expression has to be of a one of the types: record, extern, specia
      {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir}
      {\expenv {\expMem \exp \nextIndex} {\expMem {\VVal \exp} \sizeMem} {\bitWidthTyp {32}} \less}
   }
-  \quad (nextIndexmembership-headerstack)
+  \quad (\lastIndexMemHeaderStackE)
 
 \and
 
@@ -2590,7 +2570,7 @@ Note that the expression has to be of a one of the types: record, extern, specia
      {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir}
      {\expenvWithCtxt \parserCtxt {\expMem \exp \nextOrLast} {\expMem {\VVal \exp} \nextOrLast} {\typ} \less}
   }
-  \quad (nextlastmembership-headerstack)
+  \quad (\pushPopMemHeaderStackE)
 
 \and
 
@@ -2599,7 +2579,7 @@ Note that the expression has to be of a one of the types: record, extern, specia
      {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir}
      {\expenvWithCtxt \parserCtxt {\expMem \exp \lastIndex} {\expMem {\VVal \exp} \nextOrLast} {\bitWidthTyp {32}} \less}
   }
-  \quad (lastindexmembership-headerstack)
+  \quad (\lastIndexMemHeaderStackE)
 
 \and
 
@@ -2609,80 +2589,31 @@ Note that the expression has to be of a one of the types: record, extern, specia
       \int > 0}
      {\expenv {\expMem \exp {\pushOrPop \int }} {\expMem {\VVal \exp} {\pushOrPop \int }} {\voidTyp} \less}
   }
-  \quad (pushpopmembership-headerstack)
+  \quad (\pushPopMemHeaderStackE)
+
+% \and
+
+  % todo: membership of specialized type and extern are left to do. 
+  % \inferrule
+  %    {
+  %      % names in the following are actually methods. have to see what they contain.
+  %      \lookupEnv {\VVal \name} = (\typParams,\overline {\name:\simpFuncTyp {\typ_{\mathit{in}}} {\typ_{\mathit{out}}}}) \\\\
+  %      % \VVal \env = \insertToEnv  \typParams \typs \\
+  %      \suchThat {\exists \name_i: \VVal {\typ_i} \in \overline {\name:\simpFuncTyp {\typ_{\mathit{in}}} {\typ_{\mathit{out}}}}} {\name_i = \name} \\\\
+  %      %%TODO: fix the insert in the following. it might have to be inserted to typ env.
+  %       \reduceWithEnv {\insertsToVarEnv  \typParam \typ \less} {\VVal {\typ_i}} = \pprim {\typ_i}}
+  %       %% TODO: change var env here. it's 90% wrong. 
+  %    { \fieldAccessEnv \ctxt \name {\spcTyp {\externTyp {\VVal \name}} {\typs}} {\pprim {\typ_i}}}
+  %    \quad (\rn{Type:Specialized}\rAE)
+
+% \and
+
+  % \inferrule
+  %    { \fieldAccessEnv \ctxt \name {\spcTyp {\externTyp {\VVal \name}} \ } {\pprim \typ} }
+  %    { \fieldAccessEnv \ctxt  \name {\externTyp {\VVal \name}}  {\pprim \typ}}
+  %    \quad (\rn{Type:Extern}\rAE)
 
 ~ End InfRule
-
-### Expression Member Auxiliary Judgment { #sec-exp-mem-helper }
-
-``from an older version``
-``todo: insertvarenv is 90% wrong.``
-This judgment ensures that the type of an expression in an expression member is either
-a record type, a specialized type, an extern type, or an array. Then, it looks up the member that is being accessed by the expression member. 
-
-~ Begin InfRuleHelper
-
-  % \inferrule
-  %    {
-  %      % \expenv \exp {\VVal \exp} {\typ} \dir \\
-  %      % \structTypDef = \reduce \typ \\
-  %      % \structTypDef = \VVal \typ\\
-  %      % (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
-  %      (\field, \typ) \in \overline {\field, \typ} 
-  %      % \exists 1 \leq i \leq n+1. \field_i = \field
-  %      }
-  %    { \fieldAccessEnv \ctxt \field {\structTyps \typParam \field \typ} {\typ} }
-  %    \quad (\rn{Type:Struct}\rAE)
-
-  % \inferrule
-  %    {
-  %      % \expenv \exp {\VVal \exp} {\typ} \dir \\
-  %      % \structTypDef = \reduce \typ \\
-  %      % \structTypDef = \VVal \typ\\
-  %      % (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
-  %      % \exists 1 \leq i \leq n+1. \field_i = \field
-  %      }
-  %    { \fieldAccessEnv \ctxt \field {\structTyps \typParam \field \typ} {\funcTyp \builtin \ \ \boolTyp} }
-  %    \quad (\rn{Type:Struct}\rSep\rn{Mem:isValid}\rAE)
-
-  \inferrule
-     {
-       % names in the following are actually methods. have to see what they contain.
-       \lookupEnv {\VVal \name} = (\typParams,\overline {\name:\simpFuncTyp {\typ_{\mathit{in}}} {\typ_{\mathit{out}}}}) \\\\
-       % \VVal \env = \insertToEnv  \typParams \typs \\
-       \suchThat {\exists \name_i: \VVal {\typ_i} \in \overline {\name:\simpFuncTyp {\typ_{\mathit{in}}} {\typ_{\mathit{out}}}}} {\name_i = \name} \\\\
-       %%TODO: fix the insert in the following. it might have to be inserted to typ env.
-        \reduceWithEnv {\insertsToVarEnv  \typParam \typ \less} {\VVal {\typ_i}} = \pprim {\typ_i}}
-        %% TODO: change var env here. it's 90% wrong. 
-     { \fieldAccessEnv \ctxt \name {\spcTyp {\externTyp {\VVal \name}} {\typs}} {\pprim {\typ_i}}}
-     \quad (\rn{Type:Specialized}\rAE)
-
-  \inferrule
-     { \fieldAccessEnv \ctxt \name {\spcTyp {\externTyp {\VVal \name}} \ } {\pprim \typ} }
-     { \fieldAccessEnv \ctxt  \name {\externTyp {\VVal \name}}  {\pprim \typ}}
-     \quad (\rn{Type:Extern}\rAE)
-
-  \inferrule
-     { }
-     { \fieldAccessEnv \ctxt \sizeMem {\headerStackTyp \typ \size} {\bitWidthTyp {32}}}
-     \quad (\rn{Type:Array}\rSep\rn{Mem:Size}\rAE)
-
-  \inferrule
-     { }
-     { \fieldAccessEnv \ctxt \lastIndex {\headerStackTyp \typ \size} {\bitWidthTyp {32}}}
-     \quad (\rn{Type:Array}\rSep\rn{Mem:LastIndex}\rAE)
-
-  \inferrule
-     { }
-     { \fieldAccessEnv \parserCtxt \next {\headerStackTyp \typ \size} {\typ}}
-     \quad (\rn{Type:Array}\rSep\rn{Mem:Next}\rAE)
-
-  \inferrule
-     { }
-     { \fieldAccessEnv \parserCtxt \last {\headerStackTyp \typ \size} {\typ}}
-     \quad (\rn{Type:Array}\rSep\rn{Mem:Last}\rAE)
-
-~ End InfRuleHelper
 
 ## Ternary Rule { #sec-ternary-e }
 

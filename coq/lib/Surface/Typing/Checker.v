@@ -132,6 +132,28 @@ Section Checker.
   Definition type_expression_member (env: checkerEnvs) (type_expr: typ) (mem: P4String) : result Exn.t typ :=
     error (Exn.Other "fill in later.").
 
+  (*the tuple case has little mismatches of types. TODO. fix it.*)
+  Definition type_array_access (env: checkerEnvs) (array: expression) (type_array: typ) (index: expression) (type_index: typ) : result Exn.t typ :=
+    match type_array with
+    | TypHeaderStack tags typ size
+      => if is_numeric env index type_index
+        then ok typ
+        else error (Exn.Other "array index not numeric")
+                       (*the following block has a weird error. ask Ryan.*)
+    (* | TypTuple tags types *)
+    (*   => if is_integer type_index *)
+    (*     then let* i := from_opt (compile_time_eval env index) *)
+    (*                             (Exn.Other "failure in compile_time_eval")in *)
+    (*          let* idx := from_opt (array_access_idx_to_z i) *)
+    (*                               (Exn.Other "failure in array_access_idx_to_z")in *)
+    (*          if andb (Nat.leb 1 (N.to_nat idx)) *)
+    (*                  (Nat.leb (N.to_nat idx) (List.length types)) *)
+    (*          then ok (Znth_default (TypVoid tags) (idx) types) *)
+    (*          else error (Exn.Other "array access index out of bound") *)
+    (*     else error (Exn.Other "array access index not integer") *)
+    | _ => error (Exn.Other "array access type incorrect")
+    end.
+
   Fixpoint type_expression (env: checkerEnvs) (tags: Info) (expr: expression) : result Exn.t typ :=
     match expr with
     | MkExpression tags type expr =>
@@ -151,25 +173,7 @@ Section Checker.
         | ExpArrayAccess array index
           => let* type_array := type_expression env tags array in
             let* type_index := type_expression env tags index in
-            match type_array with
-            | TypHeaderStack tags typ size
-              => if is_numeric env index type_index
-                then ok typ
-                else error (Exn.Other "array index not numeric")
-                       (*the following block has a weird error. ask Ryan.*)
-            (* | TypTuple tags types *)
-              (* => if is_integer type_index *)
-                (* then let* i := from_opt (compile_time_eval env index) *)
-                                        (* (Exn.Other "failure in compile_time_eval")in *)
-                     (* let* idx := from_opt (array_access_idx_to_z i) *)
-                                          (* (Exn.Other "failure in array_access_idx_to_z")in *)
-                     (* if andb (Nat.leb 1 (N.to_nat idx)) *)
-                     (*         (Nat.leb (N.to_nat idx) (List.length types)) *)
-                     (* then ok (Znth_default (TypVoid tags) (idx) types) *)
-                     (* else error (Exn.Other "array access index out of bound") *)
-                (* else error (Exn.Other "array access index not integer") *)
-            | _ => error (Exn.Other "array access type incorrect")
-            end
+            type_array_access env array type_array index type_index
         | ExpBitStringAccess bits low high
           => let* type_bits := type_expression env tags bits in
             let* type_low  := type_expression env tags low in
@@ -180,11 +184,8 @@ Section Checker.
             | _ => error (Exn.Other "bit string access type incorrect")
             end
         (* | ExpList value *)
-        (*   => let types := map (type_expression env tags) value in *)
-        (*     if In None types *)
-        (*     then None *)
-        (*     else *)
-        (*     ok (map from_opt types) *)
+        (*   => let* types := rred (map (type_expression env tags) value) in *)
+        (*     ok (TypTuple types) *)
         (* | ExpRecord entries *)
         (*   => TypBool tags *)
         | ExpUnaryOp op arg

@@ -8,20 +8,6 @@ From Poulet4 Require Import P4cub.Syntax.AST
   P4cub.Syntax.CubNotations Utils.ForallMap.
 Import String.
 
-(* TODO: Also in [P4light/Semantics/Typing/Utility.v]
-   Should be moved to somewhere in [Utils]. *)
-Ltac some_inv :=
-  match goal with
-  | H: Some _ = Some _ |- _ => inv H
-  end.
-
-Ltac match_some_inv :=
-  match goal with
-  | H: match ?trm with Some _ => _ | None => _ end = Some _
-    |- _ => destruct trm as [? |] eqn:? ; cbn in *;
-          try discriminate
-  end.
-
 Local Open Scope val_scope.
 Local Open Scope type_scope.
 

@@ -1017,7 +1017,7 @@ A header union can have zero or more fields of type header. Note that in order f
 
 ```done```
 
-A struct type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function which for a struct type the inner types can be one of the followings:
+A struct type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function which for a struct type the inner types can be one of the following:
 
 - $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
 - $\intWidthTyp \exp$ and $\compTimeKnown \exp$
@@ -1048,12 +1048,19 @@ A struct type is well-formed if its fields are distinct and its inner types foll
 
 #### Well-Formed Parser Type
 
+A parser type is well-formed if it has at least one argument of type $\packetInTyp$, representing the received packet that is processed. Additionally, the parameter types must all be well-typed.
+
 ~ Begin InfRule
 
   \mprset {vskip = 0.7ex}
-    {}
-    {}
-    \quad (\}
+  {\inferrule
+    {\typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps \exp} \\
+    \inferTypParArg {\maybe \constraint} {\prmDefs {\surfaceTyp \exp}} {\VVal {\prmDefs {\surfaceTyp \exp}}} \\
+    \lookupTypEnv {\VVal {\prmDefs {\surfaceTyp \exp}}} = \typs \\
+      \isValidInputPacket \typ}
+    {\typWellFormed { \parserTyp  \typVars {\prmDefs {\surfaceTyp \exp}}}}
+  }
+    \quad (\parserTypWellT)
 
 ~ End InfRule
 
@@ -1062,9 +1069,13 @@ A struct type is well-formed if its fields are distinct and its inner types foll
 ~ Begin InfRule
 
   \mprset {vskip = 0.7ex}
-    {}
-    {}
-    \quad (\}
+  {\inferrule
+    {\typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps \exp} \\
+    \inferTypParArg {\maybe \constraint} {\prmDefs {\surfaceTyp \exp}} {\VVal {\prmDefs {\surfaceTyp \exp}}}
+    }
+    {\typWellFormed { \controlTyp  \typVars {\prmDefs {\surfaceTyp \exp}}}}
+  }
+    \quad (\controlTypWellT)
 
 ~ End InfRule
 
@@ -1072,10 +1083,16 @@ A struct type is well-formed if its fields are distinct and its inner types foll
 
 ~ Begin InfRule
 
-  \mprset {vskip = 0.7ex}
-    {}
-    {}
-    \quad (\}
+\mprset {vskip = 0.7ex}
+  {\inferrule
+    {\typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps \exp} \\
+    \inferTypParArg {\maybe \constraint} {\prmDefs {\surfaceTyp \exp}} {\VVal {\prmDefs {\surfaceTyp \exp}}} \\
+    \compTimeKnown {\VVal {\prmDefs {\surfaceTyp \exp}}} \\
+    \isDirectionless {\VVal {\prmDefs {\surfaceTyp \exp}}}   
+}
+    {\typWellFormed { \packageTyp  \typVars {\prmDefs {\surfaceTyp \exp}}}}
+  }
+    \quad (\packageTypWellT)
 
 ~ End InfRule
 
@@ -3227,14 +3244,18 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 ~ End InfRule 
 
 ## Parser Type Declaration { #sec-parser-typ-decl }
-
+Note: Petr4 doesn’t look at well-formedness in declaration but rather infers the types of the parameters.
 ~ Begin InfRule
 % \parserTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}
 
+
   \mprset {vskip = 0.7ex}
   {\inferrule
-    {}
-    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+    {\typWellFormed {\parserTyp  \typVars {\prmDefs {\surfaceTyp \exp}}}\\\\ 
+     \VVal \typEnv = \insertToTypEnv \typName {\parserTyp  \typVars {\prmDefs {\surfaceTyp \exp}}} \\
+     \VVVal \typEnv = \VVal \typEnv [ \typParams]
+     }
+    {\dclenv { \parserTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}} { \parserTypDcl \typName \typVars {\VVal {\prmDefs {\surfaceTyp \exp}}}} {\varEnv} {\constEnv} {\VVVal \typEnv} \typSynEnv}}
   \quad (\parserTypD)
 
 ~ End InfRule 
@@ -3246,21 +3267,27 @@ const S x = { 10, 20 }; //a = 10, b = 20.
 
   \mprset {vskip = 0.7ex}
   {\inferrule
-    {}
-    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+    {\typWellFormed {\packageTyp  \typVars {\prmDefs {\surfaceTyp \exp}}}\\\\
+     \VVal \typEnv = \insertToTypEnv \typName {\packageTyp  \typVars {\prmDefs {\surfaceTyp \exp}}} \\
+     \VVVal \typEnv = \VVal \typEnv [ \typParams]
+     }
+    {\dclenv { \packageTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}} { \packageTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}} {\varEnv} {\constEnv} {\VVVal \typEnv} \typSynEnv}}
   \quad (\packageTypD)
 
 ~ End InfRule 
 
 ## Control Type Declaration { #sec-control-typ-decl }
-
+Note: Petr4 doesn’t look at well-formedness in declaration but rather infers the types of the parameters.
 ~ Begin InfRule
 % \controlTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}
 
   \mprset {vskip = 0.7ex}
   {\inferrule
-    {}
-    {\dclenv {} {} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
+    {\typWellFormed {\controlTyp \typVars {\prmDefs {\surfaceTyp \exp}}}\\\\
+     \VVal \typEnv = \insertToTypEnv \typName {\controlTyp  \typVars {\prmDefs {\surfaceTyp \exp}}} \\
+     \VVVal \typEnv = \VVal \typEnv [ \typParams]
+     }
+    {\dclenv {\controlTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}} {\controlTypDcl \typName \typVars {\prmDefs {\surfaceTyp \exp}}} {\varEnv} {\constEnv} {\VVVal \typEnv} \typSynEnv}}
   \quad (\controlTypD)
 
 ~ End InfRule 

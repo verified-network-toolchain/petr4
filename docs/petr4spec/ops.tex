@@ -26,6 +26,9 @@
 \newcommand*{\headerTypWellT}{\rn{Header}\rT}
 \newcommand*{\headerUnionTypWellT}{\rn{HeaderUnion}\rT}
 \newcommand*{\structTypWellT}{\rn{Struct}\rT}
+\newcommand*{\parserTypWellT}{\rn{Parser}\rT}
+\newcommand*{\controlTypWellT}{\rn{Control}\rT}
+\newcommand*{\packageTypWellT}{\rn{Package}\rT}
 
 \newcommand*{\boolT}{\rn{Bool}\rT}
 \newcommand*{\stringT}{\rn{String}\rT}
@@ -61,6 +64,7 @@
 \newcommand*{\constructorT}{\rn{Constructor}\rT}
 \newcommand*{\tableT}{\rn{Table}\rT}
 \newcommand*{\typeNameT}{\rn{Reference}\rT}
+
 
 \newcommand*{\boolE}{\rn{Bool}\rE}
 \newcommand*{\stringE}{\rn{String}\rE}
@@ -543,6 +547,7 @@
 \newcommand{\reduceWithEnv}[2]{\mathit{reduce}({#2})_{#1}} %%TODO: adjust env where it's used. 
 %% \newcommand{\fieldOrMethodTyp}[1]{\mathit{field\_or\_method\_type}({#1})}
 \newcommand{\isLval}[1]{\mathit{is\_lvalue}({#1})}
+\newcommand{\isValidInputPacket}[1]{\mathit{is\_valid\_input\_packet}({#1})_\typEnv}
 %type. exp. 
 \newcommand{\castExpression}[2]{\mathit{cast\_expression}({#1},{#2})}
 \newcommand{\ifVoidTyp}[1]{\mathit{if\_void\_type}({#1})}
@@ -668,6 +673,8 @@
 %% \newcommand{\typNameTyp}[1]{\mathsf{type\_name}\ {#1}}
 \newcommand{\unitTyp}{()}
 %% \newcommand{\stackTyp}[2]{{#1}[{#2}]}
+\newcommand{\packetInTyp}{\mathsf{packet\_in}}
+
 
 %directions:
 \newcommand{\less}{\mathsf{directionless}}

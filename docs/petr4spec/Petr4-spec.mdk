@@ -2463,7 +2463,7 @@ They just look up $\name$ extended with the type or error, respectively, in the 
   + header union
   + header stack
   + serializable enums
-- $\setValidity$ stands for both $\setValid$ and $\setInvalid$. ``todo: we dont have void type in tau rn``
+- $\setValidity$ stands for both $\setValid$ and $\setInvalid$. ``todo: we dont have void type in tau rn. fix it in doc.``
 - $\nextOrLast$ stands for either $\next$ or $\last$.
 
 ``reminder for parisa: you worked up to here. expression membership. ``

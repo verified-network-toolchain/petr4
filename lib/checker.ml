@@ -2292,10 +2292,6 @@ and cast_ok ?(explicit = false) env original_type new_type =
     explicit && type_equality env [] t t'
   | TypEnum (name, Some t, members), t' ->
     type_equality env [] t t'
-  | TypNewType (name1, typ1),
-    TypNewType (name2, typ2) ->
-    type_equality env [] typ1 new_type
-    || type_equality env [] original_type typ2
   | TypNewType (name, typ), t ->
     cast_ok ~explicit env typ t
   | t, TypNewType (name, typ) ->

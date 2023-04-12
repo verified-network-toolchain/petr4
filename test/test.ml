@@ -54,7 +54,6 @@ let excluded_bad_files = example_path ["checker_tests"; "excluded/bad"] |> get_f
 (* This is a hack, sorry! *)
 let known_failures =
   ["default-control-argument.p4";
-   "cast-call.p4";
    "issue1803_same_table_name.p4";
    "issue1672-bmv2.p4";
    "table-entries-optional-2-bmv2.p4";

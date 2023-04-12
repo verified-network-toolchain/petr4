@@ -211,7 +211,7 @@ topDeclarationList:
 
 topDeclaration:
 | c = constantDeclaration
-    { declare_var (Declaration.name c) false;
+    { declare_var (Declaration.name c) (Declaration.has_type_params c);
       c }
 | e = externDeclaration
     { e }
@@ -219,16 +219,16 @@ topDeclaration:
     { declare_var (Declaration.name a) false;
       a }
 | p = parserDeclaration
-    { declare_type (Declaration.name p) false;
+    { declare_type (Declaration.name p) (Declaration.has_type_params p);
       p }
 | c = controlDeclaration
-    { declare_type (Declaration.name c) false;
+    { declare_type (Declaration.name c) (Declaration.has_type_params c);
       c }
 | i = instantiation
     { declare_var (Declaration.name i) false;
       i }
 | t = typeDeclaration
-    { declare_type (Declaration.name t) false;
+    { declare_type (Declaration.name t) (Declaration.has_type_params t);
       t }
 | e = errorDeclaration
     { (* declare_type (Declaration.name e) false; *)
@@ -236,7 +236,7 @@ topDeclaration:
 | m = matchKindDeclaration
     { m }
 | f = functionDeclaration
-    { declare_var (Declaration.name f) false;
+    { declare_var (Declaration.name f) (Declaration.has_type_params f);
       f }
 ;
 
@@ -673,7 +673,7 @@ externDeclaration:
      { let tags = P4info.merge info1 info2 in
        let type_decl =
           (Declaration.ExternObject { annotations; name; type_params; methods; tags }) in
-       declare_type name (not (List.is_empty type_params));
+       declare_type name (Declaration.has_type_params type_decl);
        type_decl }
 |  annotations = optAnnotations info1 = EXTERN
      func = functionPrototype pop_scope info2 = SEMICOLON
@@ -681,7 +681,7 @@ externDeclaration:
        let tags = P4info.merge info1 info2 in
        let decl =
           Declaration.ExternFunction { annotations; return; name; type_params; params; tags } in
-       declare_var name (not (List.is_empty type_params));
+       declare_var name (Declaration.has_type_params decl);
        decl }
 ;
 
@@ -866,14 +866,13 @@ typeDeclaration:
 | d = derivedTypeDeclaration
 | d = typedefDeclaration
 | d = packageTypeDeclaration pop_scope SEMICOLON
-  { declare_type (Declaration.name d) false;
-    d }
+  { d }
 | ctd = controlTypeDeclaration pop_scope SEMICOLON
   { let tags, annotations, name, type_params, params = ctd in
-     Declaration.ControlType { annotations; name; type_params; params; tags } }
+    Declaration.ControlType { annotations; name; type_params; params; tags } }
 | ptd = parserTypeDeclaration pop_scope SEMICOLON
   { let tags, annotations, name, type_params, params = ptd in
-     Declaration.ParserType { annotations; name; type_params; params; tags } }
+    Declaration.ParserType { annotations; name; type_params; params; tags } }
 ;
 
 derivedTypeDeclaration:

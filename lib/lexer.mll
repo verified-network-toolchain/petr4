@@ -32,7 +32,7 @@ type lexer_state =
   | SRegular (* Nothing to recall from the previous tokens. *)
   | SRangle of P4info.t
   | SPragma
-  | STemplate of lexer_state
+  | STemplate
     (* We have seen a template *)
   | SIdent of P4string.t * lexer_state
     (* We have seen an identifier: we have just
@@ -400,10 +400,10 @@ let rec lexer (lexbuf:lexbuf) : token =
     | SIdent(id,next) ->
       begin match get_kind id with
       | TypeName true ->
-        lexer_state := STemplate next;
+        lexer_state := STemplate;
         TYPENAME
       | Ident true ->
-        lexer_state := STemplate next;
+        lexer_state := STemplate;
         IDENTIFIER
       | TypeName false ->
         lexer_state := next;
@@ -411,14 +411,6 @@ let rec lexer (lexbuf:lexbuf) : token =
       | Ident false ->
         lexer_state := next;
         IDENTIFIER
-      end
-    | STemplate next -> 
-      lexer_state := next;
-      begin match tokenize lexbuf with
-      | L_ANGLE info ->
-        L_ANGLE_ARGS info
-      | token ->
-        token
       end
     | SRangle info1 -> 
       begin 
@@ -456,6 +448,25 @@ let rec lexer (lexbuf:lexbuf) : token =
         | token ->
           lexer_state := SRegular;
           token
+       end
+    | STemplate ->
+      begin match tokenize lexbuf with
+      | L_ANGLE info ->
+        L_ANGLE_ARGS info
+      | NAME id as token ->
+        lexer_state := SIdent(id, SRegular);
+        token
+      | PRAGMA _ as token ->
+        lexer_state := SPragma;
+        token
+      | PRAGMA_END _ ->
+        lexer lexbuf
+      | R_ANGLE info as token -> 
+        lexer_state := SRangle info;
+        token
+      | token ->
+        lexer_state := SRegular;
+        token
        end
     | SPragma -> 
       begin 

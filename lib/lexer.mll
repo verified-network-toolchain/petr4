@@ -32,6 +32,8 @@ type lexer_state =
   | SRegular (* Nothing to recall from the previous tokens. *)
   | SRangle of P4info.t
   | SPragma
+  | STemplate of lexer_state
+    (* We have seen a template *)
   | SIdent of P4string.t * lexer_state
     (* We have seen an identifier: we have just
      * emitted a [NAME] token. The next token will be
@@ -396,11 +398,28 @@ and singleline_comment = parse
 let rec lexer (lexbuf:lexbuf) : token = 
    match !lexer_state with
     | SIdent(id,next) ->
-      lexer_state := next;
-      if is_typename id then 
-         TYPENAME
-      else 
+      begin match get_kind id with
+      | TypeName true ->
+        lexer_state := STemplate next;
+        TYPENAME
+      | Ident true ->
+        lexer_state := STemplate next;
         IDENTIFIER
+      | TypeName false ->
+        lexer_state := next;
+        TYPENAME
+      | Ident false ->
+        lexer_state := next;
+        IDENTIFIER
+      end
+    | STemplate next -> 
+      lexer_state := next;
+      begin match tokenize lexbuf with
+      | L_ANGLE info ->
+        L_ANGLE_ARGS info
+      | token ->
+        token
+      end
     | SRangle info1 -> 
       begin 
         match tokenize lexbuf with

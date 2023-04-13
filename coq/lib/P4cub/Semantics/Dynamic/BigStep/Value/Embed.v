@@ -101,56 +101,77 @@ Section Embed.
     | (_, h) ::t => h :: make_list_from_assoc_list t
   end.
 
-  Inductive P4Cub_to_P4Light : C_P4Type -> P_P4Type -> Prop := 
-  | TBool : P4Cub_to_P4Light Typ.Bool TypBool      
-  | TBit (width : N) : P4Cub_to_P4Light (Typ.Bit width) (TypBit width)
-  | TInt (width : positive) : P4Cub_to_P4Light (Typ.Int width) (TypInt (Npos width))
-  | TError : P4Cub_to_P4Light Typ.Error TypError   
+  Inductive EmbedType : C_P4Type -> P_P4Type -> Prop := 
+  | TBool : EmbedType Typ.Bool TypBool      
+  | TBit (width : N) : EmbedType (Typ.Bit width) (TypBit width)
+  | TVarBit width : EmbedType (Typ.VarBit width) (TypVarBit width)
+  | TInt (width : positive) : EmbedType (Typ.Int width) (TypInt (Npos width))
+  | TError : EmbedType Typ.Error TypError   
   | TStruct_not_header (types : list Typ.t) (light_types : list P_P4Type) : 
-    Forall2 P4Cub_to_P4Light types light_types -> 
-    P4Cub_to_P4Light
+    Forall2 EmbedType types light_types -> 
+    EmbedType
       (Typ.Struct false types)
       (TypStruct (List.map (prod_map_l emb_string) (make_assoc_list 0 light_types)))
   | TStruct_header (types : list Typ.t) (light_types : list P_P4Type) : 
-    Forall2 P4Cub_to_P4Light types light_types -> 
-    P4Cub_to_P4Light
+    Forall2 EmbedType types light_types -> 
+    EmbedType
       (Typ.Struct true types)
       (TypHeader (List.map (prod_map_l emb_string) (make_assoc_list 0 light_types)))
   | TArray n t t' :
-    P4Cub_to_P4Light t t' ->
-    P4Cub_to_P4Light
+    EmbedType t t' ->
+    EmbedType
       (Typ.Array n t)
       (TypArray t' n)
-  | TVar (type_name : string) :
-    (* if (string_to_int type_name 0 string_list) == None
-       then P4Cub_to_P4Light Typ.Error TypError
-    else  *)
-    P4Cub_to_P4Light
-      (Typ.Var (get_int (string_to_int type_name 0 string_list)))
+  | TVar (type_name : string) index :
+    nth_error string_list index = Some type_name ->
+    EmbedType
+      (Typ.Var index)
       (TypTypeName (emb_string type_name)).
 
-    (* embed *)
-  Fixpoint P4Cub_to_P4Light_fun (c : C_P4Type) : P_P4Type:= 
+  Fixpoint embed_type (c : C_P4Type) : option P_P4Type :=
     match c with
-    | Typ.Bool => TypBool       
-    | Typ.Bit (width) => TypBit width
-    | Typ.Int (width) => TypInt (Npos width)
-    | Typ.VarBit (width) => TypVarBit width
-    | Typ.Error => TypError
+    | Typ.Bool => mret $ TypBool
+    | Typ.Bit width => mret $ TypBit width
+    | Typ.Int width => mret $ TypInt (Npos width)
+    | Typ.VarBit width => mret $ TypVarBit width
+    | Typ.Error => mret $ TypError
     | Typ.Array n t =>
-        TypArray (P4Cub_to_P4Light_fun t) n
-    | Typ.Struct true types =>
-        TypStruct
-          (List.map
-             (prod_map_l emb_string)
-             (make_assoc_list 0 (List.map P4Cub_to_P4Light_fun types)))
-    | Typ.Struct false types =>
-        TypHeader
-          (List.map
-             (prod_map_l emb_string)
-             (make_assoc_list 0 (List.map P4Cub_to_P4Light_fun types)))
-    | Typ.Var (type_name) => TypTypeName (emb_string (nth type_name string_list ""))
+      let^ light_type := embed_type t in
+      TypArray light_type n 
+    | Typ.Struct is_header types =>
+      let^ light_types := map_monad embed_type types in
+      let type := if is_header then TypHeader else TypStruct in
+      type $ List.map (prod_map_l emb_string) $ make_assoc_list 0 light_types
+    | Typ.Var x =>
+      let^ type_name := nth_error string_list x in
+      TypTypeName (emb_string type_name)
     end.
+
+  Lemma embed_type_sound :
+    forall cub_type light_type,
+      embed_type cub_type = Some light_type -> EmbedType cub_type light_type.
+  Proof.
+    induction cub_type using custom_typ_ind; unravel; 
+    try (intros; some_inv; constructor).
+    - intros. match_some_inv. some_inv. constructor. assumption.
+    - intros. match_some_inv. some_inv. constructor. auto.
+    - intros. match_some_inv. some_inv.
+      assert (Forall2 EmbedType ts l).
+      { apply map_monad_some in Heqo. induction Heqo.
+        - constructor.
+        - inv H. constructor; auto. }
+      destruct b; constructor; assumption.
+  Qed.
+
+  Definition embed_types := map_monad embed_type.
+
+  Lemma embed_types_sound :
+    forall cub_types light_types,
+      embed_types cub_types = Some light_types -> Forall2 EmbedType cub_types light_types.
+  Proof.
+    intros. unfold embed_types in *. rewrite map_monad_some in H.
+    induction H; constructor; auto. apply embed_type_sound. assumption.
+  Qed.
 
   (* project *)
   Fixpoint P4Light_to_P4Cub_fun (p : P_P4Type) : result string C_P4Type := 

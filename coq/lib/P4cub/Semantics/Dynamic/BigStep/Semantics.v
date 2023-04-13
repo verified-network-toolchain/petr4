@@ -345,7 +345,7 @@ Inductive stm_big_step
   (** Evaluate arguments. *)
   args_big_step ϵ args vargs ->
   (** Embed type arguments in p4light. *)
-  Forall2 (P4Cub_to_P4Light (dummy_tags:=tt) (string_list:=[])) τs light_typs ->
+  Forall2 (EmbedType (dummy_tags:=tt) (string_list:=[])) τs light_typs ->
   (** Embed in-arguments in p4light. *)
   Forall2
     Embed

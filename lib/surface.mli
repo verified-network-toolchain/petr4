@@ -636,6 +636,8 @@ and Declaration : sig
 
   val name_opt : t -> P4string.t option
 
+  val has_type_params : t -> bool
+
   val tags : 'a pt -> 'a
 
 end

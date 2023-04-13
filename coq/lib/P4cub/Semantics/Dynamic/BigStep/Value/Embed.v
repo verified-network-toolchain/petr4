@@ -12,6 +12,7 @@ Require Import Poulet4.P4cub.Syntax.CubNotations.
 Require Export Arith_base.
 Require Import BinPos BinInt BinNat Pnat Nnat PeanoNat.
 Import Poulet4.P4light.Syntax.Typed.
+Require Import Poulet4.Utils.AListUtil.
 Local Open Scope string_scope.
 
 (** Embeding [p4cub] values in [p4light] values. *)
@@ -52,6 +53,40 @@ Section Embed.
     | [] => []
     | h::t => ((string_of_index index), h) :: make_assoc_list (S index) t
   end.
+
+  Fixpoint keys_valid (index : nat) (keys : list string) : bool :=
+    match keys with
+    | [] => true
+    | k :: keys => (string_of_index index =? k) && keys_valid (S index) keys
+    end.
+
+  Definition values_of_fields {A : Type} (index : nat) (fields : list (string * A)) : option (list A) :=
+    let (keys, values) := List.split fields in
+    guard (keys_valid index keys) ;;
+    mret values.
+
+  Lemma id_fields :
+    forall (A : Type) index (values : list A) fields,
+      values_of_fields index fields = Some values -> make_assoc_list index values = fields.
+  Proof.
+    intros. generalize dependent index. generalize dependent values.
+    induction fields; intros.
+    - cbn in *. some_inv. reflexivity.
+    - unravel in *. destruct a. unfold values_of_fields in *. unravel in *.
+      destruct (split fields). destruct (keys_valid index (s :: l)) eqn:Evalid; try discriminate.
+      cbn in *. apply andb_prop in Evalid as [? ?]. rewrite String.eqb_eq in H0.
+      subst. some_inv. cbn. f_equal. auto.
+      apply IHfields. rewrite H1. reflexivity.
+  Qed.
+
+  Lemma values_of_fields_map_snd :
+    forall (A : Type) index (values : list A) fields,
+      values_of_fields index fields = Some values -> values = map snd fields.
+  Proof.
+    unfold values_of_fields. intros.
+    unravel in *. rewrite split_map in H.
+    match_some_inv. some_inv. reflexivity.
+  Qed.
 
   Lemma map_snd_make_assoc_list_idem : forall (A : Type) (l : list A) i,
       map snd (make_assoc_list i l) = l.
@@ -196,6 +231,114 @@ Section Embed.
         ValBaseStack (List.map embed vs) 0%N
     | Val.Error v  => ValBaseError v
     end.
+
+  Fixpoint project (v : VAL) : option Val.t :=
+    let project_field_values fields :=
+      let* fields' := map_monad_values project fields in
+      values_of_fields O fields'
+    in
+    match v with
+    | ValBaseBool b => mret $ Val.Bool b
+    | ValBaseBit bits => mret $ uncurry Val.Bit $ BitArith.from_lbool bits
+    | ValBaseInt bits =>
+      let (w, n) := BitArith.from_lbool bits in
+      match w with
+      | Npos w => mret $ Val.Int w n
+      | N0 => None (* Fail on zero width *)
+      end
+    | ValBaseVarbit m bits => mret $ uncurry (Val.VarBit m) $ BitArith.from_lbool bits
+    | ValBaseHeader fields b =>
+      let^ field_values := project_field_values fields in
+      Val.Lists (Lst.Header b) field_values
+    | ValBaseStruct fields =>
+      let^ field_values := project_field_values fields in
+      Val.Lists Lst.Struct field_values
+    | ValBaseStack entries 0%N =>
+      let* entries' := map_monad project entries in
+      let^ type := typ_of_val <$> hd_error entries' in
+      Val.Lists (Lst.Array type) entries'
+    | ValBaseError err => mret $ Val.Error err
+    | _ => None
+    end.
+
+  Section ProjectFieldsSound.
+
+    Definition project_field_values fields :=
+      let* fields' := map_monad_values project fields in
+      values_of_fields O fields'.
+
+    Variable fields : list (string * VAL).
+
+    Hypothesis IH : Forall (fun '(_, v) => forall v', project v = Some v' -> Embed v' v) fields.
+    
+    Lemma project_fields_sound :
+      forall vs, map_monad_values project fields = Some vs -> Forall2 Embed (map snd vs) (map snd fields).
+    Proof.
+      intros. rewrite sublist.Forall2_map. unfold map_monad_values in *.
+      unravel in *. apply map_monad_some in H.
+      generalize dependent vs. induction fields; intros.
+      - inv IH. inv H. constructor.
+      - inv IH. inv H. destruct a. match_some_inv. some_inv. auto.
+    Qed.
+
+    Lemma project_field_values_sound vs :
+        project_field_values fields = Some vs ->
+          Forall2 Embed vs (map snd fields) /\ make_assoc_list O (map snd fields) = fields.
+    Proof.
+      cbn. unravel. intros. match_some_inv. split.
+      - apply project_fields_sound in Heqo. apply id_fields in H. subst.
+        rewrite map_snd_make_assoc_list_idem in Heqo. assumption.
+      - unfold values_of_fields in *. destruct (split a) eqn:Esplit.
+        rewrite split_map in Esplit. inv Esplit.
+        destruct (keys_valid 0 (map fst a)) eqn:Evalid; try discriminate.
+        cbn in *. some_inv. apply map_monad_values_keys in Heqo.
+        assert (values_of_fields O fields = Some (map snd fields)).
+        { unfold values_of_fields. rewrite split_map. cbn. unravel.
+          rewrite Heqo. rewrite Evalid. reflexivity. }
+        apply id_fields. assumption.
+    Qed.
+
+  End ProjectFieldsSound.
+
+  Lemma project_sound v v' : project v = Some v' -> Embed v' v.
+  Proof.
+    intros. generalize dependent v'.
+    induction v using custom_ValueBase_ind; try discriminate; unravel in *; intros.
+    - some_inv. constructor.
+    - some_inv.
+      replace (ValBaseBit n) with (ValBaseBit (uncurry to_lbool (BitArith.from_lbool n)))
+        by (f_equal; apply bit_to_from_bool).
+      unravel. constructor.
+    - destruct (Z.to_N (Zcomplements.Zlength z)) eqn:E; try discriminate. some_inv. 
+      replace (ValBaseInt z) with (ValBaseInt (uncurry to_lbool (BitArith.from_lbool z)))
+        by (f_equal; apply bit_to_from_bool).
+      unravel. rewrite E. constructor.
+    - some_inv.
+      replace (ValBaseVarbit w n) with (ValBaseVarbit w (uncurry to_lbool (BitArith.from_lbool n)))
+        by (f_equal; apply bit_to_from_bool).
+      unravel. constructor.
+    - some_inv. constructor.
+    - match_some_inv.
+      apply project_field_values_sound in Heqo as [Hembed Hassoc]; auto. some_inv.
+      rewrite <- Hassoc. constructor. assumption.
+    - match_some_inv.
+      apply project_field_values_sound in Heqo as [Hembed Hassoc]; auto. some_inv.
+      rewrite <- Hassoc. constructor. assumption.
+    - destruct i; try discriminate. repeat match_some_inv. repeat some_inv.
+      clear Heqo1. constructor. rewrite map_monad_some in Heqo. induction Heqo.
+      + constructor.
+      + inv H. constructor; auto.
+  Qed.
+
+  Definition project_values := map_monad project.
+
+  Definition project_values_sound :
+    forall vs vs',
+      project_values vs = Some vs' -> Forall2 Embed vs' vs.
+  Proof.
+    intros. unfold project_values in *. rewrite map_monad_some in H.
+    induction H; constructor; auto. apply project_sound. assumption.
+  Qed.
   
   Inductive embed_exp : Exp.t -> EXP -> Prop :=
   | embed_MkExpression e e' i t d :

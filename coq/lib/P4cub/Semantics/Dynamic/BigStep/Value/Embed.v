@@ -128,6 +128,16 @@ Section Embed.
       destruct b; constructor; assumption.
   Qed.
 
+  Definition embed_types := map_monad embed_type.
+
+  Lemma embed_types_sound :
+    forall cub_types light_types,
+      embed_types cub_types = Some light_types -> Forall2 EmbedType cub_types light_types.
+  Proof.
+    intros. unfold embed_types in *. rewrite map_monad_some in H.
+    induction H; constructor; auto. apply embed_type_sound. assumption.
+  Qed.
+
   (* project *)
   Fixpoint P4Light_to_P4Cub_fun (p : P_P4Type) : result string C_P4Type := 
     match p with

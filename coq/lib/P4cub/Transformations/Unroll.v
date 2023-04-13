@@ -2,20 +2,20 @@ Require Import Coq.Strings.String
         Coq.Init.Nat Coq.Lists.List.
 Require Import Poulet4.P4cub.Syntax.AST
         Poulet4.P4cub.Syntax.CubNotations.
-Import ListNotations AllCubNotations.
+Import ListNotations.
 
 Open Scope list_scope.
 Open Scope string_scope.
 Open Scope nat_scope.
 
 Section Unroll.
-  Notation tpdecl := TopDecl.d.
+  Notation tpdecl := Top.t.
 
   Definition CFG : Type :=
-    list Stmt.s
+    list Stm.t
     * list (string * (list string)).
 
-  Definition cfg_states (cfg : CFG) : list Stmt.s :=
+  Definition cfg_states (cfg : CFG) : list Stm.t :=
     fst cfg.
 
   Definition cfg_edges (cfg : CFG) : list (string * list string) :=
@@ -37,12 +37,12 @@ Section Unroll.
     snd (snd loop).
 
   (* TODO: implement CFG construction *)
-  Definition to_cfg (states : list Stmt.s) : CFG :=
+  Definition to_cfg (states : list Stm.t) : CFG :=
     (states, []).
 
   (* TODO *)
-  Definition ParserWF (states : list Stmt.s) : Prop :=
-    forall (st : Stmt.s),
+  Definition ParserWF (states : list Stm.t) : Prop :=
+    forall (st : Stm.t),
       In st states ->
       False.
 
@@ -50,7 +50,7 @@ Section Unroll.
   Theorem ToCFGCorrect : False.
   Admitted.
 
-  Definition of_cfg (cfg : CFG) : list Stmt.s :=
+  Definition of_cfg (cfg : CFG) : list Stm.t :=
     (cfg_states cfg).
 
   Definition pred_cond_from_cfg
@@ -108,8 +108,8 @@ Section Unroll.
   (* NOTE: punting on reducibility; for now, assume everything is reducible and later investigate
      irreducible -> reducible transformation. This also means that we dont need SCC checking anymore.*)
   Definition unroll_parser
-             (unrolls : nat) (sts : list Stmt.s)
-    : list Stmt.s :=
+             (unrolls : nat) (sts : list Stm.t)
+    : list Stm.t :=
     let cfg := to_cfg sts in
     let doms := get_dom_map cfg in
     let loops := get_sccs cfg in
@@ -128,13 +128,13 @@ Section Unroll.
     let (cfg, _) := List.fold_left unroll_loop idxs (cfg, loops) in
     of_cfg cfg.
 
-  Definition unroll_program (unrolls : nat) (prog : TopDecl.prog) : TopDecl.prog :=
+  Definition unroll_program (unrolls : nat) (prog : Top.prog) : Top.prog :=
     List.map
       (fun d =>
          match d with
-         | TopDecl.Parser
+         | Top.Parser
              p cparams expr_cparams eparams params start_state sts =>
-             TopDecl.Parser
+             Top.Parser
                p cparams expr_cparams eparams params start_state
                $ unroll_parser unrolls sts
          | _ => d

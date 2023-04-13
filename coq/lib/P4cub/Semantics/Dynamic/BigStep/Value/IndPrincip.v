@@ -1,13 +1,13 @@
 From Poulet4 Require Import
      P4cub.Semantics.Dynamic.BigStep.Value.Syntax
      P4cub.Syntax.CubNotations.
-Import Val ValueNotations.
 
 (** A custom induction principle for value. *)
 Section ValueInduction.
-  Local Open Scope value_scope.
+  Import Val.
+  Local Open Scope val_scope.
   
-  Variable P : v -> Prop.
+  Variable P : t -> Prop.
   
   Hypothesis HVBool : forall b, P (Bool b).
   
@@ -22,19 +22,18 @@ Section ValueInduction.
   
   Hypothesis HVError : forall err, P (Error err).
   
-  Definition custom_v_ind : forall v' : v, P v' :=
-    fix custom_v_ind (val : v) : P val :=
-      let fix lind (vs : list v) : Forall P vs :=
-          match vs with
-          | [] => Forall_nil _
-          | hv :: vs => Forall_cons _ (custom_v_ind hv) (lind vs)
-          end in
+  Definition custom_val_ind : forall v' : Val.t, P v' :=
+    fix custom_val_ind (val : Val.t) : P val :=
       match val with
       | Bool b      => HVBool b
       | w VS n      => HVInt w n
       | w VW n      => HVBit w n
       | VarBit m w n  => HVVarBit m w n
-      | Lists ls vs => HVLists ls vs (lind vs)
       | Error err   => HVError err
+      | Lists ls vs
+        => HVLists ls vs
+            $ list_ind
+            (Forall P) (Forall_nil _)
+            (fun v _ => Forall_cons _ (custom_val_ind v)) vs
       end.
 End ValueInduction.

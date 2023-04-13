@@ -3,21 +3,20 @@ Require Import Coq.NArith.BinNat Coq.ZArith.BinInt
         Poulet4.P4cub.Semantics.Climate Poulet4.Utils.P4Arith
         Poulet4.P4cub.Semantics.Dynamic.BigStep.ExprUtil
         Poulet4.P4light.Semantics.Ops Poulet4.Utils.ForallMap.
-Import Val.ValueNotations Val.LValueNotations.
 
-Local Open Scope value_scope.
-Local Open Scope lvalue_scope.
+Local Open Scope val_scope.
+Local Open Scope lval_scope.
   
 
 (** Environments for
-    evaluation are De Bruijn lists of values [Val.v].
-    Lookup is done via l-values [Val.lv]. *)
+    evaluation are De Bruijn lists of vals [Val.v].
+    Lookup is done via l-vals [Val.lv]. *)
 
-(** Lookup an lvalue. *)
-Fixpoint lv_lookup (ϵ : list Val.v) (lv : Val.lv) : option Val.v :=
+(** Lookup an lval. *)
+Fixpoint lv_lookup (ϵ : list Val.t) (lv : Lval.t) : option Val.t :=
   match lv with
-  | Val.Var x => nth_error ϵ x
-  | Val.Slice hi lo lv =>
+  | Lval.Var x => nth_error ϵ x
+  | Lval.Slice hi lo lv =>
       let* v := lv_lookup ϵ lv in
       match v with
       | w VW n =>
@@ -38,7 +37,7 @@ Fixpoint lv_lookup (ϵ : list Val.v) (lv : Val.lv) : option Val.v :=
       | Val.Lists _ vs => nth_error vs x
       | _ => None
       end
-  | Val.Index n lv =>
+  | Lval.Index n lv =>
       let* v := lv_lookup ϵ lv in
       match v with
       | Val.Lists _ vs => nth_error vs $ N.to_nat n
@@ -46,13 +45,13 @@ Fixpoint lv_lookup (ϵ : list Val.v) (lv : Val.lv) : option Val.v :=
       end
   end.
 
-(** Updating an lvalue in an environment. *)
+(** Updating an lval in an environment. *)
 Fixpoint lv_update
-         (lv : Val.lv) (v : Val.v)
-         (ϵ : list Val.v) : list Val.v :=
+         (lv : Lval.t) (v : Val.t)
+         (ϵ : list Val.t) : list Val.t :=
   match lv with
-  | Val.Var x => nth_update x v ϵ
-  | Val.Slice hi lo lv =>
+  | Lval.Var x => nth_update x v ϵ
+  | Lval.Slice hi lo lv =>
       match v, lv_lookup ϵ lv with
       | wz VW z, Some (wn VW n) =>
           let bits := to_lbool wn n in
@@ -73,7 +72,7 @@ Fixpoint lv_update
       => lv_update lv (Val.Lists ls $ nth_update x v vs) ϵ
     | _ => ϵ
     end
-  | Val.Index n lv =>
+  | Lval.Index n lv =>
       match lv_lookup ϵ lv with
       | Some
           (Val.Lists ls vs)
@@ -84,11 +83,11 @@ Fixpoint lv_update
 
 (** Create a new environment
     from a closure environment where
-    values of args are substituted
+    vals of args are substituted
     into the function parameters. *)
 Definition copy_in
-           (argsv : Val.argsv)
-           (ϵcall : list Val.v) : option (list Val.v) :=
+           (argsv : Argsv)
+           (ϵcall : list Val.t) : option (list Val.t) :=
   argsv
     ▷ map (fun arg =>
              match arg with
@@ -102,7 +101,7 @@ Definition copy_in
     out variables from function call evaluation. *)
 
 Definition copy_out_argv
-  (n : nat) (argv : Val.argv) (ϵ_func : list Val.v) (ϵ_call : list Val.v) : list Val.v :=
+  (n : nat) (argv : Argv) (ϵ_func : list Val.t) (ϵ_call : list Val.t) : list Val.t :=
   match argv with
   | PAIn _ => ϵ_call
   | PAOut lv
@@ -114,16 +113,16 @@ Definition copy_out_argv
   end.
 
 Fixpoint copy_out
-  (n : nat) (argsv : Val.argsv)
-  (ϵ_func : list Val.v) (ϵ_call : list Val.v) : list Val.v :=
+  (n : nat) (argsv : Argsv)
+  (ϵ_func : list Val.t) (ϵ_call : list Val.t) : list Val.t :=
   match argsv with
   | [] => ϵ_call
   | argv :: argsv => copy_out (S n) argsv ϵ_func (copy_out_argv n argv ϵ_func ϵ_call)
   end.
 
 Section Properties.
-  Local Hint Constructors type_value : core.
-  Local Hint Constructors Static.Util.type_lists_ok : core.
+  Local Hint Constructors type_val : core.
+  Local Hint Constructors Static.Util.type_lst_ok : core.
   
   Lemma lv_update_length : forall lv v ϵ,
       length (lv_update lv v ϵ) = length ϵ.
@@ -133,11 +132,11 @@ Section Properties.
     - rewrite nth_update_length; reflexivity.
     - destruct v; auto;
         destruct (lv_lookup eps lv) eqn:hlook; auto;
-        destruct v; auto.
+        destruct t; auto.
     - destruct (lv_lookup eps lv) eqn:hlook; auto.
-      destruct v0; auto.
+      destruct t; auto.
     - destruct (lv_lookup eps lv) eqn:hlook; auto.
-      destruct v0; auto.
+      destruct t; auto.
   Qed.
 
   Local Hint Rewrite lv_update_length : core.
@@ -175,8 +174,8 @@ Section Properties.
   Local Hint Rewrite plus_n_O : core.
   
   Lemma lv_lookup_types : forall lv τ v Γ ϵ,
-      Forall2 type_value ϵ Γ ->
-      Γ ⊢ₗ lv ∈ τ ->
+      Forall2 type_val ϵ Γ ->
+      Γ ⊢l lv ∈ τ ->
       lv_lookup ϵ lv = Some v ->
       ⊢ᵥ v ∈ τ.
   Proof.
@@ -229,8 +228,8 @@ Section Properties.
   Arguments N.sub : simpl never.
   
   Lemma lv_update_correct : forall lv v v' ϵ τ Γ,
-      Forall2 type_value ϵ Γ ->
-      Γ ⊢ₗ lv ∈ τ ->
+      Forall2 type_val ϵ Γ ->
+      Γ ⊢l lv ∈ τ ->
       ⊢ᵥ v ∈ τ ->
       ⊢ᵥ v' ∈ τ ->
       lv_lookup ϵ lv = Some v' ->
@@ -248,7 +247,7 @@ Section Properties.
         cbn in *; try discriminate.
       inv hv; inv hv';
         try match goal with
-          | h: Util.type_lists_ok _ _ _ |- _ => inv h
+          | h: Util.type_lst_ok _ _ _ |- _ => inv h
           end.
       assert (⊢ᵥ V ∈ τ) as hVt by eauto.
       destruct V as [ | q z | q z | q z | |]; unravel in *; try discriminate; some_inv;
@@ -275,5 +274,5 @@ Section Properties.
   Admitted.
 End Properties.
 
-Local Close Scope value_scope.
-Local Close Scope lvalue_scope.
+Local Close Scope val_scope.
+Local Close Scope lval_scope.

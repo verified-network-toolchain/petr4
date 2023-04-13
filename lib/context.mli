@@ -13,11 +13,21 @@
  * under the License. 
  *)
 
+type has_params = bool
+[@@deriving sexp]
+
+type ident_kind =
+  | TypeName of has_params
+  | Ident of has_params
+[@@deriving sexp]
+
 type t [@@deriving sexp]
 
 val reset : unit -> unit
-val declare_var : P4string.t -> unit
-val declare_type : P4string.t -> unit
+val declare_var : P4string.t -> has_params -> unit
+val declare_type : P4string.t -> has_params -> unit
+val mark_template : P4string.t -> unit
+val get_kind : P4string.t -> ident_kind
 val is_typename : P4string.t -> bool
 val go_toplevel : unit -> unit
 val go_local : unit -> unit                

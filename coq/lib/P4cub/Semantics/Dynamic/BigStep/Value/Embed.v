@@ -1,4 +1,3 @@
-Require Import Poulet4.P4cub.Syntax.CubNotations.
 Require Export Coq.Strings.String
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Syntax
         Poulet4.P4light.Syntax.Value
@@ -9,11 +8,11 @@ Require Export Coq.Strings.String
         Poulet4.Utils.Utils Poulet4.Utils.P4Arith
         Poulet4.Monads.Monad.
 Require Poulet4.P4light.Syntax.P4String.
+Require Import Poulet4.P4cub.Syntax.CubNotations.
 Require Export Arith_base.
 Require Import BinPos BinInt BinNat Pnat Nnat PeanoNat.
 Import Poulet4.P4light.Syntax.Typed.
 Local Open Scope string_scope.
-Require Import Poulet4.Monads.Monad.
 
 (** Embeding [p4cub] values in [p4light] values. *)
 Section Embed.

@@ -140,17 +140,17 @@ Section Checker.
         then ok typ
         else error (Exn.Other "array index not numeric")
                        (*the following block has a weird error. ask Ryan.*)
-    (* | TypTuple tags types *)
-    (*   => if is_integer type_index *)
-    (*     then let* i := from_opt (compile_time_eval env index) *)
-    (*                             (Exn.Other "failure in compile_time_eval")in *)
-    (*          let* idx := from_opt (array_access_idx_to_z i) *)
-    (*                               (Exn.Other "failure in array_access_idx_to_z")in *)
-    (*          if andb (Nat.leb 1 (N.to_nat idx)) *)
-    (*                  (Nat.leb (N.to_nat idx) (List.length types)) *)
-    (*          then ok (Znth_default (TypVoid tags) (idx) types) *)
-    (*          else error (Exn.Other "array access index out of bound") *)
-    (*     else error (Exn.Other "array access index not integer") *)
+    | TypTuple tags types
+      => if is_integer type_index
+        then let* i := from_opt (compile_time_eval env index)
+                                (Exn.Other "failure in compile_time_eval")in
+             let* idx := from_opt (array_access_idx_to_z i)
+                                  (Exn.Other "failure in array_access_idx_to_z")in
+             if andb (Nat.leb 1 (N.to_nat idx))
+                     (Nat.leb (N.to_nat idx) (List.length types))
+             then ok (Znth_default (TypVoid tags) (idx) types)
+             else error (Exn.Other "array access index out of bound")
+        else error (Exn.Other "array access index not integer")
     | _ => error (Exn.Other "array access type incorrect")
     end.
 

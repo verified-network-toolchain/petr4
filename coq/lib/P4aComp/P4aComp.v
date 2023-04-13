@@ -120,50 +120,6 @@ Definition mk_hdr_type (hdrs: Field.fs nat nat) : Type := Fin.t (List.length hdr
 (* Create Fin type states *)
 (* + 3 at the end for Start, Accept, Reject respectively *)
 Definition mk_st_type (states: Field.fs nat Stm.t) : Type := Fin.t (List.length states).
-  Print findi.
-  Print fold_lefti.
-  Search findi.
-  Lemma findi_length_bound_inner :
-    forall {A} (l: list A) (pred: A -> bool) (j k : nat) (r: option nat) (i : nat),
-    fold_left
-        (fun '(n, b) (a : A) =>
-          (S n,
-          match b with
-        | Some _ => b
-        | None => if pred a then Some n else None
-        end)) l (j, r) = (k, Some i) ->
-        (forall r', r = Some r' -> r' < j) ->
-        i < Datatypes.length l + j.
-    Proof.
-      induction l; intros.
-      - simpl in *.
-        inversion H; subst.
-        specialize (H0 i eq_refl).
-        congruence.
-      - cbn in *.
-        destruct (pred a).
-        + Admitted. 
-
-
-Lemma findi_length_bound :
-  forall {A: Type} pred (l: list A) i,
-    findi pred l = Some i ->
-    i < Datatypes.length l.
-Proof.
-  (* unfold findi.
-  unfold fold_lefti.
-  intros until 0.
-  revert i.
-  generalize (0, @None nat).
-  Print findi.
-  unfold findi.
-
-   induction l. 
-  - intros. cbv in *. congruence.
-  - intros. unfold findi in H. unfold fold_lefti in H. cbn in H.
-  destruct (pred a).
-    + unfold findi in IHl. unfold fold_lefti in IHl. apply IHl in H. cbn in *.    *)
-Admitted.
 
 (* Get Fin type headers from list of headers and header name*)
 Definition inject_name (hdrs: list (nat * nat)) (hdr: nat) : option (mk_hdr_type hdrs).
@@ -175,7 +131,7 @@ Proof.
       congruence.
     + unfold mk_hdr_type.
       apply @Fin.of_nat_lt with (p := n).
-      eapply findi_length_bound.
+      eapply findi_bound.
       apply Heqo.
   - exact None.
 Defined.
@@ -216,7 +172,7 @@ Proof.
     + unfold mk_hdr_type.
       apply @Fin.of_nat_lt with (p := n).
       (* apply test. *)
-      eapply findi_length_bound.
+      eapply findi_bound.
       apply Heqo.
   - exact None.
 Defined.

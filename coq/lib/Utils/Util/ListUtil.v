@@ -313,16 +313,6 @@ Section FoldLefti.
         P*)
 End FoldLefti.
 
-Definition findi { A : Type } (select : A -> bool) (l : list A) : option nat :=
-  fold_lefti (fun i a found_at_n =>
-                match found_at_n with
-                | Some _ => found_at_n
-                | None => if select a
-                          then Some i
-                          else None
-                end
-             ) None l.
-
 Definition union_map_snd {Err A B C : Type} (f : B -> result Err C) (xs : list (A * B)) : result Err (list (A * C)) :=
   rred (List.map (snd_res_map f) xs).
 
@@ -387,8 +377,51 @@ Section Mapi.
     end.
 
   Definition mapi : list A -> list B := mapi_help 0.
+
 End Mapi.
 
+Section Findi.
+  Context {A: Type} (select: A -> bool).
+  Definition findi (l : list A) : option nat :=
+    option_map fst
+               (find (fun '(i, elem) => select elem)
+                     (mapi (fun i elem => (i, elem)) l)).
+
+  Lemma mapi_body_bound:
+    forall (l: list A) j k elem,
+      In (j, elem) (mapi_help (fun i elem => (i, elem)) k l) ->
+      j < List.length l + k.
+  Proof.
+    induction l.
+    - simpl in *.
+      tauto.
+    - simpl in *.
+      intros.
+      destruct H.
+      + inversion H; subst.
+        lia.
+      + eapply IHl in H.
+        lia.
+  Qed.
+  
+  Lemma findi_bound:
+    forall l i,
+      findi l = Some i ->
+      i < List.length l.
+  Proof.
+    unfold findi.
+    unfold option_map; intros.
+    match_some_inv.
+    eapply find_some in Heqo.
+    destruct Heqo.
+    destruct p; simpl in *.
+    inversion H; subst.
+    eapply mapi_body_bound in H0.
+    lia.
+  Qed.
+
+End Findi.
+            
 Lemma skipn_length_minus : forall {A : Type} {l : list A} {n : nat},
     n <= List.length l ->
     List.length (skipn (List.length l - n) l) = n.

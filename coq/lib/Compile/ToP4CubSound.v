@@ -2,8 +2,6 @@ Require Import Poulet4.Compile.ToP4cub.
 Require Import Poulet4.P4cub.ExportAll.
 Require Import Poulet4.P4light.Semantics.ExportAll.
 
-Check translate_expression.
-
 Section ToP4CubSound.
   Variable (tags_t: Type).
   Context {t: @Target tags_t (@Expression tags_t)}.
@@ -14,19 +12,19 @@ Section ToP4CubSound.
 
   Definition val_rel
              (light_val: @ValueBase (option bool))
-             (cub_val: Val.v) : Prop :=
+             (cub_val: Val.t) : Prop :=
     exists light_val_det,
       exec_val read_one_bit light_val light_val_det /\
       Embed cub_val light_val_det.
 
-  Definition env_rel (light_env: state) (cub_env: list Val.v) : Prop :=
+  Definition env_rel (light_env: state) (cub_env: list Val.t) : Prop :=
     False.
 
   Lemma translate_expression_sound :
-    forall typ_names term_names (light_expr: Expression) (cub_expr: E.e),
+    forall typ_names term_names (light_expr: Expression) (cub_expr: E.t),
       translate_expression tags_t typ_names term_names light_expr = Result.Ok cub_expr ->
       forall cub_env cub_val,
-        expr_big_step cub_env cub_expr cub_val ->
+        exp_big_step cub_env cub_expr cub_val ->
         forall ge this (light_env: state),
           env_rel light_env cub_env ->
           exists light_val,

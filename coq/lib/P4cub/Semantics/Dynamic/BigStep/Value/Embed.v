@@ -328,7 +328,17 @@ Section Embed.
       clear Heqo1. constructor. rewrite map_monad_some in Heqo. induction Heqo.
       + constructor.
       + inv H. constructor; auto.
-    Qed.
+  Qed.
+
+  Definition project_values := map_monad project.
+
+  Definition project_values_sound :
+    forall vs vs',
+      project_values vs = Some vs' -> Forall2 Embed vs' vs.
+  Proof.
+    intros. unfold project_values in *. rewrite map_monad_some in H.
+    induction H; constructor; auto. apply project_sound. assumption.
+  Qed.
   
   Inductive embed_exp : Exp.t -> EXP -> Prop :=
   | embed_MkExpression e e' i t d :

@@ -123,7 +123,7 @@ Variant signal : Set :=
 Variant Embed_signal : signal -> Value.signal -> Prop :=
 | embed_cont : Embed_signal Cont Value.SContinue
 | embed_exit : Embed_signal Exit Value.SExit
-| embed_rjct : Embed_signal Rjct (Value.SReject "")
+| embed_rjct x : Embed_signal Rjct (Value.SReject x)
 | embed_acpt : Embed_signal Acpt Value.SContinue (* TODO: look at tofino, maybe return here *)
 | embed_rtrn_none : Embed_signal (Rtrn None) Value.SReturnNull
 | embed_rtrn_some v v' :

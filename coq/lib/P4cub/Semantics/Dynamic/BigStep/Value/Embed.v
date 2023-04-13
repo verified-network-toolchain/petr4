@@ -361,7 +361,7 @@ Section Embed.
     induction H; constructor; auto. apply project_sound. assumption.
   Qed.
   
-  Definition embed_list := List.map embed.
+  Definition embed_values := List.map embed.
   
   Inductive embed_exp : Exp.t -> EXP -> Prop :=
   | embed_MkExpression e e' i t d :
@@ -691,7 +691,7 @@ Section Embed.
     destruct ls; eauto.
   Qed.
 
-  Lemma embed_list_sound vs : Forall2 Embed vs (List.map embed vs).
+  Lemma embed_values_sound vs : Forall2 Embed vs (List.map embed vs).
   Proof.
     apply Forall_map_Forall2. induction vs; constructor.
     - apply embed_Embed.

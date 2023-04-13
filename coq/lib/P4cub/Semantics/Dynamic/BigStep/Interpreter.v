@@ -10,6 +10,7 @@ From Poulet4 Require Import
   P4cub.Semantics.Dynamic.BigStep.Value.Value
   P4cub.Semantics.Dynamic.BigStep.Value.Embed
   P4cub.Semantics.Dynamic.BigStep.Semantics
+  P4light.Syntax.Syntax
   P4light.Architecture.Target
   Utils.Util.ListUtil.
 
@@ -536,6 +537,75 @@ Section Stm.
     - destruct def; try discriminate. destruct p. inv H. constructor.
   Qed.
 
+  Fixpoint write_out_values {A B C : Set} (args : list (paramarg A B)) (values : list C) : option (list (paramarg A C)) :=
+    match args, values with
+    | [], [] => Some []
+    | PAIn v as arg :: args, _ =>
+      let^ args' := write_out_values args values in
+      PAIn v :: args'
+    | PAInOut _ :: args, v :: values =>
+      let^ args' := write_out_values args values in
+      PAInOut v :: args'
+    | PAOut _ :: args, v :: values =>
+      let^ args' := write_out_values args values in
+      PAOut v :: args'
+    | _, _ => None
+    end.
+
+    Lemma write_out_values_sound :
+      forall 
+        A B C (args : list (paramarg A B)) (args' : list (paramarg A C)) values,
+          write_out_values args values = Some args' ->
+          values =
+            List.flat_map
+            (fun v => match v with PAOut v | PAInOut v => [v] | _ => [] end)
+            args'.
+    Proof.
+      induction args; intros.
+      - cbn in *. destruct values; try discriminate. some_inv. reflexivity.
+      - destruct a; cbn in *; unravel in *.
+        + match_some_inv. some_inv. cbn. auto.
+        + destruct values; try discriminate.
+          match_some_inv. some_inv. cbn. f_equal. auto.
+        + destruct values; try discriminate.
+          match_some_inv. some_inv. cbn. f_equal. auto.
+    Qed.
+
+    Lemma write_out_values_invariant :
+      forall 
+        A B C (args : list (paramarg A B)) (args' : list (paramarg A C)) values,
+          write_out_values args values = Some args' ->
+            Forall2 (rel_paramarg eq (fun _ _ => True)) args args'.
+    Proof.
+      induction args; intros; cbn in *; unravel in *.
+      - cbn in *. destruct values; try discriminate. some_inv. constructor.
+      - destruct a.
+        + match_some_inv. some_inv. repeat constructor. eauto.
+        + destruct values; try discriminate. match_some_inv. some_inv.
+          repeat constructor. eauto.
+        + destruct values; try discriminate. match_some_inv. some_inv.
+          repeat constructor. eauto.
+    Qed.
+
+  Definition project_signal (sig : Value.signal) : option signal :=
+    match sig with
+    | Value.SContinue => mret Cont
+    | Value.SExit => mret Exit
+    | Value.SReject _ => mret Rjct
+    | Value.SReturn ValBaseNull => mret $ Rtrn None
+    | Value.SReturn v' =>
+      let^ v := project v' in
+      Rtrn (Some v)
+    end.
+
+  Lemma project_signal_sound sig sig' :
+    project_signal sig = Some sig' -> Embed_signal sig' sig.
+  Proof.
+    intros. destruct sig; try (cbn in *; some_inv; constructor).
+    unravel in *. destruct v; try (some_inv; constructor);
+    (match_some_inv; some_inv; constructor; apply project_sound; auto).
+  Qed.
+
   Fixpoint interpret_stmt (fuel : Fuel) (Ψ : stm_eval_env ext_sem) (ϵ : list Val.t) (c : ctx) (s : Stm.t) : option (list Val.t * signal * extern_state) :=
     match fuel with
     | MoreFuel fuel =>
@@ -587,15 +657,27 @@ Section Stm.
         | Exit | Rtrn _ | Rjct => mret (ϵ', sig, ψ)
         | Acpt => None
         end
+      | Stm.App (Call.Method ext meth τs eo) args, _ =>
+        let* olv := interpret_relop (interpret_lexp ϵ) eo in
+        let* vargs := interpret_args ϵ args in
+        let* light_typs := embed_types (dummy_tags:=tt) (string_list:=[]) τs in
+        let in_args := List.flat_map (fun v => match v with PAIn v => [v] | _ => [] end) vargs in
+        let light_in_vals := embed_values in_args in
+        let* (ψ, light_out_vals, light_sig) :=
+          to_opt $ interp_extern (extrn_env Ψ) (extrn_state Ψ) ext meth [] light_typs light_in_vals
+        in
+        let* cub_values := project_values light_out_vals in
+        let* vargs' := write_out_values vargs =<< project_values light_in_vals in
+        let^ sig := project_signal light_sig in
+        ( lv_update_signal olv sig (copy_out_from_args vargs vargs' ϵ), sig, ψ )
       | Stm.Invoke eo t, CApplyBlock tbls acts insts =>
-        (* TODO: fix after semantics fixed *)
         let* (n, key, actions, def) := tbls t in
         let* lvo := interpret_relop (interpret_lexp ϵ) eo in
         guard (n <=? List.length ϵ) ;;
         let* (ϵ₁, ϵ₂) := split_at (List.length ϵ - n) ϵ in
         let* vs := interpret_exps ϵ₂ $ map fst key in
         let* (pats, arefs) := interpret_table_entries $ extern_get_entries Ψ.(extrn_state) [] in
-        let light_vals := embed_list vs in
+        let light_vals := embed_values vs in
         let* light_sets := embed_pats pats in
         let aref := extern_match (combine light_vals (map snd key)) (combine light_sets arefs) in
         let* (hit, a, ctrl_args) := interpret_table_action def aref in
@@ -679,6 +761,7 @@ Section Stm.
         apply interpret_exps_sound in Heqo1.
         apply interpret_args_sound in Heqo2.
         apply IHfuel in Heqo4. econstructor; eauto.
+      + admit.
       + destruct c; try discriminate.
         * match_some_inv. destruct i; try discriminate.
           match_some_inv as Eargs. apply interpret_args_sound in Eargs.
@@ -711,7 +794,7 @@ Section Stm.
       eapply IHfuel in Hstmt.
       econstructor; eauto.
       + eapply interpret_relop_sound; eauto. apply interpret_lexp_sound.
-      + apply embed_list_sound.
+      + apply embed_values_sound.
       + apply embed_pats_sound. assumption.
     - unfold option_bind in *.
       destruct (initialized_value ϵ init) eqn:E; try discriminate.
@@ -729,8 +812,8 @@ Section Stm.
     - unfold option_bind in *.
       destruct (interpret_exp ϵ guard) eqn:?; try discriminate.
       apply interpret_exp_sound in Heqo.
-      destruct t; try discriminate. cbn in *. unfold "$" in *.
+      destruct t; try discriminate. cbn in *. unravel in *.
       apply IHfuel in H. econstructor; eauto.
-  Qed.
+  Admitted.
 
 End Stm.

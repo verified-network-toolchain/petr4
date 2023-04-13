@@ -44,6 +44,12 @@ Definition from_opt {Err A} (r : option A) (err : Err) :=
   | Some a => ok a
   end.
 
+Definition to_opt {Err A} (r : result Err A) : option A :=
+  match r with
+  | Ok x => Some x
+  | Error _ => None
+  end.
+
 Definition map {Err A B : Type} (f : A -> B)  (r : result Err A) : result Err B :=
   match r with
   | Error err => error err

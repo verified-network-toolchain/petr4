@@ -13,7 +13,6 @@ Open Scope nat_scope.
 
 Section P4AComp. 
 
-Variable (tags_t : Type).
 
 (* Find size of P4cub Expr.t *)
 Fixpoint type_size (e:Typ.t) : option nat:=
@@ -37,6 +36,18 @@ Fixpoint type_size (e:Typ.t) : option nat:=
     | Typ.Error => None
   end.
 
+Print List.nth_error.
+
+Definition size_struct_member (mem:nat) (arg:Exp.t) : option nat:=
+  match arg with 
+  | Exp.Var (Typ.Struct _ fields) _ _ => 
+    match List.nth_error fields mem with 
+    | Some field => type_size field
+    | None => None
+    end
+  | _ => None
+  end.
+
   (* Find size of P4Cub Expr.e *)
 Fixpoint type_size_e (e:Exp.t) : option nat :=
   match e with 
@@ -47,14 +58,15 @@ Fixpoint type_size_e (e:Exp.t) : option nat :=
     | Exp.Var t name x => type_size t
     | Exp.Slice hi lo arg => 
       match type_size_e arg with 
-        | Some n1 => Some (Init.Nat.min (1 + Pos.to_nat hi) n1 -
-        Pos.to_nat lo)
-        | None => None
+      | Some n1 => Some (Init.Nat.min (1 + Pos.to_nat hi) n1 -
+    Pos.to_nat lo)
+      | None => None
       end
-    | Exp.Cast t arg => None
+    | Exp.Cast t arg => type_size t
     | Exp.Uop t op arg => type_size t
+    (* result_type seems wrong in p4cub output file *)
     | Exp.Member result_type mem arg => 
-      match type_size result_type with
+      match size_struct_member mem arg with
         | Some field_size => Some field_size
         | _ => None
       end
@@ -63,12 +75,9 @@ Fixpoint type_size_e (e:Exp.t) : option nat :=
 
 (* Definition collect_hdrs_str5uct *)
 
-Inductive hdrs_size : Set :=
-| Size (size:nat)
-| Fields (size:nat) (f:list hdrs_size).
 
 (* Get the headers from paramargs *)
-Definition collect_hdrs_args (p:Typ.params) : option (Field.fs nat nat) :=
+Definition collect_hdrs_params (p:Typ.params) : option (Field.fs nat nat) :=
   let add_hdr hdrs (t:Typ.t) := 
     match hdrs with 
     | Some headers => 
@@ -84,12 +93,26 @@ Definition collect_hdrs_args (p:Typ.params) : option (Field.fs nat nat) :=
   | _ => None
   end.
 
-  Definition test_header := [("hdr",
-  (PAOut
-   (Typ.Struct false
-    [Typ.Struct true [Typ.Bit 48; Typ.Bit 48; Typ.Bit 16]])))] : (Typ.params).
+(* Note this works for V1model -> as it assumes all Out fields are headers *)
+Definition collect_hdrs_parsers (p: list Top.t) : option (Field.fs nat nat) := 
+  let collect_hdrs_parser accum parser:= 
+    match accum, parser with 
+    | Some accum_headers, Top.Parser _ _ _ _ params _ _ => 
+      match collect_hdrs_params params with 
+      | Some headers => Some (headers ++ accum_headers)%list
+      | None => None
+      end
+    | _, _ => None
+    end in 
+  List.fold_left collect_hdrs_parser p (Some []).
   
-  Compute collect_hdrs_args test_header.
+
+Definition test_header_from_params := [("hdr",
+(PAOut
+  (Typ.Struct false
+  [Typ.Struct true [Typ.Bit 48; Typ.Bit 48; Typ.Bit 16]])))] : (Typ.params).
+  
+  Compute collect_hdrs_params test_header_from_params.
 
 (* Create Fin type headers, hdrs might not be needed as everything is *)
 Definition mk_hdr_type (hdrs: Field.fs nat nat) : Type := Fin.t (List.length hdrs).
@@ -97,13 +120,49 @@ Definition mk_hdr_type (hdrs: Field.fs nat nat) : Type := Fin.t (List.length hdr
 (* Create Fin type states *)
 (* + 3 at the end for Start, Accept, Reject respectively *)
 Definition mk_st_type (states: Field.fs nat Stm.t) : Type := Fin.t (List.length states).
+  Print findi.
+  Print fold_lefti.
+  Search findi.
+  Lemma findi_length_bound_inner :
+    forall {A} (l: list A) (pred: A -> bool) (j k : nat) (r: option nat) (i : nat),
+    fold_left
+        (fun '(n, b) (a : A) =>
+          (S n,
+          match b with
+        | Some _ => b
+        | None => if pred a then Some n else None
+        end)) l (j, r) = (k, Some i) ->
+        (forall r', r = Some r' -> r' < j) ->
+        i < Datatypes.length l + j.
+    Proof.
+      induction l; intros.
+      - simpl in *.
+        inversion H; subst.
+        specialize (H0 i eq_refl).
+        congruence.
+      - cbn in *.
+        destruct (pred a).
+        + Admitted. 
+
 
 Lemma findi_length_bound :
   forall {A: Type} pred (l: list A) i,
     findi pred l = Some i ->
     i < Datatypes.length l.
 Proof.
-  unfold findi. unfold fold_lefti.
+  (* unfold findi.
+  unfold fold_lefti.
+  intros until 0.
+  revert i.
+  generalize (0, @None nat).
+  Print findi.
+  unfold findi.
+
+   induction l. 
+  - intros. cbv in *. congruence.
+  - intros. unfold findi in H. unfold fold_lefti in H. cbn in H.
+  destruct (pred a).
+    + unfold findi in IHl. unfold fold_lefti in IHl. apply IHl in H. cbn in *.    *)
 Admitted.
 
 (* Get Fin type headers from list of headers and header name*)
@@ -174,9 +233,54 @@ Proof.
     lia.
 Defined.  
 
+(* Return size of an expression. Duplicate of type_size_e without returning the option *)
+Fixpoint expr_size (hdrs: Field.fs nat nat) (e:Exp.t) : nat := 
+  match e with 
+    | Exp.Bool b => 1
+    | Exp.VarBit max_width width val => (N.to_nat width)
+    | Exp.Bit w val => (N.to_nat w)
+    | Exp.Int w val => (Pos.to_nat w)
+    | Exp.Var t name x => 
+      (*  May need a type_size that is not wrapped in an option *)
+      match type_size t with 
+      | Some size => size
+      | None => 0
+      end
+    | Exp.Slice hi lo arg => (Init.Nat.min (1 + Pos.to_nat hi) (expr_size hdrs arg) -
+    Pos.to_nat lo)
+    | Exp.Cast t arg => 
+      match type_size t with 
+        | Some size => size
+        | None => 0
+      end
+    | Exp.Uop t op arg =>
+      match type_size t with 
+        | Some size => size
+        | None => 0
+      end
+    (* result_type seems wrong in p4cub output file *)
+    | Exp.Member result_type mem arg => 
+      match size_struct_member mem arg with
+        | Some field_size => field_size
+        | _ => 0
+      end
+    | _ => 0
+  end.
+
+Definition args_sz (hdrs: Field.fs nat nat) (args:Exp.args) : nat := 
+  let arg_sz (accum:nat) (arg: Exp.arg):= 
+    match arg with 
+    | PAIn a => expr_size hdrs a
+    | PAOut b => expr_size hdrs b
+    | PAInOut b => expr_size hdrs b
+    end in 
+    List.fold_left arg_sz args 0.
+
 (* Find the size of a P4cub state_block *)
-Fixpoint statement_sz (state: Stm.t) (accum:nat): nat := 
+Fixpoint statement_sz (hdrs: Field.fs nat nat) (state: Stm.t) (accum:nat): nat := 
   match state with 
+  (* Size of a extract call *)
+  | Stm.App (Call.Method "packet_in" "extract" _ _) args => args_sz hdrs args
   (* | Stm.SExternMethodCall "packet_in" "extract" _ {|paramargs := params; rtrns := _|} _ => (* Packet extract calls *) 
     match params with 
     | (_, PAOut (Expr.EExprMember h _ _ _))::[] => (* extract only returns PAOut?*)
@@ -186,40 +290,26 @@ Fixpoint statement_sz (state: Stm.t) (accum:nat): nat :=
       end
     | _ => 0
     end  *)
-  | Stm.Seq head tail => statement_sz tail (statement_sz head accum)
+  | Stm.Seq head tail => statement_sz hdrs tail (statement_sz hdrs head accum)
   | _ => 0
   end.
 
 (* Maps a P4cub state to its size using state_block_sz. (Might not need this definition) *)
-Definition st_map (states: list (nat * Stm.t)) (st:mk_st_type states) : nat := 
+Definition st_map (hdrs: Field.fs nat nat) (states: list (nat * Stm.t)) (st:mk_st_type states) : nat := 
   match Field.get (extract_name_st states st) states with 
-  | Some st => statement_sz st 0
+  | Some st => statement_sz hdrs st 0
   | None => 0
   end.
 
-(* Return size of an expression. Duplicate of type_size_e without returning the option *)
-Fixpoint expr_size (hdrs: Field.fs nat nat) (e:Exp.t) : nat := 
-  match e with 
-    | Exp.Bool b => 1
-    | Exp.Bit w val => N.to_nat w
-    | Exp.Int w val => Pos.to_nat w
-    | Exp.Var t str_name name => 
-      match type_size t with 
-      | Some size => size
-      | None => 0
-      end
-    | Exp.Slice hi lo arg => (Init.Nat.min (1 + Pos.to_nat hi) (expr_size hdrs arg) -
-    Pos.to_nat lo)
-    | Exp.Member result_type mem arg => 
-      match type_size result_type with
-        | Some field_size => field_size
-        | None => 0
-      end
-    | _ => 0
-    end.
+Compute fun test (hdrs: Field.fs nat nat) => (ESlice _ _ 1 0).
 
-(* Translate P4cub expression to P4a *)
-Fixpoint translate_expr (ctxt: Field.fs nat nat) (hdrs: Field.fs nat nat) (e:Exp.t): option (expr (hdr_map hdrs) (expr_size hdrs e)) := 
+(* Translate P4cub expression to P4a. 
+[ctxt] holds mappings from debruijn to P4a Headers*)
+
+Check option (expr (hdr_map _) (expr_size _ _)).
+Check ESlice 2 _ _ _.
+Print ESlice.
+Fixpoint translate_expr (hdrs: Field.fs nat nat) (e:Exp.t): option (expr (hdr_map hdrs) (expr_size hdrs e)) := 
   match e with 
   | Exp.Slice hi lo arg => 
       match translate_expr hdrs arg with
@@ -319,7 +409,7 @@ end.
 (* Assumes only one parser *)
 Definition find_main_parser (prog : list Top.t) : option Top.t :=
   let parsers := get_parsers prog [] in 
-  match parsers with 
+  match parsers with  
   | [h] => Some (h)
   | _ => None
   end.
@@ -331,10 +421,24 @@ Definition find_states (prog:list Top.t) : list (Stm.t) :=
   | _ => []
   end.
 
-(* Definition find_hdrs (prog:Top.t) : Field.fs nat nat :=
-  match find_main_parser prog with 
-  | Some (parser) => collect_hdrs parser
-  | _ => []
+(* Definition find_hdrs (prog:list Top.t) :  *)
+
+(* Definition translate_parser (prog:Top.t) : option (list (state (mk_st_type (find_states prog)) (hdr_map (find_hdrs prog)))) :=
+  let parsers := get_parsers prog in 
+  let hdrs := find_hdrs prog in 
+  let all_states := find_states prog in 
+  match parsers with 
+  | [main_parser] => 
+    match collect_hdrs_parser parsers with 
+    | Some headers 
+    let translate_all := List.map (fun '(name, st) => translate_state name hdrs all_states st) in 
+    let state_collect accum translated_state := 
+      match accum, translated_state with 
+      | Some acc, Some st' => Some (st'::acc)
+      | _,_ => None
+      end in
+      List.fold_left state_collect (translate_all all_states) (Some []) 
+  | _ => None
   end. *)
 
 (* 

@@ -21,6 +21,7 @@ Section FOL.
   Context `{@EqDec func_sym eq eq_equivalence}.
   Context `{@EqDec rel_sym eq eq_equivalence}.
   Context `{@EqDec sort_sym eq eq_equivalence}.
+  Print signature.
   Variable (sig: signature sort_sym func_sym rel_sym).
 
   (* First-order terms (either functions or variables). *)

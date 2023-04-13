@@ -15,13 +15,31 @@ Local Open Scope bool_scope.
 Definition vocab := Type.
 
 Section Ident.
-  Context (T: Type).
+  Context {T: Type}.
   Context `{@EqDec T eq eq_equivalence}.
 
   Inductive ident :=
   | SSimple (base: T)
   (* length of args should always be > 0 *)
   | SIdx (base: T) (args: list nat).
+
+  Definition ident_base (i: ident) : T :=
+    match i with
+    | SSimple base
+    | SIdx base _ => base
+    end.
+
+  Definition ident_args (i: ident) : option (list nat) :=
+    match i with
+    | SSimple _ => None
+    | SIdx _ args => Some args
+    end.
+
+  Definition ident_arglen (i: ident) : nat :=
+    match ident_args i with
+    | Some args => List.length args
+    | None => 0
+    end.
 
   #[global]
   Instance ident_EqDec : EqDec ident eq.
@@ -47,14 +65,12 @@ Section Ident.
         congruence.
   Defined.
 End Ident.
-Arguments SSimple {T}.
-Arguments SIdx {T}.
+Arguments ident T : clear implicits.
+Arguments ident_EqDec : clear implicits.
 
 Section Signature.
   Variables (sort_sym func_sym rel_sym: vocab).
   Context `{sort_eq_dec: @EqDec sort_sym eq eq_equivalence}.
-  Context `{@EqDec func_sym eq eq_equivalence}.
-  Context `{@EqDec rel_sym eq eq_equivalence}.
 
   Definition sort := ident sort_sym.
   Definition func := ident func_sym.
@@ -66,12 +82,12 @@ Section Signature.
   (* Signature without arities *)
   Record signature : Type :=
     { (* tracks arities for indexed sorts and is 0 if sort is simple *)
-      sig_sorts : AList sort_sym nat eq;
+      sig_sorts : sort_sym -> option nat;
       sig_funs  : func -> option (rank * sort);
       sig_rels  : rel -> option rank }.
 
   Definition sig_get_sort (sig: signature) (s: sort_sym) :=
-    from_opt (AList.get sig.(sig_sorts) s)
+    from_opt (sig.(sig_sorts) s)
              ("Sort symbol not found in sig.").
 
   Definition sig_get_fun (sig: signature) (f: func) :=
@@ -97,15 +113,30 @@ Section Signature.
     | _ => false
     end.
 
-  (* Check that s is well-formed.
-     This function should ensure that
-     - sig_sorts has no duplicate sorts
-     - sig_funs and sig_rels have no duplicate keys
-     - The arities in s use sorts drawn only from s.(sig_sorts) *)
-  Definition check_signature (sig: signature) : bool :=
-    AList.key_unique sig.(sig_sorts).
-End Signature.
+  Definition sort_wf (sig: signature) (sort: sort) : Prop :=
+    sig_sorts sig (ident_base sort) = Some (ident_arglen sort).
 
+  Definition rank_wf (sig: signature) (rank: rank) : Prop :=
+    List.Forall (sort_wf sig) rank.
+  
+  (* Check that sig is well-formed.
+     This function should ensure that
+     - The arities in sig_funs and sig_rels use sorts drawn only from
+       s.(sig_sorts) with the right number of indices *)
+  Definition sig_wf (sig: signature) : Prop :=
+    (forall f rank sort,
+        sig_funs sig f = Some (rank, sort) ->
+        rank_wf sig rank /\ sort_wf sig sort) /\
+    (forall r rank,
+        sig_rels sig r = Some rank ->
+        rank_wf sig rank).
+
+  Record fsignature : Type  :=
+    { fsig_sorts : AList sort_sym nat eq;
+      fsig_funs  : AList func_sym (rank * sort) eq;
+      fsig_rels  : AList rel_sym rank eq }.
+  
+End Signature.
 Arguments sig_sorts {sort_sym func_sym rel_sym}.
 Arguments sig_funs {sort_sym func_sym rel_sym}.
 Arguments sig_rels {sort_sym func_sym rel_sym}.
@@ -113,4 +144,18 @@ Arguments sig_get_sort {sort_sym func_sym rel_sym}.
 Arguments sig_check_sort {sort_sym func_sym rel_sym _}.
 Arguments sig_get_fun {sort_sym func_sym rel_sym}.
 Arguments sig_get_rel {sort_sym func_sym rel_sym}.
-Arguments check_signature {sort_sym func_sym rel_sym _}.
+Arguments sig_wf {sort_sym func_sym rel_sym _}.
+
+Inductive builtin_sort_sym :=
+| BVSort.
+
+Inductive builtin_func_sym :=
+| BVLit (v: nat)
+| BVConcat.
+
+Inductive builtin_rel_sym :=
+.
+
+Definition builtin_sig: signature builtin_sort_sym builtin_func_sym builtin_rel_sym.
+Admitted.
+

@@ -666,8 +666,7 @@ Section Stm.
         let* (ψ, light_out_vals, light_sig) :=
           to_opt $ interp_extern (extrn_env Ψ) (extrn_state Ψ) ext meth [] light_typs light_in_vals
         in
-        let* cub_values := project_values light_out_vals in
-        let* vargs' := write_out_values vargs =<< project_values light_in_vals in
+        let* vargs' := write_out_values vargs =<< project_values light_out_vals in
         let^ sig := project_signal light_sig in
         ( lv_update_signal olv sig (copy_out_from_args vargs vargs' ϵ), sig, ψ )
       | Stm.Invoke eo t, CApplyBlock tbls acts insts =>
@@ -761,7 +760,19 @@ Section Stm.
         apply interpret_exps_sound in Heqo1.
         apply interpret_args_sound in Heqo2.
         apply IHfuel in Heqo4. econstructor; eauto.
-      + admit.
+      + repeat match_some_inv. unravel in *. repeat destruct p.
+        repeat match_some_inv. some_inv.
+        simpl_to_opt as Hextern. cbn in *. some_inv.
+        econstructor.
+        * eapply write_out_values_invariant. eauto.
+        * eapply interpret_relop_sound; eauto. apply interpret_lexp_sound.
+        * apply interpret_args_sound. assumption.
+        * apply embed_types_sound. eauto.
+        * apply embed_values_sound.
+        * apply interp_extern_safe. eauto.
+        * apply project_values_sound. apply write_out_values_sound in Heqo3.
+          subst. assumption.
+        * apply project_signal_sound. assumption.
       + destruct c; try discriminate.
         * match_some_inv. destruct i; try discriminate.
           match_some_inv as Eargs. apply interpret_args_sound in Eargs.
@@ -814,6 +825,6 @@ Section Stm.
       apply interpret_exp_sound in Heqo.
       destruct t; try discriminate. cbn in *. unravel in *.
       apply IHfuel in H. econstructor; eauto.
-  Admitted.
+  Qed.
 
 End Stm.

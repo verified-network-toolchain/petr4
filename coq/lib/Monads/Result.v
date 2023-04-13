@@ -233,6 +233,14 @@ Ltac simpl_result_error H :=
 Ltac simpl_result_ok H :=
   apply ok_Ok_inj in H.
 
+
+Tactic Notation "simpl_to_opt" "as" simple_intropattern(E) :=
+  match goal with
+  | H: to_opt ?r = Some _ |- _ => destruct r eqn:E; try discriminate
+  end.
+
+Tactic Notation "simpl_to_opt" := simpl_to_opt as ?.
+
 Ltac simpl_result H :=
   inv_bind H ||
   inv_map H ||

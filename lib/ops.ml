@@ -355,6 +355,8 @@ let interp_unary_op (op: coq_OpUni) (v: coq_Value) =
 let bool_of_val (v : coq_Value) : coq_Value =
   match v with
   | ValBit (w,n) when w = 1 -> ValBool Bigint.(n = one)
+  | ValInteger n -> ValBool Bigint.(n = one)
+  | ValBool b -> ValBool b
   | _ -> failwith "cast to bool undefined"
 
 let rec bit_of_val (width : int) (v : coq_Value) : coq_Value =

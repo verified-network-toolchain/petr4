@@ -87,6 +87,7 @@ Section Syntax.
                       (width: N)
   | TypIdentifier       (tags: Info)
                       (name: string)
+  (*keep the syntax for specialization but wouldn't have the type. so this typscpecialization will never be generated and it's only used for writing programs. because once it happens inference substitutes it in the type.*)
   | TypSpecialization (tags: Info)
                       (base: typ) (*surface*)
                       (args: list typ) (*type arg*)
@@ -108,6 +109,9 @@ Section Syntax.
                       (name: P4String)
                       (typ: option typ) (*surface*)
                       (members: list P4String)
+  (*after inference the type_params list must be empty. so you can substitute
+    type variables when they're instantiated for the parameters and the type_params
+    would be empty.*)
   | TypParser         (tags: Info)
                       (type_params: list P4String) (*type variable*)
                       (parameters: list parameter)

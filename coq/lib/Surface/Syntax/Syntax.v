@@ -377,7 +377,7 @@ Section Syntax.
                          (name: P4String)
                          (members: P4String.AList Info expression)
   | DeclControlTyp       (name: P4String)
-                         (type_params: list P4String)
+                         (type_params: list P4String) (*wrong: control decl can't be generic. look p4 spec, sec 14: control blocks*)
                          (params: list parameter)
   | DeclParserTyp        (name: P4String)
                          (type_params: list P4String)

@@ -1403,6 +1403,28 @@ Type unification attempts to unify two expression types, that is, it attempts to
 
 # Expression Typing Rules { #sec-exp-typing }
 
+Judgment forms for P4 workshop.
+~ Begin InfRule
+
+  \inferrule
+  {}
+  {\expenvNoTrans \exp \typ}
+
+\and
+
+  \inferrule
+  {}
+  {\expenvForWorkshop {\left(\exp: \typ\right)} {\left( \VVal \exp : \VVal \typ \right)} }
+
+\and
+
+  \inferrule
+  {}
+  {\expenvForWorkshop {\left(\exp: \bot\right)} {\left( \VVal \exp : \VVal \typ \right)} }
+
+~ End InfRule
+
+
 
 ``TODO: -inserts implicit casts and type inference``
 ``TODO: edit judgment form and explanation``

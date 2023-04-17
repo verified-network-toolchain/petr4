@@ -1500,6 +1500,17 @@ compile time, we still consider it known at compile time.
 
 ~ Begin InfRule
 
+  \mprset{vskip=0.7ex}
+  {\inferrule[\headerStackIndexE]
+     {\expenvNoTrans {\exp_1} {\headerStackTyp \typ \size} \\\\
+      \expenvNoTrans {\exp_2} {\VVal \typ}  \\\\
+      % \isArray {\arrayTyp \typ \size} \\
+      \isNumeric {\exp_2} {\VVal \typ}}
+     {\expenvNoTrans {\arrayAccess {\exp_1} {\exp_2}}  \typ }}
+     % \quad (\headerStackIndexE)
+
+\and
+
   \inferrule
      {\expenv {\exp_1} {\VVal {\exp_1}} {\headerStackTyp \typ \size} \dir \\\\
       \expenv {\exp_2} {\VVal {\exp_2}} {\VVal \typ} {\VVal \dir} \\\\

@@ -10,180 +10,194 @@ Require Poulet4.Utils.ProdN.
 
 Open Scope nat_scope.
 Open Scope string_scope.
-Open Scope list_scope.
 
 Section ShiftPairs.
   Import ProdN.ProdNNotations.
+  Import Vec.VectorNotations.
   Local Open Scope prodn_scope.
 
   Polymorphic Universes a.
-
+  
   Polymorphic Equations prodn_shift_pairs :
     forall {n : nat} {AS : Vec.t Type@{a} n},
-      ProdN.t (Vec.map (fun A => shifter -> A -> A) AS) ->
-      ProdN.t (Vec.map (fun A => ProdN.prod A (list Exp.t))%type AS) ->
-      ProdN.t (Vec.map (fun A => ProdN.prod A (list Exp.t))%type AS) := {
-        prodn_shift_pairs (AS:=Vec.nil) [] [] := [];
-        prodn_shift_pairs (AS:=Vec.cons _ _ _) (f :: fs) (ProdN.pair a es :: p) :=
-          let '(ProdN.pair _ ess) := ProdN.unzip _ (*p*) in
-          let m :=
-            vec_sum
-              $ Vec.map (length (A:=Exp.t))
-              $ ProdN.to_vec ess in
-          let rec := prodn_shift_pairs fs p in
-          let '(ProdN.pair pa ess') := ProdN.unzip _ (*prodn_shift_pairs fs p*) in
-          let pa' := ProdN.map (ProdN.map _ (*fs*) (ProdN.rep _ (Shifter 0 $ length es))) pa in
-          _ (*(f (Shifter (length es) m) a, shift_list shift_exp (Shifter 0 m) es)*) :: _ (*ProdN.zip pa' ess'*) }.
-  Next Obligation.
-    exact n0.
-  Defined.
-  Next Obligation.
-    unfold prodn_shift_pairs_obligations_obligation_1,
-      prodn_shift_pairs_obligations_obligation_2.
-    rewrite vec_map_rep_r.
-    apply (prodn_shift_pairs _ _ fs p).
-  Defined.
-  Next Obligation.
-    exact n0.
-  Defined.
-  Next Obligation.
-    unfold prodn_shift_pairs_obligations_obligation_1,
-      prodn_shift_pairs_obligations_obligation_2,
-      prodn_shift_pairs_obligations_obligation_5,
-      prodn_shift_pairs_obligations_obligation_6 in *.
-  Admitted.
-  Next Obligation.
-    unfold prodn_shift_pairs_obligations_obligation_1,
-      prodn_shift_pairs_obligations_obligation_2,
-      prodn_shift_pairs_obligations_obligation_4,
-      prodn_shift_pairs_obligations_obligation_5,
-      prodn_shift_pairs_obligations_obligation_6,
-      prodn_shift_pairs_obligations_obligation_8 in *.
-    refine (ProdN.map (ProdN.map _ (*fs*) (ProdN.rep _ (Shifter 0 $ length es))) pa).
-    rewrite vec_map2_same.
-    do 2 rewrite vec_map_rep_l.
-    rewrite Vec.map_map.
-    
-  Defined.
-  Import Vec.VectorNotations.
-  Local Open Scope vector_scope.
-  
-  Polymorphic Universe a.
-  Polymorphic Context {A : Type@{a}}.
-  Polymorphic Variable f : shifter -> A -> A.
+      ProdN.t (Vec.map shifter AS) ->
+      ProdN.t AS -> Vec.t (list Exp.t) n ->
+      ProdN.t AS * Vec.t (list Exp.t) n := {
+      prodn_shift_pairs [] [] []%vector := ([], []%vector);
+      prodn_shift_pairs (f :: fs) (a :: p) (es :: ess)%vector :=
+        let m := vec_sum $ Vec.map (length (A:=Exp.t)) ess in
+        let '(p', v') := prodn_shift_pairs fs p ess in
+        (f (length es) m a ::
+           ProdN.map_uni2 0 (length es) fs p',
+          (shift_list shift_exp 0 m es :: v')%vector)
+    }.
 
-  Polymorphic Equations vec_shift_pairs :
-    forall {n : nat}, Vec.t (A * list Exp.t) n -> Vec.t (A * list Exp.t) n := {
-      vec_shift_pairs [] := [];
-      vec_shift_pairs ((a, es) :: v) :=
-        let m := vec_sum $ Vec.map (length (A:=Exp.t)) $ Vec.map snd v in
-        (f (Shifter (length es) m) a,
-          shift_list shift_exp (Shifter 0 m) es) ::
-          Vec.map (fun '(a, es') => (f (Shifter 0 $ length es) a, es')) (vec_shift_pairs v) }.
-
-  Polymorphic Lemma vec_shift_pairs_inner_length : forall {n} (v : Vec.t _ n),
-      Vec.map (length (A:=Exp.t)) (Vec.map snd (vec_shift_pairs v))
-      = Vec.map (length (A:=Exp.t)) (Vec.map snd v).
+  Polymorphic Lemma prodn_shift_pairs_inner_length :
+    forall {n : nat} {AS : Vec.t Type@{a} n}
+      (fs : ProdN.t (Vec.map shifter AS))
+      (p : ProdN.t AS) (v : Vec.t (list Exp.t) n),
+      Vec.map (length (A:=Exp.t)) (snd (prodn_shift_pairs fs p v))
+      = Vec.map (length (A:=Exp.t)) v.
   Proof using.
-    intros n v.
-    depind v; unravel.
-    - rewrite vec_shift_pairs_equation_1. reflexivity.
-    - destruct h as [a es].
-      rewrite vec_shift_pairs_equation_2. unravel.
-      rewrite vec_ignore_map_snd_map, shift_list_length.
+    intros n AS fs p v.
+    funelim (prodn_shift_pairs fs p v); unravel in *.
+    - reflexivity.
+    - rewrite prodn_shift_pairs_equation_2. cbn.
+      destruct (prodn_shift_pairs fs p ess) as [p' v'] eqn:hpsp.
+      unravel.
+      rewrite shift_list_length.
       f_equal. assumption.
   Qed.
 
-  Polymorphic Record Shift_couple : Type@{a} :=
-    mk_Shift_couple {
-        Shift_couple_1 : A;
-        Shift_couple_2 : A;
-        Shift_list_1 : list Exp.t;
-        Shift_list_2 : list Exp.t
-      }.
-  
-  Polymorphic Definition shift_couple (a1 a2 : A) (es1 es2 : list Exp.t) : Shift_couple :=
-    let v := vec_shift_pairs [(a2, es2) ; (a1, es1)] in
-    let pair1 := Vec.hd $ Vec.tl v in
-    let pair2 := Vec.hd v in
-    {| Shift_couple_1 := fst pair1;
-      Shift_couple_2 := fst pair2;
-      Shift_list_1 := snd pair1;
-      Shift_list_2 := snd pair2 |}.
+  Section ShiftCouple.
+    Polymorphic Context {A : Type@{a}}.
+    Variables fa : shifter A.
 
-  Polymorphic Hypothesis shift_f_0 : forall c a, f (Shifter c 0) a = a.
-  
-  Polymorphic Lemma vec_shift_pairs_single : forall a es,
-      vec_shift_pairs [(a,es)] = [(a,es)].
-  Proof using A f shift_f_0.
-    intros; cbn.
-    rewrite vec_shift_pairs_equation_2; unravel.
-    rewrite vec_shift_pairs_equation_1; unravel. cbn.
-    rewrite shift_f_0, shift_explist_0.
-    reflexivity.
-  Qed.
+    Polymorphic Definition vec_shift_pairs
+      {n : nat} (v : Vec.t A n) (ess : Vec.t (list Exp.t) n)
+      : Vec.t A n * Vec.t (list Exp.t) n :=
+      map_fst ProdN.to_vec $
+        prodn_shift_pairs
+        (AS:=vec_rep n A) (ProdN.rep_param fa n) (ProdN.of_vec v) ess.
+    
+    Polymorphic Definition shift_pairs
+      (l : list (A * list Exp.t)) : list (A * list Exp.t) :=
+      let '(v,ess) := vec_unzip $ Vec.of_list l in
+      Vec.to_list $ uncurry vec_zip $ vec_shift_pairs v ess.
 
-  Polymorphic Lemma shift_couple_spec : forall a1 a2 es1 es2,
-      (shift_couple a1 a2 es1 es2).(Shift_couple_1)
-      = f (Shifter 0 (length es2)) a1
-      /\ (shift_couple a1 a2 es1 es2).(Shift_couple_2)
-        = f (Shifter (length es2) (length es1)) a2
-      /\ (shift_couple a1 a2 es1 es2).(Shift_list_1) = es1
-      /\ (shift_couple a1 a2 es1 es2).(Shift_list_2)
-        = shift_list shift_exp (Shifter 0 (length es1)) es2.
-  Proof using A f shift_f_0.
-    intros a1 a2 es1 es2.
-    destruct (shift_couple a1 a2 es1 es2) as [a1' a2' es1' es2'] eqn:h.
-    unfold Shift_couple_1, Shift_couple_2, Shift_list_1, Shift_list_2.
-    unfold shift_couple in h.
-    inv h. unravel.
-    do 2 rewrite vec_shift_pairs_equation_2.
-    cbn. unravel.
-    rewrite PeanoNat.Nat.add_0_r, shift_explist_0, shift_f_0.
-    auto.
-  Qed.
+    Polymorphic Context {B : Type@{a}}.
+    Variable fb : shifter B.
+    
+    Polymorphic Hypothesis fa_0 : forall c a, fa c 0 a = a.
+    Polymorphic Hypothesis fb_0 : forall c b, fb c 0 b = b.
 
+    Local Hint Rewrite shift_exp_0 : core.
+    Local Hint Resolve shift_exp_0 : core.
+    Local Hint Rewrite PeanoNat.Nat.add_0_r : core.
+    Local Hint Rewrite fa_0 : core.
+    Local Hint Rewrite fb_0 : core.
+    Local Hint Rewrite (@shift_list_0 Exp.t) : core.
+    
+    Polymorphic Lemma prodn_shift_pairs_single : forall a es,
+        prodn_shift_pairs (AS:=[A]%vector) (fa :: []) (a :: []) [es]%vector
+        = (a :: [],[es]%vector).
+    Proof using A fa fa_0.
+      intros; cbn.
+      rewrite prodn_shift_pairs_equation_2; unravel.
+      rewrite prodn_shift_pairs_equation_1; unravel.
+      rewrite ProdN.map_uni2_equation_1.
+      autorewrite with core. cbn.
+      rewrite shift_list_0 by eauto.
+      reflexivity.
+    Qed.
 
-  Polymorphic Lemma vec_shift_pairs_couple :
-    forall a1 a2 es1 es2,
-    vec_shift_pairs [(a2,es2);(a1,es1)]
-    = [(f (Shifter (length es2) (length es1)) a2,
-         shift_list shift_exp (Shifter 0 (length es1)) es2);
-       (f (Shifter 0 (length es2)) a1, es1)].
-  Proof using A f shift_f_0.
-    intros a1 a2 es1 es2.
-    pose proof shift_couple_spec a1 a2 es1 es2 as (ha1 & ha2 & hes1 & hes2).
-    destruct (shift_couple a1 a2 es1 es2) as [a1' a2' es1' es2'] eqn:h.
-    unfold shift_couple in h. inv h.
-    unfold Shift_couple_1, Shift_couple_2, Shift_list_1, Shift_list_2 in *.
-    do 2 rewrite vec_shift_pairs_equation_2 in *.
-    rewrite vec_shift_pairs_equation_1.
-    unravel in *. cbn in *. subst.
-    rewrite H0, H1, H2, hes2. reflexivity.
-  Qed.
-  
-  Polymorphic Hypothesis shift_f_add
-    : forall m n a, f (Shifter 0 m) (f (Shifter 0 n) a) = f (Shifter 0 (m + n)) a.
-  
-  Polymorphic Lemma vec_shift_pairs_triple :
-    forall a1 a2 a3 es1 es2 es3,
-      vec_shift_pairs [(a3,es3);(a2,es2);(a1,es1)]
-    = [(f (Shifter (length es3) (length es2 + length es1)) a3,
-         shift_list shift_exp (Shifter 0 (length es2 + length es1)) es3);
-       (f (Shifter 0 (length es3)) (f (Shifter (length es2) (length es1)) a2),
-         shift_list shift_exp (Shifter 0 (length es1)) es2);
-       (f (Shifter 0 (length es3 + length es2)) a1, es1)].
-  Proof using A f shift_f_0 shift_f_add.
-    intros a1 a2 a3 es1 es2 es3.
-    do 3 rewrite vec_shift_pairs_equation_2.
-    rewrite vec_shift_pairs_equation_1.
-    unravel. cbn.
-    rewrite PeanoNat.Nat.add_0_r, shift_explist_0, shift_f_0, shift_f_add.
-    reflexivity.
-  Qed.
+    Polymorphic Lemma prodn_shift_pairs_couple :
+      forall a b esa esb,
+        prodn_shift_pairs
+          (AS := [B; A]%vector)
+          (fb :: fa :: []) (b :: a :: []) [esb ; esa]%vector
+        = (fb (length esb) (length esa) b :: fa 0 (length esb) a :: [],
+            [shift_list shift_exp 0 (length esa) esb; esa]%vector).
+    Proof using A fa fb fa_0 fb_0.
+      intros a b esa esb.
+      rewrite prodn_shift_pairs_equation_2. cbn.
+      rewrite prodn_shift_pairs_single.
+      autorewrite with core. f_equal.
+    Qed.
 
-  Polymorphic Definition shift_pairs (l : list (A * list Exp.t)) : list (A * list Exp.t) :=
-    Vec.to_list $ vec_shift_pairs $ Vec.of_list l.
+    Polymorphic Definition shift_couple
+      (a : A) (b : B) (esa esb : list Exp.t) : A * B * list Exp.t :=
+      let '(ba, ess) :=
+        prodn_shift_pairs
+          (AS := [B; A]%vector)
+          (fb :: fa :: [])
+          (b :: a :: [])
+          [esb ; esa]%vector in
+      (ProdN.nth (Fin.FS Fin.F1) ba,
+        ProdN.hd ba, Vec.hd ess).
+    
+    Polymorphic Lemma shift_couple_spec : forall a b esa esb,
+        fst (fst (shift_couple a b esa esb))
+        = fa 0 (length esb) a
+        /\ snd (fst (shift_couple a b esa esb))
+          = fb (length esb) (length esa) b
+        /\ snd (shift_couple a b esa esb)
+          = shift_list shift_exp 0 (length esa) esb.
+    Proof using A fa fb fa_0 fb_0.
+      intros a b esa esb.
+      destruct (shift_couple a b esa esb) as [[a' b'] esb'] eqn:h.
+      unfold shift_couple in h.
+      rewrite prodn_shift_pairs_couple in h.
+      inv h. unravel. auto.
+    Qed.
+
+    Context {C : Type@{a}}.
+    Variable fc : shifter C.
+
+    Polymorphic Hypothesis fc_0 : forall ct c, fb ct 0 c = c.
+    
+    Polymorphic Hypothesis fa_add
+      : forall m n a, fa 0 m (fa 0 n a) = fa 0 (m + n) a.
+
+    Local Hint Rewrite fc_0 : core.
+    Local Hint Rewrite fa_add : core.
+    
+    Polymorphic Lemma prodn_shift_pairs_triple :
+      forall a b c esa esb esc,
+        prodn_shift_pairs
+          (AS:=[C; B; A]%vector)
+          (fc :: fb :: fa :: [])
+          (c :: b :: a :: [])
+          [esc; esb; esa]%vector
+        = (fc (length esc) (length esb + length esa) c ::
+             fb 0 (length esc) (fb (length esb) (length esa) b) ::
+             fa 0 (length esc + length esb) a :: [],
+            [shift_list shift_exp 0 (length esb + length esa) esc;
+             shift_list shift_exp 0 (length esa) esb; esa]%vector).
+    Proof using A B C fa fa_0 fa_add fb fb_0 fc.
+      intros a b c esa esb esc.
+      rewrite prodn_shift_pairs_equation_2. cbn.
+      rewrite prodn_shift_pairs_couple.
+      rewrite ProdN.map_uni2_equation_2
+        with (v := [A]%vector) (f := fb) (fs := fa :: []).
+      rewrite ProdN.map_uni2_equation_2  with (v := []%vector) (f := fa) (fs := []).
+      rewrite ProdN.map_uni2_equation_1.
+      autorewrite with core. reflexivity.
+    Qed.
+
+    Polymorphic Definition shift_triple
+      (a : A) (b : B) (c : C) (esa esb esc : list Exp.t)
+      : A * B * C * list Exp.t * list Exp.t :=
+      let '(cba, ess) :=
+        prodn_shift_pairs
+          (AS:=[C; B; A]%vector)
+          (fc :: fb :: fa :: [])
+          (c :: b :: a :: [])
+          [esc; esb; esa]%vector in
+      (ProdN.nth (Fin.FS $ Fin.FS Fin.F1) cba,
+        ProdN.nth (Fin.FS Fin.F1) cba,
+        ProdN.hd cba, Vec.nth ess (Fin.FS Fin.F1), Vec.hd ess).
+
+    Polymorphic Lemma shift_triple_spec :
+      forall a b c esa esb esc,
+        fst (fst (fst (fst (shift_triple a b c esa esb esc))))
+        = fa 0 (length esc + length esb) a
+        /\ snd (fst (fst (fst (shift_triple a b c esa esb esc))))
+          = fb 0 (length esc) (fb (length esb) (length esa) b)
+        /\ snd (fst (fst (shift_triple a b c esa esb esc)))
+          = fc (length esc) (length esb + length esa) c
+        /\ snd (fst (shift_triple a b c esa esb esc))
+          = shift_list shift_exp 0 (length esa) esb
+        /\ snd (shift_triple a b c esa esb esc)
+          = shift_list shift_exp 0 (length esb + length esa) esc.
+    Proof using A B C fa fa_0 fa_add fb fb_0 fc.
+      intros a b c esa esb esc.
+      destruct (shift_triple a b c esa esb esc) as [[[[a' b'] c'] esb'] esc'] eqn:h.
+      unfold shift_triple in h.
+      rewrite prodn_shift_pairs_triple in h.
+      unravel in *. inv h. auto.
+    Qed.
+  End ShiftCouple.
 End ShiftPairs.
 
 (** [lift_e e = (l, e')],
@@ -216,19 +230,14 @@ Fixpoint lift_exp (e : Exp.t) {struct e}
   | Exp.Index t e1 e2 =>
       let '(e1, l1) := lift_exp e1 in
       let '(e2, l2) := lift_exp e2 in
-      let couple := shift_couple shift_exp e1 e2 l1 l2 in
-      (Exp.Index
-         t couple.(Shift_couple_1) couple.(Shift_couple_2),
-        couple.(Shift_list_2) ++ couple.(Shift_list_1))
+      let '(e1',e2',l2') := shift_couple shift_exp shift_exp e1 e2 l1 l2 in
+      (Exp.Index t e1' e2', (l2' ++ l1)%list)
   | Exp.Bop t op e1 e2 => 
       let '(e1, l1) := lift_exp e1 in
       let '(e2, l2) := lift_exp e2 in
-      let couple := shift_couple shift_exp e1 e2 l1 l2 in
+      let '(e1',e2',l2') := shift_couple shift_exp shift_exp e1 e2 l1 l2 in
       (Exp.Var t "lifted_bop" 0,
-        (Exp.Bop
-           t op
-           couple.(Shift_couple_1) couple.(Shift_couple_2))
-          :: couple.(Shift_list_1) ++ couple.(Shift_list_1))
+        Exp.Bop t op e1' e2' :: l2' ++ l1)
   | Exp.Lists l es =>
       let '(es', les) := List.split (shift_pairs shift_exp $ List.map lift_exp es) in
       (Exp.Var (typ_of_lists l es) "lifted_lists" 0, Exp.Lists l es' :: concat les)
@@ -305,33 +314,28 @@ Fixpoint lift_stm (s : Stm.t) : Stm.t :=
   | e1 `:= e2
     => let '(e1, le1) := lift_exp e1 in
       let '(e2, le2) := lift_exp e2 in
-      let couple := shift_couple shift_exp e1 e2 le1 le2 in
-      Unwind
-        (Shift_list_2 couple ++ Shift_list_1 couple)
-        (Shift_couple_1 couple `:= Shift_couple_2 couple)
+      let '(e1', e2', le2') := shift_couple shift_exp shift_exp e1 e2 le1 le2 in
+      Unwind (le2' ++ le1) (e1' `:= e2')
   | Stm.Invoke (Some e) t
     => let '(e, le) := lift_exp e in
       Unwind le $ Stm.Invoke (Some e) t
   | Stm.App fk args
     => let '(fk,lfk) := lift_call fk in
       let '(args,largs) := lift_args args in
-      Unwind
-        (shift_list shift_exp (Shifter 0 (length largs)) lfk ++ largs)
-        (Stm.App
-           (shift_call (Shifter (length lfk) (length largs)) fk)
-           (map (shift_arg $ Shifter 0 (length lfk)) args))
+      let '(args, fk, lfk) := shift_couple (fun c a => map (shift_arg c a)) shift_call args fk largs lfk in
+      Unwind (lfk ++ largs) (Stm.App fk args)
   | `let og := inl t `in s => `let og := inl t `in lift_stm s
   | `let og := inr e `in s =>
       let '(e,le) := lift_exp e in
       Unwind le $
         `let og := inr e `in
-        shift_stm (Shifter 1 (length le)) $ lift_stm s
+        shift_stm 1 (length le) $ lift_stm s
   | s₁ `; s₂ => lift_stm s₁ `; lift_stm s₂
   | `if e `then s₁ `else s₂ =>
       let '(e,le) := lift_exp e in
       Unwind
-        le $ `if e `then shift_stm (Shifter 0 (length le)) $ lift_stm s₁
-        `else shift_stm (Shifter 0 (length le)) $ lift_stm s₂
+        le $ `if e `then shift_stm 0 (length le) $ lift_stm s₁
+        `else shift_stm 0 (length le) $ lift_stm s₂
   end.
 
 Local Close Scope stm_scope.
@@ -341,7 +345,7 @@ Definition lift_ctrl (cd : Ctrl.t) : list Ctrl.t * nat :=
   | Ctrl.Var x (inl t) => ([Ctrl.Var x $ inl t], 0)
   | Ctrl.Var x (inr e) =>
       let '(e, es) := lift_exp e in
-      (List.map (Ctrl.Var "" ∘ inr) es ++ [Ctrl.Var x $ inr e], List.length es)
+      ((List.map (Ctrl.Var "" ∘ inr) es ++ [Ctrl.Var x $ inr e])%list, List.length es)
   | Ctrl.Action a cps dps body
     => ([Ctrl.Action a cps dps $ lift_stm body], 0)
   | Ctrl.Table t key acts def =>
@@ -354,24 +358,20 @@ Definition lift_ctrl (cd : Ctrl.t) : list Ctrl.t * nat :=
           []
           (fun '(a,es) => map_fst (pair a) $ lift_exp_list es)
           def in
-      (List.map (Ctrl.Var "" ∘ inr) argsss
-         ++ List.map (Ctrl.Var "" ∘ inr)
-         (List.map (shift_exp (Shifter 0 $ length argsss)) ees)
-         ++ List.map (Ctrl.Var "" ∘ inr)
-         (List.map (shift_exp (Shifter 0 (length es + length argsss))) defes)
-         ++ [Ctrl.Table
-               t
-               (List.combine
-                  (map (shift_exp $ Shifter 0 $ length defes)
-                     $ map (shift_exp $ Shifter (length ees) $ length argsss) es) mks)
-               (List.combine acts
-                  $ map
-                  (shift_list shift_arg
-                     $ Shifter 0 (length defes + length ees)) argss)
-                  (option_map
-                     (fun '(a, es) =>
-                        (a, map (shift_exp $ Shifter (length defes) (length ees + length argss)) es))
-                     def)],
+      let '(def,es,argss,ees,argsss) :=
+        shift_triple
+          (fun c a => option_map (FunUtil.map_snd (List.map (shift_exp c a))))
+          (fun c a => List.map (shift_exp c a))
+          (fun c a => List.map (List.map (shift_arg c a)))
+          def es argss defes ees argsss in
+      ((List.map (Ctrl.Var "" ∘ inr) argsss
+          ++ List.map (Ctrl.Var "" ∘ inr) ees
+          ++ List.map (Ctrl.Var "" ∘ inr) defes
+          ++ [Ctrl.Table
+                t
+                (List.combine es mks)
+                (List.combine acts argss)
+                def])%list,
         List.length ees + List.length argsss)
   end.
 
@@ -381,7 +381,7 @@ Fixpoint lift_ctrls (cds : list Ctrl.t) : list Ctrl.t * nat :=
   | d :: ds =>
       let '(d, n) := lift_ctrl d in
       let '(ds, ns) := lift_ctrls ds in
-      (d ++ shift_ctrls (Shifter 0 n) ds, n + ns)
+      ((d ++ shift_ctrls 0 n ds)%list, n + ns)
   end.
 
 Definition lift_top (td : Top.t) : Top.t := 
@@ -392,7 +392,7 @@ Definition lift_top (td : Top.t) : Top.t :=
       let (ds, n) := lift_ctrls body in
       Top.Control
         c cparams expr_cparams eps params ds
-        $ shift_stm (Shifter 0 n) $ lift_stm apply_blk  
+        $ shift_stm 0 n $ lift_stm apply_blk  
   | Top.Parser p cparams expr_cparams eps params start states =>
       Top.Parser
         p cparams expr_cparams eps params

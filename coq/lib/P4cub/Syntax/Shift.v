@@ -8,26 +8,146 @@ Import RecordSetNotations.
 Require Export Coq.Arith.Compare_dec.
 From Equations Require Import Equations.
 
-Record shifter : Set :=
-  Shifter { cutoff : nat; amt : nat }.
+Section Shift.
+  Polymorphic Universe a.
+  Variable A : Type@{a}.
 
-Global Instance eta_shifter : Settable _ :=
-  settable! Shifter < cutoff ; amt >.
+  Polymorphic Definition shifter : Type@{a} := nat -> nat -> A -> A.
+  
+  Polymorphic Class Shift : Type@{a} := {
+      shift : shifter;
+      shift_0 : forall c a, shift c 0 a = a;
+      shift_add : forall c m n a,
+        shift c m (shift c n a) = shift c (m + n) a
+    }.
+End Shift.
+
+Arguments shift {A}.
+Arguments shift_0 {A}.
+Arguments shift_add {A}.
+
+Section ShiftVec.
+  Import Vec.VectorNotations.
+  Local Open Scope vector_scope.
+  
+  Polymorphic Universe a.
+
+  Polymorphic Context {A : Type@{a}}.
+
+  Section shift.
+    Variables (sh : shifter A) (cutoff : nat).
+    
+    Section Shiftvec.
+      Variable amt : nat.
+      
+      Polymorphic Equations shift_vec : forall {n : nat}, Vec.t A n -> Vec.t A n := {
+          shift_vec []               := [];
+          shift_vec (Vec.cons a n v) := sh (cutoff + n)%nat amt a :: shift_vec v }.
+    End Shiftvec.
+    
+    Polymorphic Hypothesis sh_0 : forall c a, sh c 0 a = a.
+    
+    Polymorphic Lemma shift_vec_0 : forall {n} (v : Vec.t A n),
+        shift_vec 0 v = v.
+    Proof using A cutoff sh sh_0.
+      intros n v.
+      funelim (shift_vec 0 v).
+      - rewrite shift_vec_equation_1. reflexivity.
+      - rewrite shift_vec_equation_2.
+        rewrite sh_0. f_equal. assumption.
+    Qed.
+    
+    Polymorphic Hypothesis sh_add :
+      forall c m n a, sh c m (sh c n a) = sh c (m + n) a.
+    
+    Polymorphic Lemma shift_vec_add : forall m n {o} (v : Vec.t A o),
+        shift_vec m (shift_vec n v) = shift_vec (m + n) v.
+    Proof using A cutoff sh sh_add.
+      intros m n o v.
+      funelim (shift_vec n v).
+      - do 2 rewrite shift_vec_equation_1. reflexivity.
+      - do 3 rewrite shift_vec_equation_2. cbn.
+        rewrite sh_add. f_equal. auto.
+    Qed.
+  End shift.
+
+  Polymorphic Global Instance Shift_vec {n} `(SH : Shift A) : Shift (Vec.t A n) :=
+    { shift c a := shift_vec SH.(shift) c a (n:=n);
+      shift_0 c := shift_vec_0 SH.(shift) c SH.(shift_0);
+      shift_add c m q v := shift_vec_add SH.(shift) c SH.(shift_add) m q (o:=n) v
+    }.
+End ShiftVec.
+
+Section ShiftList.
+  Polymorphic Universe a.
+
+  Polymorphic Context {A : Type@{a}}.
+
+  Section shift.
+    Polymorphic Variables (sh : shifter A) (cutoff : nat).
+
+    Section Shiftlist.
+      Variable amt : nat.
+      
+      Polymorphic Fixpoint shift_list (l : list A) : list A :=
+        match l with
+        | [] => []
+        | h :: t => sh (cutoff + (length t)) amt h :: shift_list t
+        end.
+    End Shiftlist.
+
+    Polymorphic Lemma shift_list_length : forall n l,
+        length (shift_list n l) = length l.
+    Proof using.
+      intros n l; induction l as [| h t ih];
+        cbn; f_equal; auto.
+    Qed.
+
+    Polymorphic Local Hint Rewrite shift_list_length : core.
+    
+    Polymorphic Hypothesis sh_0 : forall c a, sh c 0 a = a.
+    
+    Polymorphic Lemma shift_list_0 : forall (l : list A),
+        shift_list 0 l = l.
+    Proof using A cutoff sh sh_0.
+      intro l; induction l as [| a l ih]; cbn; f_equal; auto.
+    Qed.
+
+    Polymorphic Hypothesis sh_add :
+      forall c m n a, sh c m (sh c n a) = sh c (m + n) a.
+    
+    Polymorphic Lemma shift_list_add : forall m n (l : list A),
+        shift_list m (shift_list n l) = shift_list (m + n) l.
+    Proof using A cutoff sh sh_add.
+      intros m n l.
+      induction l as [| a l ih]; cbn;
+        autorewrite with core;
+        f_equal; eauto.
+    Qed.
+  End shift.
+
+  Polymorphic Global Instance Shift_list `(SH : Shift A) : Shift (list A) :=
+    { shift := shift_list SH.(shift);
+      shift_0 c := shift_list_0 SH.(shift) c SH.(shift_0);
+      shift_add c := shift_list_add SH.(shift) c SH.(shift_add)
+    }.
+End ShiftList.
 
 Section Shift.
-  Variable s : shifter.
-  
-  Definition smother (n : nat) : shifter :=
-    s <| cutoff := n + s.(cutoff) |>.
+  Variables cutoff amt : nat.
 
-  Definition boost (n : nat) : shifter :=
-    s <| amt := n + s.(amt) |>.
+  (** Updates cutoff. *)
+  (*Definition smother (n : nat) : nat :=
+    n + s.(cutoff)*)
+
+  (*Definition boost (n : nat) : shifter :=
+    s <| amt := n + s.(amt) |>.*)
   
-  Definition shext : shifter :=
-    smother 1.
+  (*Definition shext : shifter :=
+    smother 1.*)
   
   Definition shift_var (x : nat) : nat :=
-    if le_lt_dec s.(cutoff) x then s.(amt) + x else x.
+    if le_lt_dec cutoff x then amt + x else x.
   
   Open Scope exp_scope.
   
@@ -84,55 +204,10 @@ Section Shift.
     end.
 End Shift.
 
-Section ShiftVec.
-  Import Vec.VectorNotations.
-  Local Open Scope vector_scope.
-  
-  Polymorphic Universe a.
-
-  Context {A : Type@{a}}.
-  Variable f : shifter -> A -> A.
-  Variable sh : shifter.
-
-  Polymorphic Equations shift_vec : forall {n : nat}, Vec.t A n -> Vec.t A n := {
-      shift_vec []               := [];
-      shift_vec (Vec.cons a n v) := f (smother sh n) a :: shift_vec v }.
-End ShiftVec.
-
-Section ShiftList.
-  Context {A : Set}.
-  Variable f : shifter -> A -> A.
-  Variable sh : shifter.
-
-  Fixpoint shift_list (l : list A) : list A :=
-    match l with
-    | [] => []
-    | h :: t => f (smother sh (length t)) h :: shift_list t
-    end.
-
-  Lemma shift_list_length : forall l,
-      length (shift_list l) = length l.
-  Proof using.
-    intro l; induction l as [| h t ih];
-      cbn; f_equal; auto.
-  Qed.
-End ShiftList.
-  
-Lemma shift_exp_add : forall m n e,
-    shift_exp (Shifter 0 m) (shift_exp (Shifter 0 n) e) = shift_exp (Shifter 0 (m + n)) e.
-Proof.
-  intros m n e.
-  induction e using custom_exp_ind; unravel; f_equal; auto.
-  - unfold shift_var; cbn. lia.
-  - rewrite map_map.
-    apply map_ext_Forall.
-    assumption.
-Qed.
-
-Section Shift0.
+Section Shift.
   Variable c : nat.
 
-  Lemma shift_exp_0 : forall e, shift_exp (Shifter c 0) e = e.
+  Lemma shift_exp_0 : forall e, shift_exp c 0 e = e.
   Proof using.
     intro e.
     induction e using custom_exp_ind; unravel;
@@ -145,15 +220,25 @@ Section Shift0.
 
   Local Hint Rewrite shift_exp_0 : core.
 
-  Lemma shift_exp_0_map : forall es,
-      map (shift_exp (Shifter c 0)) es = es.
+  Lemma shift_exp_option_map_0 : forall oe,
+      option_map (shift_exp c 0) oe = oe.
+  Proof using.
+    intros [e |]; unravel; autorewrite with core; reflexivity.
+  Qed.
+
+  Local Hint Rewrite shift_exp_option_map_0 : core.
+  
+  Lemma shift_exp_map_0 : forall es,
+      map (shift_exp c 0) es = es.
   Proof using.
     intros es;
       induction es as [| e es ih]; unravel;
       autorewrite with core; f_equal; auto.
   Qed.
 
-  Lemma shift_arg_0 : forall arg, shift_arg (Shifter c 0) arg = arg.
+  Local Hint Rewrite shift_exp_map_0 : core.
+
+  Lemma shift_arg_0 : forall arg, shift_arg c 0 arg = arg.
   Proof using.
     intros []; unravel;
       autorewrite with core; reflexivity.
@@ -161,131 +246,213 @@ Section Shift0.
 
   Local Hint Rewrite shift_arg_0 : core.
 
-  Lemma shift_arg_0_map : forall args,
-      map (shift_arg (Shifter c 0)) args = args.
+  Lemma shift_arg_map_0 : forall args,
+      map (shift_arg c 0) args = args.
   Proof using.
     intros args;
       induction args as [| arg args ih];
       unravel; autorewrite with core;
       f_equal; auto.
   Qed.
+
+  Local Hint Rewrite shift_arg_map_0 : core.
   
-  Lemma shift_trans_0 : forall p, shift_trns (Shifter c 0) p = p.
+  Lemma shift_trns_0 : forall p, shift_trns c 0 p = p.
   Proof using.
     intros []; unravel;
       autorewrite with core; reflexivity.
   Qed.
-End Shift0.
+
+  Lemma shift_call_0 : forall cl, shift_call c 0 cl = cl.
+  Proof using.
+    intros []; unravel;
+      autorewrite with core; reflexivity.
+  Qed.
+
+  Variables m n : nat.
+
+  Lemma shift_exp_add : forall e,
+      shift_exp c m (shift_exp c n e)
+      = shift_exp c (m + n) e.
+  Proof using.
+    intro e.
+    induction e using custom_exp_ind; unravel; f_equal; auto.
+    - unfold shift_var; cbn.
+      repeat destruct_if; try lia.
+    - rewrite map_map.
+      apply map_ext_Forall.
+      assumption.
+  Qed.
+
+  Local Hint Rewrite shift_exp_add : core.
+  
+  Lemma shift_arg_add : forall arg,
+      shift_arg c m (shift_arg c n arg)
+      = shift_arg c (m + n) arg.
+  Proof using.
+    intros [e | e | e]; unravel; autorewrite with core; reflexivity.
+  Qed.
+
+  Local Hint Rewrite shift_arg_add : core.
+  
+  Lemma shift_trns_add : forall t,
+      shift_trns c m (shift_trns c n t)
+      = shift_trns c (m + n) t.
+  Proof using.
+    intros [ | ]; unravel; autorewrite with core; reflexivity.
+  Qed.
+
+  Lemma shift_exp_option_map_add : forall oe,
+      option_map (shift_exp c m) (option_map (shift_exp c n) oe)
+      = option_map (shift_exp c (m + n)) oe.
+  Proof using.
+    intros []; unravel;
+      autorewrite with core; reflexivity.
+  Qed.
+
+  Local Hint Rewrite shift_exp_option_map_add : core.
+  
+  Lemma shift_exp_map_add : forall es,
+      map (shift_exp c m) (map (shift_exp c n) es)
+      = map (shift_exp c (m + n)) es.
+  Proof using.
+    intros es;
+      induction es as [| e es ih]; unravel;
+      autorewrite with core; f_equal; auto.
+  Qed.
+
+  Local Hint Rewrite shift_exp_map_add : core.
+  
+  Lemma shift_arg_map_add : forall args,
+      map (shift_arg c m) (map (shift_arg c n) args)
+      = map (shift_arg c (m + n)) args.
+  Proof using.
+    intros args;
+      induction args as [| arg args ih]; unravel;
+      autorewrite with core; f_equal; auto.
+  Qed.
+
+  Lemma shift_call_add : forall cl,
+      shift_call c m (shift_call c n cl)
+      = shift_call c (m + n) cl.
+  Proof using.
+    intros []; unravel; autorewrite with core; reflexivity.
+  Qed.
+End Shift.
+
+Global Instance Shift_exp : Shift Exp.t := {
+    shift := shift_exp;
+    shift_0 := shift_exp_0;
+    shift_add := shift_exp_add
+  }.
+
+Global Instance Shift_arg : Shift (paramarg Exp.t Exp.t) := {
+    shift := shift_arg;
+    shift_0 := shift_arg_0;
+    shift_add := shift_arg_add
+  }.
+
+Global Instance Shift_trns : Shift Trns.t := {
+    shift := shift_trns;
+    shift_0 := shift_trns_0;
+    shift_add := shift_trns_add
+  }.
+
+Global Instance Shift_call : Shift Call.t := {
+    shift := shift_call;
+    shift_0 := shift_call_0;
+    shift_add := shift_call_add
+  }.
 
 Local Open Scope stm_scope.
 
 Fixpoint shift_stm
-  (sh : shifter) (s : Stm.t) : Stm.t :=
+  (c a : nat) (s : Stm.t) : Stm.t :=
   match s with
   | Stm.Skip
   | Stm.Exit => s
   | Stm.Ret oe
-    => Stm.Ret $ option_map (shift_exp sh) oe
+    => Stm.Ret $ option_map (shift_exp c a) oe
   | Stm.Trans e
-    => Stm.Trans $ shift_trns sh e
-  | e1 `:= e2 => shift_exp sh e1 `:= shift_exp sh e2
+    => Stm.Trans $ shift_trns c a e
+  | e1 `:= e2 => shift_exp c a e1 `:= shift_exp c a e2
   | Stm.Invoke e t
-    => Stm.Invoke (option_map (shift_exp sh) e) t
+    => Stm.Invoke (option_map (shift_exp c a) e) t
   | Stm.App fk args
-    => Stm.App (shift_call sh fk) $ map (shift_arg sh) args
+    => Stm.App (shift_call c a fk) $ map (shift_arg c a) args
   |`let og := te `in b
-    => `let og := map_sum id (shift_exp sh) te `in shift_stm (shext sh) b
-  | s₁ `; s₂ => shift_stm sh s₁ `; shift_stm sh s₂
+    => `let og := map_sum id (shift_exp c a) te `in shift_stm (S c) a b
+  | s₁ `; s₂ => shift_stm c a s₁ `; shift_stm c a s₂
   | `if e `then s₁ `else s₂
-    => `if shift_exp sh e `then shift_stm sh s₁ `else shift_stm sh s₂
+    => `if shift_exp c a e `then shift_stm c a s₁ `else shift_stm c a s₂
   end.
 
 Definition shift_ctrl
-  (sh : shifter) (d : Ctrl.t) : Ctrl.t :=
+  (c amt : nat) (d : Ctrl.t) : Ctrl.t :=
   match d with
-  | Ctrl.Var x te => Ctrl.Var x $ map_sum id (shift_exp sh) te
-  | Ctrl.Action a cps dps s => Ctrl.Action a cps dps $ shift_stm sh s
+  | Ctrl.Var x te => Ctrl.Var x $ map_sum id (shift_exp c amt) te
+  | Ctrl.Action a cps dps s => Ctrl.Action a cps dps $ shift_stm c amt s
   | Ctrl.Table t key argss def =>
       Ctrl.Table
-        t (map (fun '(e, mk) => (shift_exp sh e, mk)) key)
-        (map (fun '(a, args) => (a, map (shift_arg sh) args)) argss)
-        $ option_map (fun '(a, es) => (a, map (shift_exp sh) es)) def
+        t (map (fun '(e, mk) => (shift_exp c amt e, mk)) key)
+        (map (fun '(a, args) => (a, map (shift_arg c amt) args)) argss)
+        $ option_map (fun '(a, es) => (a, map (shift_exp c amt) es)) def
   end.
 
 Fixpoint shift_ctrls
-  (sh : shifter) (ds : list Ctrl.t) : list Ctrl.t :=
+  (c a : nat) (ds : list Ctrl.t) : list Ctrl.t :=
   match ds with
   | [] => []
   | Ctrl.Var x te as d :: ds =>
-      shift_ctrl sh d :: shift_ctrls (shext sh) ds
-  | d :: ds => shift_ctrl sh d :: shift_ctrls sh ds
+      shift_ctrl c a d :: shift_ctrls (S c) a ds
+  | d :: ds => shift_ctrl c a d :: shift_ctrls c a ds
   end.
-
-(*Definition shift_top_decl
-  (sh : shifter) (d : TopDecl.d) : TopDecl.d :=
-  match d with
-  | TopDecl.Instantiate
-  end.*)
 
 Local Close Scope stm_scope.
 
-Section ShiftList.
-  Context {A : Set}.
-  Variable f : shifter -> A -> A.
-  
-  Hypothesis shift_f_0 : forall c a, f (Shifter c 0) a = a.
-  
-  Lemma shift_list_0 : forall l c,
-      shift_list f (Shifter c 0) l = l.
-  Proof using A f shift_f_0.
-    intro l; induction l as [| a l ih]; intro c; unravel; trivial.
-    unfold smother,RecordSet.set,cutoff,amt.
-    rewrite shift_f_0, ih. reflexivity.
-  Qed.
-End ShiftList.
-
-
-Section Shift0.
+Section Shiftstm.
   Local Hint Rewrite shift_exp_0 : core.
-  Local Hint Rewrite shift_exp_0_map : core.
-
-  Lemma shift_explist_0 : forall es c,
-      shift_list shift_exp (Shifter c 0) es = es.
-  Proof.
-    intros es c.
-    apply shift_list_0.
-    exact shift_exp_0.
-  Qed.
-  
-  Local Hint Rewrite shift_arg_0 : core.
-  Local Hint Rewrite shift_arg_0_map : core.
-  Local Hint Rewrite shift_trans_0 : core.
-
-  Lemma shift_call_0 : forall fk c,
-      shift_call (Shifter c 0) fk = fk.
-  Proof using.
-    intros [f ts [e |] | a es | ext mthd ts [e |] | ? ?] c; unravel;
-      autorewrite with core; reflexivity.
-  Qed.
-
+  Local Hint Rewrite shift_exp_map_0 : core.
+  Local Hint Rewrite shift_arg_map_0 : core.
+  Local Hint Rewrite shift_trns_0 : core.
   Local Hint Rewrite shift_call_0 : core.
+  Local Hint Rewrite shift_exp_option_map_0 : core.
   
-  Lemma shift_stm_0 : forall s c, shift_stm (Shifter c 0) s = s.
+  Lemma shift_stm_0 : forall c s, shift_stm c 0 s = s.
   Proof using.
-    intro s;
+    intros c s;
+      generalize dependent c;
       induction s;
-      intro c; unravel;
+      unravel;
+      intro c;
       autorewrite with core;
-      unfold shext, smother, RecordSet.set; unravel;
       f_equal; auto.
-    - destruct e; unravel;
-        autorewrite with core; reflexivity.
-    - destruct lhs; unravel;
-        autorewrite with core; reflexivity.
     - destruct init; unravel;
         autorewrite with core; reflexivity.
   Qed.
-End Shift0.
+
+  Local Hint Rewrite shift_exp_add : core.
+  Local Hint Rewrite shift_exp_map_add : core.
+  Local Hint Rewrite shift_arg_map_add : core.
+  Local Hint Rewrite shift_trns_add : core.
+  Local Hint Rewrite shift_call_add : core.
+  Local Hint Rewrite shift_exp_option_map_add : core.
+
+  Lemma shift_stm_add : forall c m n s,
+      shift_stm c m (shift_stm c n s) = shift_stm c (m + n) s.
+  Proof using.
+    intros c m n s.
+    generalize dependent c.
+    induction s; intro c; unravel; autorewrite with core; f_equal; auto.
+    destruct init; unravel; autorewrite with core; reflexivity.
+  Qed.
+
+  Global Instance Shift_stm : Shift Stm.t := {
+      shift := shift_stm;
+      shift_0 := shift_stm_0;
+      shift_add := shift_stm_add
+    }.
+End Shiftstm.
 
 (** Philip Wadler style de Bruijn shifts for expession variables. *)
 

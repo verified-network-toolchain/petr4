@@ -2,23 +2,6 @@ From Equations Require Import Equations.
 Require Import Poulet4.Utils.VecUtil Poulet4.Utils.Util.FunUtil.
 Import Vec.VectorNotations.
 
-Section prod.
-  Polymorphic Universes a b.
-  Variables (A : Type@{a}) (B : Type@{b}).
-  Polymorphic Variant prod : Type@{max(a,b)} := pair : A -> B -> prod.
-
-  Polymorphic Definition fst '(pair a _ : prod) : A := a.
-  Polymorphic Definition snd '(pair _ b : prod) : B := b.
-End prod.
-
-Arguments pair {A} {B}.
-Arguments fst {A} {B}.
-Arguments snd {A} {B}.
-
-Set Warnings "-notation-overridden".
-Notation "x * y" := (prod x y) : type_scope.
-Notation "( x , y , .. , z )" := (pair .. (pair x y) .. z) : core_scope.
-
 Section ProdN.
   Polymorphic Universe a.
   
@@ -27,7 +10,7 @@ Section ProdN.
   | cons : forall {A : Type@{a}} {n : nat} {v : Vec.t Type@{a} n},
       A -> t v -> t (A :: v)%vector.
 
-  Polymorphic Derive Signature NoConfusion NoConfusionHom for t.
+  Polymorphic Derive Signature NoConfusion NoConfusionHom Subterm for t.
 End ProdN.
 
 Module ProdNNotations.
@@ -62,8 +45,19 @@ Section ProdN.
       nth (Fin.FS i) (_ :: p) := nth i p
     }.
 
+  Polymorphic Inductive each :
+    forall {n : nat} {v : Vec.t Type@{a} n},
+      t (Vec.map (fun A => A -> Prop) v) -> t v -> Prop :=
+  | each_nil : each (v:=[]%vector) [] []
+  | each_cons
+      {A : Type@{a}} {n : nat} {v : Vec.t Type@{a} n} (a : A) (p : t v)
+      (P : A -> Prop) (props : t (Vec.map (fun A => A -> Prop) v)) :
+    P a -> each props p -> each (v:=A :: v)%vector (P :: props) (a :: p).
+
+  Polymorphic Derive Signature for each.
+  
   Section fixed.
-    Context {A : Type@{a}}.
+    Polymorphic Context {A : Type@{a}}.
 
     Polymorphic Equations hd : forall {n : nat} {v : Vec.t Type@{a} n},
         t (A :: v)%vector -> A := {
@@ -73,11 +67,6 @@ Section ProdN.
     Polymorphic Equations tl : forall {n : nat} {v : Vec.t Type@{a} n},
         t (A :: v)%vector -> t v := {
         tl (_ :: p) := p
-      }.
-
-    Polymorphic Equations rep : forall (n : nat) (a : A), t (vec_rep n A) := {
-        rep O a := [];
-        rep (S n) a := a :: rep n a
       }.
 
     Polymorphic Equations to_vec : forall {n : nat}, t (vec_rep n A) -> Vec.t A n := {
@@ -95,33 +84,148 @@ Section ProdN.
 
     Polymorphic Definition of_list (l : list A) : t (vec_rep (length l) A) :=
       of_vec $ Vec.of_list l.
-  End fixed.
 
-  Section Map.
+    Polymorphic Fixpoint rep (a : A) (n : nat) : t (vec_rep n A) :=
+      match n with
+      | O => []
+      | S n => a :: rep a n
+      end.
+
+    Section RepParam.
+      Polymorphic Universe b.
+      Polymorphic Context {B : A -> Type@{b}} {a : A}.
+      Polymorphic Variable (ba : B a).
+      
+      Polymorphic Fixpoint rep_param (n : nat) : ProdN.t (Vec.map B (vec_rep n a)) :=
+        match n with
+        | O => []
+        | S n => ba :: rep_param n
+        end.
+    End RepParam.
+  End fixed.
+  
+  Section MapUni.
+    Polymorphic Context {A : Type@{a}}.
+    Polymorphic Variable a : A.
+    
+    Polymorphic Universe b.
+
+    Polymorphic Equations map_uni1 :
+      forall {n : nat} {BS : Vec.t Type@{b} n},
+        ProdN.t (Vec.map (fun B => A -> B -> B) BS) ->
+        ProdN.t BS -> ProdN.t BS := {
+          map_uni1 [] [] := [];
+          map_uni1 (f :: fs) (b :: p) := f a b :: map_uni1 fs p
+      }.
+
+    Polymorphic Context {B : Type@{b}}.
+    Polymorphic Variable b : B.
+
+    Polymorphic Universe c.
+
+    Polymorphic Equations map_uni2 :
+      forall {n : nat} {CS : Vec.t Type@{c} n},
+        ProdN.t (Vec.map (fun C => A -> B -> C -> C) CS) ->
+        ProdN.t CS -> ProdN.t CS := {
+        map_uni2 [] [] := [];
+        map_uni2 (f :: fs) (c :: p) := f a b c :: map_uni2 fs p
+      }.
+  End MapUni.
+  
+   Section Map.
     Polymorphic Universe b.
     
     Polymorphic Equations map : forall {n : nat} {dom : Vec.t Type@{a} n} {ran : Vec.t Type@{b} n},
-      t (Vec.map2 (fun A B : Type@{a} => A -> B) dom ran) ->
+      t (Vec.map2 (fun (A : Type@{a}) (B : Type@{b}) => A -> B) dom ran) ->
       t dom -> t ran := {
-      map (dom:=[]%vector) (ran:=[]%vector) [] [] := [];
+        map (dom:=[]%vector) (ran:=[]%vector) [] [] := [];
         map (f :: fp) (a :: p) := f a :: map fp p
       }.
-  End Map.
 
-  Section MapPoly.
-    (**Polymorphic Universe b.*)
+    (* Takes too long to build:
+    Polymorphic Universe c.
+
+    Set Equations Transparent.
     
-    Variable f : forall {A : Type@{a}} {B : Type@{a}}, A -> B.
+    Polymorphic Equations map2 :
+      forall {n : nat} {dom1 : Vec.t Type@{a} n} {dom2 : Vec.t Type@{b} n} {ran : Vec.t Type@{c} n},
+      t (vec_map3 (fun (A : Type@{a}) (B : Type@{b}) (C : Type@{c}) => A -> B -> C) dom1 dom2 ran) ->
+      t dom1 -> t dom2 -> t ran := {
+        map2 (ran := []%vector) [] [] [] := [];
+        map2 (ran := (_ :: _)%vector) (f :: fp) (a :: p1) (b :: p2) := f a b :: map2 fp p1 p2
+      }.*)
 
-    Polymorphic Equations map_poly : forall {n : nat} {v : Vec.t Type@{a} n},
-        t v -> t v := {
-        map_poly [] := [];
-        map_poly (a :: p) := f a :: map_poly p
-      }.
-  End MapPoly.
+    (*Section Map2.
+      Polymorphic Universe c.
 
+      Polymorphic Context {n : nat} {dom1 : Vec.t Type@{a} n} {dom2 : Vec.t Type@{b} n} {ran : Vec.t Type@{c} n}.
+      Polymorphic Variables
+                    (fs : t (vec_map3 (fun (A : Type@{a}) (B : Type@{b}) (C : Type@{c}) => A -> B -> C) dom1 dom2 ran))
+                    (pa : t dom1) (pb : t dom2).
+
+      Definition map2 : t ran :=
+      
+    End Map2.*)
+  End Map.
+End ProdN.
+
+Section eachForall.
+  Import ProdNNotations.
+  Open Scope prodn_scope.
+  
+  Polymorphic Universe a.
+  Polymorphic Context {A : Type@{a}}.
+  Polymorphic Variable P : A -> Prop.
+  
+  Local Hint Constructors each : core.
+  
+  Polymorphic Lemma Forall_each :
+    forall {n : nat} (v : Vec.t A n),
+      Vec.Forall P v ->
+      each (rep_param P n) (of_vec v).
+  Proof using.
+    intros n v hv; depind hv; cbn; auto.
+    rewrite of_vec_equation_2.
+    auto.
+  Qed.
+
+  Local Hint Constructors Vec.Forall : core.
+  
+  Polymorphic Lemma each_Forall :
+    forall {n : nat} (p : ProdN.t (vec_rep n A)),
+      ProdN.each (ProdN.rep_param P n) p ->
+      Vec.Forall P (to_vec p).
+  Proof using.
+    intro n; induction n as [| n ih];
+      intros p hp; cbn in *; depelim hp.
+    - rewrite to_vec_equation_1. constructor.
+    - rewrite to_vec_equation_2. auto.
+  Qed.
+End eachForall.
+
+Module ProdNZip.
+  Section prod.
+    Polymorphic Universes a b.
+    Variables (A : Type@{a}) (B : Type@{b}).
+    Polymorphic Variant prod : Type@{max(a,b)} := pair : A -> B -> prod.
+    
+    Polymorphic Definition fst '(pair a _ : prod) : A := a.
+    Polymorphic Definition snd '(pair _ b : prod) : B := b.
+  End prod.
+  
+  Arguments pair {A} {B}.
+  Arguments fst {A} {B}.
+  Arguments snd {A} {B}.
+
+  Set Warnings "-notation-overridden".
+  Notation "x * y" := (prod x y) : type_scope.
+  Notation "( x , y , .. , z )" := (pair .. (pair x y) .. z) : core_scope.
+  
   Section Zip.
-    Polymorphic Universe b.
+    Import ProdNNotations.
+    Open Scope prodn_scope.
+    
+    Polymorphic Universe a b.
 
     Polymorphic Equations zip :
       forall {n : nat} {v1 : Vec.t Type@{a} n} {v2 : Vec.t Type@{b} n},
@@ -139,4 +243,4 @@ Section ProdN.
           let '(p1, p2) := unzip p in (a :: p1, b :: p2)
       }.
   End Zip.
-End ProdN.
+End ProdNZip.

@@ -1,7 +1,8 @@
 Require Export Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Syntax.Shift
         Poulet4.P4cub.Transformations.Lifting.Statementize.
-Require Import Poulet4.Utils.ForallMap.
+Require Import Poulet4.Utils.ForallMap Poulet4.Utils.VecUtil.
+From Equations Require Import Equations.
 
 Ltac pair_destr :=
   match goal with
@@ -172,10 +173,10 @@ Qed.
 
 Local Hint Resolve rename_exp_lifted_exp : core.
 
-Lemma shift_lifted_exp : forall sh e,
-    lifted_exp e -> lifted_exp (shift_exp sh e).
+Lemma shift_lifted_exp : forall c a e,
+    lifted_exp e -> lifted_exp (shift_exp c a e).
 Proof.
-  intros sh e h; induction h; unravel; auto.
+  intros c a e h; induction h; unravel; auto.
 Qed.
 
 Local Hint Resolve shift_lifted_exp : core.
@@ -190,60 +191,166 @@ Qed.
 
 Local Hint Resolve rename_exp_lifted_rexp : core.
 
-Lemma shift_lifted_rexp : forall sh e,
-    lifted_rexp e -> lifted_rexp (shift_exp sh e).
+Lemma shift_lifted_rexp : forall c a e,
+    lifted_rexp e -> lifted_rexp (shift_exp c a e).
 Proof.
-  intros sh e h; inv h; unravel; auto;
+  intros c a e h; inv h; unravel; auto;
     constructor; rewrite sublist.Forall_map;
     rewrite Forall_forall in *; unravel; auto.
 Qed.
 
 Local Hint Resolve shift_lifted_rexp : core.
 
-Lemma shift_list_lifted_rexp : forall sh es,
+Lemma shift_list_lifted_rexp : forall c a es,
     Forall lifted_rexp es ->
-    Forall lifted_rexp (shift_list shift_exp sh es).
+    Forall lifted_rexp (shift_list shift_exp c a es).
 Proof.
-  intros sh es h; induction h; unravel; auto.
+  intros c a es h; induction h; unravel; auto.
 Qed.
 
 Local Hint Resolve shift_list_lifted_rexp : core.
 
-Section LiftList.
-  Context {U : Set}.
-  Variable shift_u : shifter -> U -> U.
-  Variable lifted_u : U -> Prop.
-
-  Hypothesis shift_lifted_u : forall sh u,
-      lifted_u u -> lifted_u (shift_u sh u).
+Section LiftProd.
+  Import ProdN.ProdNNotations.
+  Import Vec.VectorNotations.
+  Local Open Scope prodn_scope.
   
-  Lemma shift_pairs_lifted : forall us,
-    Forall
-      (fun ues => Forall lifted_rexp (snd ues)
-               /\ lifted_u (fst ues)) us ->
-    Forall
-      (fun ues => Forall lifted_rexp (snd ues)
-               /\ lifted_u (fst ues))
-      (shift_pairs shift_u us).
-  Proof using U lifted_u shift_lifted_u shift_u.
-    intros us h.
-    induction h as [| [u es] us [hu hes] hus ih]; unravel in *; auto.
-    constructor; cbn.
-    - split; auto.
-    - clear dependent u. clear hus hu.
-      rewrite Forall_conj in *.
-      rewrite <- Forall_map with (f:=fst) in *.
-      rewrite <- Forall_map with (f:=snd) in *.
-      rewrite map_fst_map, map_snd_map, map_id.
-      destruct ih as [h2 h1].
-      split; auto. clear h2.
-      rewrite Forall_forall in *.
-      intros u' hu'.
-      rewrite in_map_iff in hu'.
-      destruct hu' as (u & hu & hin); subst.
-      auto.
+  Polymorphic Universes a.
+
+  Local Hint Constructors Vec.Forall : core.
+  Local Hint Constructors ProdN.each : core.
+  
+  Polymorphic Lemma prodn_shift_pairs_lifted :
+    forall {n : nat} {AS : Vec.t Type@{a} n}
+      (lifteds : ProdN.t (Vec.map (fun A => A -> Prop) AS))
+      (shifts : ProdN.t (Vec.map shifter AS)),
+      (forall pas, ProdN.each lifteds pas ->
+              forall cutoff amt, ProdN.each lifteds (ProdN.map_uni2 cutoff amt shifts pas)) ->
+      forall (p : ProdN.t AS) (v : Vec.t (list Exp.t) n),
+        ProdN.each lifteds p ->
+        Vec.Forall (Forall lifted_rexp) v ->
+        ProdN.each lifteds (fst (prodn_shift_pairs shifts p v))
+        /\ Vec.Forall (Forall lifted_rexp) (snd (prodn_shift_pairs shifts p v)).
+  Proof using.
+    intros n AS lifteds shifts hyp p v p_lifted v_lifted.
+    funelim (prodn_shift_pairs shifts p v); auto.
+    cbn in lifteds.
+    depelim lifteds. rename a0 into lifted.
+    depelim p_lifted. depelim v_lifted.
+    rename H0 into ha. rename H1 into hes.
+    assert
+      (forall pas,
+          ProdN.each lifteds pas ->
+          forall cutoff amt,
+            ProdN.each lifteds (ProdN.map_uni2 cutoff amt fs pas))
+      as hyp'.
+    { intros pas hpas c amt.
+      pose proof hyp
+        (a :: pas)
+        (ProdN.each_cons _ _ _ _ ha hpas) c amt as hyp'.
+      rewrite ProdN.map_uni2_equation_2 with
+        (A0:=A) (f:=f) (fs:=fs) in hyp'.
+      depelim hyp'. assumption. }
+    rewrite prodn_shift_pairs_equation_2.
+    unravel; cbn.
+    pose proof H lifteds hyp' p_lifted v_lifted
+      as [ihp ihv]; clear H hyp'.
+    destruct (prodn_shift_pairs fs p ess) as [p' v'] eqn:hpsp.
+    cbn in *.
+    split; auto.
+    pose proof hyp (a :: p')
+      (ProdN.each_cons _ _ _ _ ha ihp) as h.
+    constructor.
+    - specialize h with
+        (length es)
+        (vec_sum (Vec.map (length (A:=Exp.t)) ess)).
+      rewrite ProdN.map_uni2_equation_2
+        with (A0:=A) (f:=f) (fs:=fs) in h.
+      depelim h. assumption.
+    - specialize h with 0 (length es).
+      rewrite ProdN.map_uni2_equation_2
+        with (A0:=A) (f:=f) (fs:=fs) in h.
+      depelim h. assumption.
   Qed.
-End LiftList.
+
+  Polymorphic Context {A : Type@{a}}.
+  Variable shifta : shifter A.
+  Variable lifteda : A -> Prop.
+  Hypothesis shifta_lifteda : forall c amt a,
+      lifteda a -> lifteda (shifta c amt a).
+
+  Polymorphic Remark prodn_shifta_lifteda :
+    forall {n : nat} (p : ProdN.t (vec_rep n A)),
+      ProdN.each (ProdN.rep_param lifteda n) p ->
+      forall cutoff amt,
+        ProdN.each
+          (ProdN.rep_param lifteda n)
+          (ProdN.map_uni2 cutoff amt (ProdN.rep_param shifta n) p).
+  Proof using A lifteda shifta shifta_lifteda.
+    intro n.
+    induction n as [| n ih];
+      intros p h c amt; unravel in *; depelim h; auto.
+    rewrite ProdN.map_uni2_equation_2 with (f:=shifta).
+    auto.
+  Qed.
+
+  Local Hint Resolve ProdN.Forall_each : core.
+  Local Hint Resolve ProdN.each_Forall : core.
+  
+  Polymorphic Lemma vec_shift_pairs_lifted :
+    forall {n : nat} (v : Vec.t A n) (ess : Vec.t (list Exp.t) n),
+      Vec.Forall lifteda v ->
+      Vec.Forall (Forall lifted_rexp) ess ->
+      Vec.Forall lifteda (fst (vec_shift_pairs shifta v ess))
+      /\ Vec.Forall
+          (Forall lifted_rexp)
+          (snd (vec_shift_pairs shifta v ess)).
+  Proof using A lifteda shifta shifta_lifteda.
+    intros n v ess hb hess.
+    unfold vec_shift_pairs. unravel.
+    pose proof prodn_shift_pairs_lifted (AS:=vec_rep n A)
+      (ProdN.rep_param (B:=fun A => A -> Prop) lifteda n)
+      (ProdN.rep_param (B:=shifter) shifta n)
+      prodn_shifta_lifteda as h.
+    specialize h with (ProdN.of_vec v) ess.
+    assert (ProdN.each (ProdN.rep_param lifteda n) (ProdN.of_vec v))
+      as hv by eauto.
+    destruct
+      (prodn_shift_pairs
+         (ProdN.rep_param shifta n)
+         (ProdN.of_vec v) ess)
+      as [p' ess'] eqn:hpsp.
+    cbn in *. intuition.
+  Qed.
+
+  Local Hint Resolve list_Forall_vec : core.
+  Local Hint Resolve vec_Forall_list : core.
+
+  Polymorphic Lemma shift_pairs_lifted : forall l,
+    Forall
+      (fun aes => lifteda (fst aes)
+               /\ Forall lifted_rexp (snd aes)) l ->
+    Forall
+      (fun aes => lifteda (fst aes)
+               /\ Forall lifted_rexp (snd aes))
+      (shift_pairs shifta l).
+  Proof using A lifteda shifta shifta_lifteda.
+    intros l hl.
+    unfold shift_pairs; unravel.
+    destruct (vec_unzip (Vec.of_list l)) as [v ess] eqn:hlv.
+    rewrite Forall_conj in hl |- *.
+    rewrite <- Forall_map with (f:=fst) in hl |- *.
+    rewrite <- Forall_map with (f:=snd) in hl |- *.
+    destruct hl as [has hrs].
+    apply list_Forall_vec, Forall_of_list_map in has,hrs.
+    rewrite vec_unzip_correct in hlv. inv hlv.
+    pose proof vec_shift_pairs_lifted _ _ has hrs as [hva hes].
+    destruct
+      (vec_shift_pairs shifta (Vec.map fst (Vec.of_list l)) (Vec.map snd (Vec.of_list l)))
+      as [va ves] eqn:hvsp. unravel in *.
+    do 2 rewrite map_to_list. rewrite vec_zip_fst, vec_zip_snd. auto.
+  Qed.
+End LiftProd.
 
 Local Hint Resolve shift_pairs_lifted : core.
   

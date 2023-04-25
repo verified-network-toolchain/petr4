@@ -55,12 +55,29 @@ Tactic Notation "match_some_inv" := match_some_inv as ?.
 (** * Utility Functions *)
 
 Section MapProd.
-  Context {A B C : Type}.
-  Variable f : A -> B.
+  Polymorphic Universes a b c.
+  Polymorphic Context {A : Type@{a}} {B : Type@{b}} {C : Type@{c}}.
+  Polymorphic Variable f : A -> B.
 
-  Definition map_fst '((a,c) : A * C) : B * C := (f a, c).
+  Polymorphic Definition prod_map_fst '((a,c) : A * C) : B * C := (f a, c).
 
-  Definition map_snd '((c,a) : C * A) : C * B := (c, f a).
+  Polymorphic Definition prod_map_snd '((c,a) : C * A) : C * B := (c, f a).
+
+  Polymorphic Lemma fst_prod_map_fst : forall ac,
+      fst (prod_map_fst ac) = f (fst ac).
+  Proof using. intros [? ?]; reflexivity. Qed.
+
+  Polymorphic Lemma snd_prod_map_fst : forall ac,
+      snd (prod_map_fst ac) = snd ac.
+  Proof using. intros [? ?]; reflexivity. Qed.
+  
+  Polymorphic Lemma snd_prod_map_snd : forall ca,
+      snd (prod_map_snd ca) = f (snd ca).
+  Proof using. intros [? ?]; reflexivity. Qed.
+
+  Polymorphic Lemma fst_prod_map_snd : forall ca,
+      fst (prod_map_snd ca) = fst ca.
+  Proof using. intros [? ?]; reflexivity. Qed.
 End MapProd.
 
 Fixpoint n_compose {A : Type} (n : nat) (f : A -> A) (x : A) : A :=

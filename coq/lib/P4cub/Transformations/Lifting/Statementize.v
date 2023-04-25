@@ -56,15 +56,20 @@ Section ShiftPairs.
     Polymorphic Definition vec_shift_pairs
       {n : nat} (v : Vec.t A n) (ess : Vec.t (list Exp.t) n)
       : Vec.t A n * Vec.t (list Exp.t) n :=
-      map_fst ProdN.to_vec $
+      prod_map_fst ProdN.to_vec $
         prodn_shift_pairs
         (AS:=vec_rep n A) (ProdN.rep_param fa n) (ProdN.of_vec v) ess.
     
     Polymorphic Definition shift_pairs
-      (l : list (A * list Exp.t)) : list (A * list Exp.t) :=
+      (l : list (A * list Exp.t)) : list A * list (list Exp.t) :=
       let '(v,ess) := vec_unzip $ Vec.of_list l in
-      Vec.to_list $ uncurry vec_zip $ vec_shift_pairs v ess.
+      prod_map_fst Vec.to_list $ prod_map_snd Vec.to_list $ vec_shift_pairs v ess.
 
+    Polymorphic Variable lifta : A -> A * list Exp.t.
+    
+    Polymorphic Definition lift_A_list (l : list A) : list A * list Exp.t :=
+      prod_map_snd (List.concat (A:=Exp.t)) $ shift_pairs $ List.map lifta l.
+    
     Polymorphic Context {B : Type@{a}}.
     Variable fb : shifter B.
     
@@ -239,13 +244,12 @@ Fixpoint lift_exp (e : Exp.t) {struct e}
       (Exp.Var t "lifted_bop" 0,
         Exp.Bop t op e1' e2' :: l2' ++ l1)
   | Exp.Lists l es =>
-      let '(es', les) := List.split (shift_pairs shift_exp $ List.map lift_exp es) in
+      let '(es', les) := shift_pairs shift_exp $ List.map lift_exp es in
       (Exp.Var (typ_of_lists l es) "lifted_lists" 0, Exp.Lists l es' :: concat les)
   end.
 
-Definition lift_exp_list (es : list Exp.t) : list Exp.t * list Exp.t :=
-  let '(es, les) := List.split (shift_pairs shift_exp $ List.map lift_exp es) in
-  (es, concat les).
+Definition lift_exp_list : list Exp.t -> list Exp.t * list Exp.t :=
+  lift_A_list shift_exp lift_exp.
 
 Definition lift_arg (arg : paramarg Exp.t Exp.t)
   : paramarg Exp.t Exp.t * list Exp.t :=
@@ -258,15 +262,12 @@ Definition lift_arg (arg : paramarg Exp.t Exp.t)
       let '(e, le) := lift_exp e in (PAInOut e, le)
   end.
 
-Definition lift_args (args : Exp.args) : Exp.args * list Exp.t :=
-  let '(args, les) := List.split (shift_pairs shift_arg $ List.map lift_arg args) in
-  (args, concat les).
+Definition lift_args : Exp.args -> Exp.args * list Exp.t :=
+  lift_A_list shift_arg lift_arg.
 
 Definition lift_args_list
-  (argss : list Exp.args) : list Exp.args * list Exp.t :=
-  let '(argss, argsss) :=
-    List.split (shift_pairs (shift_list shift_arg) $ map lift_args argss) in
-  (argss, concat argsss).
+  : list Exp.args -> list Exp.args * list Exp.t :=
+  lift_A_list (shift_list shift_arg) lift_args.
 
 Fixpoint Unwind (es : list Exp.t) (s : Stm.t) : Stm.t :=
   match es with
@@ -356,11 +357,11 @@ Definition lift_ctrl (cd : Ctrl.t) : list Ctrl.t * nat :=
       let '(def,defes) :=
         omap_effect
           []
-          (fun '(a,es) => map_fst (pair a) $ lift_exp_list es)
+          (fun '(a,es) => prod_map_fst (pair a) $ lift_exp_list es)
           def in
       let '(def,es,argss,ees,argsss) :=
         shift_triple
-          (fun c a => option_map (FunUtil.map_snd (List.map (shift_exp c a))))
+          (fun c a => option_map (prod_map_snd (List.map (shift_exp c a))))
           (fun c a => List.map (shift_exp c a))
           (fun c a => List.map (List.map (shift_arg c a)))
           def es argss defes ees argsss in

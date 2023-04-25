@@ -596,6 +596,17 @@ Proof.
   rewrite Forall_forall in *. auto.
 Qed.
 
+Local Hint Resolve map_shift_arg_lifted : core.
+
+Lemma map_shift_args_lifted : forall c a argss,
+    Forall (Forall lifted_arg) argss ->
+    Forall (Forall lifted_arg) (map (map (shift_arg c a)) argss).
+Proof.
+  intros c a argss h.
+  rewrite Forall_map.
+  rewrite Forall_forall in *. auto.
+Qed.
+
 Lemma lift_args_lifted_args : forall args,
     Forall lifted_arg (fst (lift_args args))
     /\ Forall lifted_rexp (snd (lift_args args)).
@@ -678,12 +689,6 @@ Lemma shift_lifted_stm : forall s,
 Proof.
   intros s h; induction h; intros c a; unravel; auto.
   - destruct te as [t | e]; inv H; unravel; auto.
-  - constructor; auto.
-    rewrite Forall_forall in *.
-    intros arg' hin.
-    rewrite in_map_iff in hin.
-    destruct hin as (arg & hlift & hin); subst.
-    auto.
   - destruct eo; inv H; cbn; auto.
   - inv H; cbn; auto.
 Qed.
@@ -807,92 +812,78 @@ Proof.
       destruct (lift_exp_list es) as [es' ess] eqn:hleles.
       pair_fst_snd_eqns; subst.
       pose proof lift_exp_list_lifted_exp es as [? ?]. auto. }
+    pose proof lift_args_list_lifted (snd (split actions)) as [ha1 ha2].
+    pose proof lift_exp_list_lifted_exp (fst (split key)) as [he1 he2].
     pose proof shift_triple_lifted
       _ _ (option_map_snd_shift_exp_lifted (A:=String.string))
       _ _ map_shift_exp_lifted
-      _ _ map_shift_arg_lifted as h.
-    inv h.
-    pose proof lift_exp_list_lifted_exp _ _ _ hes as [hees hes'].
-    pose proof lift_args_list_lifted _ _ _ hargss as [hargss' hargsss].
-    repeat rewrite Forall_app. repeat rewrite Forall_map.
+      _ _ map_shift_args_lifted
+      _ _ _ _ _ _ ho1 he1 ha1 ho2 he2 ha2
+      as h.
+    rewrite <- eta_expansion with
+      (f := (fun c a : nat => option_map (prod_map_snd (map (shift_exp c a))))) in h.
+    assert ((fun c amt es => map (shift_exp c amt) es)
+            = (fun c a : nat => map (shift_exp c a))) as hea by reflexivity.
+    rewrite hea in h; clear hea.
+    assert ((fun c a argss => map (map (shift_arg c a)) argss)
+            = (fun c a : nat => map (map (shift_arg c a)))) as hea by reflexivity.
+    rewrite hea in h; clear hea.
+    destruct h as (ho' & hes' & hargss' & hess' & hargsss').
+    destruct
+      (shift_triple
+         (fun c a => option_map (prod_map_snd (map (shift_exp c a))))
+         (fun c a => map (shift_exp c a))
+         (fun c a => map (map (shift_arg c a)))
+         (fst (omap_effect [] (fun '(a, es) => prod_map_fst (pair a) (lift_exp_list es)) default_action))
+         (fst (lift_exp_list (fst (split key))))
+         (fst (lift_args_list (snd (split actions))))
+         (snd (omap_effect [] (fun '(a, es) => prod_map_fst (pair a) (lift_exp_list es)) default_action))
+         (snd (lift_exp_list (fst (split key)))) (snd (lift_args_list (snd (split actions)))))
+      as [[[[? ?] ?] ?] ?] eqn:hst.
+    pose proof f_equal (fst ∘ fst ∘ fst ∘ fst) hst as ?; unravel in *.
+    pose proof f_equal (snd ∘ fst ∘ fst ∘ fst) hst as ?; unravel in *.
+    pose proof f_equal (snd ∘ fst ∘ fst) hst as ?; unravel in *.
+    pose proof f_equal (snd ∘ fst) hst as ?; unravel in *.
+    pose proof f_equal snd hst as ?; unravel in *.
+    clear hst; subst.
+    autorewrite with core. repeat rewrite Forall_map.
     repeat split; eauto using Forall_impl.
-    + destruct default_action as [[a des] |]; cbn in *.
-      * destruct (map_fst (pair a) (lift_exp_list des))
-          as [[a' des'] ?] eqn:eqdesfst; inv eqdef.
-        destruct (lift_exp_list des) as [? ?] eqn:eqdes; cbn in *; inv eqdesfst.
-        pose proof lift_exp_list_lifted_exp _ _ _ eqdes as [hdes1 hdes2].
-        rewrite Forall_forall in hdes1 |- *.
-        intros e hein.
-        constructor. eauto.
-      * inv eqdef. auto.
-    + constructor; auto. constructor.
-      * rewrite map_fst_combine.
-         -- clear dependent es.
-            clear dependent acts.
-            clear dependent argss'.
-            rewrite Forall_forall in hes' |- *.
-            intros e' hin.
-            rewrite in_map_iff in hin.
-            destruct hin as (e & ? & hin); subst.
-            rewrite in_map_iff in hin.
-            destruct hin as (? & ? & ?); subst.
-            auto.
-         -- pose proof f_equal fst hkey as hfst.
-            pose proof f_equal snd hkey as hsnd.
-            apply f_equal with (f:=length (A:=Exp.t)) in hfst.
-            apply f_equal with (f:=length (A:=String.string)) in hsnd.
-            rewrite split_length_l in hfst.
-            rewrite split_length_r in hsnd. cbn in *.
-            rewrite hfst in hsnd.
-            rewrite map_length.
-            unfold lift_exp_list in hes.
-            destruct (split (shift_pairs shift_exp $ map lift_exp es))
-              as [es'' les] eqn:hsplit.
-            rewrite split_map in hsplit.
-            do 2 pair_destr. unravel in *.
-            do 2 rewrite map_length.
-            rewrite shift_pairs_length, map_length.
-            assumption.
-      * rewrite map_snd_combine.
-        --  clear dependent es.
-            clear dependent es'.
-            clear dependent mks.
-            clear dependent acts.
-            clear dependent argss.
-            clear dependent argsss.
-            clear dependent def'.
-            clear actions table_name key hees.
-            induction argss'; inv hargsss;
-              constructor; auto.
-            clear dependent argss'.
-            induction a; inv H1; constructor; auto.
-        --  pose proof f_equal fst hactions as hfst.
-            pose proof f_equal snd hactions as hsnd.
-            apply f_equal with (f:=length (A:=String.string)) in hfst.
-            apply f_equal with (f:=length (A:=Exp.args)) in hsnd.
-            rewrite split_length_l in hfst.
-            rewrite split_length_r in hsnd. cbn in *.
-            rewrite hfst in hsnd.
-            rewrite map_length.
-            unfold lift_args_list in hargss.
-            destruct (split (shift_pairs (shift_list shift_arg) $ map lift_args argss))
-              as [argss'' argsss'] eqn:hsplit.
-            rewrite split_map in hsplit.
-            unravel in *. do 2 pair_destr.
-            rewrite map_length, shift_pairs_length, map_length.
-            assumption.
-      * destruct default_action as [[a des] |]; cbn in *.
-        -- destruct (map_fst (pair a) (lift_exp_list des))
-          as [[a' des'] ?] eqn:eqdesfst; inv eqdef.
-           destruct (lift_exp_list des) as [? ?] eqn:eqdes; cbn in *; inv eqdesfst.
-           pose proof lift_exp_list_lifted_exp _ _ _ eqdes as [hdes1 hdes2].
-           constructor.
-           rewrite Forall_forall in hdes2 |- *.
-           intros e hein.
-           rewrite in_map_iff in hein.
-           destruct hein as (? & ? & ?); subst.
-           eauto.
-        -- inv eqdef. constructor.
+    constructor; auto.
+    (*pose proof shift_triple_lengths
+      (fun c a => option_map (prod_map_snd (map (shift_exp c a))))
+      (fun c a => map (shift_exp c a))
+      (fun c a => map (map (shift_arg c a)))
+      (fst (omap_effect [] (fun '(a, es) => prod_map_fst (pair a) (lift_exp_list es)) default_action))
+      (fst (lift_exp_list (fst (split key))))
+      (fst (lift_args_list (snd (split actions))))
+      (snd (omap_effect [] (fun '(a, es) => prod_map_fst (pair a) (lift_exp_list es)) default_action))
+      (snd (lift_exp_list (fst (split key)))) (snd (lift_args_list (snd (split actions)))) as [hlen1 hlen2].*)
+    constructor.
+    + rewrite map_fst_combine; auto.
+      clear hargss' hargsss' ho' hes' hess' ho1 ho2 ha1 ha2 he1 he2.
+      unfold shift_triple.
+      do 3 rewrite prodn_shift_pairs_equation_2.
+      rewrite prodn_shift_pairs_equation_1. unravel.
+      rewrite ProdN.nth_equation_2.
+      rewrite ProdN.map_uni2_equation_2 with (f:= (fun c a : nat => map (shift_exp c a))).
+      rewrite ProdN.nth_equation_1.
+      do 2 rewrite map_length.
+      unfold lift_exp_list.
+      rewrite lift_A_list_length.
+      rewrite split_length_l, split_length_r.
+      reflexivity.
+    + rewrite map_snd_combine; auto.
+      clear hargss' hargsss' ho' hes' hess' ho1 ho2 ha1 ha2 he1 he2.
+      unfold shift_triple.
+      do 3 rewrite prodn_shift_pairs_equation_2.
+      rewrite prodn_shift_pairs_equation_1. unravel.
+      rewrite ProdN.hd_equation_1.
+      rewrite map_length.
+      unfold lift_args_list.
+      rewrite lift_A_list_length.
+      rewrite split_length_l, split_length_r.
+      reflexivity.
+    + rewrite predop_pat_snd. assumption.
 Qed.
 
 Local Hint Resolve lift_ctrl_lifted_ctrl : core.

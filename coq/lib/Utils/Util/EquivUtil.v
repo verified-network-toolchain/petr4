@@ -228,8 +228,27 @@ End Forall2_Equivalence.
 
 (** Option Predicate *)
 Variant predop {A : Type} (P : A -> Prop) : option A -> Prop :=
-| predop_none : predop P None
-| predop_some (a : A) : P a -> predop P (Some a).
+  | predop_none : predop P None
+  | predop_some (a : A) : P a -> predop P (Some a).
+
+Section Predop.
+  Context {A B : Type}.
+  Variable P : A -> Prop.
+
+  Local Hint Constructors predop : core.
+
+  Lemma predop_pat_fst : forall (o : option (A * B)),
+      predop (fun '(a, _) => P a) o <-> predop (fun ab => P (fst ab)) o.
+  Proof using.
+    intros [[a b] |]; split; intro h; inv h; auto.
+  Qed.
+  
+  Lemma predop_pat_snd : forall (o : option (B * A)),
+      predop (fun '(_, a) => P a) o <-> predop (fun ba => P (snd ba)) o.
+  Proof using.
+    intros [[a b] |]; split; intro h; inv h; auto.
+  Qed.
+End Predop.
 
 (** * Option Relations *)
 Section Relop.

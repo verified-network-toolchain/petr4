@@ -65,10 +65,32 @@ Section ShiftPairs.
       let '(v,ess) := vec_unzip $ Vec.of_list l in
       prod_map_fst Vec.to_list $ prod_map_snd Vec.to_list $ vec_shift_pairs v ess.
 
+    Polymorphic Lemma shift_pairs_lengths : forall l,
+        length (fst (shift_pairs l)) = length l
+        /\ length (snd (shift_pairs l)) = length l.
+    Proof using.
+      intro l; unfold shift_pairs; unravel.
+      destruct (vec_unzip (Vec.of_list l)) as [v ess] eqn:hl.
+      rewrite fst_prod_map_fst, snd_prod_map_fst,
+        fst_prod_map_snd, snd_prod_map_snd.
+      do 2 rewrite Vec.length_to_list.
+      split; reflexivity.
+    Qed.
+
     Polymorphic Variable lifta : A -> A * list Exp.t.
     
     Polymorphic Definition lift_A_list (l : list A) : list A * list Exp.t :=
       prod_map_snd (List.concat (A:=Exp.t)) $ shift_pairs $ List.map lifta l.
+
+    Polymorphic Definition lift_A_list_length : forall l,
+        length (fst (lift_A_list l)) = length l.
+    Proof using.
+      intro l; unfold lift_A_list; unravel.
+      rewrite fst_prod_map_snd,
+        (proj1 (shift_pairs_lengths (map lifta l))),
+        map_length.
+      reflexivity.
+    Qed.
     
     Polymorphic Context {B : Type@{a}}.
     Variable fb : shifter B.
@@ -120,6 +142,30 @@ Section ShiftPairs.
           [esb ; esa]%vector in
       (ProdN.nth (Fin.FS Fin.F1) ba,
         ProdN.hd ba, Vec.hd ess).
+
+    Polymorphic Lemma shift_couple_length : forall a b esa esb,
+        length (snd (shift_couple a b esa esb)) = length esb.
+    Proof using.
+      intros a b esa esb.
+      unfold shift_couple.
+      pose proof
+        prodn_shift_pairs_inner_length
+        (AS := [B; A]%vector)
+        (fb :: fa :: [])
+        (b :: a :: [])
+        [esb ; esa]%vector as h.
+      destruct 
+        (prodn_shift_pairs
+           (AS := [B; A]%vector)
+           (fb :: fa :: [])
+           (b :: a :: [])
+           [esb ; esa]%vector)
+        as [ba ess] eqn:hpsp.
+      cbn in *.
+      apply f_equal with (f:=Vec.hd) in h.
+      rewrite vec_hd_map in h.
+      assumption.
+    Qed.
     
     Polymorphic Lemma shift_couple_spec : forall a b esa esb,
         fst (fst (shift_couple a b esa esb))
@@ -183,6 +229,30 @@ Section ShiftPairs.
         ProdN.nth (Fin.FS Fin.F1) cba,
         ProdN.hd cba, Vec.nth ess (Fin.FS Fin.F1), Vec.hd ess).
 
+    Polymorphic Lemma shift_triple_lengths : forall a b c esa esb esc,
+        length (snd (fst (shift_triple a b c esa esb esc))) = length esb
+        /\ length (snd (shift_triple a b c esa esb esc)) = length esc.
+    Proof using.
+      intros a b c esa esb esc.
+      unfold shift_triple.
+      pose proof prodn_shift_pairs_inner_length
+        (AS:=[C; B; A]%vector)
+        (fc :: fb :: fa :: [])
+        (c :: b :: a :: [])
+        [esc; esb; esa]%vector as h.
+      destruct (prodn_shift_pairs
+                  (AS:=[C; B; A]%vector)
+                  (fc :: fb :: fa :: [])
+                  (c :: b :: a :: [])
+                  [esc; esb; esa]%vector)
+        as [cba ess] eqn:hpsp; cbn in *.
+      pose proof f_equal Vec.hd h as hhd.
+      pose proof f_equal (fun v => Vec.nth v (Fin.FS Fin.F1)) h as hnth.
+      cbn in *. rewrite vec_hd_map in hhd.
+      rewrite Vec.nth_map with (p2:=Fin.FS Fin.F1) in hnth by reflexivity.
+      split; assumption.
+    Qed.
+    
     Polymorphic Lemma shift_triple_spec :
       forall a b c esa esb esc,
         fst (fst (fst (fst (shift_triple a b c esa esb esc))))

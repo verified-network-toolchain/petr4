@@ -53,6 +53,18 @@ Section Lemmas.
   Section Foralloflistmap.
     Polymorphic Variable f : A -> B.
 
+    Polymorphic Lemma vec_hd_map : forall {n} (v : Vec.t A (S n)),
+        Vec.hd (Vec.map f v) = f (Vec.hd v).
+    Proof using.
+      intros n v. depelim v; reflexivity.
+    Qed.
+
+    Polymorphic Lemma vec_tl_map : forall {n} (v : Vec.t A (S n)),
+        Vec.tl (Vec.map f v) = Vec.map f (Vec.tl v).
+    Proof using.
+      intros n v; depelim v; reflexivity.
+    Qed.
+
     Polymorphic Lemma map_to_list : forall {n} (v : Vec.t A n),
         List.map f (Vec.to_list v) = Vec.to_list (Vec.map f v).
     Proof using.

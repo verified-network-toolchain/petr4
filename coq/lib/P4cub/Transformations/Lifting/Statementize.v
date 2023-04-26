@@ -59,11 +59,78 @@ Section ShiftPairs.
       prod_map_fst ProdN.to_vec $
         prodn_shift_pairs
         (AS:=vec_rep n A) (ProdN.rep_param fa n) (ProdN.of_vec v) ess.
+
+    Polymorphic Lemma vec_shift_pairs_nil :
+      vec_shift_pairs []%vector []%vector = ([]%vector, []%vector).
+    Proof using.
+      unfold vec_shift_pairs; unravel.
+      rewrite (ProdN.of_vec_equation_1 (A:=A)).
+      rewrite prodn_shift_pairs_equation_1; cbn.
+      rewrite ProdN.to_vec_equation_1.
+      reflexivity.
+    Qed.
+
+    Polymorphic Lemma vec_shift_pairs_cons :
+      forall {n} a (v : Vec.t A n) es (ess : Vec.t (list Exp.t) n),
+        vec_shift_pairs (a :: v)%vector (es :: ess)%vector
+        = ((fa (length es) (vec_sum (Vec.map (length (A:=Exp.t)) ess)) a ::
+              Vec.map (fa 0 (length es)) (fst (vec_shift_pairs v ess)))%vector,
+            (shift_list shift_exp 0 (vec_sum (Vec.map (length (A:=Exp.t)) ess)) es
+               :: snd (vec_shift_pairs v ess))%vector).
+    Proof using.
+      intros n a v es ess.
+      unfold vec_shift_pairs; unravel.
+      rewrite ProdN.of_vec_equation_2, prodn_shift_pairs_equation_2.
+      destruct (prodn_shift_pairs (ProdN.rep_param fa n) (ProdN.of_vec v) ess) as [v' ess'] eqn:h.
+      unravel. rewrite ProdN.to_vec_equation_2. f_equal. f_equal.
+      rewrite <- ProdN.to_vec_map_uni2.
+      reflexivity.
+    Qed.
+
+    Polymorphic Lemma vec_shift_pairs_inner_length : forall {n} (v : Vec.t A n) ess,
+        Vec.map (length (A:=Exp.t)) (snd (vec_shift_pairs v ess))
+        = Vec.map (length (A:=Exp.t)) ess.
+    Proof using.
+      intros n v ess.
+      unfold vec_shift_pairs; unravel.
+      rewrite snd_prod_map_fst, prodn_shift_pairs_inner_length.
+      reflexivity.
+    Qed.
     
     Polymorphic Definition shift_pairs
       (l : list (A * list Exp.t)) : list A * list (list Exp.t) :=
       let '(v,ess) := vec_unzip $ Vec.of_list l in
       prod_map_fst Vec.to_list $ prod_map_snd Vec.to_list $ vec_shift_pairs v ess.
+
+    Polymorphic Lemma shift_pairs_nil : shift_pairs []%list = ([]%list,[]%list).
+    Proof using.
+      unfold shift_pairs; unravel.
+      rewrite vec_unzip_equation_1.
+      rewrite vec_shift_pairs_nil.
+      reflexivity.
+    Qed.
+
+    Polymorphic Lemma shift_pairs_cons : forall (a : A) es l,
+        shift_pairs ((a, es) :: l)%list
+        = ((fa (length es) (list_sum (map (length (A:=Exp.t)) (map snd l))) a ::
+              List.map (fa 0 (length es)) (fst (shift_pairs l)))%list,
+            (shift_list shift_exp 0 (list_sum (map (length (A:=Exp.t)) (map snd l))) es
+               :: snd (shift_pairs l))%list).
+    Proof using.
+      intros a es l.
+      unfold shift_pairs; unravel.
+      rewrite vec_unzip_equation_2.
+      destruct (vec_unzip (Vec.of_list l)) as [va ves] eqn:hv.
+      rewrite vec_shift_pairs_cons. unravel.
+      do 2 rewrite Vec.to_list_cons.
+      rewrite Vec.to_list_map.
+      rewrite fst_prod_map_fst, snd_prod_map_fst,
+        fst_prod_map_snd, snd_prod_map_snd.
+      rewrite vec_unzip_correct in hv. inv hv.
+      rewrite Vec.map_map, List.map_map, vec_map_of_list, vec_sum_eq_rect.
+      unfold vec_sum,list_sum. rewrite vec_fold_right_of_list.
+      reflexivity.
+    Qed.
 
     Polymorphic Lemma shift_pairs_lengths : forall l,
         length (fst (shift_pairs l)) = length l
@@ -75,6 +142,17 @@ Section ShiftPairs.
         fst_prod_map_snd, snd_prod_map_snd.
       do 2 rewrite Vec.length_to_list.
       split; reflexivity.
+    Qed.
+
+    Polymorphic Lemma shift_pairs_inner_length : forall l,
+        map (length (A:=Exp.t)) (snd (shift_pairs l))
+        = map (length (A:=Exp.t)) (map snd l).
+    Proof using.
+      intro l. unfold shift_pairs; unravel.
+      rewrite vec_unzip_correct, snd_prod_map_fst, snd_prod_map_snd.
+      rewrite map_to_list, vec_shift_pairs_inner_length.
+      do 2 rewrite <- map_to_list.
+      rewrite Vec.to_list_of_list_opp. reflexivity.
     Qed.
 
     Polymorphic Variable lifta : A -> A * list Exp.t.

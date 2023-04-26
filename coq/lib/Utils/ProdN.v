@@ -2,6 +2,20 @@ From Equations Require Import Equations.
 Require Import Poulet4.Utils.VecUtil Poulet4.Utils.Util.FunUtil.
 Import Vec.VectorNotations.
 
+Section VecMap.
+  Polymorphic Universes a b.
+  Polymorphic Context {A : Type@{a}} {B : Type@{b}}.
+  Polymorphic Variable f : A -> B.
+
+  Import Vec.VectorNotations.
+  Local Open Scope vector_scope.
+
+  Polymorphic Equations vec_map : forall {n}, Vec.t A n -> Vec.t B n := {
+      vec_map [] := [];
+      vec_map (a :: v) := f a :: vec_map v
+    }.
+End VecMap.
+
 Section ProdN.
   Polymorphic Universe a.
   
@@ -132,16 +146,16 @@ Section ProdN.
       }.
   End MapUni.
   
-   Section Map.
+  Section Map.
     Polymorphic Universe b.
     
     Polymorphic Equations map : forall {n : nat} {dom : Vec.t Type@{a} n} {ran : Vec.t Type@{b} n},
-      t (Vec.map2 (fun (A : Type@{a}) (B : Type@{b}) => A -> B) dom ran) ->
-      t dom -> t ran := {
+        t (Vec.map2 (fun (A : Type@{a}) (B : Type@{b}) => A -> B) dom ran) ->
+        t dom -> t ran := {
         map (dom:=[]%vector) (ran:=[]%vector) [] [] := [];
         map (f :: fp) (a :: p) := f a :: map fp p
       }.
-
+    
     (* Takes too long to build:
     Polymorphic Universe c.
 
@@ -168,6 +182,30 @@ Section ProdN.
     End Map2.*)
   End Map.
 End ProdN.
+
+Section MapUni2Thm.
+  Import Vec.VectorNotations.
+  Import ProdNNotations.
+  Open Scope prodn_scope.
+  
+  Polymorphic Universes a b c.
+  Polymorphic Context {A : Type@{a}} {B : Type@{a}} {C : Type@{a}}.
+  Polymorphic Variables (f : A -> B -> C -> C) (a : A) (b : B).
+  
+  Polymorphic Lemma to_vec_map_uni2 :
+    forall {n} (p : ProdN.t (vec_rep n C)),
+      to_vec
+        (map_uni2 (CS:=vec_rep n C) a b
+           (ProdN.rep_param f n) p)
+      = Vec.map (f a b) (ProdN.to_vec p).
+  Proof using.
+    intros n p.
+    funelim (to_vec p); cbn.
+    - rewrite map_uni2_equation_1, to_vec_equation_1; reflexivity.
+    - rewrite map_uni2_equation_2. do 2 rewrite to_vec_equation_2.
+      cbn; f_equal; auto.
+  Qed.
+End MapUni2Thm.
 
 Section eachForall.
   Import ProdNNotations.

@@ -889,11 +889,11 @@ Qed.
 Local Hint Resolve lift_ctrl_lifted_ctrl : core.
 Local Hint Constructors predop : core.
 
-Lemma shift_lifted_ctrl : forall sh cd,
+Lemma shift_lifted_ctrl : forall c a cd,
     lifted_ctrl cd ->
-    lifted_ctrl (shift_ctrl sh cd).
+    lifted_ctrl (shift_ctrl c a cd).
 Proof.
-  intros sh ch h; inv h; unravel; auto.
+  intros c a ch h; inv h; unravel; auto.
   - inv H; unravel; auto.
   - constructor.
     + rewrite map_fst_map.
@@ -924,8 +924,8 @@ Qed.
 Local Hint Resolve shift_lifted_ctrl : core.
 
 Lemma shift_ctrls_lifted_ctrl : forall cds,
-    Forall lifted_ctrl cds -> forall sh,
-      Forall lifted_ctrl (shift_ctrls sh cds).
+    Forall lifted_ctrl cds -> forall c a,
+      Forall lifted_ctrl (shift_ctrls c a cds).
 Proof.
   intro cds; induction cds as [| [] cds ih];
     intros h sh; inv h; constructor; auto.
@@ -933,16 +933,16 @@ Qed.
 
 Local Hint Resolve shift_ctrls_lifted_ctrl : core.
 
-Lemma lift_ctrls_lifted_ctrls : forall cds cds' n,
-    lift_ctrls cds = (cds', n) ->
-    Forall lifted_ctrl cds'.
+Lemma lift_ctrls_lifted_ctrls : forall cds,
+    Forall lifted_ctrl (fst (lift_ctrls cds)).
 Proof.
-  intro cds; induction cds as [| cd cds ih];
-    intros cds' n h; unravel in *.
-  - inv h. auto.
-  - destruct (lift_ctrl cd) as [cdd cdn] eqn:hcd.
-    destruct (lift_ctrls cds) as [cdsd cdsn] eqn:hcds.
-    inv h. rewrite Forall_app. split; eauto.
+  intro cds; induction cds as [| cd cds ih]; unravel in *; auto.
+  destruct (lift_ctrl cd) as [cdd cdn] eqn:hcd.
+  pair_fst_snd_eqns; subst.
+  destruct (lift_ctrls cds) as [cdsd cdsn] eqn:hcds.
+  pair_fst_snd_eqns; subst.
+  autorewrite with core.
+  auto.
 Qed.
 
 Local Hint Resolve lift_ctrls_lifted_ctrls : core.
@@ -953,7 +953,7 @@ Lemma lift_top_lifted_top : forall td,
 Proof.
   intro td; destruct td; unravel in *; auto.
   - destruct (lift_ctrls body) as [? ?] eqn:?.
-    constructor; eauto.
+    pair_fst_snd_eqns; subst. auto.
   - constructor; auto.
     rewrite sublist.Forall_map; unravel.
     rewrite Forall_forall in *; eauto.

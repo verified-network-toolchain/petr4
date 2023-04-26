@@ -4,6 +4,7 @@ From Equations Require Import Equations.
 Require Import Poulet4.Utils.Util.FunUtil.
 
 Derive NoConfusion NoConfusionHom Subterm for nat.
+Derive NoConfusion NoConfusionHom Subterm for list.
 
 Module VecEquations.
   Derive Signature NoConfusion NoConfusionHom Subterm for Vec.t.
@@ -13,6 +14,12 @@ End VecEquations.
 
 Definition vec_sum {n : nat} (v : Vec.t nat n) : nat :=
   Vec.fold_right Nat.add v 0.
+
+Lemma vec_sum_eq_rect : forall {m n : nat} (hmn : m = n) (v : Vec.t nat m),
+    vec_sum (eq_rect _ _ v _ hmn) = vec_sum v.
+Proof using.
+  intros m n hmn v. depelim hmn. reflexivity.
+Qed.
 
 Section Lemmas.
   Import Vec.VectorNotations.
@@ -49,6 +56,93 @@ Section Lemmas.
   
   Polymorphic Universes b.
   Polymorphic Context {B : Type@{b}}.
+
+  Section Foldrightoflist.
+    Import List.ListNotations.
+    Polymorphic Variable f : A -> B -> B.
+    Polymorphic Variable b : B.
+
+    Polymorphic Lemma vec_fold_right_of_list : forall (l : list A),
+        Vec.fold_right f (Vec.of_list l) b = List.fold_right f b l.
+    Proof using.
+      intro l; induction l as [| a l ih]; cbn; f_equal; auto.
+    Qed.
+
+    Polymorphic Lemma vec_fold_right_to_list : forall {n} (v : Vec.t A n),
+        List.fold_right f b (Vec.to_list v) = Vec.fold_right f v b.
+    Proof using.
+      intros n v; depind v; cbn; f_equal; auto.
+    Qed.
+  End Foldrightoflist.
+
+  Section Foldleftoflist.
+    Polymorphic Variable f : B -> A -> B.
+
+    Polymorphic Lemma vec_fold_left_of_list : forall (l : list A) (b : B),
+        Vec.fold_left f b (Vec.of_list l) = List.fold_left f l b.
+    Proof using.
+      intro l; induction l as [| a l ih]; intro b; cbn; f_equal; auto.
+    Qed.
+
+    Polymorphic Lemma vec_fold_left_to_list : forall {n} (v : Vec.t A n) (b : B),
+        List.fold_left f (Vec.to_list v) b = Vec.fold_left f b v.
+    Proof using.
+      intros n v; depind v; intro b; cbn; f_equal; auto.
+    Qed.
+  End Foldleftoflist.
+  
+  Section mapoflist.
+    Import List.ListNotations.
+    Polymorphic Variable f : A -> B.
+
+    Polymorphic Equations my_map_length : forall l : list A,
+        length (List.map f l) = length l := {
+        my_map_length []%list := eq_refl;
+        my_map_length (_ :: t)%list := f_equal S (my_map_length t)
+      }.
+
+    Local Hint Resolve PeanoNat.Nat.eq_dec : core.
+
+    Polymorphic Lemma vec_map_of_list : forall l : list A,
+        Vec.map f (Vec.of_list l)
+        = eq_rect _ _ (Vec.of_list (List.map f l)) _ (my_map_length l).
+    Proof using.
+      intro l; induction l as [| a l ih]; cbn.
+      - rewrite <- Eqdep_dec.eq_rect_eq_dec by auto.
+        reflexivity.
+      - rewrite my_map_length_equation_2.
+        rewrite map_subst_map, ih. reflexivity.
+    Qed.
+
+    Polymorphic Lemma vec_of_list_map : forall l : list A,
+        Vec.of_list (List.map f l)
+        = eq_rect
+            _ _
+            (Vec.map f (Vec.of_list l)) _
+            (eq_sym (my_map_length l)).
+    Proof using.
+      intro l; induction l as [| a l ih]; cbn.
+      - rewrite <- Eqdep_dec.eq_rect_eq_dec by auto.
+        reflexivity.
+      - rewrite my_map_length_equation_2.
+        rewrite eq_sym_map_distr.
+        rewrite map_subst_map, ih. reflexivity.
+    Qed.
+    
+    Polymorphic Universe c.
+    Polymorphic Context {C : Type@{c}}.
+    Polymorphic Variable F : forall {X:Type@{b}} {n}, Vec.t X n -> C.
+
+    Polymorphic Hypothesis F_cons :
+      forall {X:Type@{b}} {m n} (vm : Vec.t X m) (vn : Vec.t X n),
+        F vm = F vn -> forall x : X, F (x :: vm) = F (x :: vn).
+    
+    Polymorphic Lemma vec_map_of_list_F : forall (l : list A),
+        F (Vec.map f (Vec.of_list l)) = F (Vec.of_list (List.map f l)).
+    Proof using A B F F_cons f.
+      intro l; induction l as [| a l ih]; cbn; auto.
+    Qed.
+  End mapoflist.
 
   Section Foralloflistmap.
     Polymorphic Variable f : A -> B.

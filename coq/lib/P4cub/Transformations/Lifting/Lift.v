@@ -49,9 +49,9 @@ Inductive Lift_exp
     (Exp.Index t e1 e2)
     (Exp.Index
        t
-       (shift_exp (Shifter 0 (length es2)) e1')
-       (shift_exp (Shifter (length es2) (length es1)) e2'))
-    (shift_list shift_exp (Shifter 0 (length es1)) es2 ++ es1)
+       (fst (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2)))
+       (snd (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2))))
+    (snd (shift_couple shift_exp shift_exp e1 e2 es1 es2) ++ es1)
 | Lift_bop t o e1 e2 e1' e2' es1 es2 :
   Lift_exp e1 e1' es1 ->
   Lift_exp e2 e2' es2 ->
@@ -60,16 +60,16 @@ Inductive Lift_exp
     (Exp.Var t "lifted_bop" 0)
     (Exp.Bop
        t o
-       (shift_exp (Shifter 0 (length es2)) e1')
-       (shift_exp (Shifter (length es2) (length es1)) e2')
-       :: shift_list shift_exp (Shifter 0 (length es1)) es2 ++ es1)
+       (fst (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2)))
+       (snd (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2)))
+       :: snd (shift_couple shift_exp shift_exp e1 e2 es1 es2) ++ es1)
 | Lift_lists ls es es' ess :
   Forall3 Lift_exp es es' ess ->
   Lift_exp
     (Exp.Lists ls es)
     (Exp.Var (typ_of_lists ls es) "lifted_lists" 0)
-    (Exp.Lists ls (map fst (shift_pairs shift_exp (combine es' ess)))
-       :: concat (map snd (shift_pairs shift_exp (combine es' ess)))).
+    (Exp.Lists ls (fst (shift_pairs shift_exp (combine es' ess)))
+       :: concat (snd (shift_pairs shift_exp (combine es' ess)))).
 
 Section LifteInduction.
   Variable P : Exp.t -> Exp.t -> list Exp.t -> Prop.
@@ -123,9 +123,9 @@ Section LifteInduction.
         (Exp.Index t e1 e2)
         (Exp.Index
            t
-           (shift_exp (Shifter 0 (length es2)) e1')
-           (shift_exp (Shifter (length es2) (length es1)) e2'))
-        (shift_list shift_exp (Shifter 0 (length es1)) es2 ++ es1).
+           (fst (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2)))
+           (snd (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2))))
+        (snd (shift_couple shift_exp shift_exp e1 e2 es1 es2) ++ es1).
   
   Hypothesis HLift_bop : forall t o e1 e2 e1' e2' es1 es2,
       Lift_exp e1 e1' es1 ->
@@ -137,9 +137,9 @@ Section LifteInduction.
         (Exp.Var t "lifted_bop" 0)
         (Exp.Bop
            t o
-           (shift_exp (Shifter 0 (length es2)) e1')
-           (shift_exp (Shifter (length es2) (length es1)) e2')
-           :: shift_list shift_exp (Shifter 0 (length es1)) es2 ++ es1).
+           (fst (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2)))
+           (snd (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2)))
+           :: snd (shift_couple shift_exp shift_exp e1 e2 es1 es2) ++ es1).
   
   Hypothesis HLift_lists : forall ls es es' ess,
       Forall3 Lift_exp es es' ess ->
@@ -147,8 +147,8 @@ Section LifteInduction.
       P
         (Exp.Lists ls es)
         (Exp.Var (typ_of_lists ls es) "lifted_lists" 0)
-        (Exp.Lists ls (map fst (shift_pairs shift_exp (combine es' ess)))
-           :: concat (map snd (shift_pairs shift_exp (combine es' ess)))).
+        (Exp.Lists ls (fst (shift_pairs shift_exp (combine es' ess)))
+           :: concat (snd (shift_pairs shift_exp (combine es' ess)))).
 
   Definition custom_Lift_exp_ind : forall e e' es,
       Lift_exp e e' es -> P e e' es :=
@@ -224,8 +224,8 @@ Variant Lift_call :
     Forall3 Lift_exp cargs cargs' ess ->
     Lift_call
       (Call.Action a cargs)
-      (Call.Action a (map fst (shift_pairs shift_exp (combine cargs' ess))))
-      (concat (map snd (shift_pairs shift_exp (combine cargs' ess))))
+      (Call.Action a (fst (shift_pairs shift_exp (combine cargs' ess))))
+      (concat (snd (shift_pairs shift_exp (combine cargs' ess))))
   | Lift_inst_call x eargs :
     Lift_call (Call.Inst x eargs) (Call.Inst x eargs) [].
 
@@ -252,9 +252,9 @@ Inductive Lift_stm : Stm.t -> Stm.t -> Prop :=
   Lift_stm
     (e1 `:= e2)
     (Unwind
-       (shift_list shift_exp (Shifter 0 (length es1)) es2 ++ es1)
-       (shift_exp (Shifter 0 (length es2)) e1'
-          `:= shift_exp (Shifter (length es2) (length es1)) e2'))
+       (snd (shift_couple shift_exp shift_exp e1 e2 es1 es2) ++ es1)
+       (fst (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2))
+          `:= snd (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2))))
 | Lift_invoke_none t :
   Lift_stm (Stm.Invoke None t) (Stm.Invoke None t)
 | Lift_invoke e e' t es :

@@ -1,63 +1,10 @@
 Require Export Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Syntax.Shift
         Poulet4.P4cub.Transformations.Lifting.Statementize.
-Require Import Poulet4.Utils.ForallMap Poulet4.Utils.VecUtil.
+Require Import Poulet4.Utils.ForallMap Poulet4.Utils.VecUtil
+  Poulet4.P4cub.Transformations.Lifting.LiftList.
 From Equations Require Import Equations.
-
-Ltac pair_destr :=
-  match goal with
-  | h: (_,_) = (_,_) |- _ => inv h
-  end.
-
-Ltac conj_destr :=
-  match goal with
-    h: _ /\ _ |- _ => destruct h as [? ?]
-  end.
-
-Ltac lift_exp_destr :=
-  match goal with
-  | |- context [lift_exp ?e]
-    => destruct (lift_exp e) as [? ?] eqn:?; simpl in *
-  end.
-
-Ltac lift_exp_destr_hyp :=
-  match goal with
-  | H: context [lift_exp ?e] |- _
-    => destruct (lift_exp e)
-      as [? ?] eqn:?; simpl in *
-  end.
-
-Ltac lift_exp_destr_hyp_rewrite :=
-  match goal with
-  | H: lift_exp ?e = (_,_),
-      Hy : context [lift_exp ?e]
-    |- _ => rewrite H in Hy; simpl in *
-  end.
-
-Ltac shift_couple_destr :=
-  lazymatch goal with
-  | H: context [shift_couple ?fa ?fb ?a ?b ?la ?lb]
-    |- _ => destruct (shift_couple fa fb a b la lb) as [[? ?] ?] eqn:?; simpl in *
-  | |- context [shift_couple ?fa ?fb ?a ?b ?la ?lb]
-    => destruct (shift_couple fa fb a b la lb) as [[? ?] ?] eqn:?; simpl in *
-  end.
-
-Ltac pair_fst_snd_eqns :=
-  lazymatch goal with
-  | H: ?trm = (?a, ?b) |- _
-    => pose proof f_equal fst H
-      as ?; pose proof f_equal snd H
-        as ?; clear H; unravel in *
-  end.
-
-Ltac triple_fst_snd_eqns :=
-  lazymatch goal with
-  | H: ?trm = (?a, ?b, ?c) |- _
-    => pose proof f_equal (fst ∘ fst) H
-      as ?; pose proof f_equal (snd ∘ fst) H
-        as ?; pose proof f_equal snd H
-          as ?; clear H; unravel in *
-  end.
+Require Poulet4.Utils.ProdN.
 
 Inductive lifted_exp : Exp.t -> Prop :=
 | lifted_bool (b : bool) :
@@ -379,18 +326,16 @@ Section LiftProd.
   Proof using A lifteda shifta shifta_lifteda.
     intros l hl.
     unfold shift_pairs; unravel.
-    destruct (vec_unzip (Vec.of_list l)) as [v ess] eqn:hlv.
+    let_destr_pair.
     rewrite Forall_conj in hl.
     rewrite <- Forall_map with (f:=fst) in hl.
     rewrite <- Forall_map with (f:=snd) in hl.
     destruct hl as [has hrs].
     apply list_Forall_vec, Forall_of_list_map in has,hrs.
-    rewrite vec_unzip_correct in hlv. inv hlv.
+    rewrite vec_unzip_correct.
     pose proof vec_shift_pairs_lifted _ _ has hrs as [hva hes].
-    destruct
-      (vec_shift_pairs shifta (Vec.map fst (Vec.of_list l)) (Vec.map snd (Vec.of_list l)))
-      as [va ves] eqn:hvsp. unravel in *.
-    pair_fst_snd_eqns; subst. auto.
+    rewrite fst_prod_map_fst,snd_prod_map_fst,fst_prod_map_snd,snd_prod_map_snd.
+    auto.
   Qed.
 
   Polymorphic Variable lifta : A -> A * list Exp.t.
@@ -489,40 +434,35 @@ Ltac shift_couple_lifted_solve thm1 thm2 :=
   end.
 
 Local Hint Extern 5 => shift_couple_lifted_solve shift_lifted_exp shift_lifted_exp : core.
+Local Hint Extern 5 => conj_destr : core.
 
 Lemma lift_exp_lifted_exp : forall e,
     lifted_exp (fst (lift_exp e))
     /\ Forall lifted_rexp (snd (lift_exp e)).
 Proof.
   intro e; induction e using custom_exp_ind;
-    unravel in *;
-    repeat lift_exp_destr;
-    repeat pair_fst_snd_eqns; subst;
-    repeat conj_destr; auto.
-  - shift_couple_destr.
-    triple_fst_snd_eqns; subst.
-    constructor; auto.
+    unravel in *; repeat let_destr_pair; auto.
+  - constructor; auto.
     constructor; auto.
     autorewrite with core. auto.
   - rewrite <- Forall_map with
       (f:=lift_exp)
       (P:=fun ees => lifted_exp (fst ees) /\ Forall lifted_rexp (snd ees))
       in H.
-    destruct
-      (shift_pairs shift_exp (map lift_exp es))
-      as [es' ess] eqn:hsp.
-    pair_fst_snd_eqns; subst.
     eapply shift_pairs_lifted in H as [hfst hsnd]; eauto.
     constructor; auto.
     constructor; auto.
     autorewrite with core. assumption.
-  - shift_couple_destr.
-    triple_fst_snd_eqns; subst.
-    constructor; auto.
+  - constructor; auto.
     autorewrite with core. auto.
 Qed.
 
 Local Hint Resolve lift_exp_lifted_exp : core.
+Local Hint Extern 5 =>
+        lazymatch goal with
+          |- context [lift_exp ?e]
+          => pose proof lift_exp_lifted_exp e as [? ?]
+        end : core.
 
 Lemma lift_exp_list_lifted_exp : forall es,
     Forall lifted_exp (fst (lift_exp_list es))
@@ -533,6 +473,11 @@ Proof.
 Qed.
 
 Local Hint Resolve lift_exp_list_lifted_exp : core.
+Local Hint Extern 5 =>
+        lazymatch goal with
+          |- context [lift_exp_list ?es]
+          => pose proof lift_exp_list_lifted_exp es as [? ?]
+        end : core.
 
 Lemma map_shift_exp_lifted : forall c amt es,
     Forall lifted_exp es -> Forall lifted_exp (map (shift_exp c amt) es).
@@ -564,11 +509,15 @@ Proof.
   unfold lifted_arg,pred_paramarg_same.
   intros arg;
     destruct arg as [e | e | e]; unravel in *;
-    lift_exp_destr; pair_fst_snd_eqns; subst;
-    pose proof lift_exp_lifted_exp e as [? ?]; auto.
+    let_destr_pair; auto.
 Qed.
   
 Local Hint Resolve lift_arg_lifted_arg : core.
+Local Hint Extern 5 =>
+        lazymatch goal with
+          |- context [lift_arg ?arg]
+          => pose proof lift_arg_lifted_arg arg as [? ?]
+        end : core.
 
 Lemma rename_arg_lifted_arg : forall ρ arg,
     lifted_arg arg -> lifted_arg (rename_arg ρ arg).
@@ -617,6 +566,11 @@ Proof.
 Qed.
 
 Local Hint Resolve lift_args_lifted_args : core.
+Local Hint Extern 5 =>
+        lazymatch goal with
+          |- context [lift_args ?args]
+          => pose proof lift_args_lifted_args as [? ?]
+        end : core.
 Local Hint Constructors lifted_trns : core.
 
 Lemma shift_lifted_trns : forall c a e,
@@ -633,10 +587,15 @@ Lemma lift_trns_lifted_trns : forall t,
     /\ Forall lifted_rexp (snd (lift_trns t)).
 Proof.
   intros [| e]; unravel in *; auto.
-  lift_exp_destr. pair_fst_snd_eqns; subst.
+  let_destr_pair;
   pose proof lift_exp_lifted_exp e as [? ?]; auto.
 Qed.
 
+Local Hint Extern 5 =>
+        lazymatch goal with
+          |- context [lift_trns ?t]
+          => pose proof lift_trns_lifted_trns t as [? ?]
+        end : core.
 Local Hint Constructors lifted_call : core.
 Local Hint Constructors predop : core.
 
@@ -645,12 +604,14 @@ Lemma lift_call_lifted_call : forall c,
     /\ Forall lifted_rexp (snd (lift_call c)).
 Proof.
   intros [f ts [e |] | a es | ex m ts [e |] | i exs]; unravel in *;
-    try lift_exp_destr; try pair_fst_snd_eqns; subst;
-    try pose proof lift_exp_lifted_exp e as [? ?]; auto.
-  destruct (lift_exp_list es) as [? ?] eqn:h.
-  pair_fst_snd_eqns; subst.
-  pose proof lift_exp_list_lifted_exp es as [? ?]; auto.
+    try let_destr_pair; auto.
 Qed.
+
+Local Hint Extern 5 =>
+        lazymatch goal with
+          |- context [lift_call ?c]
+          => pose proof lift_call_lifted_call c as [? ?]
+        end : core.
 
 Lemma rename_call_lifted_call : forall ρ c,
     lifted_call c ->
@@ -708,58 +669,28 @@ Local Hint Resolve Unwind_lifted : core.
 
 Lemma lift_stm_lifted_stm : forall s, lifted_stm (lift_stm s).
 Proof.
-  intro s; induction s; unravel; auto.
+  intro s; induction s; unravel;
+    repeat let_destr_pair; auto.
   - destruct e as [e |]; auto.
-    lift_exp_destr.
-    pair_fst_snd_eqns; subst.
-    pose proof lift_exp_lifted_exp e as [? ?]; auto.
-  - destruct (lift_trns trns) as [e' le] eqn:eqle;
-      pair_fst_snd_eqns; subst.
-    pose proof lift_trns_lifted_trns trns as [? ?]; auto.
-  - do 2 lift_exp_destr.
-    do 2 pair_fst_snd_eqns; subst.
-    shift_couple_destr.
-    triple_fst_snd_eqns; subst.
-    pose proof lift_exp_lifted_exp lhs as [? ?].
+    let_destr_pair; auto.
+  - pose proof lift_exp_lifted_exp lhs as [? ?].
     pose proof lift_exp_lifted_exp rhs as [? ?].
     shift_couple_lifted_solve shift_lifted_exp shift_lifted_exp.
     apply Unwind_lifted; auto.
     autorewrite with core. auto.
-  - destruct (lift_call call) as [call' lcall] eqn:eqcall.
-    destruct (lift_args args) as [args' largs] eqn:eqargs.
-    do 2 pair_fst_snd_eqns; subst.
-    pose proof lift_call_lifted_call call as [hc1 hc2].
+  - pose proof lift_call_lifted_call call as [hc1 hc2].
     pose proof lift_args_lifted_args args as [ha1 ha2].
-    shift_couple_destr.
-    triple_fst_snd_eqns; subst.
     pose proof shift_couple_lifted
       _ _ map_shift_arg_lifted _ _ shift_lifted_call
       _ _ _ _ ha1 hc1 ha2 hc2 as [? [? ?]].
     apply Unwind_lifted; auto.
     autorewrite with core. auto.
-  - destruct lhs; auto; try lift_exp_destr; try pair_fst_snd_eqns; subst.
-    pose proof lift_exp_lifted_exp t as [? ?]; auto.
+  - destruct lhs; auto; let_destr_pair; auto 6.
   - destruct init as [t | e]; auto.
-    lift_exp_destr; pair_fst_snd_eqns; subst.
-    pose proof lift_exp_lifted_exp e as [? ?]; auto.
-  - lift_exp_destr. pair_fst_snd_eqns; subst.
-    pose proof lift_exp_lifted_exp guard as [? ?].
-    auto.
+    let_destr_pair. auto 6.
 Qed.
 
 Local Hint Resolve lift_stm_lifted_stm : core.
-
-Ltac hyp_f_equal Heqp func:= 
-  apply f_equal with (f := fst) in Heqp; apply f_equal with (f := func) in Heqp; simpl in Heqp;
-  rewrite <- Heqp; auto.
-
-Ltac hyp_f_equal_fst Heqp:= 
-  apply f_equal with (f := fst) in Heqp; apply f_equal with (f := fst) in Heqp; simpl in Heqp;
-  rewrite <- Heqp; auto.
-
-Ltac hyp_f_equal_snd Heqp:= 
-  apply f_equal with (f := fst) in Heqp; apply f_equal with (f := snd) in Heqp; simpl in Heqp;
-  rewrite <- Heqp; auto.
 
 Lemma lift_args_list_lifted : forall argss,
     Forall (Forall lifted_arg) (fst (lift_args_list argss))
@@ -778,21 +709,10 @@ Lemma lift_ctrl_lifted_ctrl : forall cd,
 Proof.
   intros cd; destruct cd; unravel in *; auto.
   - destruct expr as [t | e]; cbn; auto.
-    lift_exp_destr.
-    pair_fst_snd_eqns; subst.
-    pose proof lift_exp_lifted_exp e as [? ?].
+    let_destr_pair.
     rewrite Forall_app, Forall_map.
-    split; eauto using Forall_impl.
-  - destruct (split key) as [es mks] eqn:hkey.
-    destruct (split actions) as [acts argss] eqn:hactions.
-    destruct (lift_exp_list es) as [es' ees] eqn:hes.
-    destruct (lift_args_list argss)
-      as [argss' argsss] eqn:hargss.
-    destruct (omap_effect
-                [] (fun '(a, es) =>
-                      prod_map_fst (pair a) (lift_exp_list es)) default_action)
-      as [def' defes] eqn:eqdef.
-    do 5 pair_fst_snd_eqns; subst.
+    split; eauto 6 using Forall_impl.
+  - repeat let_destr_pair.
     assert
       (predop
          (Forall lifted_exp ∘ snd)
@@ -809,9 +729,8 @@ Proof.
                     prod_map_fst (pair a) (lift_exp_list es)) default_action)))
       as [ho1 ho2].
     { destruct default_action as [[a es] |]; unravel; auto.
-      destruct (lift_exp_list es) as [es' ess] eqn:hleles.
-      pair_fst_snd_eqns; subst.
-      pose proof lift_exp_list_lifted_exp es as [? ?]. auto. }
+      let_destr_pair. rewrite fst_prod_map_fst, snd_prod_map_fst.
+      auto. }
     pose proof lift_args_list_lifted (snd (split actions)) as [ha1 ha2].
     pose proof lift_exp_list_lifted_exp (fst (split key)) as [he1 he2].
     pose proof shift_triple_lifted
@@ -829,35 +748,9 @@ Proof.
             = (fun c a : nat => map (map (shift_arg c a)))) as hea by reflexivity.
     rewrite hea in h; clear hea.
     destruct h as (ho' & hes' & hargss' & hess' & hargsss').
-    destruct
-      (shift_triple
-         (fun c a => option_map (prod_map_snd (map (shift_exp c a))))
-         (fun c a => map (shift_exp c a))
-         (fun c a => map (map (shift_arg c a)))
-         (fst (omap_effect [] (fun '(a, es) => prod_map_fst (pair a) (lift_exp_list es)) default_action))
-         (fst (lift_exp_list (fst (split key))))
-         (fst (lift_args_list (snd (split actions))))
-         (snd (omap_effect [] (fun '(a, es) => prod_map_fst (pair a) (lift_exp_list es)) default_action))
-         (snd (lift_exp_list (fst (split key)))) (snd (lift_args_list (snd (split actions)))))
-      as [[[[? ?] ?] ?] ?] eqn:hst.
-    pose proof f_equal (fst ∘ fst ∘ fst ∘ fst) hst as ?; unravel in *.
-    pose proof f_equal (snd ∘ fst ∘ fst ∘ fst) hst as ?; unravel in *.
-    pose proof f_equal (snd ∘ fst ∘ fst) hst as ?; unravel in *.
-    pose proof f_equal (snd ∘ fst) hst as ?; unravel in *.
-    pose proof f_equal snd hst as ?; unravel in *.
-    clear hst; subst.
     autorewrite with core. repeat rewrite Forall_map.
     repeat split; eauto using Forall_impl.
     constructor; auto.
-    (*pose proof shift_triple_lengths
-      (fun c a => option_map (prod_map_snd (map (shift_exp c a))))
-      (fun c a => map (shift_exp c a))
-      (fun c a => map (map (shift_arg c a)))
-      (fst (omap_effect [] (fun '(a, es) => prod_map_fst (pair a) (lift_exp_list es)) default_action))
-      (fst (lift_exp_list (fst (split key))))
-      (fst (lift_args_list (snd (split actions))))
-      (snd (omap_effect [] (fun '(a, es) => prod_map_fst (pair a) (lift_exp_list es)) default_action))
-      (snd (lift_exp_list (fst (split key)))) (snd (lift_args_list (snd (split actions)))) as [hlen1 hlen2].*)
     constructor.
     + rewrite map_fst_combine; auto.
       clear hargss' hargsss' ho' hes' hess' ho1 ho2 ha1 ha2 he1 he2.
@@ -937,10 +830,7 @@ Lemma lift_ctrls_lifted_ctrls : forall cds,
     Forall lifted_ctrl (fst (lift_ctrls cds)).
 Proof.
   intro cds; induction cds as [| cd cds ih]; unravel in *; auto.
-  destruct (lift_ctrl cd) as [cdd cdn] eqn:hcd.
-  pair_fst_snd_eqns; subst.
-  destruct (lift_ctrls cds) as [cdsd cdsn] eqn:hcds.
-  pair_fst_snd_eqns; subst.
+  do 2 let_destr_pair.
   autorewrite with core.
   auto.
 Qed.
@@ -952,8 +842,7 @@ Lemma lift_top_lifted_top : forall td,
     lifted_top (lift_top td).
 Proof.
   intro td; destruct td; unravel in *; auto.
-  - destruct (lift_ctrls body) as [? ?] eqn:?.
-    pair_fst_snd_eqns; subst. auto.
+  - let_destr_pair. auto.
   - constructor; auto.
     rewrite sublist.Forall_map; unravel.
     rewrite Forall_forall in *; eauto.

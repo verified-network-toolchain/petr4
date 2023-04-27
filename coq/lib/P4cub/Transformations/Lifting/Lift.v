@@ -262,18 +262,17 @@ Inductive Lift_stm : Stm.t -> Stm.t -> Prop :=
   Lift_stm
     (Stm.Invoke (Some e) t)
     (Unwind es (Stm.Invoke (Some e') t))
-| Lift_app fk fk' fkes args args' argsess :
+| Lift_app fk fk' fkes args args' argses :
   Lift_call fk fk' fkes ->
-  Forall3 Lift_arg args args' argsess ->
+  LiftAList shift_arg Lift_arg args args' argses ->
   Lift_stm
     (Stm.App fk args)
     (Unwind
-       (shift_list shift_exp (Shifter 0 (length (concat argsess))) fkes
-          ++ concat (map snd (shift_pairs shift_arg (combine args' argsess))))
+       (snd (shift_couple (fun c a => map (shift_arg c a)) shift_call args' fk' argses fkes)
+          ++ argses)
        (Stm.App
-           (shift_call (Shifter (length fkes) (length (concat argsess))) fk')
-           (map (shift_arg $ Shifter 0 (length fkes))
-              (map fst (shift_pairs shift_arg (combine args' argsess))))))
+           (snd (fst (shift_couple (fun c a => map (shift_arg c a)) shift_call args' fk' argses fkes)))
+           (fst (fst (shift_couple (fun c a => map (shift_arg c a)) shift_call args' fk' argses fkes)))))
 | Lift_stmeq s1 s2 s1' s2' :
   Lift_stm s1 s1' ->
   Lift_stm s2 s2' ->
@@ -287,8 +286,8 @@ Inductive Lift_stm : Stm.t -> Stm.t -> Prop :=
     (Unwind
        es
        (`if e'
-          `then shift_stm (Shifter 0 (length es)) s1'
-          `else shift_stm (Shifter 0 (length es)) s2'))
+          `then shift_stm 0 (length es) s1'
+          `else shift_stm 0 (length es) s2'))
 | Lift_var_typ og t s s' :
   Lift_stm s s' ->
   Lift_stm
@@ -300,13 +299,7 @@ Inductive Lift_stm : Stm.t -> Stm.t -> Prop :=
     (`let og := inr e `in s)
     (Unwind
        es
-       (`let og := inr e' `in shift_stm (Shifter 1 (length es)) s')).
-
-Ltac destr_call_pair f :=
-  match goal with
-  | |- context [f ?a]
-    => destruct (f a) as [? ?] eqn:?; subst
-  end.
+       (`let og := inr e' `in shift_stm 1 (length es) s')).
     
 Ltac destr_lift_exp := destr_call_pair lift_exp.
 

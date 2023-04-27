@@ -2286,6 +2286,8 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | TypBit b, TypBool
   | TypBool, TypBit b ->
      Bigint.(b = one) && explicit
+  | TypInteger, TypBool ->
+    explicit
   | TypInt width1, TypBit width2 
   | TypBit width1, TypInt width2 ->
     explicit && Bigint.(width1 = width2)
@@ -2295,14 +2297,14 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | TypInteger, TypBit _
   | TypInteger, TypInt _ ->
     true
+  | TypBit _, TypInteger
+  | TypInt _, TypInteger ->
+    explicit
   | TypEnum (name, Some t, members), TypEnum (_, Some t', _)
-  | TypEnum (name, Some t, members), t'
-  | t', TypEnum (name, Some t, members) ->
+  | t, TypEnum (name, Some t', members) ->
+    explicit && type_equality env [] t t'
+  | TypEnum (name, Some t, members), t' ->
     type_equality env [] t t'
-  | TypNewType (name1, typ1),
-    TypNewType (name2, typ2) ->
-    type_equality env [] typ1 new_type
-    || type_equality env [] original_type typ2
   | TypNewType (name, typ), t ->
     cast_ok ~explicit env typ t
   | t, TypNewType (name, typ) ->
@@ -2323,7 +2325,7 @@ and cast_ok ?(explicit = false) env original_type new_type =
     let types2 = List.map ~f:snd rec2 in
     casts_ok ~explicit env types1 types2 ||
       type_equality env [] (TypRecord rec1) (TypRecord rec2)
-  | _ -> not explicit && type_equality env [] original_type new_type
+  | _ -> type_equality env [] original_type new_type
 
 and casts_ok ?(explicit = false) env original_types new_types =
   match List.zip original_types new_types with

@@ -62,43 +62,31 @@ Section Exp.
   Theorem interpret_exp_sound : 
     forall e v, interpret_exp e = Some v -> ⟨ ϵ, e ⟩ ⇓ v.
   Proof.
-    induction e using custom_exp_ind.
+    induction e using custom_exp_ind; unravel in *.
     - intros. inv H. constructor.
     - intros. inv H. constructor.
     - intros. inv H. constructor.
     - intros. inv H. constructor.
     - intros. inv H. constructor. assumption.
+    - intros. match_some_inv. econstructor; eauto.
+    - intros. match_some_inv. econstructor; eauto.
+    - intros. match_some_inv. econstructor; eauto.
     - simpl. unfold option_bind. intros.
-      destruct (interpret_exp e); try discriminate.
-      econstructor; eauto.
-    - simpl. unfold option_bind. intros.
-      destruct (interpret_exp e); try discriminate.
-      econstructor; eauto.
-    - simpl. unfold option_bind. intros.
-      destruct (interpret_exp e); try discriminate.
-      econstructor; eauto.
-    - simpl. unfold option_bind. intros.
-      destruct (interpret_exp e1); try discriminate.
-      destruct (interpret_exp e2); try discriminate.
-      econstructor; eauto.
-    - simpl. unfold option_bind, map_monad, "∘". intros.
-      destruct (sequence (map interpret_exp es)) eqn:E; try discriminate.
-      inv H0.
-      apply sequence_Forall2 in E.
-      apply Forall2_map_comm_fwd in E.
+      repeat match_some_inv. econstructor; eauto.
+    - intros. match_some_inv as Hsome. some_inv.
+      rewrite map_monad_some in Hsome.
       constructor. generalize dependent l0.
-      induction es; intros; inv H; inv E; constructor; auto.
-    - simpl. unfold option_bind, interpret_index, index, to_bit. intros.
+      induction es; intros; inv H; inv Hsome; constructor; auto.
+    - unfold interpret_index, index, to_bit. intros.
       destruct (interpret_exp e1);
       destruct (interpret_exp e2);
       try discriminate.
       destruct t; destruct t0; try discriminate.
       econstructor; eauto.
-    - simpl. unfold option_bind, index. intros.
-      destruct (interpret_exp e); try discriminate.
+    - unfold index. intros. match_some_inv.
       destruct t; try discriminate.
       econstructor; eauto.
-    - intros. unravel in *. inv H. constructor.
+    - intros. inv H. constructor.
     Qed.
 
     Theorem interpret_exp_complete :
@@ -178,16 +166,13 @@ Section Exp.
     Proof.
       induction e; try discriminate; intros; inv H; unfold option_bind in *.
       - constructor.
-      - destruct (interpret_lexp e) eqn:?; try discriminate. inv H1.
-        constructor. auto.
-      - unfold to_bit in *.
-        destruct (interpret_lexp e1); try discriminate.
+      - match_some_inv. some_inv. constructor. auto.
+      - unfold to_bit in *. match_some_inv.
         destruct (interpret_exp e2) eqn:?; try discriminate.
         destruct t0; try discriminate.
         inv H1. econstructor; eauto. 
         apply interpret_exp_sound. eauto.
-      - destruct (interpret_lexp e); try discriminate.
-        inv H1. constructor. auto.
+      - match_some_inv. some_inv. econstructor. auto.
     Qed.
 
     Lemma interpret_lexp_complete :
@@ -230,9 +215,8 @@ Section Exp.
     Proof.
       intros. destruct pat; inv H.
       - constructor.
-      - unfold option_bind in *.
-        destruct (interpret_exp discriminee) eqn:?; try discriminate.
-        inv H1. constructor. apply interpret_exp_sound. assumption.
+      - unravel in *. match_some_inv. some_inv.
+        constructor. apply interpret_exp_sound. assumption.
     Qed.
 
     Lemma interpret_parser_exp_complete :

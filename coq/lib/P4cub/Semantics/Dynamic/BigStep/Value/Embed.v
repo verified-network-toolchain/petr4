@@ -361,6 +361,8 @@ Section Embed.
     induction H; constructor; auto. apply project_sound. assumption.
   Qed.
   
+  Definition embed_values := List.map embed.
+  
   Inductive embed_exp : Exp.t -> EXP -> Prop :=
   | embed_MkExpression e e' i t d :
     embed_pre_exp e e' ->
@@ -621,6 +623,18 @@ Section Embed.
         intros. inv H1. erewrite H0; eauto. constructor. assumption.
     Qed.
 
+    Definition embed_pats := map_monad embed_pat.
+
+    Lemma embed_pats_sound :
+      forall pats vals,
+        embed_pats pats = Some vals -> Forall2 embed_pat_valset pats vals.
+    Proof.
+      unfold embed_pats. intros. rewrite map_monad_some in H.
+      generalize dependent vals. induction pats; cbn; intros.
+      - inv H. constructor.
+      - inv H. constructor; auto. apply embed_pat_sound. assumption.
+    Qed.
+
   Fixpoint snd_map {A : Type} {B : Type} (func : A -> B) (l : list (string * A)) :=
     match l with 
     | [] => []
@@ -675,6 +689,13 @@ Section Embed.
       unravel in *; auto.
     apply Forall_map_Forall2 in H.
     destruct ls; eauto.
+  Qed.
+
+  Lemma embed_values_sound vs : Forall2 Embed vs (List.map embed vs).
+  Proof.
+    apply Forall_map_Forall2. induction vs; constructor.
+    - apply embed_Embed.
+    - assumption.
   Qed.
 
   Infix "^" := Z.pow.

@@ -7,19 +7,26 @@ From Equations Require Import Equations.
 Require Poulet4.Utils.ProdN.
 
 Ltac pair_destr :=
-  match goal with
+  lazymatch goal with
   | h: (_,_) = (_,_) |- _ => inv h
   end.
 
 Ltac conj_destr :=
-  match goal with
+  lazymatch goal with
     h: _ /\ _ |- _ => destruct h as [? ?]
   end.
 
 Ltac let_destr_pair :=
-  match goal with
+  lazymatch goal with
     |- context [let (_,_) := ?a in _]
     => rewrite surjective_pairing with (p:=a); cbn
+  end.
+
+Ltac pair_fst_snd_eqns :=
+  lazymatch goal with
+    h: _ = (_,_) |- _
+    => pose proof f_equal fst h as ?; pose proof f_equal snd h as ?; clear h;
+      cbn in *; subst; cbn in *
   end.
 
 Section ShiftPairs.
@@ -215,17 +222,18 @@ Section ShiftPairs.
 
     Polymorphic Lemma lift_A_list_Lift_A_list : forall l,
         Lift_A_list l (fst (lift_A_list l)) (snd (lift_A_list l)).
-    Proof using.
+    Proof using A LiftA fa lifta lifta_LiftA.
       intro l. unfold Lift_A_list.
       exists (map fst (map lifta l)), (map snd (map lifta l)).
       rewrite sublist.combine_eq.
       split.
-      - do 2 rewrite <- Forall3_map_23. admit.
+      - do 2 rewrite <- Forall3_map_23.
+        rewrite Forall3_Forall_123,Forall_forall.
+        eauto.
       - unfold lift_A_list; unravel.
         rewrite fst_prod_map_snd, snd_prod_map_snd.
         split; reflexivity.
     Qed.
-        
     
     Polymorphic Context {B : Type@{a}}.
     Variable fb : shifter B.

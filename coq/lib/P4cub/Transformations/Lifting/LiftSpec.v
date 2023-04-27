@@ -3,7 +3,8 @@ Require Export Coq.Lists.List
   Poulet4.Utils.ForallMap
   Poulet4.P4cub.Syntax.Syntax
   Poulet4.P4cub.Syntax.Shift
-  Poulet4.P4cub.Transformations.Lifting.Statementize.
+  Poulet4.P4cub.Transformations.Lifting.Statementize
+  Poulet4.P4cub.Transformations.Lifting.LiftList.
 Import ListNotations Nat.
 
 Section RelateDeclList.

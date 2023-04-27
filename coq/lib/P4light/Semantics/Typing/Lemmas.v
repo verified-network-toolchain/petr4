@@ -190,11 +190,11 @@ Section Lemmas.
       inversion Hut; subst;
         inversion Hvt; subst;
           unfold Ops.eval_unary_op in Heval;
-          try discriminate; try some_inv; auto;
+          try discriminate; try some_ok_inv; auto;
             try match goal with
                 | H: context [let (_,_) := P4Arith.BitArith.from_lbool ?bs in _]
                   |- _ => destruct (P4Arith.BitArith.from_lbool bs)
-                    as [w' n] eqn:Hbs; some_inv;
+                    as [w' n] eqn:Hbs; some_ok_inv;
                           try inv_numeric; try inv_numeric_width
                 end;
             try bitint_length_rewrite; unfold P4Arith.to_lbool;
@@ -215,7 +215,7 @@ Section Lemmas.
         inversion Hvt1; subst; inversion Hvt2; subst;
           cbn in *; try discriminate;
             try inv_numeric; try inv_numeric_width;
-              try some_inv;
+              try some_ok_inv;
               try rewrite <- Nnat.Nat2N.inj_add;
               try match goal with
                   | |- ⊢ᵥ ValBaseBit (?l ++ ?r) \: TypBit (N.of_nat (length ?l + length ?r))
@@ -224,7 +224,7 @@ Section Lemmas.
                     => rewrite <- app_length
                   end;
               repeat if_destruct;
-              try match_some_inv; try some_inv; auto;
+              try match_some_ok_inv; try some_ok_inv; auto;
                 try bitint_length_rewrite;
                 unfold P4Arith.to_lbool;
                 try rewrite length_to_lbool'; cbn;
@@ -251,7 +251,7 @@ Section Lemmas.
     induction Ht using my_Eq_type_ind;
       intros ge r Hget; cbn in *;
       autounfold with option_monad in *; cbn in *;
-      repeat match_some_inv; some_inv; eauto;
+      repeat match_some_ok_inv; some_ok_inv; eauto;
       try match goal with
           | IH: Forall
                   ((fun t => forall ge r,
@@ -295,8 +295,8 @@ Section Lemmas.
     intros ge o t t1 t2 r1 r2 Hbt Hr1 Hr2.
     inversion Hbt; subst;
       try inv_numeric; try inv_numeric_width;
-        cbn in *; repeat some_inv; eauto;
-          try (rewrite Hr1 in Hr2; some_inv; eauto).
+        cbn in *; repeat some_ok_inv; eauto;
+          try (rewrite Hr1 in Hr2; some_ok_inv; eauto).
   Qed.
 
   Lemma eval_binary_op_eq_ex : forall (t : typ) v1 v2,
@@ -484,7 +484,7 @@ Section Lemmas.
     intros t r ts ge Hge Hmem.
     inversion Hmem; subst; cbn in *;
       autounfold with option_monad in *;
-      try match_some_inv; try some_inv;
+      try match_some_ok_inv; try some_ok_inv;
         try match goal with
             | H: sequence _ = Some ?rs
               |- exists _, _ => exists rs; auto
@@ -666,7 +666,7 @@ Section Lemmas.
     induction hc using my_cast_type_ind;
       intros r1 r2 ge1 hr1 ge2 hr2; cbn in *;
       autounfold with option_monad in *;
-      repeat match_some_inv; repeat some_inv; eauto;
+      repeat match_some_ok_inv; repeat some_ok_inv; eauto;
       normalize_cast_seq; constructor; eauto;
       lazymatch goal with
       | |- Forall2 (fun _ => _) _ _ => eapply get_real_cast_type_case1; eauto
@@ -707,8 +707,8 @@ Section Lemmas.
           assert (Datatypes.length x = Datatypes.length y) as hlen by
               (eapply length_eq_eval_cast_type; eauto);
           rewrite hlen in H; autorewrite with core in H; cbn in H
-      | _: match _ with | Some _ | _ => _ end = Some _ |- _ => match_some_inv
-      | _: Some _ = Some _ |- _ => some_inv
+      | _: match _ with | Some _ | _ => _ end = Some _ |- _ => match_some_ok_inv
+      | _: Some _ = Some _ |- _ => some_ok_inv
       | |- ⊢ᵥ ValBaseStruct _ \: TypStruct _ => constructor; auto
       | |- ⊢ᵥ ValBaseHeader _ _ \: TypHeader _ => constructor; auto
       end.
@@ -762,7 +762,7 @@ Section Lemmas.
     induction xts as [| [x t] xts ih];
       intros [| v vs] [| T TS] hc ihc hvt [| [y V] VS] H;
       inv hc; inv ihc; inv hvt; cbn in *;
-      repeat match_some_inv; some_inv;
+      repeat match_some_ok_inv; some_ok_inv;
       try discriminate; eauto.
     pose proof ih _ _ H5 H7 H9 _ Heqo0 as [hfst hsnd]; clear ih.
     rewrite hfst; split; eauto.
@@ -819,13 +819,13 @@ Section Lemmas.
         h_fst_xts_yts h_snd_xts_yts ih_xts_yts
         h_fst_vs_xts h_snd_vs_xts;
       inv h_snd_xts_yts; inv ih_xts_yts; inv h_snd_vs_xts;
-      cbn in *; repeat match_some_inv; some_inv; auto.
+      cbn in *; repeat match_some_ok_inv; some_ok_inv; auto.
     injection h_fst_xts_yts as hxy h_fst_xts_yts.
     injection h_fst_vs_xts as hzx h_fst_vs_xts; subst.
     unfold StringEqDec in *.
     rewrite AList.get_eq_cons in Heqo by
         auto using Equivalence.equiv_reflexive_obligation_1.
-    some_inv.
+    some_ok_inv.
     destruct (string_dec (P4String.str y) (P4String.str y))
       as [bruh | bruh]; try contradiction; clear bruh.
     pose proof ih _ _ Heqo1 _ h_fst_xts_yts
@@ -843,7 +843,7 @@ Section Lemmas.
       generalize dependent v1.
     induction hcast using my_cast_type_ind;
       intros v1 v2 heval hv1; inv hv1; cbn in *;
-      autorewrite with core in *; try some_inv; auto 2.
+      autorewrite with core in *; try some_ok_inv; auto 2.
     - destruct v as [| [] []];
         cbn in *; try discriminate; inv heval; auto.
     - constructor.
@@ -857,7 +857,7 @@ Section Lemmas.
     - pose proof length_to_lbool w v as h.
       apply f_equal with (f:=N.of_nat) in h.
       autorewrite with core in h; rewrite <- h at 2; auto.
-    - inv H1; autorewrite with core in *; some_inv; auto.
+    - inv H1; autorewrite with core in *; some_ok_inv; auto.
     - pose proof length_to_lbool
         (N.of_nat (List.length v))
         (IntArith.mod_bound
@@ -869,16 +869,16 @@ Section Lemmas.
         w (IntArith.mod_bound (pos_of_N w) v) as h.
       apply f_equal with (f:=N.of_nat) in h.
       autorewrite with core in h; rewrite <- h at 3; auto.
-    - inv H1; autorewrite with core in *; some_inv; auto.
-    - inv H1; autorewrite with core in *; some_inv; auto.
-    - inv H1; autorewrite with core in *; some_inv; auto.
+    - inv H1; autorewrite with core in *; some_ok_inv; auto.
+    - inv H1; autorewrite with core in *; some_ok_inv; auto.
+    - inv H1; autorewrite with core in *; some_ok_inv; auto.
     - normalize_cast_match. eapply eval_cast_types_case1; eauto.
     - normalize_cast_match. eapply eval_cast_types_case2; eauto.
     - normalize_cast_match. eapply eval_cast_types_case2; eauto.
     - normalize_cast_match. eapply eval_cast_types_case1; eauto.
     - normalize_cast_match. eapply eval_cast_types_case2; eauto.
     - normalize_cast_match. eapply eval_cast_types_case2; eauto.
-    - match_some_inv; some_inv.
+    - match_some_ok_inv; some_ok_inv.
       constructor.
       generalize dependent ts1;
         generalize dependent l;
@@ -886,7 +886,7 @@ Section Lemmas.
       induction ts2 as [| T TS ih];
         intros [| v vs] [| V VS] h [| t ts] hc ihc hvt;
         inv hc; inv ihc; inv hvt;
-        repeat match_some_inv; some_inv; eauto.
+        repeat match_some_ok_inv; some_ok_inv; eauto.
   Qed.
 
   Lemma eval_cast_ex_case:
@@ -1464,7 +1464,7 @@ Section Lemmas.
     destruct Htst as [[y t] Hyt].
     specialize Htsl with (u := (y,t)) (v := (x,r)); cbn in *.
     assert (HIn : List.In ((y,t),(x,r)) (combine xts xrs)) by eauto.
-    apply Htsl in HIn. match_some_inv; some_inv; eauto.
+    apply Htsl in HIn. match_some_ok_inv; some_ok_inv; eauto.
   Qed.
 
   Local Hint Resolve delta_genv_prop_ok_typ_nil_alist : core.
@@ -1507,11 +1507,11 @@ Section Lemmas.
     apply delta_genv_prop_ok_typ_nil_ind;
       autounfold with ind_def; cbn;
         autounfold with option_monad;
-        try (intros; repeat match_some_inv;
-             some_inv; eauto; assumption).
+        try (intros; repeat match_some_ok_inv;
+             some_ok_inv; eauto; assumption).
     - intros d X t mems Ht IHt ge r Hge Hr.
       destruct t as [t |]; inversion IHt; subst;
-        try match_some_inv; some_inv; eauto.
+        try match_some_ok_inv; some_ok_inv; eauto.
       constructor; constructor; cbn.
       apply H0 in Heqo; eauto.
     - intros d X HXd ge r Hge Hr.
@@ -1523,23 +1523,23 @@ Section Lemmas.
     - intros d X t Ht IHt ge r Hge Hr.
       apply IHt in Hr; auto.
     - intros d Xs Ts ps Hps IHps ge r Hge Hr.
-      match_some_inv; some_inv.
+      match_some_ok_inv; some_ok_inv.
       constructor; autorewrite with core.
       eapply delta_genv_prop_ok_param_nil_list in Hps;
         eauto using delta_genv_prop_removes.
     - intros d Xs Ys ps t Hps IHps Ht IHts ge r Hge Hr.
-      repeat match_some_inv; some_inv.
+      repeat match_some_ok_inv; some_ok_inv.
       constructor; autorewrite with core.
       eapply delta_genv_prop_ok_param_nil_list in Heqo0;
         eauto using delta_genv_prop_removes.
       eapply IHts; eauto using delta_genv_prop_removes.
     - intros d Xs ps Hps IHps ge r Hge Hr.
-      match_some_inv; some_inv.
+      match_some_ok_inv; some_ok_inv.
       constructor; autorewrite with core.
       eapply delta_genv_prop_ok_param_nil_list in Hps;
         eauto using delta_genv_prop_removes.
     - intros d Xs ps k t Hps IHps Ht IHt ge r Hge Hr.
-      repeat match_some_inv; some_inv.
+      repeat match_some_ok_inv; some_ok_inv.
       constructor; autorewrite with core.
       eapply delta_genv_prop_ok_param_nil_list in Hps;
         eauto using delta_genv_prop_removes.
@@ -1554,7 +1554,7 @@ Section Lemmas.
     intros ts rs t r ge Hts Hrs Htr;
       inversion Hts; subst; inversion Hrs; subst;
         cbn in *; autounfold with option_monad in *;
-          match_some_inv; some_inv; reflexivity.
+          match_some_ok_inv; some_ok_inv; reflexivity.
   Qed.
 
   Lemma exec_expr_call_False :
@@ -1583,7 +1583,7 @@ Section Lemmas.
     destruct l as [l | l]; cbn in *; try discriminate.
     unfold PathMap.get in *.
     rewrite FuncAsMap.get_map_map in hltv.
-    unfold option_map in hltv. match_some_inv; some_inv.
+    unfold option_map in hltv. match_some_ok_inv; some_ok_inv.
     eauto.
   Qed.
 
@@ -1617,7 +1617,7 @@ Section Lemmas.
     unfold PathMap.get in *.
     rewrite FuncAsMap.get_map_map in ht.
     unfold option_map in ht.
-    match_some_inv; some_inv.
+    match_some_ok_inv; some_ok_inv.
     rename p into t.
     pose proof h _ _ eq_refl hv as (r & hr & hvr); clear h.
     unfold try_get_real_type, "∘". rewrite hr. assumption.
@@ -1665,7 +1665,7 @@ Section Lemmas.
     induction hread; intros t hlv; inv hlv;
       eauto using get_member_types.
     - pose proof IHhread hG _ H8 as hsv. inv hsv.
-      cbn in H. some_inv.
+      cbn in H. some_ok_inv.
       assert (hlen: (N.to_nat lo <= N.to_nat hi < List.length bitsbl)%nat) by lia.
       pose proof Ops.bitstring_slice_length _ _ _ hlen as h.
       assert (heq: (N.to_nat hi - N.to_nat lo + 1)%nat = N.to_nat (hi - lo + 1)%N) by lia.
@@ -1682,7 +1682,7 @@ Section Lemmas.
         eapply Forall_nth_error in H7; eauto.
       + rewrite nth_overflow by lia.
         destruct headers; cbn in *; try discriminate.
-        some_inv. inv H7; auto.
+        some_ok_inv. inv H7; auto.
   Qed.
   
   Lemma exec_read_ex :
@@ -1749,9 +1749,9 @@ Section Lemmas.
     intros f vs; induction vs as [| [x v] vs ih];
       intros [| [y v'] vs'] h H; cbn in *;
       unfold option_bind in h; inv H;
-      repeat match_some_inv; discriminate || some_inv; auto.
+      repeat match_some_ok_inv; discriminate || some_ok_inv; auto.
     destruct H2 as (hdr & bits & hhdr); subst. cbn in *.
-    some_inv. constructor; eauto.
+    some_ok_inv. constructor; eauto.
   Qed.
   
   Lemma havoc_headers_all_values_val_typ : forall f (ts : list (string * typ)) vs vs',
@@ -1762,7 +1762,7 @@ Section Lemmas.
     unfold AList.all_values, lift_option_kv.
     intros f ts; induction ts as [| [x t] ts ih];
       intros [| [y v] vs] [| [z v'] vs'] hvs' hvts; cbn in *;
-      try discriminate; inv hvts; repeat match_some_inv; some_inv; auto.
+      try discriminate; inv hvts; repeat match_some_ok_inv; some_ok_inv; auto.
     destruct H2 as [? hvt]; subst.
     eauto using havoc_header_val_typ.
   Qed.
@@ -1815,7 +1815,7 @@ Section Lemmas.
         unfold "===" in *; split; auto using uninit_sval_of_sval_preserves_typ.
     - constructor; auto.
       + unfold update_union_member in H.
-        match_some_inv.
+        match_some_ok_inv.
         pose proof havoc_headers_is_header _ _ _ Heqo H2 as h.
         clear dependent ts0.
         pose proof AListUtil.AList_set_some_split
@@ -1826,7 +1826,7 @@ Section Lemmas.
         rewrite Forall_app in *.
         destruct h as [h1 h2]; inv h2. split; eauto.
       + unfold update_union_member in H.
-        match_some_inv.
+        match_some_ok_inv.
         pose proof havoc_headers_all_values_val_typ _ _ _ _ Heqo H3 as h.
         solve_update_member_preserves_typ.
   Qed.
@@ -2036,11 +2036,11 @@ Section Lemmas.
         destruct loc as [loc | loc]; cbn in *; try discriminate.
         destruct l as [l | l]; cbn in *; try discriminate.
         destruct (list_eq_dec string_dec l loc) as [hlloc | hlloc]; subst.
-        * rewrite H1 in htyp_of. some_inv.
+        * rewrite H1 in htyp_of. some_ok_inv.
           pose proof PathMap.get_set_same loc rhs st as h.
           unfold PathMap.get,FuncAsMap.get in *. rewrite h in hloc_to_sval.
           cbn in *. unfold ok in *.
-          some_inv. assumption.
+          some_ok_inv. assumption.
         * pose proof PathMap.get_set_diff l loc rhs st hlloc as h.
           specialize hG with (LInstance l) t' v as H. cbn in H.
           unfold PathMap.get,FuncAsMap.get in *.

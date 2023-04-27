@@ -514,13 +514,13 @@ Section Cast_Type_ind.
       end.
 End Cast_Type_ind.
 
-Ltac some_inv :=
+Ltac some_ok_inv :=
   match goal with
   | H: Some _ = Some _ |- _ => inversion H; subst; clear H
   | H: Ok _ = Ok _ |- _ => inversion H; subst; clear H
   end.
 
-Ltac match_some_inv :=
+Ltac match_some_ok_inv :=
   match goal with
   | H: match ?trm with Some _ => _ | None => _ end = Some _
     |- _ => destruct trm as [? |] eqn:? ; cbn in *;

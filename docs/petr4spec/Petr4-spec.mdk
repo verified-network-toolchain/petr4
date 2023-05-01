@@ -1189,6 +1189,53 @@ Type unification attempts to unify two expression types, that is, it attempts to
 
 ~ Begin InfRule
 
+
+  \mprset {vskip=0.7ex}
+  {\inferrule
+    {\typeEq {\typ_1} {\typ_2} }
+    {\typeEq {\setTyp {\typ_1}} {\setTyp {\typ_2}} }
+  \quad \setTeq}
+
+% \and
+
+  \mprset {vskip=0.7ex}
+  {\inferrule
+    {\typeEq {\typ_1} {\typ_2} }
+    {\typeEq {\listTypss {\typ_1}} {\listTypss {\typ_2}} }
+  \quad \listTeq}
+
+% \and
+
+  \mprset {vskip=0.7ex}
+  {\inferrule
+    {\typeEq {\overline  {\typ_1}} {\overline {\typ_2}} }
+    {\typeEq {\tupleTyps {\typ_1}} {\tupleTyps {\typ_2}} }
+  \quad \tupleTeq}
+
+% \and
+
+  \mprset {vskip=0.7ex}
+  {\inferrule
+    {\typeEq {\typ_1} {\typ_2} \\\\
+     \overline {\field_1} = \overline {\field_2}\\
+     \typeEq {\overline {\typ_1}} {\overline {\typ_2}}}
+    {\typeEq {\enumTyp {\typ_1} {\typName_1} {\overline{\field_1}}} {\enumTyp {\typ_2} {\typName_2} {\overline{\field_2}}} }
+  \quad \serEnumTeq}
+
+% \and
+
+  \mprset {vskip=0.7ex}
+  {\inferrule
+    {\overline {\field_1} = \overline {\field_2}\\
+     \typeEq {\overline {\typ_1}} {\overline {\typ_2}} }
+    {\typeEq {\enumTypNoTyp {\typ_1} {\typName_1} {\fields_1}} {\enumTypNoTyp {\typ_2} {\typName_2} {\fields_2}}}
+  \quad \enumTeq}
+
+
+~ End InfRule
+
+~ Begin InfRule
+
   \mprset {vskip=0.7ex}
     {\inferrule
        { }
@@ -1530,6 +1577,35 @@ compile time, we still consider it known at compile time.
       \isNumeric {\exp_2} {\VVal \typ}}
      {\expenvNoTrans {\arrayAccess {\exp_1} {\exp_2}}  \typ }}
      % \quad (\headerStackIndexE)
+
+  \mprset{vskip=0.7ex}
+  {\inferrule
+     {\expenvNoTrans {\exp_1} {\headerStackTyp \typ \size} \\\\
+      \expenvNoTrans {\exp_2} {\VVal \typ}  \\\\
+      \mathit{is\_fixed\_sign\_int} (\VVal \typ)}
+      % \isArray {\arrayTyp \typ \size} \\
+      % \isNumeric {\exp_2} {\VVal \typ}}
+     {\expenvNoTrans {\arrayAccess {\exp_1} {\exp_2}}  \typ }}
+
+
+  \mprset{vskip=0.7ex}
+  {\inferrule
+     {\expenvNoTrans {\exp_1} {\headerStackTyp \typ \size} \\\\
+      \expenvNoTrans {\exp_2} {\VVal \typ}  \\\\
+      \mathit{is\_fixed\_unsign\_int} (\VVal \typ)}
+      % \isArray {\arrayTyp \typ \size} \\
+      % \isNumeric {\exp_2} {\VVal \typ}}
+     {\expenvNoTrans {\arrayAccess {\exp_1} {\exp_2}}  \typ }}
+
+  \mprset{vskip=0.7ex}
+  {\inferrule
+     {\expenvNoTrans {\exp_1} {\headerStackTyp \typ \size} \\\\
+      \expenvNoTrans {\exp_2} {\VVal \typ}  \\\\
+      \mathit{is\_int} (\VVal \typ)\\\\
+      \mathit{compile\_time\_known}(\exp_2)_{\Gamma}}
+      % \isArray {\arrayTyp \typ \size} \\
+      % \isNumeric {\exp_2} {\VVal \typ}}
+     {\expenvNoTrans {\arrayAccess {\exp_1} {\exp_2}}  \typ }}
 
 \and
 

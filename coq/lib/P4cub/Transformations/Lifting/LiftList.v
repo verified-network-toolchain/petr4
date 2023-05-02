@@ -282,18 +282,15 @@ Section ShiftPairs.
     Qed.
     
     Polymorphic Lemma shift_couple_spec : forall a b esa esb,
-        fst (fst (shift_couple a b esa esb))
-        = fa 0 (length esb) a
-        /\ snd (fst (shift_couple a b esa esb))
-          = fb (length esb) (length esa) b
-        /\ snd (shift_couple a b esa esb)
-          = shift_list shift_exp 0 (length esa) esb.
+        shift_couple a b esa esb
+        = (fa 0 (length esb) a,
+            fb (length esb) (length esa) b,
+              shift_list shift_exp 0 (length esa) esb).
     Proof using A fa fb fa_0 fb_0.
       intros a b esa esb.
-      destruct (shift_couple a b esa esb) as [[a' b'] esb'] eqn:h.
-      unfold shift_couple in h.
-      rewrite prodn_shift_pairs_couple in h.
-      inv h. unravel. auto.
+      unfold shift_couple.
+      rewrite prodn_shift_pairs_couple.
+      unravel. auto.
     Qed.
 
     Context {C : Type@{a}}.
@@ -364,22 +361,17 @@ Section ShiftPairs.
     
     Polymorphic Lemma shift_triple_spec :
       forall a b c esa esb esc,
-        fst (fst (fst (fst (shift_triple a b c esa esb esc))))
-        = fa 0 (length esc + length esb) a
-        /\ snd (fst (fst (fst (shift_triple a b c esa esb esc))))
-          = fb 0 (length esc) (fb (length esb) (length esa) b)
-        /\ snd (fst (fst (shift_triple a b c esa esb esc)))
-          = fc (length esc) (length esb + length esa) c
-        /\ snd (fst (shift_triple a b c esa esb esc))
-          = shift_list shift_exp 0 (length esa) esb
-        /\ snd (shift_triple a b c esa esb esc)
-          = shift_list shift_exp 0 (length esb + length esa) esc.
+        shift_triple a b c esa esb esc
+        = (fa 0 (length esc + length esb) a,
+            fb 0 (length esc) (fb (length esb) (length esa) b),
+            fc (length esc) (length esb + length esa) c,
+            shift_list shift_exp 0 (length esa) esb,
+            shift_list shift_exp 0 (length esb + length esa) esc).
     Proof using A B C fa fa_0 fa_add fb fb_0 fc.
       intros a b c esa esb esc.
-      destruct (shift_triple a b c esa esb esc) as [[[[a' b'] c'] esb'] esc'] eqn:h.
-      unfold shift_triple in h.
-      rewrite prodn_shift_pairs_triple in h.
-      unravel in *. inv h. auto.
+      unfold shift_triple.
+      rewrite prodn_shift_pairs_triple.
+      unravel. auto.
     Qed.
   End ShiftCouple.
 End ShiftPairs.

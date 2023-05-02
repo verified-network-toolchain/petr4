@@ -270,4 +270,53 @@ Section RelateExprDeclList.
       rewrite map_snd_combine by assumption.
       assumption.
   Qed.
+
+  Polymorphic Universe c.
+  Polymorphic Context {C : Type@{c}}.
+  Polymorphic Variable shiftC : shifter C.
+  Polymorphic Variable Q : list A -> C -> A -> Prop.
+  Polymorphic Hypothesis shift_preserves_Q : forall as1 as2 as3 a c,
+      Q (as1 ++ as3) c a ->
+      Q (as1 ++ as2 ++ as3) (shiftC (length as1) (length as2) c) a.
+
+  Polymorphic Lemma shift_couple_relate_decl_list : forall b c esb esc asb asc,
+      relate_decl_list R_exp l esb asb ->
+      relate_decl_list R_exp l esc asc ->
+      relate_decl_list
+        R_exp l
+        (snd (shift_couple shiftB shiftC b c esb esc) ++ esb)
+        (asc ++ asb).
+  Proof using A B C R_exp l shiftB shiftC shift_preserves_R_exp.
+    intros b c esb esc asb asc hb hc.
+    unfold shift_couple.
+    do 2 rewrite prodn_shift_pairs_equation_2.
+    rewrite prodn_shift_pairs_equation_1. unravel. cbn.
+    rewrite add_0_r. auto.
+  Qed.
+
+  Polymorphic Lemma shift_couple_relate_couple : forall b c esb esc asb asc vb vc,
+      relate_decl_list R_exp l esb asb ->
+      relate_decl_list R_exp l esc asc ->
+      R (asb ++ l) b vb ->
+      Q (asc ++ l) c vc ->
+      R (asc ++ asb ++ l) (fst (fst (shift_couple shiftB shiftC b c esb esc))) vb
+      /\ Q (asc ++ asb ++ l) (snd (fst (shift_couple shiftB shiftC b c esb esc))) vc.
+  Proof using A B C Q R R_exp l shiftB shiftC shift_preserves_Q shift_preserves_R.
+    intros b c esb esc asb asc vb vc hesb hesc hb hc.
+    unfold shift_couple.
+    do 2 rewrite prodn_shift_pairs_equation_2.
+    rewrite prodn_shift_pairs_equation_1. unravel. cbn.
+    rewrite add_0_r.
+    rewrite ProdN.nth_equation_2, ProdN.hd_equation_1.
+    rewrite ProdN.map_uni2_equation_2 with (f:=shiftB).
+    rewrite ProdN.nth_equation_1.
+    apply relate_decl_list_length in hesb,hesc.
+    rewrite hesb,hesc.
+    split; auto.
+    apply shift_preserves_R with
+      (as1:=asb) (as2:=[]%list) (as3:=l) in hb.
+    apply shift_preserves_R with
+      (as1:=[]%list) (as2:=asc) (as3:=(asb ++ l)%list) in hb.
+    assumption.
+  Qed.
 End RelateExprDeclList.

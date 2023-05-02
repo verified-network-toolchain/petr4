@@ -309,9 +309,9 @@ Section LiftProd.
       as [p' ess'] eqn:hpsp.
     cbn in *. intuition.
   Qed.
-
-  Local Hint Resolve list_Forall_vec : core.
-  Local Hint Resolve vec_Forall_list : core.
+  
+  Local Hint Resolve Vec.to_list_Forall : core.
+  Local Hint Resolve vec_Forall_of_list : core.
 
   Polymorphic Lemma shift_pairs_lifted : forall l,
       Forall
@@ -331,11 +331,14 @@ Section LiftProd.
     rewrite <- Forall_map with (f:=fst) in hl.
     rewrite <- Forall_map with (f:=snd) in hl.
     destruct hl as [has hrs].
-    apply list_Forall_vec, Forall_of_list_map in has,hrs.
+    rewrite <- vec_Forall_of_list in has.
+    rewrite <- vec_Forall_of_list in hrs.
+    apply Forall_of_list_map in has,hrs.
     rewrite vec_unzip_correct.
     pose proof vec_shift_pairs_lifted _ _ has hrs as [hva hes].
-    rewrite fst_prod_map_fst,snd_prod_map_fst,fst_prod_map_snd,snd_prod_map_snd.
-    auto.
+    rewrite fst_prod_map_fst,snd_prod_map_fst,
+      fst_prod_map_snd,snd_prod_map_snd; cbn.
+    do 2 rewrite <- Vec.to_list_Forall. auto.
   Qed.
 
   Polymorphic Variable lifta : A -> A * list Exp.t.

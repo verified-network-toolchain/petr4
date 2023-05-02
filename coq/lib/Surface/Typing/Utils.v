@@ -73,25 +73,33 @@ Section Utils.
     end.
 
   (*dummy function definition. fill in later. TODO.*)
-  Definition to_nat (val: Val) : nat := 0.
+  (*the nitty gritty converting between types.*)
+  (* Definition to_nat (val: Val) : nat := 0. *)
 
   (*dummy function definition. fill in later. TODO.*)
-  Definition cast (env:checkerEnvs) (typ1 typ2: typ) : bool :=
+  (*pairs of types that allow explicit cast return true. otherwise it returns false.*)
+  (*@parisa, finalize this for the p4 spec pr of casting.*)
+  Definition explicit_cast (env:checkerEnvs) (typ1 typ2: typ) : bool :=
     false.
 
   (*dummy function definition. fill in later. TODO.*)
+  (*looks up type variable type in environment env and return its type if it finds it.
+    otherwise, it returns error.*)
   Definition lookup_type (type: P4String) (env: checkerEnvs) : result Exn.t typ :=
     error (Exn.Other "fill out later.").
 
   (*dummy function definition. fill in later. TODO.*)
-  Definition lookup_var (type: P4String) (env: checkerEnvs) : result Exn.t (typ * direction) :=
+  (*looks up variable var in environment env and if it finds it, it returns the pair (typ, dir), otherwise returns an error.*)
+  Definition lookup_var (var: P4String) (env: checkerEnvs) : result Exn.t (typ * direction) :=
     error (Exn.Other "fill out later.").
 
   (*dummy function definition. fill in later. TODO.*)
+  (*returns: error.mem *)
   Definition append_error (mem: P4String) : P4String :=
     mem.
 
   (*dummy function definition. fill in later. TODO.*)
+  (*returns: typ.mem *)
   Definition append_type (typ: P4String) (mem: P4String) : P4String :=
     mem.
 

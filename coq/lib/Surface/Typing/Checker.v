@@ -35,8 +35,11 @@ Section Checker.
     end.
 
   (*dummy function definition. fill in later. TODO.*)
+  (*hint: bitstring access rule from the formalized spec. ignore inserting casts rule.*)
+  (*hint: lib/checker.ml --> type_bit_string_access. *)
+  (*hint: similar to type_array_access a little down this file.*)
   Definition type_bit_string_access (env: checkerEnvs) (w: N) (low: expression) (type_low: typ) (high: expression) (type_high: typ) : result Exn.t typ :=
-    error (Exn.Other "fill out later.").
+    error (Exn.Other "fill out.").
 
   (*dummy function definition. fill in later. TODO.*)
   (*hint: binary operation rules in formalized spec. disregard the insertion of cast. that is, assume that all casts have been inserted.*)
@@ -234,12 +237,12 @@ Section Checker.
             match type_expr with
             | TypName tags name
               => let* typ' := lookup_type name env in
-                let cast_ok := cast env typ typ' in
+                let cast_ok := explicit_cast env typ typ' in
                 if cast_ok
                 then ok typ
                 else error (Exn.Other "cast incorrect")
             | _
-              => let cast_ok := cast env typ type_expr in
+              => let cast_ok := explicit_cast env typ type_expr in
                 if cast_ok
                 then ok typ
                 else error (Exn.Other "cast incorrect")

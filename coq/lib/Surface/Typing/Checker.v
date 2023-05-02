@@ -81,7 +81,55 @@ Section Checker.
   (*hint: type equality judgment in formalized spec.*)
   (*hint: lib/checker.ml --> type_equality function which calls solve_types. solve_types does the inference.*)
   Definition type_eq (typ1 typ2: typ) : bool :=
-    false.
+    match typ1, typ2 with
+    | TypBool      _, TypBool _
+    | TypError     _, TypError _
+    | TypMatchKind _, TypMatchKind _
+    | TypInteger   _, TypInteger _
+    | TypString    _, TypString _
+    | TypVoid      _, TypVoid _
+    | TypDontCare  _,  TypDontCare _
+      => true
+    | TypBit    _ w1, TypBit    _ w2
+    | TypInt    _ w1, TypInt    _ w2
+    | TypVarBit _ w1, TypVarBit _ w2
+      => false (* error (Exn.Other "fill out" )*)
+    | TypName _ n1, TypName _ n2
+      => false  (* "fill out"  *)
+    | TypSpecialization _ b1 arg1, TypSpecialization _ b2 arg2
+      => false  (* "fill out"  *)
+    | TypHeaderStack _ tps1 fs1, TypHeaderStack _ tps2 fs2
+    | TypHeader      _ tps1 fs1, TypHeader      _ tps2 fs2
+    | TypHeaderUnion _ tps1 fs1, TypHeaderUnion _ tps2 fs2
+    | TypStruct      _ tps1 fs1, TypStruct      _ tps2 fs2
+      => false  (* "fill out"  *)
+    | TypTuple _ ts1, TypTuple _ ts2
+      => false  (* "fill out"  *)
+    | TypEnum _ n1 t1 ms1, TypEnum _ n2 t2 ms2
+      => false  (* "fill out"  *)
+    | TypParser  _ tps1 ps1, TypParser  _ tps2 ps2
+    | TypControl _ tps1 ps1, TypControl _ tps2 ps2
+      => false  (* "fill out"  *)
+    | TypPackage _ tps1 wps1 ps1, TypPackage _ tps2 wps2 ps2
+      => false  (* "fill out"  *)
+    | TypFunction _ tps1 ps1 k1 rt1, TypFunction _ tps2 ps2 k2 rt2
+      => false  (* "fill out"  *)
+    | TypSet _ t1, TypSet _ t2
+      => false  (* "fill out"  *)
+    | TypExtern _ n1, TypExtern _ n2
+      => false  (* "fill out"  *)
+    | TypNewTyp _ n1 t1, TypNewTyp _ n2 t2
+      => false  (* "fill out"  *)
+    | TypAction _ dps1 cps1, TypAction _ dps2 cps2
+      => false  (* "fill out"  *)
+    | TypConstructor _ tps1 wp1 ps1 rt1, TypConstructor _ tps2 wp2 ps2 rt2
+      => false (* "fill out"  *)
+    | TypTable _ n1, TypTable _ n2
+      => false (* "fill out"  *)
+    | _, _
+      => false  (* "fill out" *)
+    end.
+
 
   Definition type_mask (type_expr type_mask: typ) : result Exn.t typ :=
     match type_expr, type_mask with
@@ -98,10 +146,13 @@ Section Checker.
     end.
 
   (*dummy function definition. fill in later. TODO.*)
+  (*type checking for expression member.*)
+  (*hint: membership rules in formalized spec. this is simpler than Ryan's implementation.*)
+  (*hint: lib/checker.ml --> type_expression_member.*)
   Definition type_expression_member (env: checkerEnvs) (type_expr: typ) (mem: P4String) : result Exn.t typ :=
     error (Exn.Other "fill in later.").
 
-  (*the tuple case has little mismatches of types. TODO. fix it. for now returns a dummy value.*)
+  (*the tuple case has little mismatches of types. TODO. fix it. for now returns a dummy value.@parisa*)
   Definition type_array_access (env: checkerEnvs) (array: expression) (type_array: typ) (index: expression) (type_index: typ) : result Exn.t typ :=
     error (Exn.Other "fill in later.").
     (* match type_array with *)

@@ -463,7 +463,6 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\intoOp \bitAnd$ | $\qquad \text{bitwise and}$ |
 |   | $\vert$ | $\intoOp \bitOr$ | $\qquad \text{bitwise or}$ |
 |   | $\vert$ | $\intoOp \bitXor$ | $\qquad \text{bitwise xor}$ |
-|   | $\vert$ | $\intoOp \bitComplement$ | $\qquad \text{bitwise complement}$ |
 |   | $\vert$ | $\intoOp \concat$ | $\qquad \text{bitwise concatenation}$ |
 |   | $\vert$ | $\intoOp \shiftL$ | $\qquad \text{shift left}$ |
 |   | $\vert$ | $\intoOp \shiftR$ | $\qquad \text{shift right}$ |
@@ -1951,7 +1950,7 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
 \and
 
 \mprset {vskip=0.7ex}
-  {\inferrule[\rn{BitwiseOps}\rE($\ops=\intoOp \bitAnd, \intoOp \bitOr, \intoOp \bitXor, \intoOp \bitComplement$)]
+  {\inferrule[\rn{BitwiseOps}\rE($\ops=\intoOp \bitAnd, \intoOp \bitOr, \intoOp \bitXor$)]
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
        % \implicitCast {\typ_1} {\typ_2} = \typ \\

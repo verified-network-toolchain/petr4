@@ -11,55 +11,69 @@ Import RecordSetNotations.
 
 (** Typing specification for lifting in [Statementize.v] *)
 
+Notation type_decl_list := (relate_decl_list ∘ type_exp).
+
 Section TypeDeclList.
   Variable Δ : nat.
   Variable Γ : list Typ.t.
 
-  Definition type_decl_list : list Exp.t -> list Typ.t -> Prop :=
-    relate_decl_list (type_exp Δ) Γ.
-
   Local Hint Resolve relate_decl_list_length : core.
   
   Lemma type_decl_list_length : forall es ts,
-      type_decl_list es ts -> length es = length ts.
-  Proof using.
-    unfold type_decl_list; eauto.
-  Qed.
+      type_decl_list Δ Γ es ts -> length es = length ts.
+  Proof using. eauto. Qed.
   
   Local Hint Resolve shift_type_exp : core.
   Local Hint Resolve relate_decl_list_app : core.
     
   Lemma type_decl_list_app : forall τs1 τs2 es1 es2,
-      type_decl_list es1 τs1 ->
-      type_decl_list es2 τs2 ->
-      type_decl_list (shift_list shift_exp 0 (length es1) es2 ++ es1) (τs2 ++ τs1).
-  Proof using.
-    unfold type_decl_list. eauto.
-  Qed.
+      type_decl_list Δ Γ es1 τs1 ->
+      type_decl_list Δ Γ es2 τs2 ->
+      type_decl_list Δ Γ (shift_list shift_exp 0 (length es1) es2 ++ es1) (τs2 ++ τs1).
+  Proof using. eauto. Qed.
 
   Local Hint Resolve shift_pairs_relate_snd : core.
     
   Lemma shift_pairs_type_snd : forall ess tss,
-      Forall2 type_decl_list (map snd ess) tss ->
+      Forall2 (type_decl_list Δ Γ) (map snd ess) tss ->
       type_decl_list
+        Δ Γ
         (concat (snd (shift_pairs shift_exp ess)))
         (concat tss).
-  Proof using.
-    unfold type_decl_list. eauto.
-  Qed.
+  Proof using. eauto. Qed.
   
   Local Hint Resolve shift_pairs_relate_fst : core.
   
-  Lemma shift_pairs_relate_fst : forall es ess ts tss,
+  Lemma shift_pairs_type_fst : forall es ess ts tss,
       length es = length ess ->
       Forall3 (fun ts e t => `⟨ Δ, ts ++ Γ ⟩ ⊢ e ∈ t) tss es ts ->
-      Forall2 type_decl_list ess tss ->
+      Forall2 (type_decl_list Δ Γ) ess tss ->
       Forall2
         (type_exp Δ (concat tss ++ Γ))
         (fst (shift_pairs shift_exp (combine es ess))) ts.
-  Proof using.
-    unfold type_decl_list. eauto.
-  Qed.
+  Proof using. eapply shift_pairs_relate_fst; eauto. Qed.
+
+  Local Hint Resolve shift_couple_relate_decl_list : core.
+
+  Lemma shift_couple_exp_type_decl_list : forall e1 e2 es1 es2 ts1 ts2,
+      type_decl_list Δ Γ es1 ts1 ->
+      type_decl_list Δ Γ es2 ts2 ->
+      type_decl_list
+        Δ Γ
+        (snd (shift_couple shift_exp shift_exp e1 e2 es1 es2) ++ es1)
+        (ts2 ++ ts1).
+  Proof using. eauto. Qed.
+
+  Local Hint Resolve shift_couple_relate_couple : core.
+
+  Lemma shift_couple_exp_type_couple : forall e1 e2 es1 es2 t1 t2 ts1 ts2,
+      type_decl_list Δ Γ es1 ts1 ->
+      type_decl_list Δ Γ es2 ts2 ->
+      `⟨ Δ, ts1 ++ Γ ⟩ ⊢ e1 ∈ t1 ->
+      `⟨ Δ, ts2 ++ Γ ⟩ ⊢ e2 ∈ t2 ->
+      `⟨ Δ, ts2 ++ ts1 ++ Γ ⟩ ⊢ fst (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2)) ∈ t1 
+      /\ `⟨ Δ, ts2 ++ ts1 ++ Γ ⟩ ⊢ snd (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2)) ∈ t2.
+  Proof using. eauto. Qed.
 End TypeDeclList.
 
 Section TypeExp.
@@ -79,10 +93,30 @@ Section TypeExp.
   Local Hint Constructors typ_ok_lists : core.
   Local Hint Constructors Forall3 : core.
   Local Hint Resolve type_exp_typ_ok : core.
+  Local Hint Resolve shift_couple_exp_type_couple : core.
+  Local Hint Resolve shift_couple_exp_type_decl_list : core.
+  Local Hint Resolve shift_couple_relate_decl_list : core.
+  Local Hint Resolve shift_pairs_relate_fst : core.
+  Local Hint Resolve shift_pairs_relate_snd : core.
+  Local Hint Resolve shift_pairs_type_fst : core.
+  Local Hint Resolve shift_pairs_type_snd : core.
+  Local Hint Resolve Forall3_length23 : core.
 
   Ltac esolve_lift := eexists; esplit; eauto; assumption.
 
   Local Hint Extern 5 => esolve_lift : core.
+
+  Ltac shift_couple_type_exp_resolve :=
+    lazymatch goal with
+      hes1: type_decl_list _ _ ?es1 ?ts1,
+      hes2: type_decl_list _ _ ?es2 ?ts2,
+      he1: `⟨ _, ?ts1 ++ _ ⟩ ⊢ ?e1 ∈ ?t1,
+      he2: `⟨ _, ?ts2 ++ _ ⟩ ⊢ ?e2 ∈ ?t2
+      |- _ => pose proof shift_couple_exp_type_couple
+              _ _ _ _ _ _ _ _ _ _ hes1 hes2 he1 he2 as [? ?]
+    end.
+
+  Local Hint Extern 3 => shift_couple_type_exp_resolve : core.
 
   Hypothesis hG : Forall (typ_ok Δ) Γ.
   
@@ -92,7 +126,6 @@ Section TypeExp.
             type_decl_list Δ Γ es τs
             /\ `⟨ Δ, τs ++ Γ ⟩ ⊢ e' ∈ τ.
   Proof using hG Γ Δ.
-    unfold type_decl_list.
     intros e t het;
       induction het using custom_type_exp_ind;
       intros E Es h; inv h; eauto.
@@ -106,30 +139,13 @@ Section TypeExp.
       exists (τ :: ts2 ++ ts1).
       split; eauto.
       constructor; eauto.
-      rewrite <- app_assoc.
-      econstructor; eauto.
-      admit. admit. admit.
-      (*erewrite relate_decl_list_length
-        with (lb := es1) (la := ts1) by eassumption.
-      erewrite relate_decl_list_length
-        with (lb := es2) (la := ts2) by eassumption.
-      econstructor; eauto.
-      eapply shift_type_exp with
-        (ts1 := []) (ts2 := ts2); cbn; eauto.*)
+      rewrite <- app_assoc. eauto.
     - pose proof IHhet1 hG _ _ H5
         as (ts1 & hts1 & ht1); clear IHhet1; eauto.
       pose proof IHhet2 hG _ _ H6
         as (ts2 & hts2 & ht2); clear IHhet2; eauto.
       exists (ts2 ++ ts1).
-      (*split; eauto.
-      rewrite <- app_assoc.
-      erewrite relate_decl_list_length
-        with (lb := es1) (la := ts1) by eassumption.
-      erewrite relate_decl_list_length
-        with (lb := es2) (la := ts2) by eassumption.
-      econstructor; eauto.
-      eapply shift_type_exp with
-        (ts1 := []) (ts2 := ts2); cbn; eauto.*) admit.  
+      rewrite <- app_assoc. eauto.
     - pose proof IHhet hG _ _ H6 as (ts & hts & ht); eauto.
     - pose proof Forall2_dumb _ _ _ _ _ _ hG H2 as H'; clear H2.
       pose proof Forall2_specialize_Forall3
@@ -154,14 +170,11 @@ Section TypeExp.
       pose proof typ_of_lists_correct _ _ _ _ _ _ H0 H1; subst.
       exists (typ_of_lists ls es :: concat tss).
       split; eauto.
-      constructor.
-      + econstructor; eauto.
-        apply shift_pairs_relate_fst;
-          eauto using Forall3_length23.
-      + apply shift_pairs_relate_snd; eauto.
-        rewrite sublist.combine_snd
-          by eauto using Forall3_length23.
-        assumption.
+      constructor; eauto.
+      eapply shift_pairs_type_snd.
+      rewrite sublist.combine_snd
+        by eauto using Forall3_length23.
+      assumption.
   Qed.
 
   Local Hint Resolve Lift_exp_type_exp : core.
@@ -173,7 +186,6 @@ Section TypeExp.
           type_decl_list Δ Γ es ts
           /\ type_trns total_states Δ (ts ++ Γ) pe'.
     Proof using hG Γ Δ.
-      unfold type_decl_list.
       intros n pe hpe pe' es ht.
       inv hpe; inv ht; eauto.
       pose proof Lift_exp_type_exp _ _ H0 _ _ H7 as (ts & hts & ht).
@@ -182,7 +194,27 @@ Section TypeExp.
 
     Local Hint Constructors lexpr_ok : core.
     Local Hint Resolve shift_lexpr_ok : core.
+    Local Hint Resolve shift_exp_0 : core.
 
+    Lemma shift_couple_lexpr_ok_1 : forall e1 e2 es1 es2,
+        lexpr_ok e1 ->
+        lexpr_ok (fst (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2))).
+    Proof using.
+      intros e1 e2 es1 es2 h.
+      rewrite shift_couple_spec by eauto; cbn; auto.
+    Qed.
+
+    Lemma shift_couple_lexpr_ok_2 : forall e1 e2 es1 es2,
+        lexpr_ok e2 ->
+        lexpr_ok (snd (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2))).
+    Proof using.
+      intros e1 e2 es1 es2 h.
+      rewrite shift_couple_spec by eauto; cbn; auto.
+    Qed.
+
+    Local Hint Resolve shift_couple_lexpr_ok_1 : core.
+    Local Hint Resolve shift_couple_lexpr_ok_2 : core.
+    
     Lemma Lift_exp_lexpr_ok : forall e,
         lexpr_ok e -> forall e' es,
           Lift_exp e e' es -> lexpr_ok e'.
@@ -217,6 +249,7 @@ Section TypeStm.
   Variable Δ : nat.
   
   Local Hint Constructors type_stm : core.
+  Local Hint Constructors SumForall : core.
 
   (** Specification of [unwind_vars]. *)
   Lemma type_decl_list_Unwind : forall Γ es ts,
@@ -227,7 +260,7 @@ Section TypeStm.
   Proof using.
     intros G es ts H; induction H;
       intros fs c s sig h; unravel in *; eauto.
-  Admitted.
+  Qed.
 
   Local Hint Resolve type_decl_list_Unwind : core.
   Local Hint Resolve type_decl_list_length : core.

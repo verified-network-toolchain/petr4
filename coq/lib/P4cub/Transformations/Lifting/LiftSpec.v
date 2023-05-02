@@ -46,6 +46,18 @@ End RelateDeclList.
 Section RelateDeclListApp.
   Polymorphic Universes a b.
   Polymorphic Context {A : Type@{a}} {B : Type@{b}}.
+
+  Local Hint Constructors relate_decl_list : core.
+  
+  Polymorphic Lemma pred_decl_list : forall (P : A -> Prop) (b : B) (bs : list B) (l : list A),
+      relate_decl_list
+        (fun _ a _ => P a) bs l (repeat b (length l))
+      <-> Forall P l.
+  Proof using.
+    intros P b bs l; split; intros h;
+      induction l as [| a l ih]; inv h; cbn; auto.
+  Qed.
+  
   Polymorphic Variable R : list A -> B -> A -> Prop.
   Polymorphic Variable shiftB : shifter B.
 
@@ -54,8 +66,6 @@ Section RelateDeclListApp.
       R (as1 ++ as2 ++ as3) (shiftB (length as1) (length as2) b) a.
 
   Polymorphic Variable l : list A.
-  
-  Local Hint Constructors relate_decl_list : core.
 
   Polymorphic Lemma relate_decl_list_app : forall bs1 bs2 as1 as2,
       relate_decl_list R l bs1 as1 ->
@@ -109,7 +119,7 @@ Section RelateExprDeclList.
   Polymorphic Context {A : Type@{a}} {B : Type@{b}}.
   Polymorphic Variable shiftB : shifter B.
   Polymorphic Variable R : list A -> B -> A -> Prop.
-  Polymorphic Hypothesis shift_preserves_R : forall as1 as2 as3 a b,
+  Polymorphic Hypothesis shift_preserves_R : forall as1 as2 as3 b a,
       R (as1 ++ as3) b a ->
       R (as1 ++ as2 ++ as3) (shiftB (length as1) (length as2) b) a.
 
@@ -149,7 +159,7 @@ Section RelateExprDeclList.
   Qed.
   
   Polymorphic Variable R_exp : list A -> Exp.t -> A -> Prop.
-  Polymorphic Hypothesis shift_preserves_R_exp : forall as1 as2 as3 a e,
+  Polymorphic Hypothesis shift_preserves_R_exp : forall as1 as2 as3 e a,
       R_exp (as1 ++ as3) e a ->
       R_exp (as1 ++ as2 ++ as3) (shift_exp (length as1) (length as2) e) a.
   Polymorphic Variable l : list A.
@@ -275,7 +285,7 @@ Section RelateExprDeclList.
   Polymorphic Context {C : Type@{c}}.
   Polymorphic Variable shiftC : shifter C.
   Polymorphic Variable Q : list A -> C -> A -> Prop.
-  Polymorphic Hypothesis shift_preserves_Q : forall as1 as2 as3 a c,
+  Polymorphic Hypothesis shift_preserves_Q : forall as1 as2 as3 c a,
       Q (as1 ++ as3) c a ->
       Q (as1 ++ as2 ++ as3) (shiftC (length as1) (length as2) c) a.
 

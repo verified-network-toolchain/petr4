@@ -69,6 +69,37 @@ Section ProdN.
     P a -> each props p -> each (v:=A :: v)%vector (P :: props) (a :: p).
 
   Polymorphic Derive Signature for each.
+
+  Section eachuni.
+    Polymorphic Universe b.
+    Polymorphic Context {B : Type@{b}}.
+    Polymorphic Variable b : B.
+
+    Polymorphic Inductive each_uni1 : forall {n : nat} {v : Vec.t Type@{a} n},
+        t (Vec.map (fun A => B -> A -> Prop) v) -> t v -> Prop :=
+    | each_uni1_nil : each_uni1 (v:=[]%vector) [] []
+    | each_uni1_cons
+        {A : Type@{a}} {n : nat} {v : Vec.t Type@{a} n} (a : A) (p : t v)
+        (R : B -> A -> Prop) (rels : t (Vec.map (fun A => B -> A -> Prop) v)) :
+      R b a -> each_uni1 rels p -> each_uni1 (v:=A :: v)%vector (R :: rels) (a :: p).
+
+    Polymorphic Derive Signature for each_uni1.
+    
+    Polymorphic Universe c.
+    Polymorphic Context {C : Type@{c}}.
+
+    Polymorphic Inductive relate_uni1 : forall {n} {v : Vec.t Type@{a} n},
+        t (Vec.map (fun A => B -> A -> C -> Prop) v) -> t v -> Vec.t C n -> Prop :=
+    | relate_uni1_nil : relate_uni1 (v:=[]%vector) [] [] []%vector
+    | relate_uni1_cons {A : Type@{a}} {n : nat} {v : Vec.t Type@{a} n} (a : A) (p : t v)
+        (R : B -> A -> C -> Prop) (rels : t (Vec.map (fun A => B -> A -> C -> Prop) v))
+        (c : C) (cs : Vec.t C n) :
+      R b a c ->
+      relate_uni1 rels p cs ->
+      relate_uni1 (v:=A :: v)%vector (R :: rels) (a :: p) (c :: cs)%vector.
+
+    Polymorphic Derive Signature for relate_uni1.
+  End eachuni.
   
   Section fixed.
     Polymorphic Context {A : Type@{a}}.

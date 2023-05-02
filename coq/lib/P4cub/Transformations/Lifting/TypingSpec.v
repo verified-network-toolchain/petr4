@@ -32,7 +32,7 @@ Section TypeDeclList.
   Lemma type_decl_list_app : forall τs1 τs2 es1 es2,
       type_decl_list es1 τs1 ->
       type_decl_list es2 τs2 ->
-      type_decl_list (shift_list shift_exp (Shifter 0 (length es1)) es2 ++ es1) (τs2 ++ τs1).
+      type_decl_list (shift_list shift_exp 0 (length es1) es2 ++ es1) (τs2 ++ τs1).
   Proof using.
     unfold type_decl_list. eauto.
   Qed.
@@ -42,7 +42,7 @@ Section TypeDeclList.
   Lemma shift_pairs_type_snd : forall ess tss,
       Forall2 type_decl_list (map snd ess) tss ->
       type_decl_list
-        (concat (map snd (shift_pairs shift_exp ess)))
+        (concat (snd (shift_pairs shift_exp ess)))
         (concat tss).
   Proof using.
     unfold type_decl_list. eauto.
@@ -56,7 +56,7 @@ Section TypeDeclList.
       Forall2 type_decl_list ess tss ->
       Forall2
         (type_exp Δ (concat tss ++ Γ))
-        (map fst (shift_pairs shift_exp (combine es ess))) ts.
+        (fst (shift_pairs shift_exp (combine es ess))) ts.
   Proof using.
     unfold type_decl_list. eauto.
   Qed.
@@ -107,19 +107,21 @@ Section TypeExp.
       split; eauto.
       constructor; eauto.
       rewrite <- app_assoc.
-      erewrite relate_decl_list_length
+      econstructor; eauto.
+      admit. admit. admit.
+      (*erewrite relate_decl_list_length
         with (lb := es1) (la := ts1) by eassumption.
       erewrite relate_decl_list_length
         with (lb := es2) (la := ts2) by eassumption.
       econstructor; eauto.
       eapply shift_type_exp with
-        (ts1 := []) (ts2 := ts2); cbn; eauto.
+        (ts1 := []) (ts2 := ts2); cbn; eauto.*)
     - pose proof IHhet1 hG _ _ H5
         as (ts1 & hts1 & ht1); clear IHhet1; eauto.
       pose proof IHhet2 hG _ _ H6
         as (ts2 & hts2 & ht2); clear IHhet2; eauto.
       exists (ts2 ++ ts1).
-      split; eauto.
+      (*split; eauto.
       rewrite <- app_assoc.
       erewrite relate_decl_list_length
         with (lb := es1) (la := ts1) by eassumption.
@@ -127,7 +129,7 @@ Section TypeExp.
         with (lb := es2) (la := ts2) by eassumption.
       econstructor; eauto.
       eapply shift_type_exp with
-        (ts1 := []) (ts2 := ts2); cbn; eauto.
+        (ts1 := []) (ts2 := ts2); cbn; eauto.*) admit.  
     - pose proof IHhet hG _ _ H6 as (ts & hts & ht); eauto.
     - pose proof Forall2_dumb _ _ _ _ _ _ hG H2 as H'; clear H2.
       pose proof Forall2_specialize_Forall3

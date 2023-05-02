@@ -6,29 +6,6 @@ From Poulet4 Require Import
 From Equations Require Import Equations.
 Require Poulet4.Utils.ProdN.
 
-Ltac pair_destr :=
-  lazymatch goal with
-  | h: (_,_) = (_,_) |- _ => inv h
-  end.
-
-Ltac conj_destr :=
-  lazymatch goal with
-    h: _ /\ _ |- _ => destruct h as [? ?]
-  end.
-
-Ltac let_destr_pair :=
-  lazymatch goal with
-    |- context [let (_,_) := ?a in _]
-    => rewrite surjective_pairing with (p:=a); cbn
-  end.
-
-Ltac pair_fst_snd_eqns :=
-  lazymatch goal with
-    h: _ = (_,_) |- _
-    => pose proof f_equal fst h as ?; pose proof f_equal snd h as ?; clear h;
-      cbn in *; subst; cbn in *
-  end.
-
 Section ShiftPairs.
   Import ProdN.ProdNNotations.
   Import Vec.VectorNotations.

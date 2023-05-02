@@ -39,10 +39,47 @@ Section Checker.
     error (Exn.Other "fill out later.").
 
   (*dummy function definition. fill in later. TODO.*)
+  (*hint: binary operation rules in formalized spec. disregard the insertion of cast. that is, assume that all casts have been inserted.*)
+  (*hint: lib/checker.ml --> type_binary_op.*)
   Definition type_binary_op (env: checkerEnvs) (op: binOp) (arg1: expression) (type_arg1: typ) (arg2: expression) (type_arg2: typ) : result Exn.t typ :=
-    error (Exn.Other "fill out later.").
+    match op with
+    | And _
+    | Or _
+      => error (Exn.Other "@Harim fill out.")
+    | Plus _
+    | Minus _
+    | Mul _
+      => error (Exn.Other "@Harim fill out.")
+    | Eq _
+    | NotEq _
+      => error (Exn.Other "@Harim fill out.")
+    | PlusSat _
+    | MinusSat _
+      => error (Exn.Other "@Harim fill out.")
+    | BitAnd _
+    | BitXor _
+    | BitOr _
+      => error (Exn.Other "@Harim fill out.")
+    | PlusPlus _
+      => error (Exn.Other "@Harim fill out.")
+    | Le _
+    | Ge _
+    | Lt _
+    | Gt _
+      => error (Exn.Other "@Harim fill out.")
+    | Mod _
+    | Div _
+      => error (Exn.Other "@Harim fill out.")
+    | Shl _
+    | Shr _
+      => error (Exn.Other "@Harim fill out.")
+    end.
 
   (*dummy function definition. fill in later. TODO.*)
+  (*checks equality of two types. If they are equal it returns true, otherwise, it returns false.*)
+  (*assume all generic types have been instantiated. *)
+  (*hint: type equality judgment in formalized spec.*)
+  (*hint: lib/checker.ml --> type_equality function which calls solve_types. solve_types does the inference.*)
   Definition type_eq (typ1 typ2: typ) : bool :=
     false.
 

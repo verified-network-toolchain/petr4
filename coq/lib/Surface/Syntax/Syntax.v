@@ -85,8 +85,8 @@ Section Syntax.
                       (width: N)
   | TypVarBit         (tags: Info)
                       (width: N)
-  | TypIdentifier       (tags: Info)
-                      (name: string)
+  | TypName           (tags: Info)
+                      (name: P4String)
   (*keep the syntax for specialization but wouldn't have the type. so this typscpecialization will never be generated and it's only used for writing programs. because once it happens inference substitutes it in the type.*)
   | TypSpecialization (tags: Info)
                       (base: typ) (*surface*)
@@ -150,9 +150,6 @@ Section Syntax.
                       (result_typ_name: P4String)
   | TypVoid           (tags: Info)
   | TypDontCare       (tags: Info)
-  (* with typVarTyp := (*type variable or their assignment*) *)
-  (* | TypVarTyp (type_var: P4String) *)
-  (*             (type: option typ) *)
   with parameter :=
   | Param (dir: direction)
           (typ: typ) (*surface*)
@@ -198,16 +195,12 @@ Section Syntax.
   | MkExpression (tags: Info)
                  (type: option typ)
                  (expr: expressionPreT)
-                 (* (dir: direction) *)
+                 (* (dir: direction) *)(*might need this for bidirectional typing. but leave it out for now.*)
   with argument :=
   | ExpArg      (value: expression) 
   | KeyValueArg (key: P4String)
                 (value: expression)
   | MissingArg.
-
-  (* Variant fieldType := *)
-  (* | FieldType (typ: typ) (*surface*) *)
-  (*             (field: P4String). *)
 
   Variant stmtSwitchLabel :=
   | StmtSwitchLabelDefault (tags: Info)
@@ -307,6 +300,7 @@ Section Syntax.
   | MkStatement (tags: Info)
                 (type: option typ)
                 (stmt: statementPreT)
+                (* (dir: direction) *)
   with block :=
   | BlockEmpty (tags: Info)
   | BlockCons  (statement: statement)
@@ -377,7 +371,7 @@ Section Syntax.
                          (name: P4String)
                          (members: P4String.AList Info expression)
   | DeclControlTyp       (name: P4String)
-                         (type_params: list P4String) (*wrong: control decl can't be generic. look p4 spec, sec 14: control blocks*)
+                         (type_params: list P4String) 
                          (params: list parameter)
   | DeclParserTyp        (name: P4String)
                          (type_params: list P4String)
@@ -396,6 +390,7 @@ Section Syntax.
   | MkDeclaration (tags: Info)
                   (type: option typ)
                   (decl: declarationPreT).
+                  (* (dir: direction) *)
 
   Variant program :=
   | Program (decls: list declaration).

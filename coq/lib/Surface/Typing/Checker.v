@@ -10,6 +10,7 @@ From Poulet4 Require Import Utils.AList
      (* Monads.Result *)
      Surface.Syntax.Syntax
      Surface.Typing.CheckerEnv
+     Surface.Typing.Utils
      P4light.Syntax.Info
      P4light.Syntax.P4Int
      P4light.Semantics.Semantics.
@@ -33,88 +34,19 @@ Section Checker.
     | Some (width, false) => TypBit tags width
     end.
 
-  (*dummy function definition for now. TODO: fill in.*)
-  Definition compile_time_eval (env: checkerEnvs) (exp: expression) : option Val :=
-    match exp with
-    | _ => Some ValBaseNull
-    end.
-
-  Definition compile_time_known (env: checkerEnvs) (exp: expression) : bool :=
-    match compile_time_eval env exp with
-    | Some _ => true
-    | _      => false
-    end.
-
-
-  Definition is_numeric (env: checkerEnvs) (exp: expression) (type: typ) : bool :=
-    match type with
-    | TypInt _ _   => true
-    | TypBit _ _   => true
-    | TypInteger _ => compile_time_known env exp
-    | _            => false
-    end.
-
-  Definition is_bool (type: typ) : bool :=
-    match type with
-    | TypBool _ => true
-    | _         => false
-    end.
-
-  Definition is_fixed_width_int (type: typ) : bool :=
-    match type with
-    | TypInt _ _ => true
-    | TypBit _ _ => true
-    | _          => false
-    end.
-
-  Definition is_integer (type: typ) : bool :=
-    match type with
-    | TypInteger _ => true
-    | _            => false
-    end.
-
-  Definition is_error (type: typ) : bool :=
-    match type with
-    | TypError _ => true
-    | _          => false
-    end.
-
-  (*dummy function definition. fill in later. TODO.*)
-  Definition to_nat (val: Val) : nat := 0.
-
   (*dummy function definition. fill in later. TODO.*)
   Definition type_bit_string_access (env: checkerEnvs) (w: N) (low: expression) (type_low: typ) (high: expression) (type_high: typ) : result Exn.t typ :=
     error (Exn.Other "fill out later.").
 
   (*dummy function definition. fill in later. TODO.*)
-  Definition binary_op_typing (env: checkerEnvs) (op: binOp) (arg1: expression) (type_arg1: typ) (arg2: expression) (type_arg2: typ) : result Exn.t typ :=
+  Definition type_binary_op (env: checkerEnvs) (op: binOp) (arg1: expression) (type_arg1: typ) (arg2: expression) (type_arg2: typ) : result Exn.t typ :=
     error (Exn.Other "fill out later.").
-
-  (*dummy function definition. fill in later. TODO.*)
-  Definition cast (env:checkerEnvs) (typ1 typ2: typ) : bool :=
-    false.
-
-  (*dummy function definition. fill in later. TODO.*)
-  Definition lookup_type (type: P4String) (env: checkerEnvs) : result Exn.t typ :=
-    error (Exn.Other "fill out later.").
-
-  (*dummy function definition. fill in later. TODO.*)
-  Definition lookup_var (type: P4String) (env: checkerEnvs) : result Exn.t (typ * direction) :=
-    error (Exn.Other "fill out later.").
-
-  (*dummy function definition. fill in later. TODO.*)
-  Definition append_error (mem: P4String) : P4String :=
-    mem.
-
-  (*dummy function definition. fill in later. TODO.*)
-  Definition append_type (typ: P4String) (mem: P4String) : P4String :=
-    mem.
 
   (*dummy function definition. fill in later. TODO.*)
   Definition type_eq (typ1 typ2: typ) : bool :=
     false.
 
-  Definition mask_type (type_expr type_mask: typ) : result Exn.t typ :=
+  Definition type_mask (type_expr type_mask: typ) : result Exn.t typ :=
     match type_expr, type_mask with
     | TypBit _ w, TypBit _ w'
       => if (w == w')
@@ -132,27 +64,28 @@ Section Checker.
   Definition type_expression_member (env: checkerEnvs) (type_expr: typ) (mem: P4String) : result Exn.t typ :=
     error (Exn.Other "fill in later.").
 
-  (*the tuple case has little mismatches of types. TODO. fix it.*)
+  (*the tuple case has little mismatches of types. TODO. fix it. for now returns a dummy value.*)
   Definition type_array_access (env: checkerEnvs) (array: expression) (type_array: typ) (index: expression) (type_index: typ) : result Exn.t typ :=
-    match type_array with
-    | TypHeaderStack tags typ size
-      => if is_numeric env index type_index
-        then ok typ
-        else error (Exn.Other "array index not numeric")
-                       (*the following block has a weird error. ask Ryan.*)
-    | TypTuple tags types
-      => if is_integer type_index
-        then let* i := from_opt (compile_time_eval env index)
-                                (Exn.Other "failure in compile_time_eval")in
-             let* idx := from_opt (array_access_idx_to_z i)
-                                  (Exn.Other "failure in array_access_idx_to_z")in
-             if andb (Nat.leb 1 (N.to_nat idx))
-                     (Nat.leb (N.to_nat idx) (List.length types))
-             then ok (Znth_default (TypVoid tags) (idx) types)
-             else error (Exn.Other "array access index out of bound")
-        else error (Exn.Other "array access index not integer")
-    | _ => error (Exn.Other "array access type incorrect")
-    end.
+    error (Exn.Other "fill in later.").
+    (* match type_array with *)
+    (* | TypHeaderStack tags typ size *)
+    (*   => if is_numeric env index type_index *)
+    (*     then ok typ *)
+    (*     else error (Exn.Other "array index not numeric") *)
+    (*                    (*the following block has a weird error. ask Ryan.*) *)
+    (* | TypTuple tags types *)
+    (*   => if is_integer type_index *)
+    (*     then let* i := from_opt (compile_time_eval env index) *)
+    (*                             (Exn.Other "failure in compile_time_eval")in *)
+    (*          let* idx := from_opt (array_access_idx_to_z i) *)
+    (*                               (Exn.Other "failure in array_access_idx_to_z")in *)
+    (*          if andb (Nat.leb 1 (N.to_nat idx)) *)
+    (*                  (Nat.leb (N.to_nat idx) (List.length types)) *)
+    (*          then ok typ (*(Znth_default (TypVoid tags) (idx) types)*) (*TODO: dummy value returned*) *)
+    (*          else error (Exn.Other "array access index out of bound") *)
+    (*     else error (Exn.Other "array access index not integer") *)
+    (* | _ => error (Exn.Other "array access type incorrect") *)
+    (* end. *)
 
   Fixpoint type_expression (env: checkerEnvs) (tags: Info) (expr: expression) : result Exn.t typ :=
     match expr with
@@ -207,11 +140,11 @@ Section Checker.
         | ExpBinaryOp op arg1 arg2
           => let* type_arg1 := type_expression env tags arg1 in
             let* type_arg2 := type_expression env tags arg2 in
-            binary_op_typing env op arg1 type_arg1 arg2 type_arg2
+            type_binary_op env op arg1 type_arg1 arg2 type_arg2
         | ExpCast typ expr
           => let* type_expr := type_expression env tags expr in
             match type_expr with
-            | TypIdentifier tags name
+            | TypName tags name
               => let* typ' := lookup_type name env in
                 let cast_ok := cast env typ typ' in
                 if cast_ok
@@ -226,9 +159,9 @@ Section Checker.
         | ExpTypeMember typ mem
           => let* (t, d) := lookup_var (append_type typ mem) env in
             ok t
-        | ExpErrorMember mem (*discuss with nate. error member is redundant. type member would take care of it.*)
+        | ExpErrorMember mem
           => let* (t, d) := lookup_var (append_error mem) env in
-            if is_error t
+            if is_type_error t
             then ok t
             else error (Exn.Other "error member type incorrect")
         | ExpExpressionMember expr mem
@@ -257,9 +190,9 @@ Section Checker.
         (* | ExpAnonymousInstantiation typ args *)
         (*   => TypBool tags *)
         | ExpBitMask expr mask
-          => let* type_expr := type_expression env tags expr in
-            let* type_mask := type_expression env tags mask in
-            mask_type type_expr type_mask
+          => let* typed_expr := type_expression env tags expr in
+            let* typed_mask := type_expression env tags mask in
+            type_mask typed_expr typed_mask
         | ExpRange low high
           => let* type_low  := type_expression env tags low in
             let* type_high := type_expression env tags high in

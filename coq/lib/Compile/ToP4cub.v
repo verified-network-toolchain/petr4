@@ -735,7 +735,11 @@ Section ToP4cub.
             else if (name =? "lastIndex")%string then
               let+ cub_expr := translate_expression expr in
               header_stack_last_index cub_expr
+            else if (name =? "isValid")%string then
+              let+ cub_expr := translate_expression expr in
+              E.Uop Typ.Bool Una.IsValid cub_expr
             else
+
               let* cub_type := translate_exp_type typ in
               match get_type_of_expr expr with
               | TypRecord fs

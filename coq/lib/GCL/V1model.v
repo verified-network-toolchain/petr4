@@ -19,9 +19,12 @@ Definition externs : ToGCL.model :=
          ("truncate", G.GSkip);
          ("random", G.GSkip);
          ("crc_poly", G.GSkip);
-         ("digest", G.GSkip)
+         ("digest", G.GSkip);
+         ("hopen", G.GAssume (F.LVar "check"));
+         ("hclose", G.GAssert (F.LVar "check"))
    ]);
-  ("packet_in", [("extract", G.GAssign (Typ.Bit 1%N) "hdr.is_valid" (BV.bit (Some 1%nat) 1))]);
+  ("packet_in", [("extract", G.GAssign (Typ.Bit 1%N) "hdr.is_valid" (BV.bit (Some 1%nat) 1));
+                 ("lookahead", G.GSkip)]);
   ("counter", [("count", G.GSkip)]);
   ("direct_counter", [("count", G.GSkip)]);
   ("register", [("read", G.GSkip); ("write", G.GSkip)]);
@@ -66,7 +69,7 @@ Definition standard_metadata_t : Typ.t :=
 Definition t_arg (dir : E.t -> paramarg E.t E.t) typ var :=
   (var, dir (E.Var typ var 0)).
 
-Definition pipeline  (htype mtype : Typ.t) (parser v_check ingress egress c_check deparser : string) : ST.t  :=
+Definition pipeline  (htype mtype : Typ.t) (parser v_check ingress egress c_check deparser : string) : ST.t * ST.t  :=
   let ext_args := ["packet_in"] in
   let pargs := [
         t_arg PAOut      htype                "parsedHdr";
@@ -88,22 +91,21 @@ Definition pipeline  (htype mtype : Typ.t) (parser v_check ingress egress c_chec
         t_arg PAInOut mtype "meta"] in
   let dep_ext_args := [ "packet_out" ; "b" ] in
   let dep_args := [ t_arg PAIn htype "hdr"] in
-  cub_seq [
-        ST.App (Call.Inst parser ext_args) (map snd pargs) ;
-          (* ST.Apply v_check ext_args vck_args i; *)
-          ST.Cond
-            (E.Var Typ.Bool ("_state$accept$next") 0)
-            (cub_seq [
-                       ST.App (Call.Inst ingress ext_args) (map snd ing_args)
-                       ; ST.App (Call.Inst egress ext_args) (map snd egr_args)
-                       ; det_fwd_asst
-            ])
-            ST.Skip
+  (ST.App (Call.Inst parser ext_args) (map snd pargs),
+    (* ST.Apply v_check ext_args vck_args i; *)
+    ST.Cond
+        (E.Var Typ.Bool ("_state$accept$next") 0)
+        (cub_seq [
+                 ST.App (Call.Inst ingress ext_args) (map snd ing_args)
+                 ; ST.App (Call.Inst egress ext_args) (map snd egr_args)
+                 (* ; det_fwd_asst *)
+        ])
+        ST.Skip
         (* ST.Apply   c_check  ext_args cck_args NoInfo; *)
         (* ST.Apply   deparser ext_args dep_args NoInfo *)
-    ].
+  ).
 
-Definition package (types : list Typ.t) (cargs : Top.constructor_args) : result string ST.t :=
+Definition package (types : list Typ.t) (cargs : Top.constructor_args) : result string (ST.t * ST.t) :=
   match cargs with
   | [p; vc; ing; egr; cc; d] =>
     match types with
@@ -122,7 +124,7 @@ Definition package (types : list Typ.t) (cargs : Top.constructor_args) : result 
 (*   let arrowtype := ({|paramargs:=[("check", PAIn E.TBool)]; rtrns:=None|} : Expr.arrowT) in *)
 (*   let assume_decl := TopDecl.Extern "_" 1 [] [] [("assume", (0%nat, [], arrowtype))] in *)
 
-Definition gcl_from_p4cub instr hv gas unroll p4cub : result string ToGCL.target :=
+Definition gcl_from_p4cub instr hv gas unroll p4cub : result string (ToGCL.target * ToGCL.target) :=
   let arrowtype := ({|paramargs:=[("check", PAIn Typ.Bool)]; rtrns:=None|} : Typ.arrowT) in
   let assume_decl := Top.Extern "_" 1 [] [] [("assume", (0%nat, [], arrowtype))] in
   let p4cub_instrumented := ToP4cub.add_extern  p4cub assume_decl in

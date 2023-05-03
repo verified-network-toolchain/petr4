@@ -467,6 +467,8 @@ Proof.
   rewrite skipn_length. lia.
 Qed.
 
+
+
 Lemma app_eq_len_tail_app : forall {A : Type} {l1 l2 l1' l2' : list A},
     l1 ++ l2 = l1' ++ l2' ->
     List.length l2 = List.length l2' ->

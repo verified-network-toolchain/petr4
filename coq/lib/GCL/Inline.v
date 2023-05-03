@@ -84,7 +84,7 @@ Inductive t : Type :=
 | IExit                               (* exit statement *)
 | IInvoke (x : string)
           (keys : list (Typ.t * E.t * string))
-          (actions : list (string * (list (string * E.t) * t)))
+          (actions : list (string * (list (string * Typ.t) * t)))
 | IExternMethodCall (extn : string) (method : string)
     (args : F.fs string (paramarg E.t E.t)) (ret : option Exp.t).
 
@@ -559,7 +559,7 @@ Fixpoint transition_of_state (s : Stm.t) : result string Trns.t :=
   | _ => false
   end.*)
 
-Definition get_type (type : paramarg Expr.t Expr.t) : Expr.t :=
+Definition get_type (type : paramarg Typ.t Typ.t) : Typ.t :=
   match type with
   | PAIn x => x
   | PAOut x => x
@@ -754,6 +754,7 @@ then error "args has typevar call funct" else  *)
           let* action_cmds := from_opt (find_action ctx action_name) ("could not find action " ++ action_name ++ " in environment")%string in
           match action_cmds with
           | CD.Action _ ctrl_params data_params body  =>
+            (* | Action : string -> list (string * Typ.t) -> Typ.params -> Stm.t -> CD.t             *)
             let* s := inline gas unroll ctx body in
             let* (s', _) :=
               action_param_renamer tbl_name action_name

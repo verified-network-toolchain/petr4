@@ -151,7 +151,7 @@ Section ToGCL.
     ok fn.
   Definition empty : model := Env.empty string extern.
 
-  Definition pipeline : Type := list Typ.t -> TD.constructor_args  -> result string ST.t.
+  Definition pipeline : Type := list Typ.t -> TD.constructor_args  -> result string (ST.t * ST.t).
 
   Section Instr.
 
@@ -311,7 +311,7 @@ Section ToGCL.
       | E.VarBit m w v =>
         ok (BV.bit (Some (BinNat.N.to_nat w)) (BinInt.Z.to_nat v))
       | E.Var t x _ =>
-        let* w := width_of_type t (*over ("couldn't get type-width of " @@ x @@ " while converting to rvalue")*) in
+        let* w := width_of_type x t in
         ok (BV.BVVar x w)
       | E.Slice hi lo e =>
         let+ rv_e := to_rvalue e in
@@ -440,7 +440,7 @@ Section ToGCL.
       | E.Lists (Lst.Header _) _ =>
         error "Header in the rvalue positon should have been factored out by previous passes"
       | E.Member ret_type mem arg =>
-        let* w := width_of_type ret_type in
+        let* w := width_of_type (string_of_nat mem) ret_type in
         let+ lv := to_lvalue arg in
         BV.BVVar (lv @@ "." @@ string_of_nat mem) w
       | E.Error _ => error "errors are not rvalues."
@@ -560,8 +560,6 @@ Section ToGCL.
           ok (GCL.isone (BV.BVVar (lv @@ "." @@ string_of_nat mem) 1))
         else
           error ("Got type of " @@ string_of_nat mem @@ "but it's type width wasn't 1")
-      | E.Error _ =>
-        error "errors are not formulae"
       | E.Lists (Lst.Array _) _ =>
         error "HeaderStacks are not formulae"
       | E.Index _ stack index =>
@@ -661,13 +659,13 @@ Section ToGCL.
       | Inline.IInvoke tbl keys actions =>
         let* actions' := rred (map (fun '(name, (params, act)) =>
                                       let* bv_params := rred (List.map (fun '(name, type) =>
-                                                                          let+ w := width_of_type type in
+                                                                          let+ w := width_of_type name type in
                                                                           BV.BVVar name w) params) in
                                       let+ (gcl_act,_) := inline_to_gcl c arch act in
                                       (name, (bv_params, gcl_act))) actions)
         in
         let* keys' := rred (map (fun '(t,e,mk) =>
-                                   let~ w := width_of_type t over ("[inline_to_gcl] failed getting width of table key. Table: " @@ tbl ) in
+                                   let~ w := width_of_type "" t over ("[inline_to_gcl] failed getting width of table key. Table: " @@ tbl ) in
                                    let~ e' := to_rvalue e over "failed converting keys to rvalue" in
                                    ok (w, e', mk)) keys) in
         let+ g := instr tbl keys' actions' in
@@ -691,7 +689,7 @@ Section ToGCL.
       end.
 
     (* use externs to specify inter-pipeline behavior.*)
-    Definition get_main ctx (pipe : pipeline) : result string ST.t :=
+    Definition get_main ctx (pipe : pipeline) : result string (ST.t * ST.t) :=
       match find_package  ctx "main" with
       | Some (TD.Instantiate _ _ type_args args _) =>
         pipe type_args args
@@ -711,10 +709,12 @@ Section ToGCL.
       ok no_slice.
 
     Definition inline_from_p4cub (gas unroll : nat)
-               (ext : model) (pipe : pipeline)
-               (ctx : ToP4cub.DeclCtx)  : result string Inline.t :=
-      let* s := get_main ctx pipe in
-      inlining_passes gas unroll ext ctx s.
+               (ext : model) (pipeline : pipeline)
+               (ctx : ToP4cub.DeclCtx)  : result string (Inline.t * Inline.t) :=
+      let* (prsr, pipe) := get_main ctx pipeline in
+      let* inline_prsr := inlining_passes gas unroll ext ctx prsr in
+      let+ inline_pipe := inlining_passes gas unroll ext ctx pipe in
+      (inline_prsr, inline_pipe).
 
     Definition p4cub_statement_to_gcl
                (hdrs : bool)
@@ -726,9 +726,11 @@ Section ToGCL.
       let+ (gcl,_) := inline_to_gcl initial arch instred in
       gcl.
 
-    Definition from_p4cub (hdrs : bool) (gas unroll : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx) : result string target :=
-      let* stm := get_main ctx pipe in
-      p4cub_statement_to_gcl hdrs gas unroll ctx ext stm.
+    Definition from_p4cub (hdrs : bool) (gas unroll : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx) : result string (target * target) :=
+      let* (prsr, pipe) := get_main ctx pipe in
+      let* tgt_prsr := p4cub_statement_to_gcl hdrs gas unroll ctx ext prsr in
+      let+ tgt_pipe := p4cub_statement_to_gcl hdrs gas unroll ctx ext pipe in
+      (tgt_prsr, tgt_pipe).
 
   End Instr.
 End ToGCL.

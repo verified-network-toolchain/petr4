@@ -1,3 +1,4 @@
+
 Require Import Coq.Program.Basics.
 From Poulet4 Require Export P4cub.Syntax.AST
      Utils.P4Arith Utils.Envn
@@ -25,22 +26,6 @@ Definition append {A : Type} (l : list A) (l' : list A) : list A :=
 
 Definition fold_right {A B : Type} (f : B -> A -> A) (a0 : A) (bs : list B ) :=
   List.fold_left (fun a b => f b a) (rev' bs) a0.
-
-(* Fixpoint rev_concat (s s' : string) : string := *)
-(*   match s with *)
-(*   | EmptyString => s' *)
-(*   | String c s => rev_concat s (String c s') *)
-(*   end. *)
-(* Fixpoint string_reverse (s : string) : string := *)
-(*   rev_concat s EmptyString. *)
-
-
-(* Fixpoint safe_concat (s s' : string) : string := *)
-(*   match s' with *)
-(*   | EmptyString => s *)
-(*   | _ => *)
-(*     rev_concat (string_reverse s) s' *)
-(*   end. *)
 
 Infix "@@" := String.append (right associativity, at level 60).
 
@@ -343,9 +328,7 @@ Section ToGCL.
           BV.BVVar hvld 1
         | Una.SetValidity b =>
             (* TODO @Rudy isn't this a command? *)
-            (* TODO @Eric the uop [SetValid] is now [SetValidity true]
-               and [SetInvalid] is now [SetValidity false]. *)
-          error "SetValidity is unimplemented"
+          error "SetValidity is not an expression. It should be pattern matched on earlier"
         end
       | E.Bop typ op lhs rhs =>
         let* l := to_rvalue lhs in

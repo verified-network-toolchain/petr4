@@ -86,7 +86,7 @@ Definition pipeline {tags_t : Type} (i : tags_t) (htype mtype : E.t) (parser v_c
             (cub_seq i [
                        ST.SApply ingress ext_args ing_args i
                        ; ST.SApply egress  ext_args egr_args i
-                       ; det_fwd_asst i
+                       (* ; det_fwd_asst i *)
             ])
             (ST.SSkip i) i
         (* ST.SApply   c_check  ext_args cck_args NoInfo; *)

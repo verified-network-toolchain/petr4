@@ -30,8 +30,6 @@ Section Value.
   | ValLeftBitAccess (expr: ValueLvalue) (msb: N) (lsb: N)
   | ValLeftArrayAccess (expr: ValueLvalue) (idx: Z).
 
-  Context {tags_t : Type}.
-
   Inductive ValueSet:=
   | ValSetSingleton (value: (@ValueBase bool))
   | ValSetUniversal
@@ -39,10 +37,12 @@ Section Value.
   | ValSetRange (lo: (@ValueBase bool)) (hi: (@ValueBase bool))
   | ValSetProd (_: list ValueSet)
   | ValSetLpm (nbits: N) (value: (@ValueBase bool))
-  | ValSetValueSet (size: N) (members: list (list (@Syntax.Match tags_t))) (sets: list ValueSet).
+  | ValSetValueSet (size: N) (members: list (list ValueSet)) (sets: list ValueSet).
 
   Definition ValueLoc := string.
 
+  Context {tags_t : Type}.
+  
   Inductive ValueTable :=
   | MkValTable (name: string) (keys: list (@Syntax.TableKey tags_t))
                (actions: list (@Syntax.TableActionRef tags_t))
@@ -153,6 +153,52 @@ Section Value.
         | ValBaseSenumField t v   => HSenumField t _ (vind v)
         end.
   End ValBaseInd.
+
+  Section ValueSetInd.
+
+    Variable P : ValueSet -> Prop.
+
+    Hypothesis HSingleton : forall value, P (ValSetSingleton value).
+
+    Hypothesis HUniversal : P ValSetUniversal.
+
+    Hypothesis HMask : forall value mask, P (ValSetMask value mask).
+
+    Hypothesis HRange : forall lo hi, P (ValSetRange lo hi).
+
+    Hypothesis HProd : forall l, Forall P l -> P (ValSetProd l).
+
+    Hypothesis HLpm : forall nbits value, P (ValSetLpm nbits value).
+
+    Hypothesis HValueSet :
+      forall size members sets,
+        Forall (Forall P) members -> Forall P sets -> P (ValSetValueSet size members sets).
+
+    Fixpoint custom_ValueSet_ind (v : ValueSet) : P v :=
+      let fix list_ind (vs : list ValueSet) : Forall P vs :=
+        match vs with
+        | v :: vs => Forall_cons _ (custom_ValueSet_ind v) (list_ind vs)
+        | [] => Forall_nil _
+        end
+      in
+      let fix nested_list_ind (vs : list (list ValueSet)) : Forall (Forall P) vs :=
+        match vs with
+        | v :: vs => Forall_cons _ (list_ind v) (nested_list_ind vs)
+        | [] => Forall_nil _
+        end
+      in
+      match v with
+      | ValSetSingleton value => HSingleton value
+      | ValSetUniversal => HUniversal
+      | ValSetMask value mask => HMask value mask
+      | ValSetRange lo hi => HRange lo hi
+      | ValSetProd l => HProd _ (list_ind l)
+      | ValSetLpm nbits value => HLpm nbits value
+      | ValSetValueSet _ members sets => 
+        HValueSet _ _ _ (nested_list_ind members) (list_ind sets)
+      end.
+
+  End ValueSetInd.
 
   Section ValueBaseFunctor.
     Context {A B : Type}.

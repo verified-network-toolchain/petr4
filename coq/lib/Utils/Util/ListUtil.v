@@ -1,5 +1,5 @@
 Require Import Coq.Strings.String.
-From Poulet4 Require Export Utils.Util.FunUtil Utils.Util.StringUtil Monads.Result.
+From Poulet4 Require Export Utils.Util.FunUtil Utils.Util.StringUtil Monads.Result Monads.Option.
 From Coq Require Export Lists.List micromega.Lia.
 Export ListNotations.
 Require VST.zlist.sublist.
@@ -314,6 +314,57 @@ Section FoldRighti.
     snd (List.fold_right (fun a '(i, b) => (i + 1, f i a b )) (O, init) xs).
 End FoldRighti.
 
+Definition tl_error {A : Type} (l : list A) : option (list A) :=
+  match l with
+  | [] => None
+  | _ :: t => Some t
+  end.
+
+Fixpoint split_at {A : Type} (n : nat) (l : list A) :=
+  match n with
+  | O => Some ([], l)
+  | S k =>
+    match l with
+    | [] => None
+    | h :: t =>
+      let^ '(l1, l2) := split_at k t in
+      (h :: l1, l2)
+    end
+  end.
+
+Lemma split_at_partition :
+  forall (A : Type) (n : nat) (l l1 l2 : list A),
+    split_at n l = Some (l1, l2) -> l1 ++ l2 = l.
+Proof.
+  induction n.
+  - cbn. intros. inv H. reflexivity.
+  - cbn. intros. destruct l; try discriminate.
+    unfold option_bind in *.
+    destruct (split_at n l) eqn:E; try discriminate.
+    destruct p. apply IHn in E. inv H. reflexivity.
+Qed.
+
+Lemma split_at_length_l1 :
+  forall (A : Type) (n : nat) (l l1 l2 : list A),
+    split_at n l = Some (l1, l2) -> List.length l1 = n.
+Proof.
+  induction n.
+  - cbn. intros. inv H. reflexivity.
+  - cbn. unfold option_bind. intros.
+    destruct l; try discriminate.
+    destruct (split_at n l) eqn:E; try discriminate.
+    destruct p. inv H. cbn. eauto.
+Qed.
+
+Lemma split_at_length_l2 :
+  forall (A : Type) (n : nat) (l l1 l2 : list A),
+    split_at n l = Some (l1, l2) -> List.length l2 = List.length l - n.
+Proof.
+  intros. apply split_at_length_l1 in H as ?.
+  apply split_at_partition in H as ?.
+  assert (List.length (l1 ++ l2) = List.length l1 + List.length l2) by apply app_length.
+  rewrite H1 in H2. lia.
+Qed.
 
 Section FoldLefti.
   Context {A B : Type}.
@@ -407,3 +458,22 @@ Section Mapi.
 
   Definition mapi : list A -> list B := mapi_help 0.
 End Mapi.
+
+Lemma skipn_length_minus : forall {A : Type} {l : list A} {n : nat},
+    n <= List.length l ->
+    List.length (skipn (List.length l - n) l) = n.
+Proof.
+  intros A l n h.
+  rewrite skipn_length. lia.
+Qed.
+
+Lemma app_eq_len_tail_app : forall {A : Type} {l1 l2 l1' l2' : list A},
+    l1 ++ l2 = l1' ++ l2' ->
+    List.length l2 = List.length l2' ->
+    l1 = l1' /\ l2 = l2'.
+Proof.
+  intros A l1 l2 l1' l2' h hlen.
+  apply sublist.app_eq_len_eq; auto.
+  apply f_equal with (f:=List.length (A:=A)) in h.
+  rewrite !app_length in h. lia.
+Qed.

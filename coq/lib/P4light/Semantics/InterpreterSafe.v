@@ -777,67 +777,24 @@ Section InterpreterSafe.
         eapply sval_to_val_interp.
   Qed.
 
-  Lemma interp_match_safe:
-    forall this m vset,
-      Interpreter.interp_match ge this m = Ok vset ->
-      Semantics.exec_match ge read_ndetbit this m vset.
-  Proof.
-    destruct m.
-    intros.
-    simpl in *.
-    destruct expr.
-    - inversion H.
-      constructor.
-    - repeat simpl_result_all.
-      repeat simpl_result_all.
-      inversion H; subst.
-      constructor; eauto using interp_expr_det_safe.
-    - repeat simpl_result_all.
-      repeat simpl_result_all.
-      inversion H; subst.
-      constructor; eauto using interp_expr_det_safe.
-    - repeat simpl_result_all.
-      repeat simpl_result_all.
-      econstructor; eauto using interp_expr_det_safe.
-  Qed.
-
-  Lemma interp_matches_safe:
-    forall this matches vsets,
-      Interpreter.interp_matches ge this matches = Ok vsets ->
-      Semantics.exec_matches ge read_ndetbit this matches vsets.
-  Proof.
-    unfold Semantics.exec_matches.
-    induction matches; simpl.
-    intros.
-    - inversion H.
-      constructor.
-    - intros.
-      repeat simpl_result_all.
-      repeat simpl_result_all.
-      inversion H.
-      subst.
-      constructor; eauto.
-      eapply interp_match_safe; auto.
-  Qed.
-
   Lemma interp_table_entry_safe:
     forall this entries vset,
-      Interpreter.interp_table_entry ge this entries = Ok vset ->
-      Semantics.exec_table_entry ge read_ndetbit this entries vset.
+      Interpreter.interp_table_entry this entries = vset ->
+      Semantics.exec_table_entry (tags_t:=tags_t) read_ndetbit this entries vset.
   Proof.
     unfold Interpreter.interp_table_entry.
     intros.
     destruct entries.
     simpl in *.
     repeat simpl_result_all.
-    econstructor; eauto using interp_matches_safe.
-    destruct (PeanoNat.Nat.eqb _ _); simpl_result_all; congruence.
+    econstructor; eauto.
+    destruct (PeanoNat.Nat.eqb _ _); congruence.
   Qed.
 
   Lemma interp_table_entries_safe:
     forall entries this vsets,
-      Interpreter.interp_table_entries ge this entries = Ok vsets ->
-      Semantics.exec_table_entries ge read_ndetbit this entries vsets.
+      Interpreter.interp_table_entries this entries = vsets ->
+      Semantics.exec_table_entries (tags_t:=tags_t) read_ndetbit this entries vsets.
   Proof.
     unfold Semantics.exec_table_entries.
     induction entries; intros.

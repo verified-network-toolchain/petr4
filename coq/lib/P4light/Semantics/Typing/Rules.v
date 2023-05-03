@@ -255,7 +255,7 @@ Section Soundness.
         + apply He1' in Hev1 as Hev1'; clear He1'.
           destruct Hev1' as (r1 & Hr1 & Hvr1).
           cbn in Hr1. autounfold with option_monad in *.
-          repeat match_some_inv; repeat some_inv.
+          repeat match_some_ok_inv; repeat some_ok_inv.
           cbn in Hvr1; inversion Hvr1; subst.
           assert (Hsv1: exists v1, sval_to_val rob (ValBaseStack vs n0) v1)
             by eauto using exec_val_exists.
@@ -270,7 +270,7 @@ Section Soundness.
           destruct Hsv2 as [v2 Hsv2].
           assert (Hxed2: exec_expr_det ge rob this st e2 v2) by eauto.
           apply He2' in Hev2 as (r2 & Hr2 & Hvr2);
-            clear He2'; cbn in *; some_inv; cbn in *; inv Hvr2.
+            clear He2'; cbn in *; some_ok_inv; cbn in *; inv Hvr2.
           inversion Hsv2; subst.
           assert (Hz: exists z, array_access_idx_to_z (ValBaseBit lb') = Some z)
             by (cbn; eauto).
@@ -280,13 +280,13 @@ Section Soundness.
           destruct Γ as [Γv Γc] eqn:HeqΓ; cbn in *.
           destruct Hlvt as (r & hr & hlvr).
           unfold option_bind at 1 in hr.
-          match_some_inv; some_inv.
+          match_some_ok_inv; some_ok_inv.
           eexists; split; eauto.
           cbn in hlvr.
           econstructor; eauto.
           inv H10.
-          apply He2' in H as (r2 & Hr2 & Hvr2); some_inv; cbn in *.
-          inv Hvr2; inv H0; cbn in *; some_inv.
+          apply He2' in H as (r2 & Hr2 & Hvr2); some_ok_inv; cbn in *.
+          inv Hvr2; inv H0; cbn in *; some_ok_inv.
           apply BitArith.lbool_to_val_lower; lia.
     Qed.
 
@@ -347,11 +347,11 @@ Section Soundness.
           destruct Hbits as (bits & ws & Hbit).
           econstructor; eauto.
           inv Hr; cbn in *; inv Hvr.
-          inv Hsv; cbn in *; some_inv.
+          inv Hsv; cbn in *; some_ok_inv.
           apply Forall2_length in H0; lia.
         + clear v Hev lv s Hlvs; intros lv s Hlvs; inv Hlvs; inv H10.
-          apply He' in H as (r & Hr & Hsvr); clear He'; cbn in *; some_inv.
-          cbn in *; inv Hsvr; inv H0; cbn in *; some_inv.
+          apply He' in H as (r & Hr & Hsvr); clear He'; cbn in *; some_ok_inv.
+          cbn in *; inv Hsvr; inv H0; cbn in *; some_ok_inv.
           apply Helv' in H9 as Hlvt.
           apply Forall2_length in H1.
           rewrite H1 in Hlvt.
@@ -507,8 +507,8 @@ Section Soundness.
           induction es as [| [x e] es IHes];
             intros [| r rs] Hrs; cbn in *; try discriminate;
               try specialize IHes with rs;
-              repeat match_some_inv; some_inv; try reflexivity.
-          intuition; match_some_inv; some_inv; reflexivity.
+              repeat match_some_ok_inv; some_ok_inv; try reflexivity.
+          intuition; match_some_ok_inv; some_ok_inv; reflexivity.
         + constructor.
           * rewrite <- Forall2_sequence_iff in Hesrs.
             repeat rewrite <- ForallMap.Forall2_map_l in Hesrs.
@@ -565,7 +565,7 @@ Section Soundness.
             try inv_numeric; try inv_numeric_width;
               try match goal with
                   | H: _ = typ_of_expr _ |- _ => rewrite <- H in *
-                  end; cbn in *; try some_inv; auto. }
+                  end; cbn in *; try some_ok_inv; auto. }
         assert (Hutr_normᵗ: unary_type o (normᵗ r) (normᵗ r)).
         { inversion Hutr; subst;
             try inv_numeric;
@@ -591,7 +591,7 @@ Section Soundness.
         { inversion Hut; subst; try inv_numeric; try inv_numeric_width;
             try match goal with
                 | H: _ = typ_of_expr _ |- _ => rewrite <- H in *
-                end; cbn in *; try some_inv; auto. }
+                end; cbn in *; try some_ok_inv; auto. }
         destruct Hr_eq as [Het Hrr]; subst r.
         rewrite Hrr in Hut; eauto.
       - intro H; inv H.
@@ -779,8 +779,8 @@ Section Soundness.
     Proof using.
       intros tag X M E mems dir Hget Hmem.
       soundtac; split; auto; inv Hrn.
-      - rewrite Hget in H7; some_inv; auto.
-      - rewrite Hget in H11; some_inv.
+      - rewrite Hget in H7; some_ok_inv; auto.
+      - rewrite Hget in H11; some_ok_inv.
     Qed.
 
     (*Theorem senum_member_sound :
@@ -861,7 +861,7 @@ Section Soundness.
             induction ts as [| [y t] ts IHts];
               intros [| [z r] rs] Hrs t' Hxt';
               cbn in *; try discriminate;
-                repeat match_some_inv; repeat some_inv.
+                repeat match_some_ok_inv; repeat some_ok_inv.
             inversion H0; subst.
             pose proof P4String.equiv_reflect x z as Hxz.
             inversion Hxz; subst.
@@ -903,13 +903,13 @@ Section Soundness.
           induction ts as [| [y t] ts IHts];
             intros [| [z r] rs] Hrs t' Hxt' r' Ht'r';
             cbn in *; try discriminate;
-              repeat match_some_inv; repeat some_inv.
+              repeat match_some_ok_inv; repeat some_ok_inv.
           inversion H0; subst.
           pose proof P4String.equiv_reflect x z as Hxz.
           inversion Hxz; subst.
-          + rewrite AList.get_eq_cons in Hxt' by assumption; some_inv.
+          + rewrite AList.get_eq_cons in Hxt' by assumption; some_ok_inv.
             rewrite AList.get_eq_cons by assumption.
-            rewrite Heqo2 in Ht'r'; some_inv; reflexivity.
+            rewrite Heqo2 in Ht'r'; some_ok_inv; reflexivity.
           + rewrite AList.get_neq_cons in Hxt' by assumption.
             rewrite AList.get_neq_cons by assumption; eauto. }
         rewrite P4String.get_clear_AList_tags in Hlem3'; eauto.
@@ -936,15 +936,15 @@ Section Soundness.
           induction ts as [| [[iy y] t] ts ih]; intros [| [[iz z] r] rs] hrs ty hty;
             cbn in *; try discriminate.
           - unfold option_bind at 1 2 in hrs.
-            repeat match_some_inv; some_inv.
+            repeat match_some_ok_inv; some_ok_inv.
             unfold option_bind at 1 in hrs.
-            match_some_inv.
+            match_some_ok_inv.
           - unfold option_bind at 1 2 in hrs.
-            repeat match_some_inv; some_inv.
+            repeat match_some_ok_inv; some_ok_inv.
             unfold option_bind at 1 in hrs.
-            match_some_inv; some_inv.
+            match_some_ok_inv; some_ok_inv.
             destruct (string_dec z x) as [hzx | hzx]; subst.
-            + rewrite AList.get_eq_cons in hty by intuition; some_inv.
+            + rewrite AList.get_eq_cons in hty by intuition; some_ok_inv.
               rewrite AList.get_eq_cons by intuition.
               eauto.
             + rewrite AList.get_neq_cons in hty by firstorder.
@@ -1038,7 +1038,7 @@ Section Soundness.
       split; [| split].
       - apply Hxe1 in Hesv1 as Hxe1'; clear Hxe1.
         destruct Hxe1' as (r1 & Hr1 & Hvr1).
-        rewrite <- Ht1 in Hr1; cbn in *; some_inv.
+        rewrite <- Ht1 in Hr1; cbn in *; some_ok_inv.
         cbn in *; inv Hvr1.
         rename b into ob.
         assert (Hv1: exists v1, sval_to_val rob (ValBaseBool ob) v1)
@@ -1051,7 +1051,7 @@ Section Soundness.
         clear dependent sv3.
         intros v Hev; inv Hev; inv H14.
         apply Hxe1 in H13 as (r1 & Hr1 & Hsvr1).
-        rewrite <- Ht1 in Hr1; cbn in *; some_inv; cbn in *.
+        rewrite <- Ht1 in Hr1; cbn in *; some_ok_inv; cbn in *.
         destruct b.
         + firstorder.
         + rewrite Ht3; firstorder.
@@ -1112,7 +1112,7 @@ Section Soundness.
             pose proof exec_val_preserves_typ
               _ _ _ Hsv2 _ hsvr2 as hvrt2.
             pose proof Helv1 _ _ Helvs1 as (r & hr & hlvr).
-            rewrite Hte1e2, hr2 in hr; some_inv.
+            rewrite Hte1e2, hr2 in hr; some_ok_inv.
             replace (fun x : typ => normᵗ (try_get_real_type ge x)) with
               (normᵗ ∘ try_get_real_type ge) in hlvr by reflexivity.
             unfold gamma_expr_ok, gamma_expr_prop,gamma_var_prop in *.
@@ -1141,7 +1141,7 @@ Section Soundness.
           destruct (is_continue sig) eqn:?H; [| subst; assumption].
           pose proof He2 _ H as (r2 & hr2 & hsvr2).
           pose proof Helv1 _ _  H8 as (r1 & hr1 & hlvr1).
-          rewrite Hte1e2,hr2 in hr1. some_inv.
+          rewrite Hte1e2,hr2 in hr1. some_ok_inv.
           assert (⊢ᵥ v \: normᵗ r1) by eauto.
           assert (hsvr1: ⊢ᵥ sv \: normᵗ r1) by eauto.
           replace (fun x : typ => normᵗ (try_get_real_type ge x)) with
@@ -1221,7 +1221,7 @@ Section Soundness.
       assert (Hxed: exec_expr_det ge rob this st e v) by eauto.
       rewrite <- Het in He'; cbn in He'.
       apply He' in Hesv as (r & Hr & Hsvr).
-      some_inv; cbn in Hsvr; inv Hsvr; inv Hv.
+      some_ok_inv; cbn in Hsvr; inv Hsvr; inv Hv.
       destruct s2 as [s2 |]; inv Hs2; inv H6; inv H8.
       - destruct H1 as [Γ₂ Hs2].
         pose proof Hs2 Hge Hged Hgok H2 H3 _ st Hrob Hread Hgst
@@ -1397,7 +1397,7 @@ Section Soundness.
               destruct Hl'l as [Hl'l | Hl'l]; subst;
               try rewrite PathMap.get_set_same in Hlt';
               try rewrite PathMap.get_set_same; eauto;
-              try some_inv; cbn;
+              try some_ok_inv; cbn;
               try rewrite PathMap.get_set_diff in Hlt' by assumption;
               try rewrite PathMap.get_set_diff by assumption; eauto.
           * clear Hdom; unfold gamma_var_val_typ in *.
@@ -1416,7 +1416,7 @@ Section Soundness.
               try rewrite PathMap.get_set_diff in Hlt' by assumption;
               try rewrite PathMap.get_set_diff in Hlsv' by assumption;
               cbn in *; unfold ok in *;
-              repeat some_inv;
+              repeat some_ok_inv;
               eauto 6 using uninit_sval_of_typ_val_typ.
         + destruct Hgst as [HΓₑ [Hgfdom Hgft]].
           unfold gamma_func_prop in *; split; auto.
@@ -1469,7 +1469,7 @@ Section Soundness.
                  destruct Hl'l as [Hl'l | Hl'l]; subst;
                  try rewrite PathMap.get_set_same in Hlt';
                  try rewrite PathMap.get_set_same; eauto;
-                 try some_inv; cbn;
+                 try some_ok_inv; cbn;
                  try rewrite PathMap.get_set_diff in Hlt' by assumption;
                  try rewrite PathMap.get_set_diff by assumption; eauto.
             -- clear Hdom; unfold gamma_var_val_typ in *.
@@ -1488,7 +1488,7 @@ Section Soundness.
                  try rewrite PathMap.get_set_diff in Hlt' by assumption;
                  try rewrite PathMap.get_set_diff in Hlsv' by assumption;
                  cbn in *; unfold ok in *;
-                 repeat some_inv; eauto.
+                 repeat some_ok_inv; eauto.
           * eapply exec_expr_call_False in H11; eauto. contradiction.
     Qed.
 

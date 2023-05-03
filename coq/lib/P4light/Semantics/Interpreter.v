@@ -19,7 +19,7 @@ Section Interpreter.
   Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
   Notation Val := (@ValueBase bool).
   Notation Sval := (@ValueBase (option bool)).
-  Notation ValSet := (@ValueSet tags_t).
+  Notation ValSet := ValueSet.
   Notation Lval := ValueLvalue.
 
   Notation ident := string.
@@ -438,35 +438,33 @@ Section Interpreter.
           sv :: svs
       end.
 
+    Definition interp_TableEntry
+      (this: path) '(MkTableEntry _ ms aref) : result Exn.t table_entry :=
+      let+ svs := interp_matches this ms in
+      mk_table_entry svs (unwrap_action_ref2 aref).
+    
     Definition interp_table_entry (this: path) (entry: table_entry)
-      : result Exn.t (@table_entry_valset tags_t (@Expression tags_t)) :=
-      let 'mk_table_entry ms action := entry in
-      let* svs := interp_matches this ms in
+      : @table_entry_valset (@Expression tags_t) :=
+      let 'mk_table_entry svs action := entry in
       if (List.length svs =? 1)%nat
-      then mret (List.hd ValSetUniversal svs, action)
-      else mret (ValSetProd svs, action).
+      then (List.hd ValSetUniversal svs, action)
+      else (ValSetProd svs, action).
 
-    Fixpoint interp_table_entries (this: path) (entries: list table_entry)
-      : result Exn.t (list (@table_entry_valset tags_t (@Expression tags_t))) :=
-      match entries with
-      | nil => mret nil 
-      | te :: tes =>
-          let* tev := interp_table_entry this te in
-          let* tevs := interp_table_entries this tes in
-          mret (tev :: tevs)
-      end.
+    Definition interp_table_entries (this: path) (entries: list table_entry)
+      : list (@table_entry_valset (@Expression tags_t)) :=
+      List.map (interp_table_entry this) entries.
 
     Definition interp_table_match
                (this: path)
                (st: state)
                (name: ident)
                (keys: list (@TableKey tags_t))
-               (const_entries: option (list (@table_entry tags_t (@Expression tags_t))))
+               (const_entries: option (list (@table_entry (@Expression tags_t))))
       : result Exn.t (option (@action_ref (@Expression tags_t))) :=
       let entries := get_entries st (this ++ [name]) const_entries in
       let match_kinds := List.map table_key_matchkind keys in
       let* keyvals := interp_exprs this st (List.map table_key_key keys) in
-      let* entryvs := interp_table_entries this entries in
+      let entryvs := interp_table_entries this entries in
       mret (extern_match (List.combine keyvals match_kinds) entryvs).
 
     Equations interp_isValid (sv: Sval) : result Exn.t bool :=

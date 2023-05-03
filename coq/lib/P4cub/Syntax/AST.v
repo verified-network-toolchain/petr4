@@ -8,9 +8,9 @@ Import String.
 
 (** Function call parameters/arguments. *)
 Variant paramarg (A B : Set) : Set :=
-  | PAIn      (a : A) (** in-parameter. *)
-  | PAOut     (b : B) (** out-parameter. *)
-  | PAInOut   (b : B) (** inout-parameter. *).
+  | PAIn    (a : A) (** in-parameter. *)
+  | PAOut   (b : B) (** out-parameter. *)
+  | PAInOut (b : B) (** inout-parameter. *).
 
 Arguments PAIn {_} {_}.
 Arguments PAOut {_} {_}.
@@ -20,9 +20,9 @@ Definition paramarg_map {A B C D : Set}
            (f : A -> C) (g : B -> D)
            (pa : paramarg A B) : paramarg C D :=
   match pa with
-  | PAIn      a => PAIn      (f a)
-  | PAOut     b => PAOut     (g b)
-  | PAInOut   b => PAInOut   (g b)
+  | PAIn    a => PAIn      (f a)
+  | PAOut   b => PAOut     (g b)
+  | PAInOut b => PAInOut   (g b)
   end.
 
 Definition paramarg_map_same
@@ -39,6 +39,13 @@ Variant pred_paramarg {A B : Set}
 
 Definition pred_paramarg_same {A : Set} (P : A -> Prop)
   : paramarg A A -> Prop := pred_paramarg P P.
+
+Definition paramarg_strength {A B : Set} (arg : paramarg (option A) (option B)) : option (paramarg A B) :=
+  match arg with
+  | PAIn a => a >>| PAIn
+  | PAOut b => b >>| PAOut
+  | PAInOut b => b >>| PAInOut
+  end.
 
 (** Relating [paramarg]s. *)
 Variant rel_paramarg {A1 A2 B1 B2 : Set}
@@ -68,39 +75,44 @@ Record arrow (A B C : Set) : Set :=
 Arguments paramargs {_} {_} {_}.
 Arguments rtrns {_} {_} {_}.
 
-(** * Expression Grammar *)
-Module Expr.
+(** * Type Grammar *)
+Module Typ.
   (** Expression types. *)
   Inductive t : Set :=
-  | TBool                       (** bools *)
-  | TVarBit (max_width: N)      (** variable-length bitstrings *)
-  | TBit (width : N)            (** unsigned integers *)
-  | TInt (width : positive)     (** signed integers *)
-  | TError                      (** the error type *)
-  | TArray (size : N) (typ : t) (** arrays, not header-stacks, normal arrays. *)
-  | TStruct (isheader : bool) (fields : list t) (** struct or header types. *)
-  | TVar (type_name : nat)        (** type variables *).
-    
+  | Bool                                    (** bools *)
+  | VarBit (max_width: N)                   (** variable-length bitstrings *)
+  | Bit    (width : N)                      (** unsigned integers *)
+  | Int    (width : positive)               (** signed integers *)
+  | Error                                   (** the error type *)
+  | Array  (size : N) (typ : t)             (** arrays, not header-stacks, normal arrays. *)
+  | Struct (isheader : bool) (fields : list t) (** struct or header types. *)
+  | Var    (type_name : nat)                  (** type variables *).
+
   (** Function parameters. *)
-  Definition param : Set := paramarg t t.
+  Definition param : Set := paramarg Typ.t Typ.t.
   Definition params : Set :=
     list ((* original name *) string * param).
-    
+
   (** Function types. *)
-  Definition arrowT : Set := arrow (* original name *) string t t.
-  
-  Variant uop : Set :=
-    | Not        (** boolean negation *)
-    | BitNot     (** bitwise negation *)
-    | UMinus     (** integer negation *)
-    | IsValid    (** check header validity *)
+  Definition arrowT : Set := arrow (* original name *) string Typ.t Typ.t.
+End Typ.
+
+(** Unary operations. *)
+Module Una.
+  Variant t : Set :=
+    | Not                        (** boolean negation *)
+    | BitNot                     (** bitwise negation *)
+    | Minus                      (** integer negation *)
+    | IsValid                    (** check header validity *)
     | SetValidity (validity : bool) (** set a header's validity to [validity] *).
-  
-  (** Binary operations.
-      The "Sat" suffix denotes
+End Una.
+
+(** Binary operations. *)
+Module Bin.
+  (** The "Sat" suffix denotes
       saturating arithmetic:
       where there is no overflow. *)
-  Variant bop : Set :=
+  Variant t : Set :=
   | Plus     (** integer addition *)
   | PlusSat  (** saturating addition *)
   | Minus    (** integer subtraction *)
@@ -120,185 +132,189 @@ Module Expr.
   | PlusPlus (** bit-string concatenation *)
   | And      (** boolean and *)
   | Or       (** boolean or *).
+End Bin.
 
+(** Expression lists. *)
+Module Lst.
   (** "list" variants:
       structs, headers, and arrays. *)
-  Variant lists : Set :=
-  | lists_struct
-  | lists_array (element_type : t)
-  | lists_header (b : bool).
-  
-  (** Expressions annotated with types,
-      unless the type is obvious. *)  
-  Inductive e : Set :=
-  | Bool (b : bool)                     (** booleans *)
-  | VarBit (max_width : N) (width : N) (val : Z)    (** variable-width integers *)
-  | Bit (width : N) (val : Z)        (** unsigned integers *)
-  | Int (width : positive) (val : Z) (** signed integers *)
-  | Var (type : t) (original_name : string) (x : nat)  (** variables *)
-  | Slice (hi lo : positive) (arg : e) (** bit-slicing *)
-  | Cast (type : t) (arg : e)          (** explicit casts *)
-  | Uop (result_type : t) (op : uop)
-        (arg : e)                     (** unary operations *)
-  | Bop (result_type : t) (op : bop)
-        (lhs rhs : e)                 (** binary operations *)
-  | Lists (flag : lists) (es : list e)
-  | Index (elem_type : t) (array index : e)      (** array-indexing *)
-  | Member (result_type : t) (mem : nat) (arg : e) (** struct member *)
-  | Error (err : string)  (** error literals *).
-  
-  (** Function call arguments. *)
-  Definition arg : Set := paramarg e e.
-  Definition args : Set := list arg.
-End Expr.
+  Variant t : Set :=
+    | Struct
+    | Array  (element_type : Typ.t)
+    | Header (b : bool).
+End Lst.
 
-(** * Parser Grammar *)
-Module Parser.
+(** * Expression Grammar *)
+Module Exp.
+  (** Expessions annotated with types,
+      unless the type is obvious. *)
+  Inductive t : Set :=
+  | Bool   (b : bool)                                          (** booleans *)
+  | VarBit (max_width : N) (width : N) (val : Z)            (** variable-width integers *)
+  | Bit    (width : N) (val : Z)                            (** unsigned integers *)
+  | Int    (width : positive) (val : Z)                     (** signed integers *)
+  | Var    (type : Typ.t) (original_name : string) (x : nat)  (** variables *)
+  | Slice  (hi lo : positive) (arg : t)                     (** bit-slicing *)
+  | Cast   (type : Typ.t) (arg : t)                         (** explicit casts *)
+  | Uop    (result_type : Typ.t) (op : Una.t) (arg : t)     (** unary operations *)
+  | Bop    (result_type : Typ.t) (op : Bin.t) (lhs rhs : t) (** binary operations *)
+  | Lists  (flag : Lst.t) (es : list t)                     (** structs, headers, or arrays *)
+  | Index  (elem_type : Typ.t) (array index : t)            (** array-indexing *)
+  | Member (result_type : Typ.t) (mem : nat) (arg : t)        (** struct member *)
+  | Error  (err : string)                                   (** error literals *).
+
+  (** Function call arguments. *)
+  Definition arg : Set := paramarg Exp.t Exp.t.
+  Definition args : Set := list arg.
+End Exp.
+
+(** Parser states. *)
+Module Lbl.
   (** Labels for parser-states. *)
-  Variant state_label : Set :=
+  Variant t : Set :=
     | Start         (** start state *)
     | Accept        (** accept state *)
     | Reject        (** reject state *)
     | Name (st : nat) (** user-defined state *).
+End Lbl.
 
+(** Pattern grammer. *)
+Module Pat.
   (** Select expression pattern.
       Corresponds to keySet expressions in p4. *)
-  Inductive pat : Set :=
-  | Wild                      (** wild-card/anything pattern *)
-  | Mask  (p1 p2 : pat)       (** mask pattern *)
-  | Range (p1 p2 : pat)       (** range pattern *)
-  | Bit (width : N) (val : Z) (** unsigned-int pattern *)
-  | Int (width : positive) (val : Z) (** signed-int pattern *)
-  | Lists (ps : list pat)     (** lists pattern *).
+  Inductive t : Set :=
+  | Wild                               (** wild-card/anything pattern *)
+  | Mask  (p1 p2 : t)                  (** mask pattern *)
+  | Range (p1 p2 : t)                  (** range pattern *)
+  | Bit   (width : N) (val : Z)        (** unsigned-int pattern *)
+  | Int   (width : positive) (val : Z) (** signed-int pattern *)
+  | Lists (ps : list t)                (** lists pattern *).
+End Pat.
 
+(** Parser transition grammer. *)
+Module Trns.
   (** Parser transitions, which evaluate to state names *)
-  Variant trns : Set :=
-  | Direct (st : state_label) (** direct transition to state [st] *)
-  | Select (discriminee : Expr.e)
-      (default : state_label)
-      (cases : Field.fs pat state_label)
-  (** select expressions,
-      where "default" is
-      the catch-all case *).
+  Variant t : Set :=
+  | Direct (st : Lbl.t)              (** direct transition to state [st] *)
+  | Select (discriminee : Exp.t)
+      (default : Lbl.t)
+      (cases : list (Pat.t * Lbl.t)) (** select expressions,
+                                        where "default" is
+                                        the catch-all case *).
+End Trns.
 
-  Definition pt := trns.
-End Parser.
+Module Call.
+  (** Procedural calls. *)
+  Variant t : Set :=
+    | Funct  (function_name : string) (type_args : list Typ.t)
+        (returns : option Exp.t)                              (** function application. *)
+    | Action (action_name : string)
+        (control_plane_args : list Exp.t)                     (** action call. *)
+    | Method (extern_instance_name method_name : string)       (** extern method call *)
+        (type_args : list Typ.t) (returns : option Exp.t)
+    | Inst   (instance_name : string) (ext_args : list string) (** parser/control instance apply *).
+End Call.
 
 (** * Statement and Block Grammar *)
-Module Stmt.
-  (** Function, action, extern method, or apply instance. *)
-  Variant fun_kind : Set :=
-    | Funct (function_name : string)
-        (type_args : list Expr.t) (returns : option Expr.e)
-    | Action (action_name : string)
-        (control_plane_args : list Expr.e)
-    | Method (extern_instance_name method_name : string)
-        (type_args : list Expr.t) (returns : option Expr.e).
-  
-  (** Statements. *)
-  Inductive s : Set :=
+Module Stm.
+  Inductive t : Set :=
+    
   (** terminators to a statement block: *)
-  | Skip                          (** skip/no-op *)
-  | Return (e : option Expr.e)    (** return *)
-  | Exit                          (** exit *)
-  | Transition (trns : Parser.pt) (** parser transition *)  
-  | Assign (lhs rhs : Expr.e)     (** assignment *)
-  | Call (call : fun_kind) (** kind of call *)
-      (args : Expr.args)   (** arguments *)
-  | Invoke (lhs : option Expr.e) (table_name : string) (** table invocation *)
-  | Apply (instance_name : string)
-      (ext_args : list string)
-      (args : Expr.args) (** apply statements *)
+  | Skip                                               (** skip/no-op *)
+  | Ret (e : option Exp.t)                            (** return *)
+  | Exit                                               (** exit *)
+  | Trans (trns : Trns.t)                              (** parser transition *)  
+  | Asgn (lhs rhs : Exp.t)                            (** assignment *)
+  | App (call : Call.t) (args : Exp.args)             (** procedural application *)
+  | Invoke (lhs : option Exp.t) (table_name : string) (** table invocation *)
+      
   (** blocks of statements: *)
-  | Var (original_name : string)
-      (expr : Expr.t (** unitialized decl *) + Expr.e (** initialzed decl *))
-      (tail : s) (** variable declaration/initialization
-                     a let-in operator. *)
-  | Seq (head tail : s) (** sequenced blocks,
-                            variables introduced in [head]
-                            do not occur in [tail] *)
-  | Conditional (guard : Expr.e)
-      (tru_blk fls_blk : s) (** conditionals *).
-End Stmt.
+  | LetIn (original_name : string) (init : Typ.t  + Exp.t)
+      (tail : t)                        (** variable declaration/initialization, a let-in operator *)
+  | Seq (head tail : t)                 (** sequenced blocks, variables introduced in [head] not in [tail] *)
+  | Cond (guard : Exp.t) (tru fls : t) (** conditionals *).
+End Stm.
 
 (** * Control Grammar *)
-Module Control.
+Module Ctrl.
   (** Declarations occuring within controls. *)
-  Variant d : Set :=
-    | Var (original_name : string)
-      (expr : Expr.t (** unitialized decl *) + Expr.e (** initialzed decl *))
+  Variant t : Set :=
+    | Var (original_name : string) (expr : Typ.t + Exp.t) (** variable declaration *)
   | Action (action_name : string)
-      (control_plane_params
-        : list ((* original parameter name *) string * Expr.t))
-      (data_plane_params : Expr.params)
-      (body : Stmt.s) (** action declaration *)
+      (control_plane_params : list (string * Typ.t))
+      (data_plane_params : Typ.params)
+      (body : Stm.t)                                      (** action declaration *)
   | Table (table_name : string)
-      (key : list (Expr.e * string))
+      (key : list (Exp.t * string))
       (actions :
         list
           (string (** action name *)
-           * Expr.args (** data-plane arguments *)))
-      (default_action : option (string * list Expr.e)).
-End Control.
+           * Exp.args (** data-plane arguments *)))
+      (default_action : option (string * list Exp.t))     (** table declaration *).
+End Ctrl.
+
+(** Constructor variants in p4. *)
+Module Cnstr.
+  Variant t : Set :=
+    | Control (** control *)
+    | Parser  (** parser *).
+End Cnstr.
+
+Module InstTyp.
+  (** Constructor Parameter types, for instantiations *)
+  Variant t : Set :=    
+    | Ctr (flag : Cnstr.t)
+        (extern_params : list string)
+        (parameters : Typ.params)   (** parser or control instance types *)
+    | Package                       (** package instance types *)
+    | Extern (extern_name : string) (** extern instance types *).
+End InstTyp.
 
 (** Top-Level Declarations *)
-Module TopDecl.
-  (** Constructor Parameter types, for instantiations *)
-  Variant it : Set :=    
-    | ControlInstType
-        (extern_params : list string)
-        (parameters : Expr.params) (** control instance types *)
-    | ParserInstType
-        (extern_params : list string)
-        (parameters : Expr.params) (** parser instance types *)
-    | PackageInstType (** package instance types *)
-    | ExternInstType (extern_name : string) (** extern instance types *).
-  
-  Definition constructor_params : Set := list (string * it).
-    
+Module Top.
+  Definition constructor_params : Set := list (string * InstTyp.t).
   Definition constructor_args : Set := list string.
   
-  (** Top-level declarations. *)
-  Variant d : Set :=
+  Variant t : Set :=
     | Instantiate
         (constructor_name instance_name : string)
-        (type_args : list Expr.t)
+        (type_args : list Typ.t)
         (cargs : constructor_args)
-        (expr_cargs : list Expr.e) (** instantiations *)
+        (expr_cargs : list Exp.t) (** instantiations *)
     | Extern
         (extern_name : string)
         (type_params : nat)
         (cparams : constructor_params)
-        (expr_cparams : list Expr.t)
+        (expr_cparams : list Typ.t)
         (methods : Field.fs
                      string (** method name *)
                      (nat             (** type parameters *)
                       * list string (** extern parameters *)
-                      * Expr.arrowT (** parameters *)))
+                      * Typ.arrowT (** parameters *)))
     (** extern declarations *)
     | Control
         (control_name : string)
         (cparams : constructor_params) (** constructor params *)
-        (expr_cparams : list Expr.t)
+        (expr_cparams : list Typ.t)
         (eparams : list (string * string))      (** runtime extern params *)
-        (params : Expr.params)  (** apply block params *)
-        (body : list Control.d) (** control body *)
-        (apply_blk : Stmt.s)
+        (params : Typ.params)  (** apply block params *)
+        (body : list Ctrl.t) (** control body *)
+        (apply_blk : Stm.t)
     | Parser
         (parser_name : string)
         (cparams : constructor_params) (** constructor params *)
-        (expr_cparams : list Expr.t)
+        (expr_cparams : list Typ.t)
         (eparams : list (string * string))      (** runtime extern params *)
-        (params : Expr.params)              (** invocation params *)
-        (start : Stmt.s) (** start state *)
-        (states : list Stmt.s) (** parser states *)
+        (params : Typ.params)              (** invocation params *)
+        (start : Stm.t) (** start state *)
+        (states : list Stm.t) (** parser states *)
     (** parser declaration *)
     | Funct
         (function_name : string)
         (type_params : nat)
-        (signature : Expr.arrowT)
-        (body : Stmt.s) (** function declaration *).
+        (signature : Typ.arrowT)
+        (body : Stm.t) (** function declaration *).
 
   (** A p4cub program. *)
-  Definition prog : Set := list d.
-End TopDecl.
+  Definition prog : Set := list t.
+End Top.

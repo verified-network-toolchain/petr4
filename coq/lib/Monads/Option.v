@@ -1,5 +1,6 @@
 Require Export Poulet4.Monads.Monad.
-Require Import Coq.Lists.List.
+From Coq Require Import Lists.List Program.Basics.
+Require Import VST.zlist.Zlist.
 
 Import ListNotations.
 
@@ -16,6 +17,16 @@ Global Instance option_monad_inst : Monad option :=
   { mret := @Some;
     mbind := option_bind;
   }.
+
+Notation "'let?' ' pat ':=' c1 'in' c2" := (option_bind _ _ c1 (fun x => 
+  match x with 
+  | pat => c2 
+  | _ => None
+  end))
+( at level 61, pat pattern, 
+  format "'let?'  ' pat  ':='  c1  'in' '//' c2", c1 at next level, 
+  right associativity
+) : monad_scope.
 
 Definition option_fail {A : Type} : option A := None.
 
@@ -92,6 +103,14 @@ Lemma Forall2_sequence_iff : forall {A : Type} lmao (la : list A),
     sequence lmao = Some la.
 Proof.
   intuition.
+Qed.
+
+Lemma map_monad_some :
+  forall (A B : Type) (f : A -> option B) (l : list A) (l' : list B),
+    map_monad f l = Some l' <-> Forall2 (fun x y => f x = Some y) l l'.
+Proof.
+  unfold map_monad, "∘". intros. rewrite <- Forall2_sequence_iff.
+  rewrite Forall2_map1. reflexivity.
 Qed.
 
 Lemma sequence_map : forall {U V : Type} (f : U -> V) us,

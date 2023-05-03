@@ -58,6 +58,19 @@ Fixpoint asequence {K A} {m: Type -> Type} {M : Monad m} (acts: list (K * m A)) 
       mret ((k, t) :: rest)
   end.
 
+Definition fold_left_monad
+  {A B : Type} {m : Type -> Type} {M : Monad m}
+  (f : A -> B -> m A) (l : list B) (a : A) : m A :=
+  List.fold_left
+    (fun ma b => let* a := ma in f a b)
+    l (mret a).
+
+Definition fold_right_monad
+  {A B : Type} {m : Type -> Type} {M : Monad m}
+  (f : B -> A -> m A) (a : A) : list B -> m A :=
+  List.fold_right
+    (fun b ma => ma >>= f b) (mret a).
+
 Definition map_monad {A B : Type} {m : Type -> Type} {M : Monad m} (f : A -> m B) : list A -> m (list B) :=
   compose sequence (List.map f).
 
@@ -65,6 +78,14 @@ Definition lift_monad {A B} {m: Type -> Type} {M : Monad m} (f: A -> B) (ma : m 
   ma >>= fun a => mret (f a).
 
 Notation "c '>>|' f" := (lift_monad f c) (at level 50, left associativity) : monad_scope.
+
+Infix "<$>" := lift_monad (at level 50, left associativity) : monad_scope.
+
+Definition ap {A B : Type} {m : Type -> Type} {M : Monad m} (mf : m (A -> B)) (ma : m A) : m B :=
+  let* f := mf in
+  f <$> ma.
+
+Infix "<*>" := ap (at level 50, left associativity) : monad_scope.
 
 Lemma map_bind_pair :
   forall (M : Type -> Type) `{MM: Monad M}
@@ -97,3 +118,11 @@ Notation "'let^' ' x ':=' c1 'in' c2" := (@lift_monad _ _ _ _ (fun x => c2) c1)
     format "'let^'  ' x  ':='  c1  'in' '//' c2", c1 at next level, 
     right associativity
   ) : monad_scope.
+
+Definition opt_sequence
+  {A} {m : Type -> Type} `{M : Monad m}
+  (o : option (list (m A))) : m (option (list A)) :=
+  match o with
+  | Some l => sequence l >>| Some
+  | None   => mret None
+  end.

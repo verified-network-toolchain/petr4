@@ -1,0 +1,94 @@
+p4 program:
+\n
+#include <core.p4>
+#include <v1model.p4>
+
+header S {
+    bit<32> size;
+}
+
+header H {
+    varbit<32> var;
+}
+
+struct Parsed_packet {
+    S s1;
+    H h;
+    S s2;
+}
+
+struct Metadata {
+}
+
+parser parserI(packet_in pkt, out Parsed_packet hdr, inout Metadata meta, inout standard_metadata_t stdmeta) {
+    state start {
+        pkt.extract(hdr.s1);
+        bit<32> size = hdr.s1.size;
+        pkt.extract(hdr.h, size);
+        pkt.extract(hdr.s2);
+        transition accept;
+    }
+}
+
+control DeparserI(packet_out packet, in Parsed_packet hdr) {
+    apply {
+        packet.emit(hdr.s2);
+    }
+}
+
+control ingress(inout Parsed_packet hdr, inout Metadata meta, inout standard_metadata_t stdmeta) {
+    apply {
+    }
+}
+
+control egress(inout Parsed_packet hdr, inout Metadata meta, inout standard_metadata_t stdmeta) {
+    apply {
+    }
+}
+
+control vc(inout Parsed_packet hdr, inout Metadata meta) {
+    apply {
+    }
+}
+
+control uc(inout Parsed_packet hdr, inout Metadata meta) {
+    apply {
+    }
+}
+
+V1Switch<Parsed_packet, Metadata>(parserI(), vc(), ingress(), egress(), uc(), DeparserI()) main;
+\n
+\n
+#        size
+packet 0 00000008 12 34 56 78 90
+expect 0 34 56 78 90
+packet 0 00000010 12 34 56 78 90
+expect 0 56 78 90
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Packet matched the expected packet.
+Packet:   port 0 pkt 567890
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 34567890
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmpl3vza65y
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpl3vza65y/issue447-3-bmv2.json /petr4/ci-test/testdata/p4_16_samples/issue447-3-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9331 --device-id 241 -i 0@pcap0 .././tmpl3vza65y/issue447-3-bmv2.json
+Running simple_switch_CLI --thrift-port 9331
+STF Command: packet 0 00000008 12 34 56 78 90
+STF Command: expect 0 34 56 78 90
+STF Command: packet 0 00000010 12 34 56 78 90
+STF Command: expect 0 56 78 90
+simple_switch exit code -15
+Execution completed
+Comparing outputs

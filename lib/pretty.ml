@@ -14,815 +14,817 @@
  *)
 
 open Core
+open StdLabels
+open List
 open Util
+open Pp
+open Pp.O
+
 module P4 = Surface
 
-let format_list f fmt l =
-  List.iter l ~f:(f fmt)
+let format_list_pp_sep f sep l =
+  Pp.concat_map ~sep l ~f
 
-let format_list_nl f fmt l =
-  let g b x =
-    if b then Format.fprintf fmt "@\n";
-    f fmt x;
-    true in
-  ignore (List.fold_left l ~init:false ~f:g)
+let format_list_sep f sep l =
+  format_list_pp_sep f (text sep) l
 
-let format_list_sep f sep fmt l =
-  let g b x =
-    if b then Format.fprintf fmt "%s" sep;
-    Format.fprintf fmt "@,";
-    f fmt x;
-    true in
-  ignore (List.fold_left l ~init:false ~f:g)
+let format_list_nl f l =
+  format_list_sep f "\n" l
 
-let format_list_term f term fmt l =
-  let g x =
-    f fmt x;
-    Format.fprintf fmt "%s@," term in
-  List.iter l ~f:g
-
-let format_list_sep_nl f sep fmt l =
-  let g b x =
-    if b then Format.fprintf fmt "%s@\n" sep;
-    f fmt x;
-    true in
-  ignore (List.fold_left l ~init:false ~f:g)
-
-let format_option f fmt o =
+let format_option f o =
   match o with
-  | None ->
-    ()
-  | Some x ->
-    f fmt x
+  | None -> nop
+  | Some x -> f x
 
-module P4Int = struct
-  let format_bigint fmt b =
-    Format.fprintf fmt "%s" (Bigint.to_string b)
+let format_list_sep_nl f sep l =
+  Pp.concat_map ~sep:((sep |> text) ++ ("\n" |> text)) l ~f:f
 
-  let format_t fmt (i: P4int.t) =
-    Format.fprintf fmt "@[";
+module P4int = struct
+  let format_bigint b = b |> Bigint.to_string |> text
+  let format_t (i: P4int.t) =
+    (* let i = e. in *)
     (match i.width_signed with
-     | None ->
-       ()
-     | Some (width,signed) ->
-       Format.fprintf fmt "%s%s" (Bigint.to_string width) (if signed then "s" else "w"));
-    format_bigint fmt i.value;
-    Format.fprintf fmt "@]";
+     | None -> i.value |> format_bigint |> box
+     | Some (width,signed) -> (width |> format_bigint) ++
+                              (text (if signed then "s" else "w")) ++
+                              (i.value |> format_bigint) |> box)
 end
 
 module P4String = struct
-  let format_t fmt (e: P4string.t) =
-    Format.fprintf fmt "%s" e.str
+  let format_t (e: P4string.t) = ("\"" |> text) ++ (e.str |> text) ++ ("\"" |> text)
 end
 
-let name_format_t fmt (name: P4name.t) =
+module P4Word = struct
+  let format_t (e: P4string.t) =  e.str |> text
+(*   let format_t (e: P4.name) = e.name |> text *)
+end
+
+let name_format_t (name: P4name.t) =
   match name with
-  | BareName str ->
-     P4String.format_t fmt str
-  | QualifiedName ([], str) ->
-     Format.fprintf fmt ".%a"
-       P4String.format_t str 
-  | _ -> failwith "unimplemented"
+  | BareName n -> P4Word.format_t n
+  | QualifiedName ([], name) -> (text ".") ++ P4Word.format_t name
+  | _ -> failwith "illegal name"
 
 module rec Expression : sig
-  val format_t : Format.formatter -> P4.Expression.t -> unit
+  val format_t : P4.Expression.t -> _ Pp.t
 end = struct
   open P4.Expression
-  let rec format_t fmt e =
-    match snd e with
-    | True ->
-      Format.fprintf fmt "true"
-    | False ->
-      Format.fprintf fmt "false"
-    | Int i ->
-      Format.fprintf fmt "%a"
-        P4Int.format_t i
-    | String s ->
-      Format.fprintf fmt "\"%a\""
-        P4String.format_t s
-    | Name name ->
-      Format.fprintf fmt "%a"
-        name_format_t name
+  let rec format_t e =
+    match e with
+    | True _ ->  text "true"
+    | False _ -> text "false"
+    | Int {x; _} -> P4int.format_t x
+    | String {str; _} -> P4String.format_t str
+    | Name {name; _} -> name_format_t name
     | ArrayAccess x ->
-      Format.fprintf fmt "@[%a[%a]@]"
-        format_t x.array
-        format_t x.index
+      (format_t x.array) ++ (text "[") ++ (format_t x.index) ++ (text "]")
+      |> box ~indent:2
     | BitStringAccess x ->
-      Format.fprintf fmt "@[%a[%a:%a]@]"
-        format_t x.bits
-        format_t x.hi
-        format_t x.lo
-    | List x ->
-      Format.fprintf fmt "@[<4>{%a}@]" 
-        (format_list_sep format_t ",") x.values
-    | Record x ->
-      Format.fprintf fmt "@[<4>{%a}@]"
-        (format_list_sep KeyValue.format_t ",") x.entries
+      (format_t x.bits) ++ (text "[") ++ (format_t x.hi) ++ (text ":") ++
+      (format_t x.lo) ++ (text "]") |> box ~indent:2
+    | List x -> (text "{") ++ (format_list_sep format_t ", " x.values) ++
+                (text "}") |> box ~indent:2
+    | Record x -> (text "{") ++ (format_list_sep KeyValue.format_t ", " x.entries) ++
+                  (text "}") |> box ~indent:2
     | UnaryOp x ->
-      let uop = match (snd x.op) with
-      | Not -> "!"
-      | BitNot -> "~"
-      | UMinus -> "-"
-      in
-      Format.fprintf fmt "@[<4>(%s@ %a)@]"
-        uop
-        format_t x.arg
+      let uop = match x.op with
+        | Not _ -> "!"
+        | BitNot _ -> "~"
+        | UMinus _ -> "-"
+      in (uop |> text) ++ (format_t x.arg)
+         |> box
     | BinaryOp x ->
-      let bop = match (snd x.op) with
-        Plus -> "+"
-      | PlusSat -> "|+|"
-      | Minus -> "-"
-      | MinusSat -> "|-|"
-      | Mul -> "*"
-      | Div -> "/"
-      | Mod -> "%"
-      | Shl -> "<<"
-      | Shr -> ">>"
-      | Le -> "<="
-      | Ge -> ">="
-      | Lt -> "<"
-      | Gt -> ">"
-      | Eq -> "=="
-      | NotEq -> "!="
-      | BitAnd -> "&"
-      | BitXor -> "^"
-      | BitOr -> "|"
-      | PlusPlus -> "++"
-      | And -> "&&"
-      | Or -> "||"
-      in
-      Format.fprintf fmt "@[<4>(%a@ %s@ %a)@]"
-        format_t (fst x.args)
-        bop
-        format_t (snd x.args)
+      let bop = match x.op with
+          Plus _ -> "+"
+        | PlusSat _ -> "|+|"
+        | Minus _ -> "-"
+        | MinusSat _ -> "|-|"
+        | Mul _ -> "*"
+        | Div _ -> "/"
+        | Mod _ -> "%"
+        | Shl _ -> "<<"
+        | Shr _ -> ">>"
+        | Le _ -> "<="
+        | Ge _ -> ">="
+        | Lt _ -> "<"
+        | Gt _ -> ">"
+        | Eq _  -> "=="
+        | NotEq _ -> "!="
+        | BitAnd _ -> " & "
+        | BitXor _ -> " ^ "
+        | BitOr _ -> " | "
+        | PlusPlus _ -> " ++ "
+        | And _ -> " && "
+        | Or _ -> " || "
+      in (x.args |> fst |> format_t) ++ (bop |> text) ++
+         (format_t (snd x.args)) |> hbox
     | Cast x ->
-      Format.fprintf fmt "@[<4>(%a)(%a)@]"
-        Type.format_t x.typ
-        format_t x.expr
+      ("(" |> text) ++ (Type.format_t x.typ) ++ (") " |> text) ++
+      (format_t x.expr) |> hbox
     | TypeMember x ->
-      Format.fprintf fmt "@[<4>%a.%s@]"
-        name_format_t x.typ
-        x.name.str
+      (name_format_t x.typ) ++ ("." |> text) ++ (x.name |> P4Word.format_t)
+      |> box ~indent:2
     | ErrorMember x ->
-      Format.fprintf fmt "@[<4>error.%s@]" x.str
-    | ExpressionMember x ->
-      Format.fprintf fmt "@[<4>%a.%s@]"
-        format_t x.expr
-        x.name.str
+      ("error." |> text) ++ (x.err |> P4Word.format_t)
+    | ExpressionMember x -> (format_t x.expr) ++ ("." |> text) ++
+                            (x.name |> P4Word.format_t) |> box ~indent:2
     | Ternary x ->
-      Format.fprintf fmt "@[<4>(%a ?@ %a@ :@ %a)@]"
-        format_t x.cond
-        format_t x.tru
-        format_t x.fls
+      ("(" |> text) ++ (format_t x.cond) ++ space ++ ("?" |> text) ++
+      space ++ (format_t x.tru) ++ space ++ (":" |> text) ++
+      space ++ (format_t x.fls) ++ (")" |> text) |> box ~indent:2
     | FunctionCall x ->
-      Format.fprintf fmt "@[<4>%a%a(%a)@]"
-        format_t x.func
-        Type.format_typ_args x.type_args
-        (format_list_sep Argument.format_t ",") x.args
+      (format_t x.func) ++ (Type.format_typ_args x.type_args) ++ ("(" |> text) ++
+      (format_list_sep Argument.format_t ", " x.args) ++ (")" |> text)
+      |> box ~indent:2
     | NamelessInstantiation x ->
-      Format.fprintf fmt "@[<4>%a(%a)@]"
-        Type.format_t x.typ
-        (format_list_sep Argument.format_t ",") x.args
+      (Type.format_t x.typ) ++ ("(" |> text) ++
+      (format_list_sep Argument.format_t ", " x.args) ++ (")" |> text)
+      |> box ~indent:2
     | Mask x ->
-      Format.fprintf fmt "@[<4>%a@ &&&@ %a@]"
-      format_t x.expr
-      format_t x.mask
+      (format_t x.expr) ++ space ++ ("&&&" |> text) ++ space ++ (format_t x.mask)
+      |> box ~indent:2
     | Range x ->
-      Format.fprintf fmt "@[<4>%a@ ..@ %a@]" (* TODO: check *)
-        format_t x.lo
-        format_t x.hi
-
+      (format_t x.lo) ++ space ++ (".." |> text) ++ space ++ (format_t x.hi)
+      |> box ~indent:2
 end
 
 and Statement : sig
-  val format_t : Format.formatter -> P4.Statement.t -> unit
+  val format_t : P4.Statement.t -> _ Pp.t
 end = struct
   open P4.Statement
 
-  let format_switch_label fmt sl =
+  let format_switch_label sl =
     match sl with
-    | Default ->
-      Format.fprintf fmt "default"
-    | Name(sl) ->
-       Format.fprintf fmt "@[%a@]"
-        P4String.format_t sl
+    | Default _ -> text "default"
+    | Name {name; _} -> P4Word.format_t name |> box ~indent:2
 
-  let format_switch_case fmt sc =
-    match snd sc with
-    | Action { label; code } ->
-       Format.fprintf fmt "%a: %a"
-         format_switch_label (snd label)
-         Block.format_t code
-    | FallThrough { label } ->
-       Format.fprintf fmt "%a:"
-        format_switch_label (snd label)     
+  let format_switch_case sc =
+    match sc with
+    | Action { label; code; _ } ->
+      (format_switch_label label) ++ (": " |> text) ++
+      (Block.format_t code) ++ ("\n}" |> text)
+    | FallThrough { label; _ } ->
+      (format_switch_label label) ++ (":" |> text)
 
-  let rec format_t fmt (e:t) =
-    match snd e with
-    | MethodCall { func; type_args; args } ->
-      Format.fprintf fmt "@[%a%a(%a);@]"
-        Expression.format_t func
-        Type.format_typ_args type_args
-        Argument.format_ts args
-    | Assignment { lhs; rhs } ->
-      Format.fprintf fmt "@[%a = %a;@]"
-        Expression.format_t lhs
-        Expression.format_t rhs
-    | DirectApplication { typ; args } ->
-      Format.fprintf fmt "@[%a.apply(%a);@]"
-        Type.format_t typ
-        Argument.format_ts args
-    | Conditional { cond; tru; fls } ->
-        Format.fprintf fmt "@[<4>if (%a)@ "
-          Expression.format_t cond;
-        (match snd tru with
-         | BlockStatement { block=tru_block } ->
-           Block.format_t fmt tru_block;
-           (match fls with
-            | None ->
-              ()
-            | Some (_, BlockStatement { block=fls_block }) ->
-              Format.fprintf fmt "@[<4>else@ %a"
-                Block.format_t fls_block
-            | Some sfls ->
-              Format.fprintf fmt "@\nelse@ %a"
-                format_t sfls)
-         | _ ->
-           Format.fprintf fmt "@\n%a@]" format_t tru;
-           (match fls with
-            | None ->
-              ()
-            | Some (_, BlockStatement { block=fls_block }) ->
-              Format.fprintf fmt "@\n@[<4>else@ %a"
-                Block.format_t fls_block
-            | Some sfls ->
-              Format.fprintf fmt "@\n@[<4>else@\n%a@]"
-                format_t sfls));
-    | BlockStatement { block } ->
-      Format.fprintf fmt "@[<4>%a"
-        Block.format_t block
-    | Exit ->
-      Format.fprintf fmt "exit;"
-    | EmptyStatement ->
-      Format.fprintf fmt ";"
-    | Return { expr = None } ->
-      Format.fprintf fmt "return;"
-    | Return { expr = Some sexpr } ->
-      Format.fprintf fmt "@[return %a;@]"
-        Expression.format_t sexpr
-    | Switch { expr; cases } -> 
-       Format.fprintf fmt "@[<4>switch (%a) {%a@]@\n}"
-         Expression.format_t expr
-         (format_list_nl format_switch_case) cases
-    | DeclarationStatement { decl } ->
-      Declaration.format_t fmt decl
+  let block_fls fls =
+    match fls with
+    | None -> nop
+    | Some (BlockStatement { block=fls_block; _ }) ->
+      ("else " |> text) ++ (Block.format_t fls_block) ++ ("\n}" |> text)
+    | Some sfls ->
+      ("\nelse" |> text) ++ space ++ (Statement.format_t sfls)
+      |> box ~indent:2
+
+  let wc_fls fls =
+    match fls with
+    | None -> nop
+    | Some (BlockStatement { block=fls_block; _ }) ->
+      ("\n" |> text) ++ (("else " |> text) ++ (Block.format_t fls_block) ++
+                         ("\n}" |> text)) |> box ~indent:2
+    | Some sfls ->
+      ("\n" |> text) ++ (("else" |> text) ++ ("\n" |> text) ++
+                         (Statement.format_t sfls) |> box ~indent:2)
+
+  let rec format_t (e:t) =
+    match e with
+    | MethodCall { func; type_args; args; _ } ->
+      (Expression.format_t func) ++ (Type.format_typ_args type_args) ++
+      ("(" |> text) ++ (box ((Argument.format_ts args) ++
+                             (")" |> text) ++ (";" |> text))) |> hvbox
+    | Assignment { lhs; rhs; _ } ->
+      (Expression.format_t lhs) ++ space ++ ("=" |> text) ++ space ++
+      (Expression.format_t rhs) ++ (";" |> text) |> box
+    | DirectApplication { typ; args; _ } ->
+      (Type.format_t typ) ++ (".apply(" |> text) ++ (Argument.format_ts args) ++
+      (");" |> text) |> hvbox
+    | Conditional { cond; tru; fls; _ } ->
+      let close = match tru with
+        | BlockStatement { block=tru_block; _ } ->
+          ("\n}" |> text) ++ (block_fls fls)
+        | _ ->  nop
+      in let remainder = match tru with
+          | BlockStatement { block=tru_block; _ } ->
+            (tru_block |> Block.format_t)
+          | _ ->  ("\n" |> text) ++ (format_t tru) ++ (wc_fls fls)
+      in (box ~indent: 2 (("if" |> text) ++ space ++  ("(" |> text) ++
+                          (Expression.format_t cond) ++ (")" |> text) ++
+                          space ++ remainder)) ++ close
+    | BlockStatement { block; _ } ->
+      (block |> Block.format_t |> box ~indent:2) ++ ("\n}" |> text)
+    | Exit _ -> text "exit;"
+    | EmptyStatement _ -> text ";"
+    | Return { expr = None; _ } -> text "return;"
+    | Return { expr = Some sexpr; _ } ->
+      ("return" |> text) ++ (space ++ (Expression.format_t sexpr) ++
+                             (";" |> text)) |> hvbox
+    | Switch { expr; cases; _ } ->
+      (hvbox ("switch" |> text) ++ space ++ ("(" |> text) ++
+       (box (Expression.format_t expr)) ++ (")" |> text) ++ space ++
+       ("{\n" |> text) ++ (format_list_nl format_switch_case cases)) ++
+      ("\n}" |> text)
+    | DeclarationStatement { decl; _ } ->
+      Declaration.format_t decl
 end
 
 and Block : sig
-  val format_t : Format.formatter -> P4.Block.t -> unit
+  val format_t : P4.Block.t -> _ Pp.t
 end = struct
   open P4.Block
-  let format_t fmt e =
-    match snd e with
-    | { annotations=[]; statements=[] } ->
-      Format.fprintf fmt "{ }@]"
-    | { annotations; statements } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "{@\n%a@]@\n}"
-        (format_list_nl Statement.format_t) statements;
+  let format_t e =
+    match e with
+    | { annotations=[]; statements=[]; _ } -> "{ " |> text
+    | { annotations; statements; _ } ->
+      (Annotation.format_ts annotations) ++ ("{\n" |> text) ++
+      (format_list_nl Statement.format_t statements)
 end
 
 and Argument : sig
-  val format_t : Format.formatter -> P4.Argument.t -> unit
-  val format_ts : Format.formatter -> P4.Argument.t list -> unit
+  val format_t : P4.Argument.t -> _ Pp.t
+  val format_ts : P4.Argument.t list -> _ Pp.t
 end = struct
   open P4.Argument
-  let format_t fmt e =
-    match snd e with
+  let format_t e =
+    match e with
     | Expression x ->
-      Format.fprintf fmt "@[%a@]"
-        Expression.format_t x.value
+      x.value |> Expression.format_t |> box ~indent:2
     | KeyValue x ->
-      Format.fprintf fmt "@[<4>%s=%a@]"
-        x.key.str
-        Expression.format_t x.value
-    | Missing ->
-      Format.fprintf fmt "_"
-  let format_ts fmt l =
-    Format.fprintf fmt "@[%a@]"
-      (format_list_sep format_t ",") l
+      (P4Word.format_t x.key) ++ (("=" |> text) ++ (Expression.format_t x.value))
+      |> box ~indent:2
+    | Missing _ -> text "_"
+  let format_ts l =
+    format_list_sep format_t ", " l |> box ~indent:2
 end
 
 and Type : sig
-  val format_t : Format.formatter -> P4.Type.t -> unit
-  val format_typ_args: Format.formatter -> P4.Type.t list -> unit
-  val format_type_params: Format.formatter -> P4string.t list -> unit
+  val format_t : P4.Type.t -> _ Pp.t
+  val format_typ_args: P4.Type.t list -> _ Pp.t
+  val format_type_params: P4string.t list -> _ Pp.t
 end = struct
   open P4.Type
-  let rec format_t fmt e =
-    match snd e with
-    | Bool ->
-      Format.fprintf fmt "bool"
-    | Error ->
-      Format.fprintf fmt "error"
-    | Integer ->
-      Format.fprintf fmt "int"
-    | IntType x ->
-      Format.fprintf fmt "@[int<%a>@]"
-        Expression.format_t x
-    | BitType e -> 
-       begin match snd e with 
-       | P4.Expression.Int _  -> 
-          Format.fprintf fmt "@[bit<%a>@]"
-            Expression.format_t e
-       | _ -> 
-          Format.fprintf fmt "@[bit<(%a)>@]"
-            Expression.format_t e
-       end
+  let rec format_t e =
+    match e with
+    | Bool _ -> text "bool"
+    | Error _ -> text "error"
+    | Integer _ -> text "int"
+    | IntType x -> ("int" |> text) ++ ("<" |> text) ++
+                   ( Expression.format_t x.expr) ++ (">" |> text) |> box
+    | BitType e ->
+      begin match e.expr with
+        | P4.Expression.Int _  ->
+          ("bit<" |> text) ++ (Expression.format_t e.expr) ++ (">" |> text)
+          |> box ~indent:2
+        | _ ->
+          ("bit<(" |> text) ++ (Expression.format_t e.expr) ++ (")>" |> text)
+          |> box ~indent:2
+      end
     | VarBit x ->
-      Format.fprintf fmt "@[varbit@ <%a>@]"
-        Expression.format_t x
-    | TypeName (BareName x) ->
-      Format.fprintf fmt "@[%s@]"
-        x.str
-    | TypeName (QualifiedName ([], x)) ->
-      Format.fprintf fmt "@[.%s@]"
-        x.str;
-    | TypeName _ ->
-       failwith "unimplemented"
+      ("varbit" |> text) ++ space ++ ("<" |> text) ++ ( Expression.format_t x.expr) ++
+      (">" |> text) |> box ~indent:2
+    | TypeName x -> name_format_t x.name |> box ~indent:2
+    (* | TypeName (QualifiedName ([], x)) -> *)
+      (* ("." |> text) ++ (x |> snd |> text) |> box ~indent:2 *)
+    (* | TypeName _ -> failwith "unimplemented" *)
     | SpecializedType x ->
-      Format.fprintf fmt "@[%a<%a>@]"
-        format_t x.base
-        (format_list_sep format_t ",") x.args
+      (format_t x.base) ++ ("<" |> text) ++
+      (format_list_sep format_t ", " x.args) ++
+      (">" |> text) |> box~indent:2
     | HeaderStack x ->
-      Format.fprintf fmt "@[%a[%a]@]"
-        format_t x.header
-        Expression.format_t x.size
-    | Tuple x ->
-      Format.fprintf fmt "@[tuple<%a>@]"
-        (format_list_sep format_t ",") x
-    | String -> 
-       Format.fprintf fmt "string"      
-    | Void ->
-      Format.fprintf fmt "void"
-    | DontCare ->
-      Format.fprintf fmt "_"
+      (format_t x.header) ++ ("[" |> text) ++
+      (Expression.format_t x.size) ++ ("]" |> text) |> box ~indent:2
+    | Tuple x -> ("tuple<" |> text) ++ (format_list_sep format_t ", " x.xs) ++
+                 (">" |> text) |> box ~indent:2
+    | String _ -> text "string"
+    | Void _ -> text "void"
+    | DontCare _ -> text "_"
 
-  let format_typ_args fmt l =
-    if List.is_empty l then
-      ()
+  let format_typ_args l =
+    if List.length l = 0 then nop
     else
-      Format.fprintf fmt "<%a>"
-        (format_list_sep format_t ",") l
+      ("<" |> text) ++ (format_list_sep format_t ", " l) ++ (">" |> text)
 
-  let format_type_params fmt l =
-    if List.is_empty l then
-      ()
+  let format_type_params l =
+    if  List.length l = 0 then nop
     else
-      Format.fprintf fmt "<%a>"
-        (format_list_sep P4String.format_t ",") l
+      ("<" |> text) ++ (format_list_sep P4Word.format_t ", " l) ++ (">" |> text)
 end
 
-and KeyValue : sig 
-  val format_t : Format.formatter -> P4.KeyValue.t -> unit
+and KeyValue : sig
+  val format_t : P4.KeyValue.t -> _ Pp.t
 end = struct
   open P4.KeyValue
-  let format_t fmt kv = 
-    match snd kv with 
-    | { key; value } -> 
-       Format.fprintf fmt "%a = %a" 
-         P4String.format_t key 
-         Expression.format_t value 
+  let format_t kv =
+    match kv with
+    | { key; value; _ } ->
+      (P4Word.format_t key) ++ space ++ ("=" |> text) ++ space ++ (Expression.format_t value) |> box ~indent:2
 end
 
 and Annotation : sig
-  val format_t : Format.formatter -> P4.Annotation.t -> unit
-  val format_ts : Format.formatter -> P4.Annotation.t list -> unit
+  val format_t : P4.Annotation.t -> _ Pp.t
+  val format_ts : P4.Annotation.t list -> _ Pp.t
 end = struct
   open P4.Annotation
-  let format_body fmt body = 
-    match snd body with 
-    | Empty -> 
-       ()
-    | Unparsed strings -> 
-       Format.fprintf fmt "(%a)" 
-         (format_list_sep P4String.format_t " ") strings
-    | Expression exprs -> 
-       Format.fprintf fmt "[%a]" 
-         (format_list_sep Expression.format_t ",") exprs
-    | KeyValue kvs -> 
-       Format.fprintf fmt "{%a}" 
-         (format_list_sep KeyValue.format_t ",") kvs
+  let format_body body =
+    match body with
+    | Empty _ -> nop
+    | Unparsed strings ->
+      ("(" |> text) ++ (format_list_sep P4Word.format_t " " strings.str) ++
+      (")" |> text)
+    | Expression exprs ->
+      ("[" |> text) ++ (format_list_sep Expression.format_t ", " exprs.exprs) ++
+      ("]" |> text)
+    | KeyValue kvs ->
+      ("[" |> text) ++ (format_list_sep KeyValue.format_t ", " kvs.k_v) ++
+      ("]" |> text) |> hovbox ~indent:2
 
-  let format_t fmt e =
-    match snd e with 
-    | { name; body } -> 
-       Format.fprintf fmt "@[%@%a%a@]"
-         P4String.format_t name
-         format_body body
-      
-  let format_ts fmt l =
+  let format_t e =
+    match e with
+    | { name; body; _ } ->
+      ("@" |> text) ++ (P4Word.format_t name) ++ (format_body body) |> box
+
+  let format_ts l =
     match l with
-    | [] ->
-      ()
-    | _ :: _ ->
-      (format_list_nl format_t fmt l;
-       Format.fprintf fmt "@\n")
+    | [] -> nop
+    | _ :: _ -> (format_list_nl format_t l) ++ ("\n" |> text)
 end
 
 and Direction : sig
-  val format_t : Format.formatter -> P4.Direction.t -> unit
+  val format_t : P4.Direction.t -> _ Pp.t
 end = struct
   open P4.Direction
-  let format_t fmt e =
-    match snd e with
-    | In -> Format.fprintf fmt "in"
-    | Out -> Format.fprintf fmt "out"
-    | InOut -> Format.fprintf fmt "inout"
+  let format_t e =
+    match e with
+    | In _ -> text "in"
+    | Out _ -> text "out"
+    | InOut _ -> text "inout"
 end
 
 and Parameter : sig
-  val format_t : Format.formatter -> P4.Parameter.t -> unit
-  val format_params : Format.formatter -> P4.Parameter.t list -> unit
-  val format_constructor_params : Format.formatter -> P4.Parameter.t list -> unit
+  val format_t : P4.Parameter.t -> _ Pp.t
+  val format_params : P4.Parameter.t list -> _ Pp.t
+  val format_constructor_params : P4.Parameter.t list -> _ Pp.t
 end = struct
   open P4.Parameter
-  let format_t fmt e =
-    let p = snd e in
-    Annotation.format_ts fmt p.annotations;
-    Format.fprintf fmt "@[%a%s%a %s%a@]"
-      (format_option Direction.format_t) p.direction
-      (match p.direction with None -> "" | Some _ -> " ")
-      Type.format_t p.typ
-      p.variable.str
-      (format_option
-         (fun fmt e ->
-            Format.fprintf fmt "= %a" Expression.format_t e)) p.opt_value
+  let format_dir d =
+    match d with
+    | Some d -> Direction.format_t d ++ space
+    | None -> nop
 
-  let format_params fmt l =
-    Format.fprintf fmt "@[%a@]" (format_list_sep format_t ",") l
+  let format_opt_value v =
+    match v with
+    | Some v -> text "=" ++ space ++ Expression.format_t v
+    | None -> nop
 
-  let format_constructor_params fmt l =
+  let format_t p =
+    hovbox @@
+    Annotation.format_ts p.annotations
+    ++ format_dir p.direction
+    ++ Type.format_t p.typ
+    ++ space
+    ++ P4Word.format_t p.variable
+    ++ format_opt_value p.opt_value
+
+  let format_params l = format_list_pp_sep format_t (text "," ++ space) l
+
+  let format_constructor_params l =
     match l with
-    | [] ->
-      ()
+    | [] -> nop
     | _ :: _ ->
-      Format.fprintf fmt "(@[%a@])"
-        (format_list_sep format_t ",") l
-
+      text "("
+      ++ (box ~indent:2 (format_list_pp_sep format_t (text "," ++ space) l))
+      ++ text ")"
 end
 
 and Match: sig
-  val format_t : Format.formatter -> P4.Match.t -> unit
-  val format_ts : Format.formatter -> P4.Match.t list -> unit
+  val format_t : P4.Match.t -> _ Pp.t
+  val format_ts : P4.Match.t list -> _ Pp.t
 end = struct
   open P4.Match
-  let format_t fmt e =
-    match snd e with
-    | Default ->
-      Format.fprintf fmt "default"
-    | DontCare ->
-      Format.fprintf fmt "_"
-    | Expression { expr } ->
-      Expression.format_t fmt expr
+  let format_t e =
+    match e with
+    | Default _  -> text "default"
+    | DontCare _ -> text "_"
+    | Expression { expr; _ } ->
+      Expression.format_t expr
 
-  let format_ts fmt l =
+  let format_ts  l =
     match l with
-    | [] ->
-      ()
-    | [x] ->
-      format_t fmt x
-    | _ ->
-      Format.fprintf fmt "@[(%a)@]"
-        (format_list_sep format_t ",") l
+    | [] -> nop
+    | [x] -> format_t x
+    | _ -> ("(" |> text) ++ (box (format_list_sep format_t ", " l)) ++
+           (")" |> text) |> box ~indent:2
 end
 
 and Parser : sig
-  val format_state : Format.formatter -> P4.Parser.state -> unit
-  val format_states : Format.formatter -> P4.Parser.state list -> unit
+  val format_state : P4.Parser.state -> _ Pp.t
+  val format_states : P4.Parser.state list -> _ Pp.t
 end = struct
   open P4.Parser
 
-  let format_case fmt e =
-    match snd e with
-    | { matches; next } ->
-      Format.fprintf fmt "%a: %a;"
-        Match.format_ts matches
-        P4String.format_t next
+  let format_case e =
+    match e with
+    | { matches; next; _ } ->
+      (Match.format_ts matches) ++ (":" |> text) ++ space ++
+      (P4Word.format_t next) ++ (";" |> text)
 
-  let format_transition fmt e =
-    match snd e with
-    | Direct { next } ->
-      Format.fprintf fmt "transition %a;"
-        P4String.format_t next
-    | Select { exprs; cases } ->
-      Format.fprintf fmt "@[<4>transition select(%a) {%a@]@\n}"
-        (format_list_sep Expression.format_t ",") exprs
-      (format_list_nl format_case) cases
+  let format_transition e =
+    match e with
+    | Direct { next; _ } ->
+      ("transition" |> text) ++ space ++ (P4Word.format_t next) ++ (";" |> text)
+    | Select { exprs; cases; _ } ->
+      (box ~indent:2
+         (("transition" |> text) ++ space ++ ("select(" |> text) ++
+          (format_list_sep Expression.format_t ", " exprs) ++
+          (")" |> text) ++
+          (begin match cases with
+             | [] -> " {" |> text
+             | _ -> (" {\n" |> text) ++
+                    (format_list_nl format_case cases) end))) ++
+      ("\n}" |> text)
 
-  let format_state fmt e =
-    match snd e with
-    | { annotations; name; statements; transition } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>state %a {@\n%a"
-        P4String.format_t name
-        (format_list_nl Statement.format_t) statements;
-      (match statements with [] -> () | _ :: _ -> Format.fprintf fmt "@\n");
-      Format.fprintf fmt "%a@]@\n}" format_transition transition
+  let format_state e =
+    match e with
+    | { annotations; name; statements; transition; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 (("state" |> text) ++
+                      space ++
+                      (P4Word.format_t name) ++
+                      space ++
+                      ("{\n" |> text) ++
+                      (format_list_nl Statement.format_t statements) ++
+                      (match statements with
+                       | [] -> nop
+                       | _ :: _ -> text "\n") ++
+                      (format_transition transition))) ++
+      ("\n}" |> text)
 
-  let format_states fmt l =
-    format_list_nl format_state fmt l
+  let format_states l =
+    format_list_nl format_state l
 end
 
 and Table : sig
-  val format_property : Format.formatter -> P4.Table.property -> unit
+  val format_property : P4.Table.property -> _ Pp.t
 end = struct
   open P4.Table
 
-  let format_key fmt e = 
-    match snd e with 
-    | { annotations; key; match_kind } -> 
-      Format.fprintf fmt "@[%a@ :@ %a %a;@]"
-        Expression.format_t key
-        P4String.format_t match_kind
-        Annotation.format_ts annotations      
+  let format_key e =
+    match e with
+    | { annotations; key; match_kind; _ } ->
+      box ~indent:2 ((Expression.format_t key) ++ (":" |> text) ++ space ++
+                     (P4Word.format_t match_kind) ++
+                     (Annotation.format_ts annotations) ++ (";" |> text))
 
-  let format_action_ref fmt e =
-    match snd e with
-    | { annotations; name; args = [] } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a@]"
-        name_format_t name
-    | { annotations; name; args } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a(%a)@]"
-        name_format_t name
-        Argument.format_ts args
+  let format_action_ref e =
+    match e with
+    | { annotations; name; args = []; _ } ->
+      (Annotation.format_ts annotations) ++
+      (name |> name_format_t |> box ~indent:2)
+    | { annotations; name; args; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 ((name_format_t name) ++
+                      ("(" |> text) ++ (box (Argument.format_ts args)) ++
+                      (")" |> text)))
 
-  let format_entry fmt e =
-    match snd e with
-    | { annotations; matches; action } ->
-      Format.fprintf fmt "@[%a : %a@]"
-        Match.format_ts matches
-        format_action_ref action;
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt ";"
+  let format_entry e =
+    match e with
+    | { annotations; matches; action; _ } ->
+      (box ~indent:2 ((Match.format_ts matches) ++ (":" |> text) ++
+                      space ++ (format_action_ref action))) ++
+      ((Annotation.format_ts annotations) ++ (";" |> text))
 
-  let format_property fmt e =
-    match snd e with
-    | Key { keys } ->
-      Format.fprintf fmt "@[<4>key = {@\n%a@]@\n}"
-        (format_list_nl format_key) keys
-    | Actions { actions } ->
-      Format.fprintf fmt "@[<4>actions = {@\n%a@]@\n}"
-        (format_list_term format_action_ref ";") actions
-    | Entries { entries } ->
-      Format.fprintf fmt "@[<4>const entries = {@\n%a@]@\n}"
-        (format_list_nl format_entry) entries
-    | Custom { annotations; const; name; value } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%s%a = %a;@]"
-        (if const then "const " else "")
-        P4String.format_t name
-        Expression.format_t value
+  let format_property e =
+    match e with
+    | Key  { keys; _ } ->
+      (box ~indent:2 (("key" |> text) ++ space ++ ("=" |> text) ++ space ++
+                      ("{\n" |> text) ++ (format_list_nl format_key keys))) ++
+      ("\n}" |> text)
+    | Actions { actions; _ } ->
+      (box ~indent:2 (("actions" |> text) ++ space ++ ("=" |> text) ++ space ++
+                      ("{\n" |> text) ++
+                      (format_list_sep format_action_ref ";" actions) ++
+                      (begin match actions with
+                         | [] -> nop
+                         | _ -> ";" |> text end))) ++
+      ("\n}" |> text)
+    | Entries { entries; _ } ->
+      (box ~indent:2 (("const entries" |> text) ++ space ++ ("=" |> text) ++
+                      space ++ ("{\n" |> text) ++
+                      (format_list_nl format_entry entries))) ++
+      ("\n}" |> text)
+    | DefaultAction { tags; action; const } ->
+      (box ~indent:2 (
+          text ((if const then "const " else "") ^ "default_action") ++
+          space ++ ("=" |> text) ++ space ++ format_action_ref action
+          ++ (";\n" |> text)))
+    | Custom { annotations; const; name; value; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 (((if const then "const " else "") |> text) ++
+                      (P4Word.format_t name) ++ space ++ ("=" |> text) ++
+                      space ++ (Expression.format_t value) ++
+                      (";" |> text)))
 end
 
 and MethodPrototype : sig
-  val format_t : Format.formatter -> P4.MethodPrototype.t -> unit
+  val format_t : P4.MethodPrototype.t -> _ Pp.t
 end = struct
   open P4.MethodPrototype
-  let format_t fmt e =
-    match snd e with
-    | Constructor { annotations; name; params } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a(%a);@]"
-        P4String.format_t name
-        Parameter.format_params params
-    | Method { annotations; return; name; type_params; params } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a %a%a(%a);@]"
-        Type.format_t return
-        P4String.format_t name
-        Type.format_type_params type_params
-        Parameter.format_params params
-    | AbstractMethod { annotations; return; name; type_params; params } -> 
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[abstract %a %a%a(%a);@]"
-        Type.format_t return
-        P4String.format_t name
-        Type.format_type_params type_params
-        Parameter.format_params params
+  let format_t e =
+    match e with
+    | Constructor { annotations; name; params; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 ((P4Word.format_t name) ++
+                      ("(" |> text) ++
+                      (hvbox (Parameter.format_params params)) ++
+                      (");" |> text)))
+    | Method { annotations; return; name; type_params; params; _ } ->
+      Annotation.format_ts annotations
+      ++ hbox (Type.format_t return
+               ++ space
+               ++ P4Word.format_t name
+               ++ Type.format_type_params type_params
+               ++ text "(")
+      ++ hvbox (Parameter.format_params params ++ text ");")
+    | AbstractMethod { annotations; return; name; type_params; params; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 (("abstract" |> text) ++ space ++ (Type.format_t return) ++
+                      space ++ (P4Word.format_t name) ++
+                      (Type.format_type_params type_params) ++
+                      (" (" |> text) ++
+                      (hvbox (Parameter.format_params params)) ++
+                      (");" |> text)))
 end
 
-
 and Declaration : sig
-  val format_t : Format.formatter -> P4.Declaration.t -> unit
+  val format_t : P4.Declaration.t -> _ Pp.t
 end = struct
   open P4.Declaration
 
-  let format_field fmt f =
-    match snd f with
-    | { annotations; typ; name } ->
-      Format.fprintf fmt "@[%a@]"
-        Annotation.format_ts annotations;
-      Format.fprintf fmt "@[%a %a;@]"
-        Type.format_t typ
-        P4String.format_t name
+  let format_field f =
+    match f with
+    | { annotations; typ; name; _ } ->
+      (annotations |> Annotation.format_ts |> box) ++
+      ((Type.format_t typ) ++ space ++ (P4Word.format_t name) ++
+                      (";" |> text))
 
-  let format_fields fmt l =
-    match l with
-    | [] ->
-      Format.fprintf fmt "{ }@]"
-    | _ :: _ ->
-      Format.fprintf fmt "{@\n%a@]@\n}"
-        (format_list_nl format_field) l
-
-  let rec format_typ_or_decl fmt td =
+  let format_typ_or_decl td =
     match td with
     | Left(typ) ->
-      Type.format_t fmt typ
+      Type.format_t typ
     | Right(decl) ->
-      format_t fmt decl
+      Declaration.format_t decl
 
-  and format_t fmt e =
-    match snd e with
-    | Constant { annotations; typ; name; value } ->
-      Format.fprintf fmt "@[<4>%aconst %a %s = %a;@]"
+
+  let rec dec_help locals =
+    if not (List.length locals = 0) then
+      (format_list_sep format_t "\n" locals) ++ ("\n" |> text)
+    else nop
+
+  and format_t e =
+    match e with
+    | Constant { annotations; typ; name; value; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 (("const" |> text) ++
+                      space ++ (Type.format_t typ) ++
+                      space ++
+                      (P4Word.format_t name) ++
+                      space ++
+                      ("=" |> text) ++
+                      space ++
+                      (Expression.format_t value) ++
+                      (";" |> text)))
+    | Action { annotations; name; params; body; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2
+         (("action" |> text) ++ space ++ (P4Word.format_t name) ++ ("(" |> text) ++
+          (hvbox (Parameter.format_params params)) ++ (") " |> text) ++
+          (Block.format_t body))) ++ ("\n}" |> text)
+    | Control { annotations; name; type_params; params; constructor_params; locals; apply; _ } ->
+      box ~indent:2 begin
         Annotation.format_ts annotations
-        Type.format_t typ
-        name.str
-        Expression.format_t value
-    | Action { annotations; name; params; body } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>action %s(@[%a@]) %a"
-        name.str
-        Parameter.format_params params
-        Block.format_t body
-    | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>control %s%a(%a)%a {@\n"
-        name.str
-        Type.format_type_params type_params
-        Parameter.format_params params
-        Parameter.format_constructor_params constructor_params;
-      if not (List.is_empty locals) then 
-        Format.fprintf fmt "%a@\n" (format_list_nl format_t) locals;
-      Format.fprintf fmt "@[<4>apply %a" Block.format_t apply;
-      Format.fprintf fmt "@]@\n}"
-    | Parser { annotations; name; type_params; params; constructor_params; locals; states } ->
-      Format.fprintf fmt "@[%a" Annotation.format_ts annotations;
-      Format.fprintf fmt "@[<4>parser %s%a(%a)%a {@\n"
-        name.str
-        Type.format_type_params type_params
-        Parameter.format_params params
-        Parameter.format_constructor_params constructor_params;
-      if not (List.is_empty locals) then 
-        Format.fprintf fmt "%a@\n" (format_list_nl format_t) locals;
-      Parser.format_states fmt states;
-      Format.fprintf fmt "@]@\n}"
-    | Instantiation { annotations; typ; args; name; init=None } -> 
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a(%a) %a;@]"
-        Type.format_t typ
-        Argument.format_ts args
-        P4String.format_t name
-    | Instantiation { annotations; typ; args; name; init=Some block } -> 
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>%a(%a) %a = %a;"
-        Type.format_t typ
-        Argument.format_ts args
-        P4String.format_t name
-        Block.format_t block
-    | Table { annotations; name; properties } -> 
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>table %a {@\n%a@]@\n}"
-        P4String.format_t name
-        (format_list_nl Table.format_property) properties
-    | Variable { annotations; typ; name; init = None } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a %a;@]"
-        Type.format_t typ
-        P4String.format_t name
-    | Variable { annotations; typ; name; init = Some sinit } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>%a %a = %a;@]"
-        Type.format_t typ
-        P4String.format_t name
-        Expression.format_t sinit;
-    | ExternFunction { annotations; return; name; type_params; params } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[extern %a %a%a(%a);@]"
-        Type.format_t return
-        P4String.format_t name
-        Type.format_type_params type_params
-        Parameter.format_params params
-    | Function { return; name; type_params; params; body } ->
-      Format.fprintf fmt "@[<4>%a %a%a(%a) %a"
-        Type.format_t return
-        P4String.format_t name
-        Type.format_type_params type_params
-        Parameter.format_params params
-        Block.format_t body
-    | ValueSet { annotations; typ; size; name } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[value_set<%a>(%a) %a;@]"
-        Type.format_t typ
-        Expression.format_t size
-        P4String.format_t name
-    | TypeDef { annotations; name; typ_or_decl } ->
-      Format.fprintf fmt "@[%atypedef %a %s;@]"
+        ++ hbox (text "control"
+                 ++ space
+                 ++ P4Word.format_t name
+                 ++ Type.format_type_params type_params
+                 ++ text "(")
+        ++ box (Parameter.format_params params)
+        ++ text ")"
+        ++ Parameter.format_constructor_params constructor_params
+        ++ verbatim " {"
+        ++ newline
+        ++ dec_help locals
+        ++ box ~indent: 2 (text "apply " ++ Block.format_t apply)
+        ++ text "\n}"
+      end
+      ++ text "\n}"
+    | Parser { annotations; name; type_params; params; constructor_params; locals; states; _ } ->
+      box ~indent:2 begin
         Annotation.format_ts annotations
-        format_typ_or_decl typ_or_decl
-        name.str
-    | ControlType { annotations; name; type_params; params } ->
-      Format.fprintf fmt "@[<4>%acontrol %s%a@,(@[%a@]);@]"
-        Annotation.format_ts annotations
-        name.str
-        Type.format_type_params type_params
-        (format_list_sep Parameter.format_t ",") params
-    | ParserType { annotations; name; type_params; params } ->
-      Format.fprintf fmt "@[<4>%aparser %s%a@,(@[%a@]);@]"
-        Annotation.format_ts annotations
-        name.str
-        Type.format_type_params type_params
-        (format_list_sep Parameter.format_t ",") params
-    | PackageType { annotations; name; type_params; params } ->
-      Format.fprintf fmt "@[<4>%apackage %s%a@,(@[%a@]);@]"
-        Annotation.format_ts annotations
-        name.str
-        Type.format_type_params type_params
-        (format_list_sep Parameter.format_t ",") params
-    | Struct { annotations; name; fields } ->
-        Format.fprintf fmt "@[%a@]"
-          Annotation.format_ts annotations;
-        Format.fprintf fmt "@[<4>struct %a %a"
-          P4String.format_t name
-          format_fields fields
-    | MatchKind { members=[] } ->
-      Format.fprintf fmt "@[<4>match_kind { }@]";
-    | MatchKind { members } ->
-      Format.fprintf fmt "@[<4>match_kind {@\n%a@]@\n}"
-        (format_list_sep_nl P4String.format_t ",") members
-    | Error { members=[] } ->
-      Format.fprintf fmt "@[<4>error { }@]";
-    | Error { members } ->
-      Format.fprintf fmt "@[<4>error {@\n%a@]@\n}"
-        (format_list_sep_nl P4String.format_t ",") members
-    | Enum { annotations; name; members=[] } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>enum %a { }@]"
-        P4String.format_t name
-    | Enum { annotations; name; members } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>enum %a {@\n%a@]@\n}"
-        P4String.format_t name
-        (format_list_sep_nl P4String.format_t ",") members
-    | SerializableEnum { annotations; typ; name; members=[] } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>enum %a %a { }@]"
-        Type.format_t typ
-        P4String.format_t name
-    | SerializableEnum { annotations; typ; name; members } ->
-      let format_member fmt (field,init) =
-        Format.fprintf fmt "%a = %a"
-          P4String.format_t field
-          Expression.format_t init in
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>enum %a %a {@\n%a@]@\n}"
-        Type.format_t typ
-        P4String.format_t name
-        (format_list_sep_nl format_member ",") members
-    | ExternObject { annotations; name; type_params; methods = [] } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[extern %a%a { }@]"
-        P4String.format_t name
-        Type.format_type_params type_params
-    | ExternObject { annotations; name; type_params; methods } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>extern %a%a {@\n"
-        P4String.format_t name
-        Type.format_type_params type_params;
-      format_list_nl MethodPrototype.format_t fmt methods;
-      Format.fprintf fmt "@]@\n}"
-    | Header { annotations; name; fields } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>header %a %a"
-        P4String.format_t name
-        format_fields fields
-    | HeaderUnion { annotations; name; fields } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>header_union %a %a"
-        P4String.format_t name
-        format_fields fields
-    | NewType { annotations; name; typ_or_decl } ->
-      Format.fprintf fmt "@[%atype %a %s;@]"
-        Annotation.format_ts annotations
-        format_typ_or_decl typ_or_decl
-        name.str
+        ++ hbox (text "parser"
+                 ++ space
+                 ++ P4Word.format_t name
+                 ++ Type.format_type_params type_params
+                 ++ text "(")
+        ++ box (Parameter.format_params params)
+        ++ text ")"
+        ++ Parameter.format_constructor_params constructor_params
+        ++ verbatim " {"
+        ++ newline
+        ++ dec_help locals
+        ++ Parser.format_states states
+      end
+      ++ text "\n}"
+    | Instantiation { annotations; typ; args; name; init=None; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 ((Type.format_t typ) ++
+                      ("(" |> text) ++
+                      (box (Argument.format_ts args)) ++
+                      (")" |> text) ++
+                      space  ++
+                      (P4Word.format_t name) ++
+                      (";" |> text)))
+    | Instantiation { annotations; typ; args; name; init=Some block; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent: 2
+         (Type.format_t typ) ++
+       ("(" |> text) ++
+       (box (Argument.format_ts args))  ++
+       (")" |> text) ++
+       space ++
+       (P4Word.format_t name) ++
+       space ++
+       ("= " |> text) ++
+       (Block.format_t block)) ++
+      ("\n};" |> text)
+    | Table { annotations; name; properties; _ } ->
+      (box ~indent:2 ((Annotation.format_ts annotations) ++
+                      ("table" |> text) ++
+                      space  ++
+                      (P4Word.format_t name) ++
+                      (" {\n" |> text) ++
+                      (format_list_nl Table.format_property properties))) ++
+      ("\n}" |> text)
+    | Variable { annotations; typ; name; init = None; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 ( (Type.format_t typ) ++
+                       space ++ (P4Word.format_t name) ++
+                       (";" |> text)))
+    | Variable { annotations; typ; name; init = Some sinit; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 ((Type.format_t typ) ++
+                      space  ++
+                      (P4Word.format_t name) ++
+                      space  ++
+                      ("=" |> text) ++
+                      space ++ (Expression.format_t sinit) ++
+                      (";" |> text)))
+    | ExternFunction { annotations; return; name; type_params; params; _ } ->
+      Annotation.format_ts annotations
+      ++ hbox (text "extern"
+               ++ space
+               ++ Type.format_t return
+               ++ space
+               ++ P4Word.format_t name
+               ++ Type.format_type_params type_params
+               ++ text "(")
+      ++ box (Parameter.format_params params ++ text ");")
+    | Function { return; name; type_params; params; body; _ } ->
+      (box ~indent:2 ((Type.format_t return) ++
+                      space  ++
+                      (P4Word.format_t name) ++
+                      (Type.format_type_params type_params) ++
+                      (" (" |> text) ++
+                      (hvbox (Parameter.format_params params)) ++
+                      (") " |> text) ++
+                      (Block.format_t body))) ++
+      ("\n}" |> text)
+    | ValueSet { annotations; typ; size; name; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 (("value_set<" |> text) ++ (Type.format_t typ) ++
+                      (">(" |> text) ++ (box (Expression.format_t size)) ++
+                      (")" |> text) ++ space ++ (P4Word.format_t name) ++
+                      (";" |> text)))
+    | TypeDef { annotations; name; typ_or_decl; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 (("typedef" |> text) ++
+                      space ++ (format_typ_or_decl typ_or_decl) ++ space ++
+                      (P4Word.format_t name) ++ (";" |> text)))
+    | ControlType { annotations; name; type_params; params; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 (("control" |> text) ++ space ++ (P4Word.format_t name) ++
+                      (Type.format_type_params type_params) ++
+                      (" (" |> text) ++
+                      (hvbox (format_list_sep Parameter.format_t ", " params)) ++
+                      (");" |> text)))
+    | ParserType { annotations; name; type_params; params; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2
+         (("parser" |> text) ++ space ++ (P4Word.format_t name) ++
+          (Type.format_type_params type_params) ++ (" (" |> text) ++
+          (hvbox (format_list_sep Parameter.format_t ", " params)) ++
+          (");" |> text)))
+    | PackageType { annotations; name; type_params; params; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2
+         (("package" |> text) ++
+          space ++
+          (P4Word.format_t name) ++
+          (Type.format_type_params type_params) ++
+          (" (" |> text) ++
+          (hvbox (format_list_sep Parameter.format_t ", " params)) ++
+          (");" |> text)))
+    | Struct { annotations; name; fields; _ } ->
+      Annotation.format_ts annotations
+      ++ box ~indent:2 (text "struct "
+                        ++ P4Word.format_t name
+                        ++ text " {" ++ newline
+                        ++ format_list_nl format_field fields)
+      ++ text "\n}"
+    | MatchKind { members=[]; _ } ->
+      "match_kind {\n}" |> text |> box
+    | MatchKind { members; _ } ->
+      (box ~indent:2 (("match_kind" |> text) ++ space ++ ("{\n" |> text) ++
+                      (format_list_sep P4Word.format_t ", " members))) ++
+      ("\n}" |> text)
+    | Error { members=[]; _ } ->
+      box ("error {\n}" |> text)
+    | Error { members; _ } ->
+      (box ~indent:2 (("error {" |> verbatim) ++
+                      newline ++
+                      (format_list_sep P4Word.format_t ", " members))) ++
+      ("\n}" |> text)
+    | Enum { annotations; name; members=[]; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 (("enum" |> text) ++ space ++  (P4Word.format_t name) ++
+                      space ++ ("{\n}" |> text)))
+    | Enum { annotations; name; members; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2
+         (("enum" |> text) ++ space ++ (P4Word.format_t name) ++ space ++
+          ("{\n" |> text) ++ (format_list_sep P4Word.format_t ", \n" members))) ++
+      ("\n}" |> text)
+    | SerializableEnum { annotations; typ; name; members=[]; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2 (("enum" |> text) ++
+                      space  ++ (Type.format_t typ) ++ space ++ (P4Word.format_t name) ++
+                      space  ++ ("{" |> text) ++ newline  ++ ("}" |> text)))
+    | SerializableEnum { annotations; typ; name; members; _ } ->
+      let format_member (field,init) =
+        (P4Word.format_t field) ++ space ++ ("=" |> text) ++ space ++
+        (Expression.format_t init) in
+      (Annotation.format_ts annotations) ++
+      (box ~indent: 2
+         (("enum" |> text) ++ space ++ (Type.format_t typ) ++
+          space ++ (P4Word.format_t name) ++ (" {\n" |> text) ++
+          (format_list_sep format_member ", \n" members))) ++
+      ("\n}" |> text)
+    | ExternObject { annotations; name; type_params; methods = []; _ } ->
+      (Annotation.format_ts annotations) ++
+      (box ~indent:2
+         (("extern" |> text) ++
+          space  ++
+          (P4Word.format_t name) ++
+          space  ++
+          (Type.format_type_params type_params) ++
+          space  ++
+          ("{" |> text) ++
+          newline  ++
+          ("}" |> text)))
+    | ExternObject { annotations; name; type_params; methods; _ } ->
+      seq (seq (Annotation.format_ts annotations)
+             (box ~indent:2
+                (seq (hvbox ~indent:2 ((seq ("extern" |> text)
+                                          (seq space
+                                             (seq (P4Word.format_t name)
+                                                (seq (Type.format_type_params type_params)
+                                                   (" {\n" |> text)))))))
+                   (format_list_nl MethodPrototype.format_t methods))))
+        ("\n}\n" |> text)
+    | Header { annotations; name; fields; _ } ->
+      Annotation.format_ts annotations
+      ++ box ~indent:2 (text "header "
+                        ++ P4Word.format_t name
+                        ++ text " {" ++ newline
+                        ++ format_list_nl format_field fields)
+      ++ text "\n}"
+    | HeaderUnion { annotations; name; fields; _ } ->
+      Annotation.format_ts annotations
+      ++ box ~indent:2 (text "header_union "
+                        ++ P4Word.format_t name
+                        ++ text " {" ++ newline
+                        ++ format_list_nl format_field fields)
+      ++ text "\n}"
+    | NewType { annotations; name; typ_or_decl; _ } ->
+      box ~indent:2 ((Annotation.format_ts annotations) ++
+                     ("type" |> text) ++
+                     space  ++
+                     (format_typ_or_decl typ_or_decl) ++
+                     space  ++
+                     (P4Word.format_t name) ++
+                     (";" |> text))
 end
 
-let format_program fmt p =
+let format_program p =
   match p with
-  | P4.P4lightram(ds) ->
-    Format.fprintf fmt "@[%a@\n@]"
-      (format_list_nl Declaration.format_t) ds
+  | P4.Program(ds) ->
+    box ((format_list_nl Declaration.format_t ds) ++
+         ("\n" |> text))
+

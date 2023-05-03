@@ -21,6 +21,7 @@ open Base
 exception ParsingError of string
 
 let hash = Hashtbl.create(module String)
+let input_name = "input.p4"
 
 module HashFS = struct
   let exists path =
@@ -33,24 +34,24 @@ end
 
 module Pp = P4pp.Eval.Make(HashFS)
 
-module Conf: Parse_config = struct
+module WebIO : DriverIO = struct
   let red s = s
   let green s = s
 
   let preprocess _ p4_file_contents =
-    let file ="input.p4" in
-    let env = P4pp.Eval.empty file ["/include"] [] in
-    let str,_ = Pp.preprocess env file p4_file_contents in
+    let env = P4pp.Eval.empty input_name ["/include"] [] in
+    let str, _ = Pp.preprocess env input_name p4_file_contents in
     str
+
+  let open_file f = failwith "unimplemented"
+  let close_file f = failwith "unimplemented"
 end
 
-module Parse = Make_parse(Conf)
-open Parse
+module WebDriver = MakeDriver(WebIO)
 
 let eval verbose packet_str add ctrl_str p4_contents =
-  let ctrl_json = Yojson.Safe.from_string ctrl_str in
-  eval_file_string [] p4_contents verbose packet_str ctrl_json 0 "v1"
-  (* stp: the return type of this function has changed; not sure if that breaks anything *)
+  failwith "eval unimplemented"
+
 let _ =
   Js.export "Petr4"
     (object%js

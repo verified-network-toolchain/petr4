@@ -11,6 +11,8 @@ let print_bool p b =
     | false -> "false"
   in fprintf p "%s" s
 
+let my_print_int p z = fprintf p "%s" (Int.to_string z)
+
 let print_bigint p n =
   fprintf p "%s" (Bignum.to_string_accurate (Bignum.of_bigint n))
 
@@ -25,10 +27,8 @@ let print_uop p u =
   | Expr.BitNot -> "BitNot"
   | Expr.UMinus -> "UMinus"
   | Expr.IsValid -> "IsValid"
-  | Expr.SetValid -> "SetValid"
-  | Expr.SetInValid -> "SetInValid"
-  | Expr.NextIndex -> "NextIndex"
-  | Expr.Size -> "Size"
+  | Expr.SetValidity true -> "SetValid"
+  | Expr.SetValidity false -> "SetInValid"
   in
 fprintf p "%s" s
 
@@ -57,23 +57,11 @@ let print_bop p b =
   in
   fprintf p "%s" s
 
-let print_matchkind p m = 
-  let s = 
-  match m with
-  | Expr.MKExact -> "MKExact"
-  | Expr.MKTernary -> "MKTernary"
-  | Expr.MKLpm -> "MKLpm"
-  in
-fprintf p "%s" s
-
 let print_paramarg printa printb p (ab : ('a,'b) paramarg) = 
   match ab with
   | PAIn a -> fprintf p "PAIn <%a>" printa a
   | PAOut b -> fprintf p "PAOut <%a>" printb b
   | PAInOut b -> fprintf p "PAInOut <%a>" printb b
-  | PADirLess a -> fprintf p "PADirLess <%a>" printa a
-
-
 
 let print_list ?(sep="") f p l =
   let print_item b x =
@@ -85,28 +73,28 @@ let print_list ?(sep="") f p l =
 let print_string p s =
   fprintf p "%s" s
 
-let print_field print1 print2 p (f: ('a, 'b) F.f)  = 
+let print_field print1 print2 p (f: 'a * 'b) = 
   fprintf p "@[%a = %a@]" 
     print1 (fst f)
     print2 (snd f)
 
-let print_fields print1 print2 p (f : ('a, 'b) F.fs) = 
+let print_fields print1 print2 p (f : ('a * 'b) list) =
    if (List.length f <> 0) then
     fprintf p "<%a>" (print_list ~sep:"," (print_field print1 print2)) f
   else ()
 
 
-let print_arrow printk printa printb printr p (ar: ('k,'a,'b,'r) arrow) =
+let print_arrow printk printa printb p (ar: ('k,'a,'b) arrow) =
   fprintf p "@[paramargs: <%a>, rtrns: <%a>@]"
     (print_fields printk (print_paramarg printa printb)) ar.paramargs
-    (print_option printr) ar.rtrns 
+    (print_option printb) ar.rtrns 
 
 
-let print_string_string_field p (f: (string, string) F.f) =
-  print_field print_string print_string p f 
+let print_string_string_field =
+  print_field print_string print_string
 
 
-let print_string_string_fields p (f: (string, string) F.fs ) =
+let print_string_string_fields p (f: (string * string) list) =
   if (List.length f <> 0) then
     fprintf p "<%a>" (print_list ~sep:"," print_string_string_field) f
   else ()  
@@ -115,327 +103,284 @@ let print_string_string_fields p (f: (string, string) F.fs ) =
 
 
 let rec print_type p (t:Expr.t) = 
-  match t with 
+  match t with
   | Expr.TBool -> fprintf p "%s" "TBool"
   | Expr.TBit i -> fprintf p "TBit: @[%a@]" print_bigint i 
-  | Expr.TInt i -> fprintf p "TInt: @[%a@]" print_bigint i 
+  | Expr.TInt i -> fprintf p "TInt: @[%a@]" print_bigint i
+  | Expr.TVarBit i -> fprintf p "TVarBit: @[%a@]" print_bigint i 
   | Expr.TError -> fprintf p "%s" "TError" 
-  | Expr.TTuple lt -> fprintf p "TTuple <%a>" (print_list ~sep:"*" print_type) lt
-  | Expr.TStruct ts -> fprintf p "TStruct <%a>" (print_fields print_string print_type) ts  
-  | Expr.THeader th -> fprintf p "THeader <%a>" (print_fields print_string print_type) th  
-  | Expr.THeaderStack (ths, l) -> fprintf p "THeaderStack <%a> [%a]" 
-                                  (print_fields print_string print_type) ths
+  | Expr.TStruct (false,lt) -> fprintf p "TStruct <%a>" (print_list ~sep:"*" print_type) lt
+  | Expr.TStruct (true,lt) -> fprintf p "THeader <%a>" (print_list ~sep:"*" print_type) lt
+  | Expr.TArray (l, t) -> fprintf p "THeaderStack <%a> [%a]" 
+                                  print_type t
                                   print_bigint l  
-
-  | Expr.TVar n -> fprintf p "Tvar %s" n 
+  | Expr.TVar n -> fprintf p "TVar <%a>" my_print_int n
 
 let print_params p (pa: Expr.params) = 
   print_fields print_string (print_paramarg print_type print_type) p pa
 
-let print_arrowT = print_arrow print_string print_type print_type print_type
+let print_arrowT = print_arrow print_string print_type print_type
 
-let rec print_ct p (c: Expr.ct) = 
-  match c with
-  | Expr.CTType typ -> fprintf p "CTType <%a>" print_type typ
-  | Expr.CTControl (fs1, fs2, pa) ->
-    fprintf p "CTControl <%a> <extern: %a> (%a)"
-      (print_fields print_string print_ct) fs1 
-      (print_fields print_string print_string) fs2
+let print_ct p = 
+  function
+  | TopDecl.ControlInstType (fs, pa) ->
+    fprintf p "CTControl <extern: %a> (%a)"
+      (print_list print_string) fs
       print_params pa
-  | Expr.CTParser (fs1, fs2, pa) ->
-    fprintf p "CTParser <%a> <extern: %a> (%a)"
-      (print_fields print_string print_ct) fs1 
-      (print_fields print_string print_string) fs2
+  | TopDecl.ParserInstType (fs, pa) ->
+    fprintf p "CTParser <extern: %a> (%a)"
+      (print_list print_string) fs
       print_params pa
-  | Expr.CTPackage fs -> 
-    fprintf p "CTPackage <%a>"
-      (print_fields print_string print_ct) fs 
-  | Expr.CTExtern s ->
+  | TopDecl.PackageInstType  -> 
+    fprintf p "CTPackage"
+  | TopDecl.ExternInstType s ->
     fprintf p "CTExtern %a"
       print_string s
 
 let print_constructor_params = 
   print_fields print_string print_ct
 
-let rec print_expr p (e: 'a Expr.e) = 
-  match e with 
-  | Expr.EBool (b, _) -> fprintf p "EBool %a" print_bool b
-  | Expr.EBit (w, i, _) -> fprintf p "EBit <%a> %a" print_bigint w print_bigint i
-  | Expr.EInt (w, i, _) -> fprintf p "EInt <%a> %a" print_bigint w print_bigint i
-  | Expr.EVar (typ, x, _) -> fprintf p "EVar : <%a> %a" print_type typ print_string x
-  | Expr.ESlice (e', l, r , _) -> fprintf p "ESlice : <%a>[%a : %a]"
-                                print_expr e'
+let rec print_expr p =
+  function
+  | Expr.Bool b -> fprintf p "EBool %a" print_bool b
+  | Expr.Bit (w, i) -> fprintf p "EBit <%a> %a" print_bigint w print_bigint i
+  | Expr.Int (w, i) -> fprintf p "EInt <%a> %a" print_bigint w print_bigint i
+  | Expr.VarBit (mw, w, i) -> fprintf p "EVarBit <%a> %a %a" print_bigint mw  print_bigint w print_bigint i
+  | Expr.Var (typ, x, n) ->
+    fprintf p "EVar : <%a> %a %a" print_type typ print_string x
+    my_print_int n
+  | Expr.Slice (l, r , e) -> fprintf p "ESlice : <%a>[%a : %a]"
+                                print_expr e
                                 print_bigint l
                                 print_bigint r
 
-  | Expr.ECast (typ, e', _) -> fprintf p "ECast <%a> %a" 
+  | Expr.Cast (typ, e') -> fprintf p "ECast <%a> %a" 
                                 print_type typ
                                 print_expr e'
-  | Expr.EUop (typ, u, e', _) -> fprintf p "EUop <%a> %a @[%a @]"
+  | Expr.Uop (typ, u, e') -> fprintf p "EUop <%a> %a @[%a @]"
                                   print_type typ
                                   print_uop u
                                   print_expr e'
 
-  | Expr.EBop (typ, b, e1, e2, _) -> 
+  | Expr.Bop (typ, b, e1, e2) -> 
         fprintf p "EBop <%a> %a (@[%a@] @[%a@])"
         print_type typ
         print_bop b
         print_expr e1 
         print_expr e2
   
-  | Expr.ETuple (el,_) -> 
-        fprintf p "ETuple @[%a@]"
-        (print_list ~sep:"," (print_expr)) el 
-  
-  | Expr.EStruct (fs,_) ->
+  | Expr.Lists (Expr.Coq_lists_struct,fs) ->
         fprintf p "EStruct @[%a@]"
-        (print_fields print_string print_expr) fs
-  | Expr.EHeader (fs, e, _) ->
-        fprintf p "EStruct <Valid: %a> @[%a@]"
-        print_expr e
-        (print_fields print_string print_expr) fs
-  | Expr.EExprMember (typ, m, a, _) ->
-        fprintf p "EExprMember <%a> @[%a@].%a"
+        (print_list ~sep:"," print_expr) fs
+  | Expr.Lists (Expr.Coq_lists_header b, fs) ->
+        fprintf p "EHeader <Valid: %a> @[%a@]"
+        print_bool b
+        (print_list ~sep:"," print_expr) fs
+  | Expr.Member (typ, m, a) ->
+        fprintf p "EMember <%a> @[%a@].%a"
         print_type typ
         print_expr a 
-        print_string m
-  | Expr.EError (err, _) ->
-        fprintf p "ExprError @[%a@]"
-        (print_option print_string) err
-  | Expr.EHeaderStack (fs, el, i, _) ->
-        fprintf p "EHeaderStack <%a>[%a] @[%a@]"
-        (print_fields print_string print_type) fs
-        print_bigint i
+        my_print_int m
+  | Expr.Error err ->
+        fprintf p "Error @[%a@]"
+        print_string err
+  | Expr.Lists (Expr.Coq_lists_array t, el) ->
+        fprintf p "EArray <%a> @[%a@]"
+        print_type t
         (print_list ~sep:"," (print_expr)) el 
-  | Expr.EHeaderStackAccess (fs, e, i, _) ->
-        fprintf p "EHeaderStackAcces <%a> @[%a.@[%a@] @]"
-        (print_fields print_string print_type) fs
-        (print_expr) e
-        print_bigint i
+  | Expr.Index (t, e1, e2) ->
+        fprintf p "EIndex <%a> @[%a.@[%a@] @]"
+        print_type t
+        print_expr e1
+        print_expr e2
 
 
-let print_args p (a : 'a Expr.args) = 
-  (print_fields print_string (print_paramarg print_expr print_expr)) p a
-let print_arrowE p (a : 'a Expr.arrowE) = 
-  (print_arrow print_string print_expr print_expr print_expr) p a
+let print_args p (a : Expr.args) =
+  (print_list ~sep:"," (print_paramarg print_expr print_expr)) p a
 
-let print_constructor_arg p (c: 'a Expr.constructor_arg)=
-    match c with 
-    | CAExpr e -> fprintf p "CAExpr @[%a@]" print_expr e 
-    | CAName s -> fprintf p "CAName @[%a@]" print_string s
-
-let print_constructor_args p (c : 'a Expr.constructor_args) = 
-  (print_fields print_string print_constructor_arg) p c
-
-let print_hsop p (h : Stmt.hsop) = 
-  match h with 
-  | Stmt.HSPush -> fprintf p "HSPush"
-  | Stmt.HSPop -> fprintf p "HSPop"
+let print_constructor_args p (c : TopDecl.constructor_args) =
+  (print_list ~sep:"," print_string) p c
 
 let print_sum print1 print2 p (s: ('a,'b) Poulet4.Datatypes.sum) = 
   match s with 
   | Poulet4.Datatypes.Coq_inl a -> print1 p a
   | Poulet4.Datatypes.Coq_inr b -> print2 p b
 
-let rec print_stmt p (s: 'a Stmt.s) =
+let print_parser_state_label p (s: Parser.state_label) = 
   match s with
-  | Stmt.SSkip (_) -> fprintf p "SSkip"
-  | Stmt.SVardecl (s, sum, _) -> 
-    fprintf p "SVardecl @[Name: %a@] @[Init: %a@])"
-    print_string s
+  | Parser.Start -> fprintf p "%s" "(STStart)"
+  | Parser.Accept -> fprintf p "%s" "(STAccept)"
+  | Parser.Reject -> fprintf p "%s" "(STReject)"
+  | Parser.Name name -> fprintf p "(STName %a)" my_print_int name
+
+let rec print_pat p (pat: Parser.pat) = 
+  match pat with
+  | Parser.Wild -> fprintf p "Wild"
+  | Parser.Mask (p1,p2) -> 
+      fprintf p "Mask(%a, %a)"
+      print_pat p1
+      print_pat p2
+  | Parser.Range (p1,p2) ->
+      fprintf p "Range(%a, %a)"
+      print_pat p1
+      print_pat p2
+  | Parser.Bit (w,v) ->
+      fprintf p "Bit<%a> (%a)"
+      print_bigint w
+      print_bigint v
+  | Parser.Int (w,v) ->
+      fprintf p "Int<%a> (%a)"
+      print_bigint w
+      print_bigint v
+  | Parser.Lists pl ->
+      fprintf p "Tuple@[%a@]"
+      (print_list print_pat) pl
+
+
+let print_parser_expr p (e: Parser.trns) = 
+  match e with 
+  | Parser.Direct s -> fprintf p "PGoto (%a)" print_parser_state_label s
+  | Parser.Select (e, st, fs) -> 
+    fprintf p "PSelect (discriminate := %a, default := %a, cases = %a) "
+    print_expr e
+    print_parser_state_label st
+    (print_fields print_pat print_parser_state_label) fs
+
+let rec print_stmt p =
+  function
+  | Stmt.Transition t ->
+    fprintf p "Transition %a" print_parser_expr t
+  | Stmt.Skip -> fprintf p "SSkip"
+  | Stmt.Var (x, sum, s) -> 
+    fprintf p "SVardecl @[Name: %a@] @[Init: %a@]) %a@"
+    print_string x
     (print_sum print_type print_expr) sum
-  | Stmt.SAssign (e1, e2, _) ->
+    print_stmt s
+  | Stmt.Assign (e1, e2) ->
     fprintf p "SAssign @[%a := %a@]"
     print_expr e1
     print_expr e2
-  | Stmt.SConditional (e,s1,s2,_) ->
+  | Stmt.Conditional (e,s1,s2) ->
     fprintf p "SConditional @[if (%a) then (%a) else (%a)@]" 
     print_expr e
     print_stmt s1
     print_stmt s2
-  | Stmt.SSeq (s1,s2,_) -> 
+  | Stmt.Seq (s1,s2) ->
     fprintf p "SSeq @[%a \n %a@]"
     print_stmt s1 
     print_stmt s2
-  | Stmt.SBlock (s) -> 
-    fprintf p "SBlock %a"
-    print_stmt s
-  | Stmt.SExternMethodCall (name, meth, tl, arr, _) ->
-    fprintf p "SExternMethodCall %s.%s <%a>(%a)"
-    name 
+  | Stmt.Call (Stmt.Method (name, meth, tl, e), args) ->
+    fprintf p "SExternMethodCall %s.%s <%a>(%a) %a"
+    name
     meth
     ((print_list ~sep:"," print_type)) tl
-    print_arrowE arr
+    print_args args
+    (print_option print_expr) e
   
-  | Stmt.SFunCall (s, tl, arr, _) ->
-    fprintf p "SFunCall %s<%a>(%a) "
+  | Stmt.Call (Stmt.Funct (s, tl, e), args) ->
+    fprintf p "SFunCall %s<%a>(%a) %a"
     s
     ((print_list ~sep:"," print_type)) tl
-    print_arrowE arr
-  
-  | Stmt.SActCall (s, args, _) ->
-    fprintf p "SActCall %s(%a)"
-    s
     print_args args
+    (print_option print_expr) e
+  
+  | Stmt.Call (Stmt.Action (s, ctrl_args), data_args) ->
+    fprintf p "SActCall %s(%a)(%a)"
+    s
+    (print_list ~sep:"," print_expr) ctrl_args
+    print_args data_args
 
-  | Stmt.SReturn (eo, _) ->
+  | Stmt.Return eo ->
     fprintf p "SReturn %a"
     (print_option print_expr) eo
 
-  | Stmt.SExit _ ->
+  | Stmt.Exit ->
     fprintf p "SExit"
 
-  | Stmt.SInvoke (s, _) ->
-    fprintf p "SInvoke %s" s  
+  | Stmt.Invoke (eo, s) ->
+    fprintf p "SInvoke %a %s" (print_option print_expr) eo s
 
-  | Stmt.SApply (s, fs, arg, _) ->
+  | Stmt.Apply (s, fs, arg) ->
     fprintf p "SApply @[%s, Ext_args = %a, args = %a@]"
     s
-    print_string_string_fields fs
+    (print_list ~sep:"," print_string) fs
     print_args arg
 
-  | Stmt.SHeaderStackOp (s, t, h, i, _) ->
-    fprintf p "SHeaderStackOp %s<%a>.%a(%a)"
+let print_control_d p (d : Control.d) =
+  match d with
+  | Control.Var (x,te) ->
+    fprintf p "CDVardecl @[Name: %a@] @[Init: %a@])"
+    print_string x
+    (print_sum print_type print_expr) te
+  | Control.Action (s, ctrl_params, data_params, st) ->
+    fprintf p "CDAction %s(%a)(%a){%a}"
     s
-    print_type t
-    print_hsop h 
-    print_bigint i
+    (print_fields print_string print_type) ctrl_params
+    print_params data_params
+    print_stmt st
+  | Control.Table (s, key, ss, def) ->
+    fprintf p "CDTable %s (%a) %a %a"
+    s
+    (print_fields print_expr print_string) key
+    (print_fields print_string print_args) ss
+    (print_option (fun p (a, es) -> fprintf p "(%s , %a)" a (print_list print_expr) es)) def
 
-  | Stmt.SSetValidity (hdr, valid, _) ->
-    fprintf p "SSetValidity %a := %a"
-    print_expr hdr
-    print_bool valid
- 
-
-let print_parser_state p (s: Parser.state) = 
-  match s with 
-  | Parser.STStart -> fprintf p "%s" "(STStart)"
-  | Parser.STAccept -> fprintf p "%s" "(STAccept)"
-  | Parser.STReject -> fprintf p "%s" "(STReject)"
-  | Parser.STName (name) -> fprintf p "(STName %s)" name
-
-let rec print_pat p (pat: Parser.pat) = 
-  match pat with
-  | Parser.PATWild -> fprintf p "PATWild"
-  | Parser.PATMask (p1,p2) -> 
-      fprintf p "PATMask(%a, %a)"
-      print_pat p1
-      print_pat p2
-  | Parser.PATRange (p1,p2) ->
-      fprintf p "PATRange(%a, %a)"
-      print_pat p1
-      print_pat p2
-  | Parser.PATBit (w,v) ->
-      fprintf p "PATBit<%a> (%a)"
-      print_bigint w
-      print_bigint v
-  | Parser.PATInt (w,v) ->
-      fprintf p "PATInt<%a> (%a)"
-      print_bigint w
-      print_bigint v
-  | Parser.PATTuple (pl) ->
-      fprintf p "PATTuple@[%a@]"
-      (print_list print_pat) pl
-
-
-let rec print_parser_expr p (e: 'a Parser.e) = 
-  match e with 
-  | Parser.PGoto (s,_) -> fprintf p "PGoto (%a)" print_parser_state s
-  | Parser.PSelect (e, pe, fs, _) -> 
-    fprintf p "PSelect (discriminate := %a, default := %a, cases = %a) "
-    print_expr e
-    print_parser_expr pe
-    (print_fields print_pat print_parser_expr) fs
-
-let print_parser_state_block p (st: 'a Parser.state_block) = 
-  fprintf p "(Stateblock \n 
-              (stmt %a) \n
-              (trans %a) \n
-              )"
-  print_stmt st.stmt 
-  print_parser_expr st.trans
-
-let print_table p (t: 'tags_t Control.table) =
-  fprintf p "(Table \n
-             (table_key %a)
-             (table_actions %a))"
-  (print_list 
-    (fun p (a,b) -> fprintf p "%a<%a>" 
-     print_expr a 
-     print_matchkind b)
-    ) t.table_key
-  
-  (print_list print_string) t.table_actions
-
-let rec print_control_d p (d : 'tags_t Control.d) =
+let print_tp_decl p (d: TopDecl.d) =
   match d with 
-  | Control.CDAction (s, pa, st, _) ->
-    fprintf p "CDAction %s(%a){%a}"
-    s
-    print_params pa
-    print_stmt st 
-  | Control.CDTable (s, t, _) ->
-    fprintf p "CDTable %s (%a)"
-    s
-    print_table t
-  | Control.CDSeq (d1,d2,_) ->
-    fprintf p "CDSeq (%a \n %a)"
-    print_control_d d1
-    print_control_d d2 
-
-let rec print_tp_decl p (d: 'a TopDecl.d) = 
-  match d with 
-  | TopDecl.TPInstantiate (constructor_name, instance_name, type_args, cargs,_) ->
-    fprintf p "@[TPInstantiate \n (constructor_name = %a) \n (instance_name = %a)
-    \n (type_args = %a) \n (cargs = %a) @]"
+  | TopDecl.Instantiate (constructor_name, instance_name, type_args, cargs, es) ->
+    fprintf p "@[Instantiate \n (constructor_name = %a) \n (instance_name = %a)
+    \n (type_args = %a) \n (cargs = %a) (%a) @]"
     print_string constructor_name
     print_string instance_name
     (print_list print_type) type_args
     print_constructor_args cargs
-
-  | TopDecl.TPExtern (extern_name, type_params, cparams, methods, _) -> 
-    fprintf p "@[TPExtern \n (extern_name = %a) \n (type_params = %a) \n
-    (cparams = %a) \n (methods = %a) @]" 
+    (print_list ~sep:"," print_expr) es
+  | TopDecl.Extern (extern_name, type_params, cparams, eparams, methods) ->
+    fprintf p "@[Extern \n (extern_name = %a) \n (type_params = %a) \n
+    (cparams = %a) (%a) \n (methods = %a) @]" 
     print_string extern_name
-    (print_list print_string) type_params
+    my_print_int type_params
     print_constructor_params cparams
+    (print_list ~sep:"," print_type) eparams
     (print_fields print_string 
-      (fun p (a,b) ->
-      fprintf p "%a<%a>"
-        (print_list ~sep:"," print_string) a
-        print_arrowT b
+      (fun p ((tparams,eparams),arr) ->
+      fprintf p "<%a>(%a)(%a)"
+        my_print_int tparams
+        (print_list ~sep:"," print_string) eparams
+        print_arrowT arr
       )
     ) methods
 
-  | TopDecl.TPControl (control_name, cparams, eparams, params, body, apply_blk, _) ->
-    fprintf p "@[TPControl \n (control_name = %a) \n (cparams = %a) \n (eparams = %a)
+  | TopDecl.Control (control_name, cparams, ts, eparams, params, body, apply_blk) ->
+    fprintf p "@[Control \n (control_name = %a) \n (cparams = %a)
+              \n (%a) \n (eparams = %a)
               \n (params = %a) \n (body = %a) \n (apply_blk = %a)@] "
     print_string control_name
     print_constructor_params cparams
+    (print_list ~sep:"," print_type) ts
     print_string_string_fields eparams
     print_params params
-    print_control_d body 
+    (print_list ~sep:";" print_control_d) body 
     print_stmt apply_blk
 
-  | TopDecl.TPParser (name, constructors, fields, params, state, states,_) ->
-    fprintf p "@[TPParser \n (name = %a) \n (cparams = %a) \n (eparams = %a)
+  | TopDecl.Parser (name, constructors, ts, fields, params, state, states) ->
+    fprintf p "@[Parser \n (name = %a) \n (cparams = %a)
+              \n (%a) \n (eparams = %a)
               \n (params = %a) \n (start = %a) \n (states = %a)@] "
     print_string name
     print_constructor_params constructors
+    (print_list ~sep:"," print_type) ts
     print_string_string_fields fields
     print_params params
-    print_parser_state_block state
-    (print_fields print_string print_parser_state_block) states
+    print_stmt state
+    (print_list ~sep:";" print_stmt) states
   
-  | TopDecl.TPFunction (function_name, type_params, signature, body, _) ->
-    fprintf p "@[TPFunction \n (function_name = %a) \n (type_params = %a) \n
+  | TopDecl.Funct (function_name, type_params, signature, body) ->
+    fprintf p "@[Function \n (function_name = %a) \n (type_params = %a) \n
       (signature = %a) \n (body = %a) @]"
     print_string function_name
-    (print_list ~sep:"," print_string) type_params
+    my_print_int type_params
     print_arrowT signature
     print_stmt body
 
-  | TopDecl.TPSeq (d1,d2,_) ->
-    fprintf p "@[TPSeq \n %a \n %a @]"
-    print_tp_decl d1 
-    print_tp_decl d2
+let print_prog p = fprintf p "%a" (print_list ~sep:"," print_tp_decl)

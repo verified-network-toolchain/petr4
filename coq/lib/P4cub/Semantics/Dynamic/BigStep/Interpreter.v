@@ -6,6 +6,7 @@ From Poulet4 Require Import
   Monads.Monad
   P4cub.Syntax.Syntax
   P4cub.Syntax.CubNotations
+  P4cub.Semantics.Climate
   P4cub.Semantics.Dynamic.BigStep.ExprUtil
   P4cub.Semantics.Dynamic.BigStep.Value.Value
   P4cub.Semantics.Dynamic.BigStep.Value.Embed
@@ -15,6 +16,7 @@ From Poulet4 Require Import
   Utils.Util.ListUtil.
 
 Import Option String.
+Import RecordSetNotations.
 
 Local Open Scope type_scope.
 
@@ -478,8 +480,6 @@ Section Stm.
 
   Local Open Scope nat_scope.
 
-  Import RecordSetNotations.
-
   Lemma args_invariant : 
     forall (vargs : Argsv), Forall2 (rel_paramarg eq (fun _ _ => True)) vargs vargs.
   Proof.
@@ -828,3 +828,102 @@ Section Stm.
   Qed.
 
 End Stm.
+
+Section Top.
+  Local Open Scope climate_scope.
+
+  Import Clmt.Notations.
+
+  Definition interpret_ctrl_var (cbs_env : ctrl_bs_env) te :=
+    let^ v := initialized_value (cbs_epsilon cbs_env) te in
+    cbs_env <| cbs_epsilon := v :: cbs_epsilon cbs_env |>.
+
+  Definition interpret_ctrl (cbs_env : ctrl_bs_env) (c : Ctrl.t) : option ctrl_bs_env :=
+    match c with
+    | Ctrl.Var _ te => interpret_ctrl_var cbs_env te
+    | Ctrl.Action a ctrl_params data_params body =>
+      mret $ cbs_env <| cbs_actions := a ↦ ADecl (cbs_epsilon cbs_env) (cbs_actions cbs_env) body ,, cbs_actions cbs_env |>
+    | Ctrl.Table t key actions def => 
+      mret $ cbs_env <| cbs_tables := t ↦ (List.length (cbs_epsilon cbs_env), key, actions, def) ,, cbs_tables cbs_env |>
+    end.
+
+  Lemma interpret_ctrl_sound :
+    forall c env env',
+      interpret_ctrl env c = Some env' -> ctrl_big_step env c env'.
+  Proof.
+    destruct c; cbn; unravel; intros.
+    - match_some_inv. some_inv. constructor. apply initialized_value_sound. assumption.
+    - some_inv. constructor.
+    - some_inv. constructor.
+  Qed.
+
+  Fixpoint interpret_ctrls ctrls env :=
+    match ctrls with
+    | [] => mret env
+    | ctrl :: ctrls => interpret_ctrls ctrls =<< interpret_ctrl env ctrl 
+    end.
+
+  Lemma interpret_ctrls_sound :
+    forall ctrls env env',
+      interpret_ctrls ctrls env = Some env' -> ctrls_big_step ctrls env env'.
+  Proof.
+    induction ctrls; cbn; unravel; intros.
+    - some_inv. constructor.
+    - match_some_inv. econstructor.
+      + apply interpret_ctrl_sound. eassumption.
+      + apply IHctrls. assumption.
+  Qed.
+
+  Definition interpret_top (tbs_env : top_bs_env) (top : Top.t) : option top_bs_env :=
+    match top with
+    | Top.Control c cparams ecparams extparams params body s =>
+      mret $ tbs_env <| top_decls := c ↦ ControlDecl (top_functs tbs_env) (top_insts tbs_env) (map fst cparams) body s ,, top_decls tbs_env |>
+    | Top.Parser p cparams ecparams extparams params strt states =>
+      mret $ tbs_env <| top_decls := p ↦ ParserDecl (top_functs tbs_env) (top_insts tbs_env) (map fst cparams) strt states ,, top_decls tbs_env |>
+    | Top.Extern ext TS cparams ecparams methods =>
+      mret $ tbs_env <| top_decls := ext ↦ ExternDecl (top_functs tbs_env) (top_insts tbs_env) (map fst cparams) ,, top_decls tbs_env |>
+    | Top.Funct f TS arrow body =>
+      mret $ tbs_env <| top_functs := f ↦ FDecl (top_functs tbs_env) body ,, top_functs tbs_env |>
+    | Top.Instantiate c x τs cargs es =>
+      let* decls := top_decls tbs_env c in
+      let* vs := interpret_exps [] es in
+      match decls, τs with
+      | ControlDecl cfs cinsts cparams local_decls apply_blk, [] =>
+        let^ cbs_env := interpret_ctrls local_decls {| cbs_tables := ∅; cbs_actions := ∅; cbs_epsilon  := vs |} in
+        tbs_env
+          <| top_insts :=
+          x ↦ ControlInst
+            cfs (bind_constructor_args cparams cargs (top_insts tbs_env) cinsts)
+            (cbs_tables cbs_env) (cbs_actions cbs_env) vs apply_blk ,, top_insts tbs_env |>
+      | ParserDecl pfs pinsts cparams strt states, [] =>
+        mret $ tbs_env
+          <| top_insts :=
+          x ↦ ParserInst
+            pfs (bind_constructor_args cparams cargs (top_insts tbs_env) pinsts)
+            vs strt states ,, top_insts tbs_env |>
+      | ExternDecl extfs extinsts cparams, _ =>
+        mret $ tbs_env <| top_insts := x ↦ ExternInst extfs (bind_constructor_args cparams cargs (top_insts tbs_env) extinsts) vs ,, top_insts tbs_env |>
+      | _, _ => None
+      end
+    end.
+
+    Lemma interpret_top_sound :
+      forall env top env',
+        interpret_top env top = Some env' -> top_big_step env top env'.
+    Proof.
+      destruct top; cbn; unravel; intros.
+      - repeat match_some_inv. destruct t.
+        + destruct type_args; try discriminate. match_some_inv. some_inv.
+          econstructor; eauto.
+          * apply interpret_exps_sound. assumption.
+          * apply interpret_ctrls_sound. assumption.
+        + destruct type_args; try discriminate. some_inv.
+          constructor. assumption. apply interpret_exps_sound. assumption.
+        + some_inv. constructor. assumption. apply interpret_exps_sound. assumption.
+      - some_inv. constructor.
+      - some_inv. constructor.
+      - some_inv. constructor.
+      - some_inv. constructor.
+    Qed.
+
+End Top.

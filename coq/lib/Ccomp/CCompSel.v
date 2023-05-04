@@ -203,11 +203,6 @@ Section CCompSel.
         let* env := get_state in
         let^ index := state_lift (ValidBitIndex arg env) in
         Sassign dst' (Efield arg' index type_bool)
-    | Una.SetValidity valid =>
-        let* env := get_state in
-        let^ index := state_lift (ValidBitIndex arg env) in
-        let member :=  Efield arg' index type_bool in
-        Sassign member (if valid then Ctrue else Cfalse)
     end.
  
   Definition bop_function (op: ident) := 
@@ -998,6 +993,12 @@ Section CCompSel.
     | Stm.Trans pe =>
         (* TODO: is this correct? *)
         CTranslateParserExpression pe
+    | Stm.SetValidity valid arg =>
+        let* arg' := CTranslateExpr arg in
+        let* env := get_state in
+        let^ index := state_lift (ValidBitIndex arg env) in
+        let member :=  Efield arg' index type_bool in
+        Sassign member (if valid then Ctrue else Cfalse)
     end.
   
   Definition CTranslateParserState

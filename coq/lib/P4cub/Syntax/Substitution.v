@@ -98,6 +98,7 @@ Section Sub.
     | Stm.Trans e => Stm.Trans $ tsub_trns e
     | (lhs `:= rhs)%stm
       => (tsub_exp lhs `:= tsub_exp rhs)%stm
+    | Stm.SetValidity b e => Stm.SetValidity b $ tsub_exp e
     | Stm.Invoke e t
       => Stm.Invoke (option_map tsub_exp e) t
     | Stm.App fk args

@@ -340,13 +340,7 @@ Section ToGCL.
         | Una.IsValid =>
           let+ header := to_lvalue arg in
           let hvld := header @@ ".is_valid" in
-          BV.BVVar hvld 1
-        | Una.SetValidity b =>
-            (* TODO @Rudy isn't this a command? *)
-            (* TODO @Eric the uop [SetValid] is now [SetValidity true]
-               and [SetInvalid] is now [SetValidity false]. *)
-          error "SetValidity is unimplemented"
-        end
+          BV.BVVar hvld 1        end
       | E.Bop typ op lhs rhs =>
         let* l := to_rvalue lhs in
         let* r := to_rvalue rhs in
@@ -507,8 +501,6 @@ Section ToGCL.
           let+ header := to_lvalue arg in
           let hvld := header @@ ".is_valid" in
           GCL.isone (BV.BVVar hvld 1)
-        | Una.SetValidity b =>
-          error "TODO: implement case for E.Setvalidity"
         end
       | E.Bop typ op lhs rhs =>
         let lbin := fun o => let* l := to_form lhs in
@@ -627,6 +619,10 @@ Section ToGCL.
         let e := GCL.GAssign type lhs' rhs' in
         ok (e, c)
 
+      | Inline.ISetValidity b e =>
+          let~ e' := to_lvalue (scopify c e) over "couldn't convert e of ISetValidity to lvalue" in
+          ok (GCL.GSetValidity b e', c)
+           
       | Inline.IConditional guard_type guard tru_blk fls_blk =>
         let* tru_blk' := inline_to_gcl c arch tru_blk in
         let* fls_blk' := inline_to_gcl c arch fls_blk in

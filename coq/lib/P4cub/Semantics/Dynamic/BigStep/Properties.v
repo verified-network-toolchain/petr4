@@ -865,6 +865,8 @@ Section Properties.
     - pose proof shift_lv_update _ _ _ _ _ _ hus huseps' vs as hvs.
       rewrite <- hvs.
       constructor; auto.
+    - pose proof shift_lv_update _ _ _ _ _ _ hus huseps' vs0 as hvs.
+      rewrite <- hvs. eauto.
     - set (vargs' :=
              map (paramarg_map id (shift_lv
                                      {|
@@ -983,6 +985,7 @@ Section Properties.
         by (rewrite !app_length; lia).
       apply sublist.app_eq_len_eq in h as [husvs _]; auto.
     - apply shift_exp_lv_eval_shift_lv_exists in H4 as [lv' ?]; subst. eauto 2.
+    - apply shift_exp_lv_eval_shift_lv_exists in H4 as [lv' ?]; subst. eauto 2.
     - destruct call as [g ts oe | | |]; unravel in *; inv H.
       apply args_eval_shift_exp_exists_shift_varg in H6 as [vargs' ?]; subst.
       apply relop_lexp_big_step_exists_shift in H3 as [olv' ?]; subst.
@@ -1038,6 +1041,10 @@ Section Properties.
     - inv hctx.
       pose proof sbs_length _ _ _ _ _ _ _ H6 as hϵ3.
       admit.
+    - pose proof shift_exp_lv_eval_shift_lv_exists
+        _ _ _ _ _ H4 as [lv' ?]; subst.
+      apply lv_update_shift in H3 as h; eauto.
+      rewrite <- h. eauto.
     - pose proof shift_exp_lv_eval_shift_lv_exists
         _ _ _ _ _ H4 as [lv' ?]; subst.
       apply lv_update_shift in H3 as h; eauto.

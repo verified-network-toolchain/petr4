@@ -11,15 +11,11 @@ let sexp_of_bit_type width = make_sexp "Typ.Bool" [ Bigint.sexp_of_t width ]
 let sexp_of_int_type width = make_sexp "Typ.Int" [ Bigint.sexp_of_t width ]
 let sexp_of_type_var idx = make_sexp "Typ.Var" [ sexp_of_int idx ]
 
-let sexp_of_set_validity valid =
-  make_sexp "Una.SetValidity" [ sexp_of_bool valid ]
-
 let sexp_of_una = function
   | Una.Not -> Sexp.Atom "Una.Not"
   | Una.BitNot -> Sexp.Atom "Una.BitNot"
   | Una.Minus -> Sexp.Atom "Una.Minus"
   | Una.IsValid -> Sexp.Atom "Una.IsValid"
-  | Una.SetValidity valid -> sexp_of_set_validity valid
 
 let string_of_bin = function
   | Bin.Plus -> "Bin.Plus"
@@ -242,12 +238,16 @@ let map_sum f g =
 
 let sexp_of_var_init = map_sum sexp_of_type sexp_of_exp
 
+let sexp_of_set_validity valid e =
+  make_sexp "Stm.SetValidity" [ sexp_of_bool valid; sexp_of_exp e ]
+
 let rec sexp_of_stm = function
   | Stm.Skip -> Sexp.Atom "Stm.Skip"
   | Stm.Ret e -> sexp_of_return e
   | Stm.Exit -> Sexp.Atom "Stm.Exit"
   | Stm.Trans trans -> sexp_of_transition_stm trans
   | Stm.Asgn (lhs, rhs) -> sexp_of_assign lhs rhs
+  | Stm.SetValidity (b, e) -> sexp_of_set_validity b e
   | Stm.App (call, args) -> sexp_of_app call args
   | Stm.Invoke (eo, name) -> sexp_of_invoke eo name
   | Stm.LetIn (x, e, tail) -> sexp_of_var_decl x e tail

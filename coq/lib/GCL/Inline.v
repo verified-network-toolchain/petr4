@@ -73,6 +73,7 @@ Inductive t : Type :=
            (x : string)     (* Variable declaration. *)
 | IAssign (type : Typ.t) (lhs rhs : E.t)
                                (* assignment *)
+| ISetValidity (validity : bool) (hdr : E.t)
 | IConditional (guard_type : Typ.t)
                (guard : E.t)
                (tru_blk fls_blk : t)  (* conditionals *)
@@ -134,6 +135,8 @@ Fixpoint action_param_renamer (table action : string) (params : list string) (c 
     let rhs' := action_param_renamer_expr table action params rhs in
     let lhs' := action_param_renamer_expr table action params lhs in
     ok (IAssign t lhs' rhs', params)
+  | ISetValidity b e =>
+      ok (ISetValidity b $ action_param_renamer_expr table action params e, params)
   | IConditional typ cond tru fls =>
     let cond' := action_param_renamer_expr table action params cond in
     let* (tru', _) := action_param_renamer table action params tru in
@@ -165,7 +168,9 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
   | IVardecl type x =>
       (IVardecl type x, Env.remove x η)
   | IAssign t lhs rhs =>
-    (IAssign t (subst_e η lhs) (subst_e η rhs), η)
+      (IAssign t (subst_e η lhs) (subst_e η rhs), η)
+  | ISetValidity b e =>
+      (ISetValidity b $ subst_e η e, η)
   | IConditional guard_type guard tru_blk fls_blk =>
     (IConditional guard_type
                   (subst_e η guard)
@@ -611,7 +616,8 @@ with inline (gas : nat)
             ISeq (IVardecl t x) (ISeq (IAssign t (E.Var t x 0) e) s)
         end
     | ST.Asgn lhs rhs =>
-      ok (IAssign (typ_of_exp rhs) lhs rhs)
+        ok (IAssign (typ_of_exp rhs) lhs rhs)
+    | ST.SetValidity b e => ok $ ISetValidity b e
     | ST.Cond guard tru_blk fls_blk =>
       let* tru_blk' := inline gas unroll ctx tru_blk in
       let+ fls_blk' := inline gas unroll ctx fls_blk in
@@ -829,8 +835,9 @@ Fixpoint elim_tuple (c : Inline.t) : result string t :=
   match c with
   | ISkip => ok c
   | IVardecl _ _ => ok c
+  | ISetValidity _ _ => ok c
   | IAssign type lhs rhs =>
-    elim_tuple_assign type lhs rhs
+      elim_tuple_assign type lhs rhs
   | IConditional typ g tru fls =>
     let* gs' := elim_tuple_expr g in
     let* g' := extract_single gs' "TypeError conditional must be a singleton" in
@@ -874,6 +881,7 @@ Fixpoint elaborate_headers (c : Inline.t) : result string Inline.t :=
   match c with
   | ISkip => ok c
   | IVardecl _ _ => ok c
+  | ISetValidity _ _ => ok c (* TODO: I don't know if this is correct *)
   | IAssign type lhs rhs =>
     match type with
     | Typ.Struct true fields =>
@@ -933,6 +941,7 @@ Definition elaborate_extract extern args ret  : result string Inline.t :=
 Fixpoint elaborate_arrays (c : Inline.t) : result string Inline.t :=
   match c with
   | ISkip => ok c
+  | ISetValidity _ _ => ok c
   | IVardecl type x =>
     match type with
     | Typ.Array size t =>
@@ -999,6 +1008,7 @@ Definition struct_fields (s : string) (fields : list Typ.t) : list (string * Typ
 Fixpoint elaborate_structs (c : Inline.t) : result string Inline.t :=
   match c with
   | ISkip => ok c
+  | ISetValidity _ _ => ok c
   | IVardecl type s =>
     match type with
     | Typ.Struct false fields =>
@@ -1066,6 +1076,7 @@ Fixpoint eliminate_slice_assignments (c : t) : result string t :=
   match c with
   | ISkip => ok c
   | IVardecl _ _ => ok c
+  | ISetValidity _ _ => ok c
   | IAssign typ (E.Slice hi lo e) rhs =>
     let lhs_typ := typ_of_exp e in
     let concat := fun typ => E.Bop typ Bin.PlusPlus in
@@ -1158,6 +1169,7 @@ Fixpoint assert_headers_valid_before_use (c : t) : result string t :=
   match c with
   | ISkip
   | IVardecl _ _ => ok c
+  | ISetValidity _ _ => ok c
   | IAssign _ lhs rhs  =>
       let* lhs_asserts :=
         match header_asserts lhs with

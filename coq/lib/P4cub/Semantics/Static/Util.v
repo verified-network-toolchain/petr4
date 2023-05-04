@@ -42,9 +42,7 @@ Variant una_type : Una.t -> Typ.t -> Typ.t -> Prop :=
   | una_UMinus τ :
     numeric τ -> una_type `-%una τ τ
   | una_IsValid ts :
-    una_type Una.IsValid (Typ.Struct true ts) Typ.Bool
-  | una_SetValidity b ts :
-    una_type (Una.SetValidity b) (Typ.Struct true ts) (Typ.Struct true ts).
+    una_type Una.IsValid (Typ.Struct true ts) Typ.Bool.
 
 (** Evidence a binary operation is valid
     for operands of a type and produces some type. *)

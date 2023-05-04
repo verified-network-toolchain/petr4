@@ -172,6 +172,7 @@ Fixpoint shift_stm
   | Stm.Trans e
     => Stm.Trans $ shift_trns sh e
   | e1 `:= e2 => shift_exp sh e1 `:= shift_exp sh e2
+  | Stm.SetValidity b e => Stm.SetValidity b $ shift_exp sh e
   | Stm.Invoke e t
     => Stm.Invoke (option_map (shift_exp sh) e) t
   | Stm.App fk args
@@ -327,6 +328,7 @@ Fixpoint rename_stm (ρ : nat -> nat) (s : Stm.t) : Stm.t :=
   | Stm.Trans e
     => Stm.Trans $ rename_trns ρ e
   | e1 `:= e2 => rename_exp ρ e1 `:= rename_exp ρ e2
+  | Stm.SetValidity b e => Stm.SetValidity b $ rename_exp ρ e
   | Stm.Invoke e t
     => Stm.Invoke (option_map (rename_exp ρ) e) t
   | Stm.App fk args
@@ -403,6 +405,7 @@ Fixpoint exp_sub_stm (σ : nat -> Typ.t -> String.string -> Exp.t) (s : Stm.t) :
   | Stm.Ret (Some e) => Stm.Ret $ Some $ exp_sub_exp σ e
   | Stm.Trans e => Stm.Trans $ exp_sub_trns σ e
   | e₁ `:= e₂ => exp_sub_exp σ e₁ `:= exp_sub_exp σ e₂
+  | Stm.SetValidity b e => Stm.SetValidity b $ exp_sub_exp σ e
   | Stm.Invoke e t => Stm.Invoke (option_map (exp_sub_exp σ) e) t
   | Stm.App fk args => Stm.App (exp_sub_call σ fk) $ List.map (exp_sub_arg σ) args
   | `let og := te `in s => `let og := map_sum id (exp_sub_exp σ) te `in exp_sub_stm (exts σ) s

@@ -169,6 +169,9 @@ Fixpoint lift_stm (s : Stm.t) : Stm.t :=
         (shift_list shift_exp (Shifter 0 (length le1)) le2 ++ le1)
         (shift_exp (Shifter 0 (length le2)) e1
            `:= shift_exp (Shifter (length le2) (length le1)) e2)
+  | Stm.SetValidity b e
+    => let '(e, le) := lift_exp e in
+      Unwind le $ Stm.SetValidity b e
   | Stm.Invoke (Some e) t
     => let '(e, le) := lift_exp e in
       Unwind le $ Stm.Invoke (Some e) t

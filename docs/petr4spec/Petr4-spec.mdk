@@ -367,7 +367,8 @@ The following conventions are adopted in defining the grammar rules for surface 
 - Terminal symbols are writeen in sans-serif font or in symbolic form: $\boolTyp$, $\accept$, $\langle$, $\oplus$.
 - Nonterminal symbols are written in italic font: $\exp$, $\stmt$.
 - $\overline {A}$ is a list of zero or more $A$.
-- Production rules in grammar are written as $\mathit{sym} ::= A_1 | \cdots | A_n$. Each rule describes a syntactic category. For example, the rule here describes the syntactic category $\mathit{sym}$.
+- Production rules in grammar are written as $\mathit{sym} ::= A_1 | \cdots | A_n$. Each rule describes a syntactic category and has multiple cases. For example, the rule here describes the syntactic category $\mathit{sym}$ and has $n$ cases.
+- Each case of a syntactic category is accompanied with a phrase that describes the role of that case. For example, $\mathit{sym} ::= i \qquad \textit{integers}$ states that $i$ represents integers for the syntactic category of $\mathit{sym}$.
 - Large production rules may be split into multiple production rules. This is explicitly indicated by having ellipses at the beginning or/and end of a rule. For example, $\mathit{sym} ::= \cdots | A_i | \cdots$.
 
 ### Auxiliary Notation
@@ -392,10 +393,12 @@ _Metavariables_ are nonterminal symbols that sit in place of a specific kind of 
 | $\str$ | strings |
 | $\int$ | arbitrary length integer |
 | $\width$ | width |
+
 ~
 
 ## Directions { #sec-ast-dir }
-add explenation on comment in rules.
+
+Directions are used for parameters and they determine whether the parameter is used as input, output, or both.
 
 ~ Begin P4Syntax
 
@@ -606,7 +609,7 @@ There are some types that do not fit into the surface, declared, or synthesized 
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\switchCase$ | $::=$ | $\actionCase \stmts$ | $\qquad \text{labeled block}$ |
+| $\switchCase$ | $::=$ | $\actionCase \stmt$ | $\qquad \text{labeled block}$ |
 |   | $\vert$ | $\lbl$ | $\qquad \text{fall through with label}$ |
 { .booktable }
 
@@ -614,27 +617,27 @@ There are some types that do not fit into the surface, declared, or synthesized 
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\stmt$ | $::=$ | $\methodCall \exp {\surfaceTyps} \args$ | $\qquad \text{method call}$ |
+| $\stmt$ | $::=$ | $\methodCall \exp {\typ} \arg$ | $\qquad \text{method call}$ |
 |   | $\vert$ | $\assign {\exp_1} {\exp_2}$ | $\qquad \text{assignment}$ |
-|   | $\vert$ | $\dirApp {\surfaceTyp}\args$ | $\qquad \text{direct application}$ |
+|   | $\vert$ | $\dirApp {\typ}\arg$ | $\qquad \text{direct application}$ |
 |   | $\vert$ | $\ifthen \exp \stmt$ | $\qquad \text{if then}$ |
 |   | $\vert$ | $\ifthenelse \exp {\stmt_1} {\stmt_2}$ | $\qquad \text{if then else}$ |
-|   | $\vert$ | $\block \stmts$ | $\qquad \text{sequencing}$ |
+|   | $\vert$ | $\block \stmt$ | $\qquad \text{sequencing}$ |
 |   | $\vert$ | $\exit$ | $\qquad \text{exit}$ |
 |   | $\vert$ | $\noop$ | $\qquad \text{noop}$ |
 |   | $\vert$ | $\return \exp$ | $\qquad \text{return}$ |
 |   | $\vert$ | $\retNothing$ | $\qquad \text{return nothing}$ |
-|   | $\vert$ | $\switch \exp \switchCases$ | $\qquad \text{switch}$ |
-|   | $\vert$ | $\constDcl {\surfaceTyp }\var \exp$ | $\qquad \text{constants}$ |
-|   | $\vert$ | $\inst {\surfaceTyp}\args \var \stmts$ | $\qquad \text{instantiations (initialized)}$ |
-|   | $\vert$ | $\instNoBlock {\surfaceTyp}\args \var$ | $\qquad \text{instantiations (uninitialized)}$ |
-|   | $\vert$ | $\varDclInit {\surfaceTyp}\var \exp$ | $\qquad \text{local variables (initialized)}$ |
-|   | $\vert$ | $\varDcl {\surfaceTyp}\var$ | $\qquad \text{local variables (uninitialized)}$ |
+|   | $\vert$ | $\switch \exp \switchCase$ | $\qquad \text{switch}$ |
+|   | $\vert$ | $\constDcl {\typ }\var \exp$ | $\qquad \text{constants}$ |
+|   | $\vert$ | $\inst {\typ}\arg \var \stmt$ | $\qquad \text{instantiations (initialized)}$ |
+|   | $\vert$ | $\instNoBlock {\typ}\arg \var$ | $\qquad \text{instantiations (uninitialized)}$ |
+|   | $\vert$ | $\varDclInit {\typ}\var \exp$ | $\qquad \text{local variables (initialized)}$ |
+|   | $\vert$ | $\varDcl {\typ}\var$ | $\qquad \text{local variables (uninitialized)}$ |
 { .booktable }
 
 ~ End P4Syntax
 
-## Declarations { #sec-ast-dcl }
+## Declarations { #sec-ast-dcl }    
 
 ~ Begin P4Syntax
 
@@ -651,7 +654,7 @@ There are some types that do not fit into the surface, declared, or synthesized 
 | $\case$ | $::=$ | $\expandCase \pmatches \nxt$ | $\qquad \text{match cases for the next state}$ |
 | $\parserTran$ | $::=$ | $\nxt$ | $\qquad \text{next state transition}$ |
 |   | $\vert$ | $\slctTran \exp \pcases$ | $\qquad \text{select next state transition}$ |
-| $\state$ | $::=$ | $\stateDef \var \stmts \parserTran$ | $\qquad \text{states}$ |
+| $\state$ | $::=$ | $\stateDef \var \stmt \parserTran$ | $\qquad \text{states}$ |
 { .booktable }
 
 **Table properties:**
@@ -670,41 +673,41 @@ There are some types that do not fit into the surface, declared, or synthesized 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
 | $\extMethod$ | $::=$ | $\constructor \var {\prmDef}$ | $\qquad \text{constructors}$ |
-|   | $\vert$ | $\abstractMethod {\surfaceTyp }\var \typVar {\prmDef}$ | $\qquad \text{abstract methods}$ |
-|   | $\vert$ | $\methodDef {\surfaceTyp}\var \typVar {\prmDef}$ | $\qquad \text{methods}$ |
+|   | $\vert$ | $\abstractMethod {\typ }\var \typVar {\prmDef}$ | $\qquad \text{abstract methods}$ |
+|   | $\vert$ | $\methodDef {\typ}\var \typVar {\prmDef}$ | $\qquad \text{methods}$ |
 { .booktable }
 
 **Declarations:**
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\dcl$ | $::=$ | $\constDcl {\surfaceTyp }\var \exp$ | $\qquad \text{constants}$ |
-|   | $\vert$ | $\inst {\surfaceTyp}\args \var \stmts$ | $\qquad \text{instantiations (initialized)}$ |
-|   | $\vert$ | $\instNoBlock {\surfaceTyp}\args \var$ | $\qquad \text{instantiations (uninitialized)}$ |
-|   | $\vert$ | $\parserDcl \var \typVars {\overline { {\prmDef}}} {\overline {\VVal {\prmDef}}} \dcls \states$ | $\qquad \text{parsers}$ |
-|   | $\vert$ | $\controlDcl \var \typVars {\overline { {\prmDef}}} {\overline {\VVal {          \prmDef}}} \dcls \stmts$ | $\qquad \text{controls}$ |
-|   | $\vert$ | $\funcDcl {\funcProTyp}\var \typVars {\prmDefs} \stmts$ | $\qquad \text{functions}$ |
-|   | $\vert$ | $\externFuncDcl {\surfaceTyp}\var \typVars {\prmDefs}$ | $\qquad \text{extern functions}$ |
-|   | $\vert$ | $\varDclInit {\surfaceTyp}\var \exp$ | $\qquad \text{local variables (initialized)}$ |
-|   | $\vert$ | $\varDcl {\surfaceTyp}\var$ | $\qquad \text{local variables (uninitialized)}$ |
-|   | $\vert$ | $\valSetDcl {\surfaceTyp}\exp \var$ | $\qquad \text{parser value sets}$ |
-|   | $\vert$ | $\actionDcl \var {\prmDefs} \stmts$ | $\qquad \text{actions}$ |
-|   | $\vert$ | $\tableDcl \var \props$ | $\qquad \text{tables}$ |
-|   | $\vert$ | $\headerDcl \typName \typParam \field {\surfaceTyp}$ | $\qquad \text{header types}$ |
-|   | $\vert$ | $\headerUnionDcl \typName \typParam \field {\surfaceTyp}$ | $\qquad \text{header union types}$ |
-|   | $\vert$ | $\structDcl \typName \typParam \field {\surfaceTyp}$ | $\qquad \text{struct types}$ |
-|   | $\vert$ | $\errDcl \fields$ | $\qquad \text{error types}$ |
-|   | $\vert$ | $\matchkindDcl \fields$ | $\qquad \text{match kind types}$ |
-|   | $\vert$ | $\enumDcl \typName \fields$ | $\qquad \text{enumerated types}$ |
-|   | $\vert$ | $\serEnumDcl {\surfaceTyp}\typName \field \exp$ | $\qquad \text{serializable enumerated types}$ |
-|   | $\vert$ | $\externObjDcl \var \typVars \extMethods$ | $\qquad \text{extern objects}$ |
-|   | $\vert$ | $\typdefDcl  {\surfaceTyp} \typName$ | $\qquad \text{type definitions}$ |
+| $\dcl$ | $::=$ | $\constDcl {\typ }\var \exp$ | $\qquad \text{constants}$ |
+|   | $\vert$ | $\inst {\typ}\arg \var \stmt$ | $\qquad \text{instantiations (initialized)}$ |
+|   | $\vert$ | $\instNoBlock {\typ}\arg \var$ | $\qquad \text{instantiations (uninitialized)}$ |
+|   | $\vert$ | $\parserDcl \var \typVar { { {\prmDef}}} { {\VVal {\prmDef}}} \dcl \state$ | $\qquad \text{parsers}$ |
+|   | $\vert$ | $\controlDcl \var \typVar { { {\prmDef}}} { {\VVal {\prmDef}}} \dcl \stmt$ | $\qquad \text{controls}$ |
+|   | $\vert$ | $\funcDcl {\typ}\var \typVar {\prmDef} \stmt$ | $\qquad \text{functions}$ |
+|   | $\vert$ | $\externFuncDcl {\typ}\var \typVar {\prmDef}$ | $\qquad \text{extern functions}$ |
+|   | $\vert$ | $\varDclInit {\typ}\var \exp$ | $\qquad \text{local variables (initialized)}$ |
+|   | $\vert$ | $\varDcl {\typ}\var$ | $\qquad \text{local variables (uninitialized)}$ |
+|   | $\vert$ | $\valSetDcl {\typ}\exp \var$ | $\qquad \text{parser value sets}$ |
+|   | $\vert$ | $\actionDcl \var {\prmDef} \stmt$ | $\qquad \text{actions}$ |
+|   | $\vert$ | $\tableDcl \var \prop$ | $\qquad \text{tables}$ |
+|   | $\vert$ | $\headerDcl \typName \typParam \field {\typ}$ | $\qquad \text{header types}$ |
+|   | $\vert$ | $\headerUnionDcl \typName \typParam \field {\typ}$ | $\qquad \text{header union types}$ |
+|   | $\vert$ | $\structDcl \typName \typParam \field {\typ}$ | $\qquad \text{struct types}$ |
+|   | $\vert$ | $\errDcl \field$ | $\qquad \text{error types}$ |
+|   | $\vert$ | $\matchkindDcl \field$ | $\qquad \text{match kind types}$ |
+|   | $\vert$ | $\enumDcl \typName \field$ | $\qquad \text{enumerated types}$ |
+|   | $\vert$ | $\serEnumDcl {\typ}\typName \field \exp$ | $\qquad \text{serializable enumerated types}$ |
+|   | $\vert$ | $\externObjDcl \var \typVar \extMethod$ | $\qquad \text{extern objects}$ |
+|   | $\vert$ | $\typdefDcl  {\typ} \typName$ | $\qquad \text{type definitions}$ |
 |   | $\vert$ | $\typdefDcl \dcl \typName$ | $\qquad \text{type definitions (declarations)}$ |
-|   | $\vert$ | $\newtypeDcl  {\surfaceTyp}\typName$ | $\qquad \text{generative type definitions}$ |
+|   | $\vert$ | $\newtypeDcl  {\typ}\typName$ | $\qquad \text{generative type definitions}$ |
 |   | $\vert$ | $\newtypeDcl  \dcl \typName$ | $\qquad \text{generative type definitions (declarations)}$ |
-|   | $\vert$ | $\controlTypDcl \typName \typVars {\prmDefs}$ | $\qquad \text{control types}$ |
-|   | $\vert$ | $\parserTypDcl \typName \typVars {\prmDefs}$ | $\qquad \text{parser types}$ |
-|   | $\vert$ | $\packageTypDcl \typName \typVars {\prmDefs}$ | $\qquad \text{package types}$ |
+|   | $\vert$ | $\controlTypDcl \typName \typVar {\prmDef}$ | $\qquad \text{control types}$ |
+|   | $\vert$ | $\parserTypDcl \typName \typVar {\prmDef}$ | $\qquad \text{parser types}$ |
+|   | $\vert$ | $\packageTypDcl \typName \typVar {\prmDef}$ | $\qquad \text{package types}$ |
 { .booktable }
 
 ~ End P4Syntax

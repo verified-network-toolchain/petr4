@@ -98,7 +98,6 @@ let convert_una (u:Prev.Una.t) =
     | Prev.Una.BitNot -> Una.BitNot 
     | Prev.Una.Minus -> Una.Minus
     | Prev.Una.IsValid -> Una.IsValid
-    | Prev.Una.SetValidity b -> Una.SetValidity b
 
 let convert_bin (b: Prev.Bin.t) = 
     match b with
@@ -217,6 +216,8 @@ let rec stm_convert (s:  Prev.Stm.t) =
     | Prev.Stm.Asgn (x,y) ->
         Stm.Asgn (convert_expression x,
         convert_expression y)
+    | Prev.Stm.SetValidity (b,e) ->
+        Stm.SetValidity (b, convert_expression e)
     | Prev.Stm.Cond (e,x,y) ->
         Stm.Cond (convert_expression e,
         stm_convert x, stm_convert y)

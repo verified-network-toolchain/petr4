@@ -285,6 +285,9 @@ Inductive Lift_stm : Stm.t -> Stm.t -> Prop :=
        (shift_list shift_exp (Shifter 0 (length es1)) es2 ++ es1)
        (shift_exp (Shifter 0 (length es2)) e1'
           `:= shift_exp (Shifter (length es2) (length es1)) e2'))
+| Lift_setvalidity b e e' es :
+  Lift_exp e e' es ->
+  Lift_stm (Stm.SetValidity b e) (Unwind es (Stm.SetValidity b e'))
 | Lift_invoke_none t :
   Lift_stm (Stm.Invoke None t) (Stm.Invoke None t)
 | Lift_invoke e e' t es :

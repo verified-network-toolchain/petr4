@@ -299,6 +299,10 @@ Inductive stm_big_step
   l⟨ ϵ, e₁ ⟩ ⇓ lv ->
   ⟨ ϵ, e₂ ⟩ ⇓ v ->
   ⧼ Ψ, ϵ, c, e₁ `:= e₂ ⧽ ⤋ ⧼ lv_update lv v ϵ, Cont, extrn_state Ψ ⧽
+| sbs_setvalidity ϵ c b oldb e lv vs :
+  l⟨ ϵ, e ⟩ ⇓ lv ->
+  ⟨ ϵ, e ⟩ ⇓ Val.Lists (Lst.Header oldb) vs ->
+  ⧼ Ψ, ϵ, c, Stm.SetValidity b e ⧽ ⤋ ⧼ lv_update lv (Val.Lists (Lst.Header b) vs) ϵ, Cont, extrn_state Ψ ⧽
 | sbs_funct_call
     ϵ ϵ' ϵ'' c ψ f τs args
     eo vargs olv fun_clos body sig :

@@ -103,8 +103,7 @@ Module Una.
     | Not                        (** boolean negation *)
     | BitNot                     (** bitwise negation *)
     | Minus                      (** integer negation *)
-    | IsValid                    (** check header validity *)
-    | SetValidity (validity : bool) (** set a header's validity to [validity] *).
+    | IsValid                    (** check header validity *).
 End Una.
 
 (** Binary operations. *)
@@ -225,6 +224,7 @@ Module Stm.
   | Exit                                               (** exit *)
   | Trans (trns : Trns.t)                              (** parser transition *)  
   | Asgn (lhs rhs : Exp.t)                            (** assignment *)
+  | SetValidity (validity : bool) (hdr : Exp.t) (** set a header [hdr]'s validity to [validity] *)
   | App (call : Call.t) (args : Exp.args)             (** procedural application *)
   | Invoke (lhs : option Exp.t) (table_name : string) (** table invocation *)
       

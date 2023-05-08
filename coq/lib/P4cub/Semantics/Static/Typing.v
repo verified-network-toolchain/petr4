@@ -171,7 +171,11 @@ Inductive type_stm (Δ : nat) (Γ : list Typ.t) (fs : fenv)
   `⟨ Δ, Γ ⟩ ⊢ e₁ ∈ τ ->
   `⟨ Δ, Γ ⟩ ⊢ e₂ ∈ τ ->
   `⧼ Δ, Γ, fs, c ⧽ ⊢ e₁ `:= e₂ ⊣ Signal.Cnt
-| type_fun_call c params τs args fk :
+| type_setvalidity c b e τs :
+  lexpr_ok e ->
+  `⟨ Δ, Γ ⟩ ⊢ e ∈ Typ.Struct true τs ->
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ Stm.SetValidity b e ⊣ Signal.Cnt
+| type_app c params τs args fk :
   type_call Δ Γ fs c fk τs params ->
   Forall (typ_ok Δ) τs ->
   type_args Δ Γ args (map (tsub_param (gen_tsub τs)) (map snd params)) ->

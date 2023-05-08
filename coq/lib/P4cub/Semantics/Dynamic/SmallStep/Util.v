@@ -71,8 +71,6 @@ Section StepDefs.
     | `-%una, (w `W z)%exp => Some $ Exp.Bit w $ BitArith.neg w z
     | `-%una, (w `S z)%exp => Some $ Exp.Int w $ IntArith.neg w z
     | Una.IsValid, Exp.Lists (Lst.Header b) _ => Some $ Exp.Bool b
-    | Una.SetValidity b, Exp.Lists _ fs
-      => Some $ Exp.Lists (Lst.Header b) fs
     | _, _ => None
     end.
 
@@ -318,7 +316,6 @@ Section StepDefs.
                | H: Some _ = Some _ |- _ => inv H
                end; eauto 2.
       - destruct x; discriminate || some_inv; auto.
-      - inv H3; eauto.
     Qed.
   End HelpersType.
   

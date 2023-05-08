@@ -247,6 +247,8 @@ Section StatementLifting.
     - pose proof Lift_exp_good_lv _ _ _ H _ _ H3 as (vs1 & hvs1 & hv1).
       pose proof Lift_exp_good _ _ _ H0 _ _ H5 as (vs2 & hvs2 & hv2).
       eapply eval_decl_list_Unwind; eauto. admit. admit.
+    - pose proof Lift_exp_good_lv _ _ _ H _ _ H4 as (vs1 & hvs1 & hv1).
+      pose proof Lift_exp_good _ _ _ H0 _ _ H4 as (vs2 & hvs2 & hv2). admit.
     - admit.
     - admit.
     - admit.

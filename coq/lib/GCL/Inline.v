@@ -85,7 +85,7 @@ Inductive t : Type :=
 | IExit                               (* exit statement *)
 | IInvoke (x : string)
           (keys : list (Typ.t * E.t * string))
-          (actions : list (string * t))
+          (actions : list (string * (list (string * Typ.t) * t)))
 | IExternMethodCall (extn : string) (method : string)
     (args : F.fs string (paramarg E.t E.t)) (ret : option Exp.t).
 
@@ -188,9 +188,12 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
   | IExit => (c,η)
   | IInvoke x keys actions =>
     let keys' := List.map (fun '(t, m,k) => (t, subst_e η m, k)) keys in
-    let actions' := List.map (fun '(s,a) => (s, fst(subst_t η a))) actions in
+    let actions' := List.map (fun '(s, (params, a)) =>
+              (* TODO:: shadowing shouldn't happen, but maybe something like the following?*)
+              (* let η := Env.removes params η  in *)
+              (s, (params, fst (subst_t η a)))) actions
+    in
     (IInvoke x keys' actions', η)
-
   | IExternMethodCall extn method pas returns =>
     let pas' := F.map (paramarg_map (subst_e η) (subst_e η)) pas in
     (IExternMethodCall extn method pas' returns, η)
@@ -561,6 +564,13 @@ Fixpoint transition_of_state (s : Stm.t) : result string Trns.t :=
   | _ => false
   end.*)
 
+Definition get_type (type : paramarg Typ.t Typ.t) : Typ.t :=
+  match type with
+  | PAIn x => x
+  | PAOut x => x
+  | PAInOut x => x
+  end.
+
 Fixpoint inline_state
          (gas : nat)
          (unroll : nat)
@@ -745,35 +755,33 @@ then error "args has typevar call funct" else  *)
         let act_size := Nat.max (PeanoNat.Nat.log2_up (List.length actions)) 1 in
         let act_sizeN := BinNat.N.of_nat act_size in
         let act_type := Typ.Bit act_sizeN in
-        let act_to_gcl := fun i a acc_res =>
+        let inline_action := fun i action_name acc_res =>
           let* acc := acc_res in
-          let* act := from_opt (find_action ctx a) ("could not find action " ++ a ++ " in environment")%string in
-          match act with
+          let* action_cmds := from_opt (find_action ctx action_name) ("could not find action " ++ action_name ++ " in environment")%string in
+          match action_cmds with
           | CD.Action _ ctrl_params data_params body  =>
-              (*if s_extern_has_typ_var body then error "tbl action body has typ var" else*)
-                let* s := inline gas unroll ctx body in
-                (*if i_extern_has_typ_var s then error "tbl s has typ var" else*)
+            (* | Action : string -> list (string * Typ.t) -> Typ.params -> Stm.t -> CD.t             *)
+            let* s := inline gas unroll ctx body in
             let* (s', _) :=
-              action_param_renamer tbl_name a
+              action_param_renamer tbl_name action_name
                 (List.map fst ctrl_params ++ string_list_of_params data_params) s in
-            (*if i_extern_has_typ_var s' then error "tbl s' has type var" else*)
+            let params := List.map (fun '(param_name, type) => (rename_string tbl_name action_name param_name [param_name], get_type type)) data_params in
             let set_action_run :=
                 IAssign act_type
                           (E.Var act_type ("_return$" ++ tbl_name ++ ".action_run") 0)
                           (E.Bit act_sizeN (BinInt.Z.of_nat i)) 
             in
-            ok (ISeq set_action_run s' :: acc)
+            ok ((params, ISeq set_action_run s') :: acc)
           | _ =>
             error "[ERROR] expecting action when `find`ing action, got something else"
           end
         in
-        let* acts := fold_lefti act_to_gcl (ok []) (List.map fst actions) in
-        let* named_acts := zip (List.map fst actions) acts in
+        let action_names := List.map fst actions in
+        let* inlined_acts := fold_lefti inline_action (ok []) action_names in
+        let* named_acts := zip action_names inlined_acts in
         let (assumes, keys') := normalize_keys tbl_name keys in
-        (*if i_extern_has_typ_var assumes then error "assumes has typ var" else*)
-          let invocation := IInvoke tbl_name keys' named_acts in
-          (*if i_extern_has_typ_var invocation then error "invocation has typ var" else*)
-            ok $ ISeq assumes invocation
+        let invocation := IInvoke tbl_name keys' named_acts in
+        ok $ ISeq assumes invocation
       | _ =>
         error "[ERROR] expecting table when getting table, got something else"
       end
@@ -856,10 +864,10 @@ Fixpoint elim_tuple (c : Inline.t) : result string t :=
   | IExit => ok c
   | IInvoke x keys actions =>
     (** TODO do we need to eliminate tuples in keys??*)
-    let+ actions := List.fold_right (fun '(name, act) acc =>
+    let+ actions := List.fold_right (fun '(name, (params, act)) acc =>
                      let* act := elim_tuple act in
                      let+ acc := acc in
-                     (name, act) :: acc) (ok []) actions in
+                     (name, (params, act)) :: acc) (ok []) actions in
     IInvoke x keys actions
   | IExternMethodCall extern method args ret  =>
       let arrow := elaborate_arguments args in
@@ -905,8 +913,10 @@ Fixpoint elaborate_headers (c : Inline.t) : result string Inline.t :=
 | IReturnFruit _ _ => ok c
 | IExit => ok c
 | IInvoke x keys actions =>
-  let opt_actions := map_snd elaborate_headers actions in
-  let+ actions' := rred (List.map res_snd opt_actions) in
+  let+ actions' := List.fold_left (fun actions '(name, (params, act)) =>
+                   let* actions := actions in
+                   let+ act := elaborate_headers act in
+                   List.app actions [(name, (params, act))]) actions (ok []) in
   IInvoke x keys actions'
 | IExternMethodCall extern method args ret =>
     let arrow := elaborate_arguments args in
@@ -987,10 +997,10 @@ Fixpoint elaborate_arrays (c : Inline.t) : result string Inline.t :=
   | IExit => ok c
   | IInvoke x keys actions =>
     (* TODO: Do something with keys? *)
-    let rec_act_call := fun acc_opt '(nm, act) =>
+    let rec_act_call := fun acc_opt '(nm, (params, act)) =>
         let* acc := acc_opt in
         let+ act' := elaborate_arrays act in
-        (nm, act') :: acc
+        (nm, (params, act')) :: acc
     in
     let+ actions' := fold_left rec_act_call actions (ok []) in
     IInvoke x keys (rev actions')
@@ -1064,9 +1074,11 @@ Fixpoint elaborate_structs (c : Inline.t) : result string Inline.t :=
   | IReturnFruit _ _ => ok c
   | IExit => ok c
   | IInvoke x keys actions =>
-    let opt_actions := map_snd elaborate_structs actions in
-    let+ actions' := rred (List.map res_snd opt_actions) in
-    IInvoke x keys actions'
+    let+ actions := List.fold_left (fun actions '(name, (params, act)) =>
+                   let* actions := actions in
+                   let+ act := elaborate_structs act in
+                   List.app actions [(name, (params, act))]) actions (ok []) in
+    IInvoke x keys actions
   | IExternMethodCall extern method arrow ret =>
       let arrow := elaborate_arguments arrow in
     ok (IExternMethodCall extern method arrow ret)
@@ -1107,10 +1119,10 @@ Fixpoint eliminate_slice_assignments (c : t) : result string t :=
   | IReturnFruit _ _ => ok c
   | IExit => ok c
   | IInvoke tbl keys actions =>
-    let+ actions' := F.fold (fun name act acts =>
+    let+ actions' := F.fold (fun name '(params, act) acts =>
              let* act' := eliminate_slice_assignments act in
              let+ acts' := acts in
-             (name, act') :: acts') actions (ok []) in
+             (name, (params, act')) :: acts') actions (ok []) in
     IInvoke tbl keys actions'
   | IExternMethodCall _ _ _ _ => ok c
   end.
@@ -1209,9 +1221,9 @@ Fixpoint assert_headers_valid_before_use (c : t) : result string t :=
   | IExit => ok c
   | IInvoke t ks acts  =>
   (* Assume keys have been normalized, so dont to check them*)
-    let+ acts' := rred (List.map (fun '(a,c) =>
+    let+ acts' := rred (List.map (fun '(a,(params, c)) =>
                   let+ c' := assert_headers_valid_before_use c in
-                  (a, c')) acts) in
+                  (a, (params, c'))) acts) in
     IInvoke t ks acts' 
   | IExternMethodCall ext method paramargs ret =>
     if String.eqb method "extract" then ok c else

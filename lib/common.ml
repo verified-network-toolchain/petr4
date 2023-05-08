@@ -184,11 +184,22 @@ module MakeDriver (IO: DriverIO) = struct
        Format.eprintf "TODO: implement p4flat pretty printing.\n";
        Ok prog
 
-  let to_gcl depth prog =
+ let ccompile cub =
+   match Poulet4_Ccomp.CCompSel.coq_Compile cub with
+   | Poulet4_Ccomp.Errors.OK c ->     
+     c
+   | Poulet4_Ccomp.Errors.Error (m) ->
+     match m with
+     | (Poulet4_Ccomp.Errors.MSG msg) ::[] ->
+       failwith (Base.String.of_char_list msg)
+     | _ ->
+       failwith ("unknown failure from Ccomp") 
+
+ let to_gcl depth prog =
     let open Poulet4 in
     let gas = 100000 in
     let coq_gcl =
-      V1model.gcl_from_p4cub TableInstr.instr gas depth prog
+      V1model.gcl_from_p4cub TableInstr.instr true gas depth prog
     in
     begin match coq_gcl with
     | Result.Error msg -> Error (ToGCLError msg)

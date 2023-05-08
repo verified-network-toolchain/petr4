@@ -264,6 +264,25 @@ Fixpoint list_eq {A : Type} (eq : A -> A -> bool) (s1 s2 : list A) : bool  :=
   | x::xs, y::ys => andb (eq x y) (list_eq eq xs ys)
   end.
 
+Fixpoint list_member {X : Type} (eq : X -> X -> bool) (x : X) (xs : list X) : bool :=
+  match xs with
+  | [] => false
+  | x'::xs => if eq x x' then true else list_member eq x xs
+  end.
+
+Fixpoint uniquify_aux {X : Type} (eq : X -> X -> bool) (xs : list X) (seen : list X) : list X :=
+  match xs with
+  | [] => seen
+  | x::xs =>
+    if list_member eq x seen then
+      uniquify_aux eq xs seen
+    else
+      uniquify_aux eq xs (x::seen)
+  end.
+
+Definition uniquify {X : Type} (eq : X -> X -> bool) (xs : list X) : list X :=
+  List.rev' (uniquify_aux eq xs []).
+
 Import Result ResultNotations.
 
 Fixpoint zip {A B : Type} (xs : list A) (ys : list B) : result string (list (A * B)) :=
@@ -447,6 +466,8 @@ Proof.
   intros A l n h.
   rewrite skipn_length. lia.
 Qed.
+
+
 
 Lemma app_eq_len_tail_app : forall {A : Type} {l1 l2 l1' l2' : list A},
     l1 ++ l2 = l1' ++ l2' ->

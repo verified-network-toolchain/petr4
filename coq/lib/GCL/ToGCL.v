@@ -326,9 +326,6 @@ Section ToGCL.
           let+ header := to_lvalue arg in
           let hvld := header @@ ".is_valid" in
           BV.BVVar hvld 1
-        | Una.SetValidity b =>
-            (* TODO @Rudy isn't this a command? *)
-          error "SetValidity is not an expression. It should be pattern matched on earlier"
         end
       | E.Bop typ op lhs rhs =>
         let* l := to_rvalue lhs in
@@ -491,8 +488,6 @@ Section ToGCL.
           let+ header := to_lvalue arg in
           let hvld := header @@ ".is_valid" in
           GCL.isone (BV.BVVar hvld 1)
-        | Una.SetValidity b =>
-          error "TODO: implement case for E.Setvalidity"
         end
       | E.Bop typ op lhs rhs =>
         let lbin := fun o => let* l := to_form lhs in
@@ -613,6 +608,11 @@ Section ToGCL.
         let e := GCL.GAssign type lhs' rhs' in
         ok (e, c)
 
+      | Inline.ISetValidity b e =>
+          let~ hdr_str := to_lvalue (scopify c e) over "couldn't convert e of ISetValidity to lvalue" in
+          let validity := hdr_str @@ ".isValid" in
+          ok (GCL.GAssign Typ.Bool validity (BV.bit (Some 1) 1), c)
+           
       | Inline.IConditional guard_type guard tru_blk fls_blk =>
         let* tru_blk' := inline_to_gcl c arch tru_blk in
         let* fls_blk' := inline_to_gcl c arch fls_blk in

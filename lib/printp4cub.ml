@@ -27,8 +27,6 @@ let print_una p u =
   | Una.BitNot -> "BitNot"
   | Una.Minus -> "UMinus"
   | Una.IsValid -> "IsValid"
-  | Una.SetValidity true -> "SetValid"
-  | Una.SetValidity false -> "SetInValid"
   in
 fprintf p "%s" s
 
@@ -260,6 +258,10 @@ let rec print_stm p =
     fprintf p "SAssign @[%a := %a@]"
     print_exp e1
     print_exp e2
+  | Stm.SetValidity (b, e) ->
+    fprintf p "%s %a"
+    (if b then "SetValid" else "SetInValid")
+    print_exp e
   | Stm.Cond (e,s1,s2) ->
     fprintf p "SConditional @[if (%a) then (%a) else (%a)@]" 
     print_exp e

@@ -106,6 +106,9 @@ Inductive lifted_stm : Stm.t -> Prop :=
   lifted_exp e1 ->
   lifted_exp e2 ->
   lifted_stm (e1 `:= e2)%stm
+| lifted_setvalidity b e :
+  lifted_exp e ->
+  lifted_stm (Stm.SetValidity b e)
 | lifted_cond e s1 s2 :
   lifted_exp e ->
   lifted_stm s1 ->
@@ -522,6 +525,8 @@ Proof.
     apply lift_exp_lifted_exp in Heqp as [? ?], Heqp0 as [? ?].
     apply Unwind_lifted; auto.
     rewrite Forall_app; auto.
+  - destruct (lift_exp hdr) as [e' le] eqn:eqe.
+    apply lift_exp_lifted_exp in eqe as [? ?]; auto.
   - destruct (lift_call call) as [fk' lfk] eqn:eqfk.
     destruct (lift_args args) as [args' largs] eqn:eqargs.
     apply lift_call_lifted_call in eqfk as [? ?].

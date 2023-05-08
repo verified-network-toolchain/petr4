@@ -60,6 +60,7 @@ Fixpoint inf_stm  (s : Stm.t) : Stm.t :=
   | Stm.Ret e      => Stm.Ret $ option_map inf_exp e
   | Stm.Trans e  => Stm.Trans $ inf_trns e
   | (lhs `:= rhs)%stm => (inf_exp lhs `:= inf_exp rhs)%stm
+  | Stm.SetValidity b e => Stm.SetValidity b $ inf_exp e
   | Stm.Invoke e t
     => Stm.Invoke (option_map inf_exp e) t
   | Stm.App fk args

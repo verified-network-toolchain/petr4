@@ -870,10 +870,7 @@ Section ToP4cub.
       
       Definition translate_set_validity v callee :=
         let+ hdr := translate_expression callee in
-        ST.Asgn hdr (Exp.Uop Typ.Bool (Una.SetValidity v) hdr).
-        (* ST.Asgn *)
-        (*   (Exp.Uop Typ.Bool Una.IsValid hdr) *)
-        (*   (exp.Bool v). *)
+        ST.SetValidity v hdr.
 
       Definition translate_is_valid callee retvar :=
         let* hdr := translate_expression callee in

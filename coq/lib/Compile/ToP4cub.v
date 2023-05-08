@@ -870,11 +870,11 @@ Section ToP4cub.
       
       Definition translate_set_validity v callee :=
         let+ hdr := translate_expression callee in
-        (* ST.Asgn hdr (Exp.Uop Typ.Bool (Una.SetValidity v) hdr) *)
-        ST.Asgn
-          (Exp.Uop Typ.Bool Una.IsValid hdr)
-          (Exp.Bool v).
-      
+        ST.Asgn hdr (Exp.Uop Typ.Bool (Una.SetValidity v) hdr).
+        (* ST.Asgn *)
+        (*   (Exp.Uop Typ.Bool Una.IsValid hdr) *)
+        (*   (exp.Bool v). *)
+
       Definition translate_is_valid callee retvar :=
         let* hdr := translate_expression callee in
         match retvar with
@@ -2011,10 +2011,11 @@ Section ToP4cub.
     end.
 
   Definition preprocess (tags : tags_t) p :=
-    let+ hoisted_simpl :=
-      hoist_nameless_instantiations
-        tags_t (SimplExpr.transform_prog tags p) in
-    let '(_,prog) := inline_typ_program Maps.IdentMap.empty hoisted_simpl in prog.
+    let p := SimplExpr.transform_prog tags p in
+    let+ p := hoist_nameless_instantiations tags_t p in
+    let  p := inline_constants p in
+    let '(_,p) := inline_typ_program Maps.IdentMap.empty p in
+    p.
 
   Fail Definition inline_cub_types (decls : DeclCtx) :=
     fold_left (fun acc '(x,t) => subst_type acc x t) (decls.(types)) decls.
@@ -2025,7 +2026,7 @@ Section ToP4cub.
     let infer_pts := Field.map (fun '(cparams,ts) =>
                                   (cparams, (* TODO: infer member types? *) ts)) in
     {| variables := infer_Cds decl.(variables);
-      controls := infer_ds decl.(controls);
+       controls := infer_ds decl.(controls);
        parsers := infer_ds decl.(parsers);
        tables := infer_Cds decl.(tables);
        actions := infer_Cds decl.(actions);
@@ -2037,8 +2038,7 @@ Section ToP4cub.
     |}.
 
   Definition translate_program (tags : tags_t) (p : program) : result string DeclCtx :=
-    let p' := inline_constants p in
-    let* '(Program decls) := preprocess tags p' in
+    let* '(Program decls) := preprocess tags p in
     let+ cub_decls := translate_decls decls in
     infer_member_types ((*inline_cub_types*) cub_decls).
 

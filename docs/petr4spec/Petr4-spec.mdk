@@ -1,6 +1,6 @@
-Title         : P4 Type System Formalization
+Title         : Formalization of P4's Type System
 Title Footer  : &date;
-Author        : Petr4 Team
+Author        : Parisa Ataei, Harim Hahn, Ryan Doenges, Nate Foster
 Affiliation   : Cornell University
 Heading depth : 5
 Cite Style    : numeric
@@ -271,11 +271,10 @@ infrulehelper {
 
 
 ~ Begin Abstract
-P4's type system is currently distributed between its language specification and its reference implementation p4c. Unfortunately, this state of affairs results in ambiguity while reasoning through the behavior of a P4 program, evident from the many issues opened on P4's GitHub repository. 
-In this document, we provide a formalization of P4's type system to unify the expected behavior of P4 programs. 
-The target audience of this document includes language designers and compiler experts
-that work (or are starting to work) on P4 as well as developers and debuggers that work
-with P4 and require a deep understanding of it.
+P4's type system as describe in P4 spec cannot answer some questions precisely, such as when is an implict cast being inserted, what types are equal, what type inference algorithm is used, etc.
+On the other hand, the type system as implemented in p4c is not easy to understand since it is distributed among more than half a dozen passes and interspered with non-typing passes.
+In this document, we present the formalization of the type system. More specifically, we break it down into a simple type checker and a type inference algorithm. The goal is to spell out all the details of P4's type system precisely. 
+The target audience of this document is mainly language designers and compiler experts who work on P4. Additionally, it can be a good resource for practitioners who require a deep understanding of P4.
 ~ End Abstract
 
 ~ MathDefs
@@ -287,137 +286,118 @@ with P4 and require a deep understanding of it.
 
 # Introduction { #sec-intro }
 
+[issue-875]: https://github.com/p4lang/p4-spec/issues/875
+[issue-1241]: https://github.com/p4lang/p4-spec/issues/1241
+[issue-1242]: https://github.com/p4lang/p4-spec/issues/1242
+[issue-884]: https://github.com/p4lang/p4-spec/issues/884
+[issue-1062]: https://github.com/p4lang/p4-spec/issues/1062
+[issue-1101]: https://github.com/p4lang/p4-spec/issues/1101
 
+P4's type system as describe in P4 spec cannot answer some questions, such as when is
+an implict cast being inserted, what types are equal, what type inference algorithm is
+used, etc. Even worse it sometimes fails to answer the basic question of when does a
+program type check. This is evident by the filed issues on P4 spec's GitHub repository
+such as [issue #875][issue-875], [issue #1241][issue-1241], [issue #1242][issue-1242],
+[issue #884][issue-884], [issue #1062][issue-1062], and [issue #1101][issue-1101].
+The reason behind this failure is threefold. First, some of the definitions required to
+have a complete type system is missing from the spec, for example, the definition of
+type equality which is discussed in [issue #875][issue-875]. Second, some of the
+definitions and explanations are ambiguous or inconsistent, for example, the description
+of casting which is discussed in [issue #1241][issue-1241], [issue #1242][issue-1242],
+etc. And finally, some are spread across multiple sections of the spec which makes
+understanding them difficult, for example, in order to understand binary operations in
+P4 one has to read 18 sections of the spec and gather information spread out in these 18
+sections.
 
-# Overview { #sec-overview }
+On the other hand, p4c implements a type system for P4 so it can answer some of the
+questions that the spec cannot. Unfortunately, there are more than half a dozen typing
+passes in p4c which are interspered with non-typing passes, as shown in the simplified
+p4c's pipeline shown in Figure [#fig-p4c-pipeline].
 
-
-# Notation { #sec-notation }
-
-In this section, we introduce the notation used throughout this document:
-
-- $\overline x$ denotes a list of $x$.
-- For simplicity, we omit mapping a function/judgment on a list of elements. Instead, we just apply the function/judgment to a list. So every time you see a function applied to a list, read it as mapping the function over all the elements of the list. 
-- An underscore (that is, $\_$) is used when we do not need to use some specific information returned by some helper in judgments.
-- $\mathit{is\_X} (\typ)$ checks if the type $\typ$ is of the specific kind/type/structure $X$.
- 
-We use a variety of metavariables.
-_Metavariables_ are place holders for values of a type. For example, $\bool$ stands for expressions $\tru$ or $\fls$. Keep in mind that $\tru$ and $\fls$ both are expressions that have the type $\boolTyp$. As another example, in most programming references $\mathit{foo}$, $\mathit{bar}$, and $\mathit{baz}$ are used as metavariables, often for functions. 
-The following describes the metavariables used in this document:
-
-~ Center
-| **metavariable**   |   **type represented** |
-|:----------------:|:------------------|
-| $\bool$ | booleans |
-| $\str$ | strings |
-| $\name$ | strings representing names |
-| $\typName$ | type identifier |
-| $\int$ | arbitrary length integer |
-| $\width$ | width |
-| $\wildcardParam$ | wild card type parameters |
-| $\field$ | field names |
-| $\atyp$ | meta type variable |
-| $\val$ | values |
+~ Figure { #fig-p4c-pipeline; caption: "P4c compiler pipeline." }
+![p4cpipeline]
 ~
+[p4cpipeline]: figs/p4c/p4c-pipeline.png { width: 100%; page-align: forcehere }
 
+This document defines P4's type system precisely. The type system is broken down to
+multiple passes and is conducted over the  _surface itermediate representation (IR)_.
+Figure [#fig-petr4-pipeline] illustrates the passes.
 
-## Signatures { #sec-sig }
-
-In this section, we provide the signatures used throughout this document including the judgment forms (``TODO: revise``), environment signatures (``TODO: revise``), and function signatures (``TODO: maybe add``).
-
-* we may need to adjust the type well-formed judgment depending on whether we still need type and/or extern envs. 
-
-~ Center
-| **judgment name**   |   **judgment form** | ** where to find rules ** |
-|:----------------|:------------------|:------------------|
-| Type well-formedness | $\typWellFormed \typ$ | Section [#sec-type-well-formed] |
-| Type equality | $\typEqEnv {\overline {(\var, \prim \var)}} {\typ_1} {\typ_2}$ | Section [#sec-type-eq] |
-| Expression typing | $\expenv {\exp} {\prim \exp} \typ \dir $ | Section [#sec-exp-typing] |
-| Statement typing | $\stmtenv \stmt {\VVal \stmt} {\typ}$ | Section [#sec-stmt-typing] |
-| Declaration typing | $\dclenv \dcl {\VVal \dcl} {\VVal\varEnv} {\VVal \constEnv} {\VVal \typEnv} {\VVal \typSynEnv}$ | Section [#sec-decl-typing] |
+~ Figure { #fig-petr4-pipeline; caption: "P4 front-end pipeline." }
+![petr4pipeline]
 ~
+[petr4pipeline]: figs/petr4/petr4-pipeline.png { width: 20%; page-align: forcehere }
 
+_Ellaboration_ is a pre-processing pass that generates fresh variable names for un-named
+variables along with other pre-processing required for typing. 
+_Inference_ conducts type inference, i.e., it infers the type for parts of the program
+that miss typing annotations, and insertion of casts, i.e., to conver a program from one
+type to another. Consequently, it generates
+another program written in the surface IR. 
+_Type checking_ is a simple type checking pass that states if a program is well-typed or
+not. 
 
-~ Center
-| **environment name** | **symbol** | **signature** |
-|:----------------|:------------------|:------------------|
-| type environment | $\typEnv$ | $\typName \rightarrow \typ$ |
-| variable environment | $\varEnv$ | $\name \rightarrow (\typ, \dir)$ |
-| extern environment | $\externEnv$ | $\name \rightarrow \mathit{externmethod}$ |
-| type parameter environment | $\typParEnv$ | $\typName \rightarrow \typ$ |
-| type synonym environment | $\typSynEnv$| $\name \rightarrow \typName$ |
-| constant environment | $\constEnv$ | $\name \rightarrow \val $ |
-~
+## Design Goals
+The design goals of this type system are the following:
+
+- **Simple representation**: the IR is designed to be as simple as possible and as close
+to P4's surface syntax as possible. Still, at any point in the pipeline it has to be
+able to be pretty printed to a valid P4 program. 
+- **Well-defined type system**: the type system fully and precisely defines valid programs
+in a way that is easy to reason about informally and formally.
+- **Separation of concern**: the type system is broken up to multiple passes to make
+each pass simpler and easier to understand. 
 
 # Syntax { #sec-syntax }
 
-In the following we present P4 syntax. Note that we omitted annotations and meta-information since they are not required for type checking. Some notes about the syntax follow:
+A P4 program is parsed to the surface IR and can be represented in the surface IR. The
+structure of this IR is deescribed in the form of an abstract syntax tree (AST). All
+definitions of this specification use this abstract syntax. For simplicity, the surface IR does not contain annotations and meta-information.
 
 
-- Surface types are the types that a developer can write down and use while writing a P4 program. 
-  + Note that similar to P4, we categorize $\errTyp$ and $\matchKindTyp$ types as surface types; however, their members are declared by a P4 program/library. The reason behind this is the need to have arguments of these types, such as the example below, which is taken from P4 spec:
 
-~ Begin P4Example
-extern void verify(in bool condition, in error err);
+## Conventions { #sec-conventions }
 
-ParserModel.verify(bool condition, error err) {
-    if (condition == false) {
-        ParserModel.parserError = err;
-        goto reject;
-    }
-}
-~ End P4Example
+We describe the various conventions that have been adopted in writing this document.
 
-- Parameters, denoted by $\prmDef$, have a direction, type, and name.
-- For simplicity, we use the expanded format of parameter in most rules to have fine access to its direction and type. However, we often don't need its initializer so we omit it. Keep in mind that a parameter may or may not have an initializer.
-- Direction is optional in parameter declaration; however, for simplicity, we just use  $\less$ to denote a missing direction. 
+### Grammar Notation
+
+The following conventions are adopted in defining the grammar rules for surface IR's abstract syntax:
+
+- Terminal symbols are writeen in sans-serif font or in symbolic form: $\boolTyp$, $\accept$, $\langle$, $\oplus$.
+- Nonterminal symbols are written in italic font: $\exp$, $\stmt$.
+- $\overline {A}$ is a list of zero or more $A$.
+- Production rules in grammar are written as $\mathit{sym} ::= A_1 | \cdots | A_n$. Each rule describes a syntactic category. For example, the rule here describes the syntactic category $\mathit{sym}$.
+- Large production rules may be split into multiple production rules. This is explicitly indicated by having ellipses at the beginning or/and end of a rule. For example, $\mathit{sym} ::= \cdots | A_i | \cdots$.
+
+### Auxiliary Notation
+
+Additionally, the following notation is used to keep definitions concise:
+
+- $\mathit{is\_something}$ is a helper function that states if an input is a specific kind from a certain syntactic category. For example, $\mathit{is\_bool}(\typ)$ takes type $\typ$ and returns $\tru$ if $\typ$ is a boolean and $\fls$ otherwise. 
+
+### Metavariables { #sec-metavars }
+
+_Metavariables_ are nonterminal symbols that sit in place of a specific kind of value which do not necessarily require a syntactic category associated to them such as boolean values. Throughout this specification, various metavariables are used and they are introduced in Table [#tab-metavars].
+
+~ Center
+| **metavariable**   |   **values represented** |
+|:----------------:|:------------------|
+| $\name$ | strings representing names |
+| $\typName$ | type names |
+| $\typVar$ | type variables |
+| $\field$ | field names |
+| $\kind$ | function kinds |
+| $\bool$ | booleans |
+| $\str$ | strings |
+| $\int$ | arbitrary length integer |
+| $\width$ | width |
+~
+
+## Directions { #sec-ast-dir }
+add explenation on comment in rules.
 
 ~ Begin P4Syntax
-**Surface types:**
-
-|     |      |     |     |
-|~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\surfaceTyp $ | $::=$ | $\boolTyp$ | $\qquad \text{booleans}$ |
-|   | $\vert$ | $\errTyp$ | $\qquad \text{errors}$ |
-|   | $\vert$ | $\matchKindTyp$ | $\qquad \text{match kinds}$ |
-|   | $\vert$ | $\integerTyp$ | $\qquad \text{infinite-precision integers}$ |
-|   | $\vert$ | $\stringTyp$ | $\qquad \text{strings}$ |
-|   | $\vert$ | $\intWidthTyp \atyp$ | $\qquad \text{fixed-width signed integers}$ |
-|   | $\vert$ | $\bitWidthTyp \atyp$ | $\qquad \text{fixed-width unsigned integers}$ |
-|   | $\vert$ | $\varbitTyp \atyp$ | $\qquad \text{variable-width integers with a maximum width}$ |
-|   | $\vert$ | $\typName$ | $\qquad \text{type identifiers}$ |
-|   | $\vert$ | $\spcTyp {\typName} {\typArg}$ | $\qquad \text{specialized types}$ |
-|   | $\vert$ | $\headerStackTyp {\surfaceTyp} \exp$ | $\qquad \text{header stacks}$ |
-|   | $\vert$ | $\tupleTyps {\typArg}$ | $\qquad \text{tuples}$ |
-{ .booktable }
-
-**Type arguments:**
-
-|     |      |     |     |
-|~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\typArg$ | $::=$ | $\surfaceTyp $ | $\qquad \text{surface types}$ |
-|   | $\vert$ | $\voidTyp$ | $\qquad \text{void}$ |
-|   | $\vert$ | $\dontcareTyp$ | $\qquad \text{don't care}$ |
-|   | $\vert$ | $\identifierkw$ | $\qquad \text{identifier keyword}$ |
-|   | $\vert$ | $\applykw$ | $\qquad \text{apply keyword}$ |
-|   | $\vert$ | $\keykw$ | $\qquad \text{key keyword}$ |
-|   | $\vert$ | $\actionskw$ | $\qquad \text{actions keyword}$ |
-|   | $\vert$ | $\statekw$ | $\qquad \text{state keyword}$ |
-|   | $\vert$ | $\entrieskw$ | $\qquad \text{entries keyword}$ |
-|   | $\vert$ | $\typekw$ | $\qquad \text{type keyword}$ |
-{ .booktable }
-
-**Function prototype returned types:**
-
-|     |      |     |     |
-|~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\funcProTyp$ | $::=$ | $\surfaceTyp$ | $\qquad \text{surface types}$ |
-|   | $\vert$ | $\voidTyp$ | $\qquad \text{void}$ |
-|   | $\vert$ | $\typVar$ | $\qquad \text{type variables}$ |
-{ .booktable }
-
-
-**Directions:**
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
@@ -427,15 +407,115 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\less$ | $\qquad \text{directionless}$ |
 { .booktable }
 
-**Parameters:**
+~ End P4Syntax
+
+## Parameters { #sec-ast-prm }
+
+- The syntactic category [$\exp$][#sec-ast-exp] defines expressions.
+- When defining a parameter, its direction is optional. However, instead of using an optional type, we denote this by the case of $\less$.
+
+~ Begin P4Syntax
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\prmDef$ | $::=$ | $\dir \, \surfaceTyp \, \var$ | $\qquad \text{parameters}$ |
-|   | $\vert$ | $\dir \, \surfaceTyp \, \var = \exp$ | $\qquad \text{parameters with value}$ |
+| $\prmDef$ | $::=$ | $\dir \, \typ \, \var$ | $\qquad \text{parameters}$ |
+|   | $\vert$ | $\dir \, \typ \, \var = \exp$ | $\qquad \text{parameters with initializers}$ |
+{ .booktable }
+~ End P4Syntax
+
+## Types { #sec-ast-type }
+
+
+The surface IR has a signle syntactic category for types, however, this syntactic category represents three kinds of types:
+
+- **Surface types**: types that are directly written by a programmer in a P4 program.
+- **Declared types**: types that are declared by a P4 program.
+- **Synthesized types**: types that are synthesized by a P4 program. 
+
+### Surface Types { #sec-ast-surface-type }
+
+~ Begin P4Syntax
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\typ $ | $::=$ | $\boolTyp$ | $\qquad \text{booleans}$ |
+|   | $\vert$ | $\errTyp$ | $\qquad \text{errors}$ |
+|   | $\vert$ | $\matchKindTyp$ | $\qquad \text{match kinds}$ |
+|   | $\vert$ | $\integerTyp$ | $\qquad \text{infinite-precision integers}$ |
+|   | $\vert$ | $\stringTyp$ | $\qquad \text{strings}$ |
+|   | $\vert$ | $\intWidthTyp \exp$ | $\qquad \text{fixed-width signed integers}$ |
+|   | $\vert$ | $\bitWidthTyp \exp$ | $\qquad \text{fixed-width unsigned integers}$ |
+|   | $\vert$ | $\varbitTyp \exp$ | $\qquad \text{variable-width integers with a maximum width}$ |
+|   | $\vert$ | $\typName$ | $\qquad \text{type names}$ |
+|   | $\vert$ | $\spcTyp {\typName} {\typ}$ | $\qquad \text{specialized types}$ |
+|   | $\vert$ | $\headerStackTyp {\typ} \exp$ | $\qquad \text{header stacks}$ |
+|   | $\vert$ | $\tupleTyps {\typ}$ | $\qquad \text{tuples}$ |
+|   | $\vert$ | $\cdots$ | |
 { .booktable }
 
+~ End P4Syntax
 
+### Declared Types { #sec-ast-dcl-type }
+
+~ Begin P4Syntax
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\typ$ | $::=$ | $\cdots$ | |
+|   | $\vert$ | $\headerTyps \typParam \field {\typ}$ | $\qquad \text{headers}$ |
+|   | $\vert$ | $\headerUnionTyps \typParam \field {\typ}$ | $\qquad \text{header unions}$ |
+|   | $\vert$ | $\structTyps \typParam \field {\typ}$ | $\qquad \text{structs}$ |
+|   | $\vert$ | $\enumTypDef$ | $\qquad \text{serializable enums}$ |
+|   | $\vert$ | $\enumTypNoTypDef$ | $\qquad \text{enums}$ |
+|   | $\vert$ | $\parserTyp \typParams {\prmDefs}$ | $\qquad \text{parsers}$ |
+|   | $\vert$ | $\controlTyp \typParams {\prmDefs}$ | $\qquad \text{controls}$ |
+|   | $\vert$ | $\packageTyp \typParams {\prmDefs}$ | $\qquad \text{packages}$ |
+|   | $\vert$ | $\cdots$ | |
+{ .booktable }
+
+~ End P4Syntax
+
+### Synthesized Types { #sec-ast-synt-type }
+
+~ Begin P4Syntax
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\typ$ | $::=$ | $\cdots$ | |
+|   | $\vert$ | $\funcType \kind \typParams {\prmDefs } {\typ}$ | $\qquad \text{functions}$ |
+|   | $\vert$ | $\setTyp {\typ}$ | $\qquad \text{sets}$ |
+|   | $\vert$ | $\externTyp \name$ | $\qquad \text{externs}$ |
+|   | $\vert$ | $\recordTyps \field {\typ}$ | $\qquad \text{records}$ |
+|   | $\vert$ | $\matchKindTyp$ | $\qquad \text{match kinds}$ |
+|   | $\vert$ | $\newTypeTyp \typVar {\typ}$ | $\qquad \text{reference}$ |
+|   | $\vert$ | $\actionTyp {\overline { {\prmDef}}} {\overline {\VVal {\prmDef}}}$ | $\qquad \text{actions}$ |
+|   | $\vert$ | $\constructorTyp \typParams {\prmDefs} \typ$ | $\qquad \text{constructors}$ |
+|   | $\vert$ | $\tableTyp \name$ | $\qquad \text{tables}$ |
+|   | $\vert$ | $\cdots$ | |
+{ .booktable }
+
+~ End P4Syntax
+
+
+### Leftover Types { #sec-ast-leftover-type }
+
+There are some types that do not fit into the surface, declared, or synthesized types. Such types are added individually to the type syntactic category.
+
+~ Begin P4Syntax
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\typ$ | $::=$ | $\cdots$ | |
+|   | $\vert$ | $\voidTyp$ | $\qquad \text{void}$ |
+|   | $\vert$ | $\typVar$ | $\qquad \text{type variables}$ |
+|   | $\vert$ | $\dontcareTyp$ | $\qquad \text{don't care}$ |
+
+~ End P4Syntax
+
+## Expressions { #sec-ast-exp }
+
+
+~ Begin P4Syntax
 **Unary operations:**
 
 |     |      |     |     |
@@ -497,16 +577,22 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\records \exp$ | $\qquad \text{records}$ |
 |   | $\vert$ | $\unaryOp \exp$ | $\qquad \text{unary operations}$ |
 |   | $\vert$ | $\exp_1 \binOp \exp_2$ | $\qquad \text{binary operations}$ |
-|   | $\vert$ | $\cast {\surfaceTyp} \exp$ | $\qquad \text{casts}$ |
+|   | $\vert$ | $\cast {\typ} \exp$ | $\qquad \text{casts}$ |
 |   | $\vert$ | $\typMem \typName \field$ | $\qquad \text{type members}$ |
 |   | $\vert$ | $\errMem \field$ | $\qquad \text{error members}$ |
 |   | $\vert$ | $\expMem \exp \field$ | $\qquad \text{expression members}$ |
 |   | $\vert$ | $\ternary {\exp_1} {\exp_2} {\exp_3}$ | $\qquad \text{conditionals}$ |
-|   | $\vert$ | $\funcCall \exp {\surfaceTyps} \args$ | $\qquad \text{function calls}$ |
-|   | $\vert$ | $\instantiation {\surfaceTyp} {\args}$ | $\qquad \text{anonymous instantiation}$ |
+|   | $\vert$ | $\funcCall \exp {\typs} \args$ | $\qquad \text{function calls}$ |
+|   | $\vert$ | $\instantiation {\typ} {\args}$ | $\qquad \text{anonymous instantiation}$ |
 |   | $\vert$ | $\mask {\exp_1} {\exp_2}$ | $\qquad \text{bit masks}$ |
 |   | $\vert$ | $\range {\exp_1} {\exp_2}$ | $\qquad \text{ranges}$ |
 { .booktable }
+
+~ End P4Syntax
+
+## Statements { #sec-ast-stmt }
+
+~ Begin P4Syntax
 
 **Labels:**
 
@@ -545,6 +631,12 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\varDclInit {\surfaceTyp}\var \exp$ | $\qquad \text{local variables (initialized)}$ |
 |   | $\vert$ | $\varDcl {\surfaceTyp}\var$ | $\qquad \text{local variables (uninitialized)}$ |
 { .booktable }
+
+~ End P4Syntax
+
+## Declarations { #sec-ast-dcl }
+
+~ Begin P4Syntax
 
 **Parser states:**
 
@@ -615,86 +707,64 @@ ParserModel.verify(bool condition, error err) {
 |   | $\vert$ | $\packageTypDcl \typName \typVars {\prmDefs}$ | $\qquad \text{package types}$ |
 { .booktable }
 
-**Programs:**
-
-|     |      |     |     |
-|~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\prog$ | $::=$ | $\dcls$ | $\qquad \text{programs}$ |
-{ .booktable }
-
-
-**Values:**
-
-|     |      |     |     |
-|~~~~:|:~~~~:|:~~~~|:~~~~|
-| $val$ | $::=$ | $\enumVal \typName \field$ | $\qquad \text{enum values}$ |
-{ .booktable }
-
 ~ End P4Syntax
 
-
-# Type Related Judgments { #sec-types-typing }
-
-Three kinds of types are generated by the type checker:
-
-- surface types instantiated with $\width$, that is, $\surfaceTyp$ 
-- declared types indicated by $\declaredTyp$
-- synthesized types indicated by $\synTyp$
-
-Two judgments are provided for types of P4 expressions:
-
-[alpha-equiv-wiki]: https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
-
-- [type well-formedness][#sec-type-well-formed]: ensures the lack of specific errors in **surface** types, that is, types are well-formed.
-- [type equality][#sec-type-eq]: checks the [alpha equalency][alpha-equiv-wiki] of two types and produces a list of type variable equivalence under which the two types are equivalent.
-
+## Programs { #sec-ast-prog }
 
 ~ Begin P4Syntax
-**Declared types:**
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\declaredTyp$ | $::=$ |$\headerTyps \typParam \field {\surfaceTyp}$ | $\qquad \text{headers}$ |
-|   | $\vert$ | $\headerUnionTyps \typParam \field {\surfaceTyp}$ | $\qquad \text{header unions}$ |
-|   | $\vert$ | $\structTyps \typParam \field {\surfaceTyp}$ | $\qquad \text{structs}$ |
-|   | $\vert$ | $\enumTypDef$ | $\qquad \text{serializable enums}$ |
-|   | $\vert$ | $\enumTypNoTypDef$ | $\qquad \text{enums}$ |
-|   | $\vert$ | $\parserTyp \typParams {\prmDefs}$ | $\qquad \text{parsers}$ |
-|   | $\vert$ | $\controlTyp \typParams {\prmDefs}$ | $\qquad \text{controls}$ |
-|   | $\vert$ | $\packageTyp \typParams {\prmDefs}$ | $\qquad \text{packages}$ |
+| $\prog$ | $::=$ | $\dcls$ | $\qquad \text{list of declarations}$ |
 { .booktable }
-
-**Synthesized types:**
-
-|     |      |     |     |
-|~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\synTyp$ | $::=$ | $\funcType \kind \typParams {\prmDefs } {\surfaceTypOrVoidOrVar}$ | $\qquad \text{functions}$ |
-|   | $\vert$ | $\setTyp {\surfaceTyp}$ | $\qquad \text{sets}$ |
-|   | $\vert$ | $\externTyp \name$ | $\qquad \text{externs}$ |
-|   | $\vert$ | $\recordTyps \field {\surfaceTyp}$ | $\qquad \text{records}$ |
-|   | $\vert$ | $\matchKindTyp$ | $\qquad \text{match kinds}$ |
-|   | $\vert$ | $\newTypeTyp \typVar {\surfaceTyp}$ | $\qquad \text{reference}$ |
-|   | $\vert$ | $\actionTyp {\overline { {\prmDef}}} {\overline {\VVal {\prmDef}}}$ | $\qquad \text{actions}$ |
-|   | $\vert$ | $\constructorTyp \typParams {\prmDefs} \typ$ | $\qquad \text{constructors}$ |
-|   | $\vert$ | $\tableTyp \name$ | $\qquad \text{tables}$ |
-{ .booktable }
-
-**Types produced by the type system:**
-
-|     |      |     |     |
-|~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\typ$ | $::=$ | $\surfaceTyp $ | $\qquad \text{surface types}$ |
-|   | $\vert$ | $\synTyp$ | $\qquad \text{synthesized types}$ |
-|   | $\vert$ | $\declaredTyp$ | $\qquad \text{declared types}$ |
-|   | $\vert$ | $\voidTyp$ | $\qquad \text{void type}$ |
-{ .booktable }
-
 
 ~ End P4Syntax
 
-## Type Well-Formed Judgment { #sec-type-well-formed }
 
-This judgment is overloaded and it checks if a surface type and more generally a type is well-formed or not. This judgment is used to check if a surface type is well-formed when it is used in expressions or if a type is well-formed when it is declared. Specifically, it has two forms $\typWellFormed {\surfaceTyp}$ and $\typWellFormed {\typ}$ which state that the type $\surfaceTyp$ and $\typ$, respectively, are well-formed under the type environment $\typEnv$ and extern environment $\externEnv$. In other words, this judgment checks that types are syntactically correct.
+
+# Type-Checker { #sec-type-checker }
+
+## Conventions
+
+### Auxiliary Notation
+
+- For simplicity, we omit mapping a function/judgment on a list of elements. Instead, we just apply the function/judgment to a list. So every time you see a function applied to a list, read it as mapping the function over all the elements of the list.
+- An underscore (that is, $\_$) is used when we do not need to use some specific information returned by some helper in judgments.
+- $\mathit{is\_X} (\typ)$ checks if the type $\typ$ is of the specific kind/type/structure $X$.
+
+
+### Signatures { #sec-sig }
+
+In this section, we provide the signatures used throughout this document including the judgment forms (``TODO: revise``), environment signatures (``TODO: revise``), and function signatures (``TODO: maybe add``).
+
+* we may need to adjust the type well-formed judgment depending on whether we still need type and/or extern envs. 
+
+~ Center
+| **judgment name**   |   **judgment form** | ** where to find rules ** |
+|:----------------|:------------------|:------------------|
+| Type well-formedness | $\typWellFormed \typ$ | Section [#sec-type-well-formed] |
+| Type equality | $\typEqEnv {\overline {(\var, \prim \var)}} {\typ_1} {\typ_2}$ | Section [#sec-type-eq] |
+| Expression typing | $\expenv {\exp} {\prim \exp} \typ \dir $ | Section [#sec-exp-typing] |
+| Statement typing | $\stmtenv \stmt {\VVal \stmt} {\typ}$ | Section [#sec-stmt-typing] |
+| Declaration typing | $\dclenv \dcl {\VVal \dcl} {\VVal\varEnv} {\VVal \constEnv} {\VVal \typEnv} {\VVal \typSynEnv}$ | Section [#sec-decl-typing] |
+~
+
+
+~ Center
+| **environment name** | **symbol** | **signature** |
+|:----------------|:------------------|:------------------|
+| type environment | $\typEnv$ | $\typName \rightarrow \typ$ |
+| variable environment | $\varEnv$ | $\name \rightarrow (\typ, \dir)$ |
+| extern environment | $\externEnv$ | $\name \rightarrow \mathit{externmethod}$ |
+| type parameter environment | $\typParEnv$ | $\typName \rightarrow \typ$ |
+| type synonym environment | $\typSynEnv$| $\name \rightarrow \typName$ |
+| constant environment | $\constEnv$ | $\name \rightarrow \val $ |
+~
+
+
+This judgment is overloaded and checks if a surface type—and more generally a type—is well-formed or not. This judgment is used to check if a surface type is well-formed when it is used in expressions or if a type is well-formed when it is declared. Specifically, it has two forms, $\typWellFormed {\surfaceTyp}$ and $\typWellFormed {\typ}$, which state that the type $\surfaceTyp $ and $\typ$, respectively, are well-formed under the type environment $\typEnv$ and extern environment $\externEnv$. In other words, this judgment checks that types are syntactically correct.
+
+## Type Well-Formed Judgment { #sec-type-well-formed }
 
 ### Surface Types Well-Formedness { #sec-surface-typ-well-formed }
 

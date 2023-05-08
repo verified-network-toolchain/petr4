@@ -620,8 +620,9 @@ Section ToGCL.
         ok (e, c)
 
       | Inline.ISetValidity b e =>
-          let~ e' := to_lvalue (scopify c e) over "couldn't convert e of ISetValidity to lvalue" in
-          ok (GCL.GSetValidity b e', c)
+          let~ hdr_str := to_lvalue (scopify c e) over "couldn't convert e of ISetValidity to lvalue" in
+          let validity := hdr_str @@ ".isValid" in
+          ok (GCL.GAssign Typ.Bool validity (BV.bit (Some 1) 1), c)
            
       | Inline.IConditional guard_type guard tru_blk fls_blk =>
         let* tru_blk' := inline_to_gcl c arch tru_blk in

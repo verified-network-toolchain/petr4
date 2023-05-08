@@ -871,17 +871,17 @@ Definition header_fields  (e : E.t) (fields : list Typ.t) : list (E.t * Typ.t)  
     ++ [(E.Uop Typ.Bool Una.IsValid e , Typ.Bool)].
 
 Definition header_elaboration_assign  (lhs rhs : E.t) (fields : list Typ.t) : result string t :=
-  let lhs_members := header_fields  lhs fields in
+  let lhs_members := header_fields lhs fields in
   let rhs_members := header_fields  rhs fields in
   let+ assigns := zip lhs_members rhs_members  in
   let f := fun '((lhs_mem, typ), (rhs_mem, _)) acc => ISeq (IAssign typ lhs_mem rhs_mem ) acc  in
-  List.fold_right f (ISkip ) assigns.
+  List.fold_right f ISkip assigns.
 
 Fixpoint elaborate_headers (c : Inline.t) : result string Inline.t :=
   match c with
   | ISkip => ok c
   | IVardecl _ _ => ok c
-  | ISetValidity _ _ => ok c (* TODO: I don't know if this is correct *)
+  | ISetValidity _ _ => ok c
   | IAssign type lhs rhs =>
     match type with
     | Typ.Struct true fields =>
@@ -1120,7 +1120,7 @@ Definition inline_assert (check : E.t)  : t :=
   IExternMethodCall "_" "assert" args None.
 
 Definition isValid (hdr : E.t) : E.t :=
-  E.Uop Typ.Bool Una.IsValid hdr .
+  E.Uop Typ.Bool Una.IsValid hdr.
 
 Fixpoint header_asserts (e : E.t) : result string t :=
   match e with

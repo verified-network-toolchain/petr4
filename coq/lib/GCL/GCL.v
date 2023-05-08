@@ -1,3 +1,4 @@
+
 Set Warnings "-custom-entry-overridden".
 From Coq Require Import Program.Basics Arith.EqNat.
 From Poulet4 Require Export P4cub.Syntax.AST
@@ -167,7 +168,6 @@ Section GCL.
   Inductive t {lvalue rvalue form : Type} : Type :=
   | GSkip
   | GAssign (type : Typ.t) (lhs : lvalue) (rhs : rvalue)
-  | GSetValidity (valid : bool) (hdr : lvalue)
   | GSeq (g1 g2 : t)
   | GChoice (g1 g2 : t)
   | GAssume (phi : form)
@@ -192,8 +192,6 @@ Section GCL.
     | GSkip => GSkip
     | GAssign t x e =>
       GAssign t (l param phi x) (r param phi e)
-    | GSetValidity b e =>
-      GSetValidity b e (* TODO: is this correct? *)
     | GSeq g1 g2 =>
       GSeq (subst_form l r f param phi g1) (subst_form l r f param phi g2)
     | GChoice g1 g2 =>
@@ -216,7 +214,6 @@ Section GCL.
     | GSkip => GSkip
     | GAssign t x e' =>
       GAssign t (l param e x) (r param e e')
-    | GSetValidity b e => GSetValidity b e
     | GSeq g1 g2 =>
       GSeq (subst_rvalue l r f param e g1) (subst_rvalue l r f param e g2)
     | GChoice g1 g2 =>
@@ -514,9 +511,6 @@ Module Semantics.
       | GCL.GAssign _ lhs rhs =>
         let+ bv := eval s rhs in
         [update s lhs bv]
-      | GCL.GSetValidity b e =>
-      (* TODO: not sure how to evaluate this *)
-          error "how to make valid or not?"
       | GCL.GSeq g1 g2 =>
         let* ss1 := denote a s g1 in
         fold_right (fun s1 acc => let* s := denote a s1 g2 in

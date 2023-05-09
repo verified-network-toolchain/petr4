@@ -13,11 +13,12 @@ Definition one_table : P4flat.Syntax.Top.prog :=
   [
     Top.ControlBlock
       "C_one_table"
+      []
       [("x_one_table", PAInOut (Typ.Bit 8))]
-      (Stm.Table "t_one_table"
+      (Stm.Invoke None "t_one_table"
                   [Exp.Var (Typ.Bit 8%N) "x_one_table" db]
                   [("nop", [], Stm.Skip);
-                   ("set_x", [], Stm.Assign (Exp.Var (Typ.Bit 8) "x_one_table" db) (Exp.Bit 8 0))]);
+                   ("set_x", [], Stm.Asgn (Exp.Var (Typ.Bit 8) "x_one_table" db) (Exp.Bit 8 0))]);
     Top.Pkg "main" ["C_one_table"]
   ].
 
@@ -26,16 +27,17 @@ Definition seq_tables : P4flat.Syntax.Top.prog :=
   [
     Top.ControlBlock
       "C_seq_tables"
+      []
       [("x_seq_tables", PAInOut (Typ.Bit 8))]
       (Stm.Seq
-         (Stm.Table "t1_seq_tables"
+         (Stm.Invoke None "t1_seq_tables"
                      [Exp.Var (Typ.Bit 8%N) "x_seq_tables" db]
                      [("nop", [], Stm.Skip);
-                      ("set_x", [], Stm.Assign (Exp.Var (Typ.Bit 8) "x_seq_tables" db) (Exp.Bit 8 0))])
-         (Stm.Table "t2_seq_tables"
+                      ("set_x", [], Stm.Asgn (Exp.Var (Typ.Bit 8) "x_seq_tables" db) (Exp.Bit 8 0))])
+         (Stm.Invoke None "t2_seq_tables"
                      [Exp.Var (Typ.Bit 8%N) "x_seq_tables" db]
                      [("nop", [], Stm.Skip);
-                      ("set_x", [], Stm.Assign (Exp.Var (Typ.Bit 8) "x_seq_tables" db) (Exp.Bit 8 0))]));
+                      ("set_x", [], Stm.Asgn (Exp.Var (Typ.Bit 8) "x_seq_tables" db) (Exp.Bit 8 0))]));
     Top.Pkg "main" ["C_seq_tables"]
   ].
 

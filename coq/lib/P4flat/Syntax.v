@@ -46,30 +46,33 @@ Module Stm.
      unchanged. *)
   Inductive t : Set :=
   | Skip                          (** skip/no-op *)
-  | Return (e : option Exp.t)    (** return *)
+  | Ret (e : option Exp.t)    (** return *)
   | Exit                          (** exit *)
-  | Assign (lhs rhs : Exp.t)     (** assignment *)
-  | ExternCall
-      (extern_instance_name : string)
-      (method_name : string)
-      (type_args : list Exp.t)
-      (args : Exp.args)
-      (returns : option Exp.t)
-  | Table
+  | Asgn (lhs rhs : Exp.t)     (** assignment *)
+  | SetValidity (validity : bool) (hdr : Exp.t) (** set a header [hdr]'s validity to [validity] *)
+  | Invoke
+      (lhs : option Exp.t)
       (ctrl_plane_name: string)
       (key: list Exp.t)
       (actions: list (string * Exp.args * t))
+  | AppMethod
+      (extern_instance_name : string)
+      (method_name : string)
+      (type_args : list Typ.t)
+      (returns : option Exp.t)
+      (args : Exp.args)
   (** blocks of statements: *)
-  | Var
+  | LetIn
       (original_name : string)
-      (expr : Exp.t (** unitialized decl *) + Exp.t (** initialzed decl *))
+      (init : Exp.t (** unitialized decl *) + Exp.t (** initialzed decl *))
       (tail : t) (** variable declaration/initialization
                      a let-in operator. *)
   | Seq (head tail : t) (** sequenced blocks,
                             variables introduced in [head]
                             do not occur in [tail] *)
-  | Conditional (guard : Exp.t)
-      (tru_blk fls_blk : t) (** conditionals *).
+  | Cond (guard : Exp.t)
+      (tru fls : t) (** conditionals *)
+  .
 End Stm.
 
 (** Top-Level Declarations *)
@@ -90,8 +93,15 @@ Module Top.
     (* Top-level blocks, to be included in packages. *)
     | ControlBlock
         (name : string)
+        (eparams : list (string * string))
         (params: CUB.Typ.params)
         (body : Stm.t)
+    | ParserBlock
+        (name : string)
+        (eparams : list (string * string))      (** runtime extern params *)
+        (params : Typ.params)              (** invocation params *)
+        (start : Stm.t) (** start state *)
+        (states : list Stm.t) (** parser states *)
     (* Instantiations of packages. *)
     | Pkg (name: string) (cargs: list string).
 
@@ -101,7 +111,8 @@ Module Top.
   Definition t_name (decl: t) : string :=
     match decl with
     | Extern name _ _ _ _
-    | ControlBlock name _ _
+    | ControlBlock name _ _ _
+    | ParserBlock name _ _ _ _
     | Pkg name _ => name
     end.
 
@@ -112,9 +123,9 @@ Module Top.
     | _ => error "got other decl"
     end.
 
-  Definition expect_controlblock (decl: t) : result string (string * CUB.Typ.params * Stm.t) :=
+  Definition expect_controlblock (decl: t) : result string (string * list (string * string) * CUB.Typ.params * Stm.t) :=
     match decl with
-    | ControlBlock name params body => ok (name, params, body)
+    | ControlBlock name eparams params body => ok (name, eparams, params, body)
     | _ => error "got other decl"
     end.
   

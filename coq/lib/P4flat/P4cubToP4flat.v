@@ -111,7 +111,7 @@ Fixpoint translate_stmt (fenv: flatten_env) (s : C.Stm.t) : result string F.Stm.
   | C.Stm.Asgn lhs rhs =>
       let* lhs' := translate_expr lhs in
       let+ rhs' := translate_expr rhs in
-      F.Stm.Assign lhs' rhs'
+      F.Stm.Asgn lhs' rhs'
   | C.Stm.App (C.Call.Method _ _ _ _) args =>
       error "extern method calls unimplemented"
   | C.Stm.App (C.Call.Inst instance_name ext_args) args =>
@@ -127,7 +127,7 @@ Fixpoint translate_stmt (fenv: flatten_env) (s : C.Stm.t) : result string F.Stm.
   | C.Stm.LetIn original_name (inr expr) tail =>
       let* expr' := translate_expr expr in
       let+ tail' := translate_stmt fenv tail in
-      F.Stm.Var original_name (inr expr') tail'
+      F.Stm.LetIn original_name (inr expr') tail'
   | C.Stm.Seq head tail =>
       let* head' := translate_stmt fenv head in
       let+ tail' := translate_stmt fenv tail in
@@ -136,7 +136,7 @@ Fixpoint translate_stmt (fenv: flatten_env) (s : C.Stm.t) : result string F.Stm.
       let* guard' := translate_expr guard in
       let* tru_blk' := translate_stmt fenv tru_blk in
       let+ fls_blk' := translate_stmt fenv fls_blk in
-      F.Stm.Conditional guard' tru_blk' fls_blk'
+      F.Stm.Cond guard' tru_blk' fls_blk'
   end.
 
 Definition translate_decl (fenv: flatten_env) (decl: C.Top.t) : result string (flatten_env * list F.Top.t) :=

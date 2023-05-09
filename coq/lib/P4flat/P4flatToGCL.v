@@ -17,6 +17,7 @@ Inductive p4sorts :=
 | Prod (s1 s2 : p4sorts)
 | ActionName.
 Scheme Equality for p4sorts.
+#[global]
 Instance p4sorts_EqDec : EqDec p4sorts eq := 
   p4sorts_eq_dec.
 
@@ -30,6 +31,7 @@ Inductive p4funs :=
 (* Better for this to be an enum or at least an integer *)
 | BAction (name: string).
 Scheme Equality for p4funs.
+#[global]
 Instance p4funs_EqDec : EqDec p4funs eq := 
   p4funs_eq_dec.
 
@@ -37,6 +39,7 @@ Inductive p4rels :=
 (* no relation symbols *)
 .
 Scheme Equality for p4rels.
+#[global]
 Instance p4rels_EqDec : EqDec p4rels eq := 
   p4rels_eq_dec.
 
@@ -78,15 +81,15 @@ Definition e_to_tm (e: Exp.t) : result string (Spec.tm var p4funs) :=
 Fixpoint s_to_stmt (s: Stm.t) : StateT p4sig (result string) (stmt var p4funs p4rels) :=
   match s with
   | Stm.Skip => mret (GSkip _ _ _)
-  | Stm.Return e => state_lift (error "return unimplemented")
+  | Stm.Ret e => state_lift (error "return unimplemented")
   | Stm.Exit => state_lift (error "exit unimplemented")
-  | Stm.Assign lhs rhs =>
+  | Stm.Asgn lhs rhs =>
       let* lhs' := state_lift (lhs_to_var lhs) in
       let* rhs' := state_lift (e_to_tm rhs) in
       mret (GAssign lhs' rhs')
-  | Stm.ExternCall extern_instance_name method_name type_args args returns =>
+  | Stm.AppMethod extern_instance_name method_name type_args args returns =>
       state_lift (error "extern call unimplemented")
-  | Stm.Table ctrl_plane_name key actions =>
+  | Stm.Invoke lhs ctrl_plane_name key actions =>
       let* key' := state_lift (sequence (List.map e_to_tm key)) in
       (* XXX generate an actually fresh variable here *)
       let result_var := ctrl_plane_name ++ "__res" in
@@ -101,10 +104,10 @@ Fixpoint s_to_stmt (s: Stm.t) : StateT p4sig (result string) (stmt var p4funs p4
                            actions) in
       let actions_stmt := List.fold_right GChoice (GSkip _ _ _) actions_stmts in
       mret (GSeq call_stmt actions_stmt)
-  | Stm.Var original_name (inl typ) tail =>
+  | Stm.LetIn original_name (inl typ) tail =>
       (* declaration is a no-op. *)
       s_to_stmt tail
-  | Stm.Var original_name (inr rhs) tail =>
+  | Stm.LetIn original_name (inr rhs) tail =>
       let* rhs' := state_lift (e_to_tm rhs) in
       let* tail' := s_to_stmt tail in
       mret (GSeq (GAssign original_name rhs') tail')
@@ -112,7 +115,7 @@ Fixpoint s_to_stmt (s: Stm.t) : StateT p4sig (result string) (stmt var p4funs p4
       let* head' := s_to_stmt head in
       let* tail' := s_to_stmt tail in
       mret (GSeq head' tail')
-  | Stm.Conditional guard tru_blk fls_blk =>
+  | Stm.Cond guard tru_blk fls_blk =>
       let* guard' := state_lift (e_to_tm guard) in
       let then_cond := Spec.FEq guard' (Spec.TFun (Sig.SSimple BTrue) []) in
       let else_cond := Spec.FNeg then_cond in
@@ -120,6 +123,8 @@ Fixpoint s_to_stmt (s: Stm.t) : StateT p4sig (result string) (stmt var p4funs p4
       let* fls_blk' := s_to_stmt fls_blk in
       mret (GChoice (GSeq (GAssume then_cond) tru_blk')
                     (GSeq (GAssume else_cond) fls_blk'))
+  | Stm.SetValidity _ _ =>
+      state_lift (error "SetValidity unimplemented")
   end.
 
 Definition prog_to_stmt (p: Top.prog) : StateT p4sig

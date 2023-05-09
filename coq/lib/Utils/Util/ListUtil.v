@@ -479,3 +479,24 @@ Proof.
   apply f_equal with (f:=List.length (A:=A)) in h.
   rewrite !app_length in h. lia.
 Qed.
+
+Section SplitMap.
+  Polymorphic Universes a b.
+  Context {A : Type@{a}} {B : Type@{b}}.
+
+  Polymorphic Lemma fst_split_map_fst : forall (l : list (A * B)),
+      fst (split l) = List.map fst l.
+  Proof using.
+    intro l; induction l as [| [a b] l ih]; cbn; trivial.
+    destruct (split l) as [la lb]; cbn in *.
+    rewrite ih; reflexivity.
+  Qed.
+  
+  Polymorphic Lemma snd_split_map_snd : forall (l : list (A * B)),
+      snd (split l) = List.map snd l.
+  Proof using.
+    intro l; induction l as [| [a b] l ih]; cbn; trivial.
+    destruct (split l) as [la lb]; cbn in *.
+    rewrite ih; reflexivity.
+  Qed.
+End SplitMap.

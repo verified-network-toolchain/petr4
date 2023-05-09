@@ -33,10 +33,12 @@
   ToP4cub
   AST
   EquivDec
-  ToP4cub
-  ToGCL
-  GCL
-  Inline
+  Fin
+  VectorDef
+  Vector
+  VecUtil
+  ProdN
+  LiftList
   Statementize
   HoistNameless
   InferMemberTypes

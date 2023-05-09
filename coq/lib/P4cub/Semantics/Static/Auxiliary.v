@@ -29,10 +29,10 @@ Ltac invert_type_lst_ok :=
 Section Lemmas.
   Local Hint Constructors lexpr_ok : core.
   
-  Lemma shift_lexpr_ok : forall sh e,
-      lexpr_ok e -> lexpr_ok (shift_exp sh e).
+  Lemma shift_lexpr_ok : forall c a e,
+      lexpr_ok e -> lexpr_ok (shift_exp c a e).
   Proof.
-    intros sh e h; induction h; unravel; auto.
+    intros c a e h; induction h; unravel; auto.
   Qed.
       
   Local Hint Resolve shift_lexpr_ok : core.
@@ -155,7 +155,7 @@ Section Lemmas.
   Lemma shift_type_exp : forall ts1 ts2 τ e,
       `⟨ Δ, ts1 ++ Γ ⟩ ⊢ e ∈ τ ->
       `⟨ Δ, ts1 ++ ts2 ++ Γ ⟩
-        ⊢ shift_exp (Shifter (length ts1) (length ts2)) e ∈ τ.
+        ⊢ shift_exp (length ts1) (length ts2) e ∈ τ.
   Proof using.
     intros ts1 ts2 t e h.
     (*generalize dependent ts2.*)
@@ -186,7 +186,7 @@ Section Lemmas.
   Lemma shift_type_arg : forall ts1 ts2 arg param,
       type_arg Δ (ts1 ++ Γ) arg param ->
       type_arg Δ (ts1 ++ ts2 ++ Γ)
-        (shift_arg (Shifter (length ts1) (length ts2)) arg) param.
+        (shift_arg (length ts1) (length ts2) arg) param.
   Proof using.
     unfold type_arg.
     intros ts1 ts2 arg param h; inv h; cbn; firstorder auto.

@@ -527,6 +527,19 @@ Definition values_match_mask (key: Val) (val mask: Val): bool :=
   | _, _, _ => dummy_bool
   end.
 
+Lemma values_match_mask_land: forall w key val mask ,
+    values_match_mask
+      (ValBaseBit (to_lbool w key))
+      (ValBaseBit (to_lbool w val))
+      (ValBaseBit (to_lbool w mask)) =
+      (Z.land key (BitArith.mod_bound w mask) =?
+       Z.land val (BitArith.mod_bound w mask)).
+Proof.
+  intros w key val mask. unfold values_match_mask. simpl.
+  rewrite !Zlength_to_lbool, N.eqb_refl. simpl.
+
+Abort.
+
 (* Fixpoint vmm_help_z (v : Z) (bits1 bits2: list bool) :=
   match bits2, bits1 with
   | [], [] => true
@@ -628,14 +641,20 @@ Instance TofinoExternSem : ExternSem := Build_ExternSem
 Inductive exec_prog (type_args : list P4Type) : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
     extern_state -> list bool -> extern_state -> list bool -> Prop :=
   | exec_prog_intro : forall (module_sem : _ -> _ -> _ -> _ -> _ -> _ -> Prop) s0 pin s7 pout s1 s2 s3 s4 s5 s6
-      meta1 standard_metadata1 hdr2 meta2 standard_metadata2 hdr3 meta3 hdr4 meta4 standard_metadata4 hdr5 meta5 standard_metadata5 hdr6 meta6,
+                        hdr2 ig_md1 ig_intr_md1 ig_intr_md_for_tm1 ig_intr_md_from_prsr1
+                        hdr3 ig_md2 ig_intr_md_for_dprsr2 ig_intr_md_for_tm2 ig_intr_md_for_dprsr1
+                        hdr4 meta1 eg_md1 eg_intr_md1 eg_intr_md_from_prsr1
+                        hdr5 eg_md2 eg_intr_md_for_dprsr2 eg_intr_md_for_oport2 eg_intr_md_for_dprsr eg_intr_md_for_oport1
+                        hdr6,
       PathMap.set ["packet_in"] (ObjPin pin) s0 = s1 ->
-      module_sem ["main"; "p"] s1 [meta1; standard_metadata1] s2 [hdr2; meta2; standard_metadata2] SReturnNull ->
-      module_sem ["main"; "vr"] s2 [hdr2; meta2] s3 [hdr3; meta3] SReturnNull ->
-      module_sem ["main"; "ig"] s3 [hdr3; meta3; standard_metadata2] s4 [hdr4; meta4; standard_metadata4] SReturnNull ->
-      module_sem ["main"; "eg"] s4 [hdr4; meta4; standard_metadata4] s5 [hdr5; meta5; standard_metadata5] SReturnNull ->
-      module_sem ["main"; "ck"] s5 [hdr5; meta5] s6 [hdr6; meta6] SReturnNull ->
-      module_sem ["main"; "dep"] s6 [hdr6] s7 nil SReturnNull ->
+      module_sem ["pipe"; "ingress_parser"] s1 [] s2 [hdr2; ig_md1; ig_intr_md1; ig_intr_md_for_tm1; ig_intr_md_from_prsr1] SReturnNull ->
+      module_sem ["pipe"; "ingress"] s2 [hdr2; ig_md1; ig_intr_md1; ig_intr_md_from_prsr1; ig_intr_md_for_dprsr1; ig_intr_md_for_tm1]
+                                     s3 [hdr3; ig_md2; ig_intr_md_for_dprsr2; ig_intr_md_for_tm2] SReturnNull ->
+      module_sem ["pipe"; "ingress_deparser"] s3 [hdr3; meta1; ig_intr_md_for_dprsr2; ig_intr_md1] s4 [hdr4] SReturnNull ->
+      module_sem ["pipe"; "egress_parser"] s4 [] s5 [hdr4; eg_md1; eg_intr_md1; eg_intr_md_from_prsr1] SReturnNull ->
+      module_sem ["pipe"; "egress"] s5 [hdr4; eg_md1; eg_intr_md1; eg_intr_md_from_prsr1; eg_intr_md_for_dprsr; eg_intr_md_for_oport1]
+                                    s6 [hdr5; eg_md2; eg_intr_md_for_dprsr2; eg_intr_md_for_oport2] SReturnNull ->
+      module_sem ["pipe"; "egress_deparser"] s6 [hdr5; meta1; eg_intr_md_for_dprsr2; eg_intr_md1; eg_intr_md_from_prsr1] s7 [hdr6] SReturnNull ->
       PathMap.get ["packet_out"] s7 = Some (ObjPout pout) ->
       exec_prog type_args module_sem s0 pin s7 pout.
 

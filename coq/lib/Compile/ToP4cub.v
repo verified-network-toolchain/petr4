@@ -2037,7 +2037,8 @@ Section ToP4cub.
   Definition translate_program (tags : tags_t) (p : program) : result string DeclCtx :=
     let* '(Program decls) := preprocess tags p in
     let+ cub_decls := translate_decls decls in
-    infer_member_types ((*inline_cub_types*) cub_decls).
+    cub_decls.
+
 
   Definition translate_program' (tags : tags_t) (p : program) : result string (list Top.t) :=
     let+ ctx := translate_program tags p in 

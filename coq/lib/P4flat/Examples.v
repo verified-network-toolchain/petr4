@@ -16,9 +16,9 @@ Definition one_table : P4flat.Syntax.Top.prog :=
       []
       [("x_one_table", PAInOut (Typ.Bit 8))]
       (Stm.Invoke None "t_one_table"
-                  [Exp.Var (Typ.Bit 8%N) "x_one_table" db]
+                  [Exp.Var (Typ.Bit 8%N) "x_one_table" 0]
                   [("nop", [], Stm.Skip);
-                   ("set_x", [], Stm.Asgn (Exp.Var (Typ.Bit 8) "x_one_table" db) (Exp.Bit 8 0))]);
+                   ("set_x", [], Stm.Asgn (Exp.Var (Typ.Bit 8) "x_one_table" 0) (Exp.Bit 8 0))]);
     Top.Pkg "main" ["C_one_table"]
   ].
 
@@ -31,13 +31,13 @@ Definition seq_tables : P4flat.Syntax.Top.prog :=
       [("x_seq_tables", PAInOut (Typ.Bit 8))]
       (Stm.Seq
          (Stm.Invoke None "t1_seq_tables"
-                     [Exp.Var (Typ.Bit 8%N) "x_seq_tables" db]
+                     [Exp.Var (Typ.Bit 8%N) "x_seq_tables" 0]
                      [("nop", [], Stm.Skip);
-                      ("set_x", [], Stm.Asgn (Exp.Var (Typ.Bit 8) "x_seq_tables" db) (Exp.Bit 8 0))])
+                      ("set_x", [], Stm.Asgn (Exp.Var (Typ.Bit 8) "x_seq_tables" 0) (Exp.Bit 8 0))])
          (Stm.Invoke None "t2_seq_tables"
-                     [Exp.Var (Typ.Bit 8%N) "x_seq_tables" db]
+                     [Exp.Var (Typ.Bit 8%N) "x_seq_tables" 0]
                      [("nop", [], Stm.Skip);
-                      ("set_x", [], Stm.Asgn (Exp.Var (Typ.Bit 8) "x_seq_tables" db) (Exp.Bit 8 0))]));
+                      ("set_x", [], Stm.Asgn (Exp.Var (Typ.Bit 8) "x_seq_tables" 0) (Exp.Bit 8 0))]));
     Top.Pkg "main" ["C_seq_tables"]
   ].
 
@@ -56,4 +56,4 @@ Eval cbv in (let comp :=
                                       (GGCL.Dijkstra.seq_prod_prog _ _ one seq)
                                       my_spec)
              in
-             lift_monad fst (comp initial_p4sig)).
+             comp).

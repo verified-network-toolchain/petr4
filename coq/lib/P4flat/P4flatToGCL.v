@@ -1,5 +1,6 @@
 Require Import Coq.Strings.String.
 Require Import Coq.NArith.NArith.
+Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.P4flat.Syntax.
 Require Import Poulet4.P4flat.GGCL.
 Require Import Poulet4.Monads.Result.
@@ -10,6 +11,33 @@ Import Dijkstra.
 Open Scope string_scope.
 
 Definition var := string.
+
+(* A map from de Bruijn indices to fresh names. *)
+Definition idx_map := list (string * AST.Typ.t).
+
+(* TODO *)
+Definition freshen_name (m: idx_map) (s: string) :=
+  s.
+
+Definition declare_var s t : idx_map -> idx_map :=
+  fun m => (s, t) :: m.
+
+Definition declare_param (name: string) (param: CUB.Typ.param) : idx_map -> idx_map :=
+  fun m =>
+    let typ := match param with
+               | PAIn t
+               | PAOut t 
+               | PAInOut t => t
+               end
+    in
+    declare_var (freshen_name m name) typ m.
+  
+    
+Definition declare_params (params: CUB.Typ.params) : idx_map -> idx_map :=
+  fold_left (fun m '(name, p) => declare_param name p m) params.
+
+Definition find_var (m: idx_map) (k: nat) : result string (string * AST.Typ.t) :=
+  from_opt (nth_error m k) "find_var: index not found in idx_map".
 
 Inductive p4sorts :=
 | Bool
@@ -65,10 +93,12 @@ Definition initial_p4sig : p4sig :=
 Definition mk_action (name: string) : Spec.tm var p4funs :=
   Spec.TFun (Sig.SSimple (BAction name)) [].
 
-Definition lhs_to_var (e: Exp.t) : result string var :=
+Definition lhs_to_var (m: idx_map) (e: Exp.t) : result string var :=
   match e with
-  | Exp.Var _ s _ => ok s
-  | _ => error "lvals besides vars not implemented"
+  | Exp.Var _ _ idx =>
+      let+ (name, typ) := find_var m idx in
+      name
+  | _ => error "lvals other than vars are not yet implemented"
   end.
 
 Definition e_to_tm (e: Exp.t) : result string (Spec.tm var p4funs) :=
@@ -78,19 +108,19 @@ Definition e_to_tm (e: Exp.t) : result string (Spec.tm var p4funs) :=
   | _ => error "e_to_tm unimplemented"
   end.
 
-Fixpoint s_to_stmt (s: Stm.t) : StateT p4sig (result string) (stmt var p4funs p4rels) :=
+Fixpoint s_to_stmt (m: idx_map) (s: Stm.t) : result string (stmt var p4funs p4rels) :=
   match s with
   | Stm.Skip => mret (GSkip _ _ _)
-  | Stm.Ret e => state_lift (error "return unimplemented")
-  | Stm.Exit => state_lift (error "exit unimplemented")
+  | Stm.Ret e => (error "return unimplemented")
+  | Stm.Exit => (error "exit unimplemented")
   | Stm.Asgn lhs rhs =>
-      let* lhs' := state_lift (lhs_to_var lhs) in
-      let* rhs' := state_lift (e_to_tm rhs) in
+      let* lhs' := (lhs_to_var m lhs) in
+      let* rhs' := (e_to_tm rhs) in
       mret (GAssign lhs' rhs')
   | Stm.AppMethod extern_instance_name method_name type_args args returns =>
-      state_lift (error "extern call unimplemented")
+      (error "extern call unimplemented")
   | Stm.Invoke lhs ctrl_plane_name key actions =>
-      let* key' := state_lift (sequence (List.map e_to_tm key)) in
+      let* key' := (sequence (List.map e_to_tm key)) in
       (* XXX generate an actually fresh variable here *)
       let result_var := ctrl_plane_name ++ "__res" in
       let call_tm := Spec.TFun (Sig.SSimple (BTable ctrl_plane_name)) key' in
@@ -98,44 +128,40 @@ Fixpoint s_to_stmt (s: Stm.t) : StateT p4sig (result string) (stmt var p4funs p4
       let act_choice := Spec.TFun (Sig.SSimple BProj1) [Spec.TVar result_var] in
       let* actions_stmts :=
         sequence (List.map (fun '(name, params, stmt) =>
-                              let* stmt' := s_to_stmt stmt in  
+                              let* stmt' := s_to_stmt m stmt in  
                               mret (GSeq (GAssume (Spec.FEq act_choice (mk_action name)))
                                          stmt'))
                            actions) in
       let actions_stmt := List.fold_right GChoice (GSkip _ _ _) actions_stmts in
       mret (GSeq call_stmt actions_stmt)
   | Stm.LetIn original_name (inl typ) tail =>
-      (* declaration is a no-op. *)
-      s_to_stmt tail
+      s_to_stmt (declare_var original_name typ m) tail
   | Stm.LetIn original_name (inr rhs) tail =>
-      let* rhs' := state_lift (e_to_tm rhs) in
-      let* tail' := s_to_stmt tail in
+      let* rhs' := (e_to_tm rhs) in
+      let* tail' := s_to_stmt (declare_var original_name (typ_of_exp rhs) m) tail in
       mret (GSeq (GAssign original_name rhs') tail')
   | Stm.Seq head tail =>
-      let* head' := s_to_stmt head in
-      let* tail' := s_to_stmt tail in
+      let* head' := s_to_stmt m head in
+      let* tail' := s_to_stmt m tail in
       mret (GSeq head' tail')
   | Stm.Cond guard tru_blk fls_blk =>
-      let* guard' := state_lift (e_to_tm guard) in
+      let* guard' := (e_to_tm guard) in
       let then_cond := Spec.FEq guard' (Spec.TFun (Sig.SSimple BTrue) []) in
       let else_cond := Spec.FNeg then_cond in
-      let* tru_blk' := s_to_stmt tru_blk in
-      let* fls_blk' := s_to_stmt fls_blk in
+      let* tru_blk' := s_to_stmt m tru_blk in
+      let* fls_blk' := s_to_stmt m fls_blk in
       mret (GChoice (GSeq (GAssume then_cond) tru_blk')
                     (GSeq (GAssume else_cond) fls_blk'))
   | Stm.SetValidity _ _ =>
-      state_lift (error "SetValidity unimplemented")
+      (error "SetValidity unimplemented")
   end.
 
-Definition prog_to_stmt (p: Top.prog) : StateT p4sig
-                                                   (result string)
-                                                   (stmt var p4funs p4rels) :=
-  let* (_, main_args) := state_lift (Top.find_decl "main" p
+Definition prog_to_stmt (p: Top.prog) : result string (stmt var p4funs p4rels) :=
+  let* (_, main_args) := (Top.find_decl "main" p
                                      >>= Top.expect_pkg) in
   let* ctrl := match main_args with
                | [ctrl] => mret ctrl
-               | _ => state_lift (error "wrong number of args to main pkg (expected exactly 1)")
+               | _ => (error "wrong number of args to main pkg (expected exactly 1)")
                end in
-  let* (_, cparams, cstmt) := state_lift (Top.find_decl ctrl p
-                                          >>= Top.expect_controlblock) in
-  s_to_stmt cstmt.
+  let* (_, eparams, params, cstmt) := (Top.find_decl ctrl p >>= Top.expect_controlblock) in
+  s_to_stmt (declare_params params []) cstmt.

@@ -370,9 +370,9 @@ let check_refinement ((prog_l, prog_r), rel) =
     Poulet4.GGCL.Dijkstra.seq_prod_wp
       String.equal
       String.equal in
-  match Poulet4.P4flatToGCL.prog_to_stmt prog_l Poulet4.P4flatToGCL.initial_p4sig,
-        Poulet4.P4flatToGCL.prog_to_stmt prog_r Poulet4.P4flatToGCL.initial_p4sig with
-  | Ok (prog_l_gcl, _), Ok (prog_r_gcl, _) ->
+  match Poulet4.P4flatToGCL.prog_to_stmt prog_l,
+        Poulet4.P4flatToGCL.prog_to_stmt prog_r with
+  | Ok prog_l_gcl, Ok prog_r_gcl ->
     let vc = wp prog_l_gcl prog_r_gcl rel in
     Printf.printf "(declare-const x_one_table__l Int)\n (declare-const x_seq_tables__r Int)\n \n (declare-datatypes (T1 T2) ((Pair (mk-pair (first T1) (second T2)))))\n (declare-fun table_symb__t_one_table (Int) (Pair Int Int))\n \n (declare-fun table_symb__t1_seq_tables (Int) (Pair Int Int))\n (declare-fun table_symb__t2_seq_tables (Int) (Pair Int Int))\n \n (define-const action_symb__nop Int 0)\n (define-const action_symb__set_x Int 1)\n";
     Printf.printf "\n(assert (not %s))\n(check-sat)\n(reset)\n" (print_fm sum_printer vc);

@@ -64,7 +64,7 @@ Module Stm.
   (** blocks of statements: *)
   | LetIn
       (original_name : string)
-      (init : Exp.t (** unitialized decl *) + Exp.t (** initialzed decl *))
+      (init : Typ.t (** uninitialized *) + Exp.t (** initialized *))
       (tail : t) (** variable declaration/initialization
                      a let-in operator. *)
   | Seq (head tail : t) (** sequenced blocks,

@@ -79,6 +79,14 @@ Definition lift_monad {A B} {m: Type -> Type} {M : Monad m} (f: A -> B) (ma : m 
 
 Notation "c '>>|' f" := (lift_monad f c) (at level 50, left associativity) : monad_scope.
 
+Infix "<$>" := lift_monad (at level 50, left associativity) : monad_scope.
+
+Definition ap {A B : Type} {m : Type -> Type} {M : Monad m} (mf : m (A -> B)) (ma : m A) : m B :=
+  let* f := mf in
+  f <$> ma.
+
+Infix "<*>" := ap (at level 50, left associativity) : monad_scope.
+
 Lemma map_bind_pair :
   forall (M : Type -> Type) `{MM: Monad M}
     (T U V W : Type) (f : T -> V) (g : U -> M W) tus,

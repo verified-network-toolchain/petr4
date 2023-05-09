@@ -1,91 +1,90 @@
 Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Semantics.Dynamic.SmallStep.Util
         Coq.ZArith.BinInt.
-Import AllCubNotations.
 
 (** Binary operation optimizations. *)
-Definition optimize_bop
-           (t : Expr.t) (op : Expr.bop)
-           (e1 e2 : Expr.e)
-  : Expr.e :=
+Definition optimize_bin
+           (t : Typ.t) (op : Bin.t)
+           (e1 e2 : Exp.t)
+  : Exp.t :=
   match op, e1, e2 with
-  | `+%bop, (_ `W Z0)%expr, e
-  | `+%bop, e, (_ `W Z0)%expr
-  | `-%bop, e, (_ `W Z0)%expr
-  | ×%bop, (_ `W 1%Z)%expr, e
-  | ×%bop, e, (_ `W 1%Z)%expr
-  | <<%bop, e, (_ `W Z0)%expr
-  | >>%bop, e, (_ `W Z0)%expr
-  | `+%bop, (_ `S Z0)%expr, e
-  | `+%bop, e, (_ `S Z0)%expr
-  | `-%bop, e, (_ `S Z0)%expr
-  | ×%bop, (_ `S 1%Z)%expr, e
-  | ×%bop, e, (_ `S 1%Z)%expr
-  | <<%bop, e, (_ `S Z0)%expr
-  | >>%bop, e, (_ `S Z0)%expr
-  | `&&%bop, Expr.Bool true, e
-  | `&&%bop, e, Expr.Bool true
-  | `||%bop, Expr.Bool false, e
-  | `||%bop, e, Expr.Bool false
-  | ×%bop, (_ `W Z0)%expr as e, _
-  | ×%bop, _, (_ `W Z0)%expr as e
-  | `&&%bop, Expr.Bool false as e, _
-  | `&&%bop, _, Expr.Bool false as e
-  | `||%bop, Expr.Bool true as e, _
-  | `||%bop, _, Expr.Bool true as e => e
+  | `+%bin, (_ `W Z0)%exp, e
+  | `+%bin, e, (_ `W Z0)%exp
+  | `-%bin, e, (_ `W Z0)%exp
+  | ×%bin, (_ `W 1%Z)%exp, e
+  | ×%bin, e, (_ `W 1%Z)%exp
+  | <<%bin, e, (_ `W Z0)%exp
+  | >>%bin, e, (_ `W Z0)%exp
+  | `+%bin, (_ `S Z0)%exp, e
+  | `+%bin, e, (_ `S Z0)%exp
+  | `-%bin, e, (_ `S Z0)%exp
+  | ×%bin, (_ `S 1%Z)%exp, e
+  | ×%bin, e, (_ `S 1%Z)%exp
+  | <<%bin, e, (_ `S Z0)%exp
+  | >>%bin, e, (_ `S Z0)%exp
+  | `&&%bin, Exp.Bool true, e
+  | `&&%bin, e, Exp.Bool true
+  | `||%bin, Exp.Bool false, e
+  | `||%bin, e, Exp.Bool false
+  | ×%bin, (_ `W Z0)%exp as e, _
+  | ×%bin, _, (_ `W Z0)%exp as e
+  | `&&%bin, Exp.Bool false as e, _
+  | `&&%bin, _, Exp.Bool false as e
+  | `||%bin, Exp.Bool true as e, _
+  | `||%bin, _, Exp.Bool true as e => e
   | _, _, _ =>
-      match eval_bop op e1 e2 with
+      match eval_bin op e1 e2 with
       | Some e' => e'
-      | None     => Expr.Bop t op e1 e2
+      | None    => Exp.Bop t op e1 e2
       end
   end.
 
 (** P4cub expression constant folding. *)
-Fixpoint cf_e (e : Expr.e) : Expr.e :=
+Fixpoint cf_e (e : Exp.t) : Exp.t :=
   match e with
-  | Expr.Bool _
-  | (_ `W _)%expr
-  | (_ `S _)%expr
-  | Expr.VarBit _ _ _
-  | Expr.Error _
-  | Expr.Var _ _ _ => e
-  | Expr.Slice hi lo e =>
+  | Exp.Bool _
+  | (_ `W _)%exp
+  | (_ `S _)%exp
+  | Exp.VarBit _ _ _
+  | Exp.Error _
+  | Exp.Var _ _ _ => e
+  | Exp.Slice hi lo e =>
       let e' := cf_e e in
       match eval_slice hi lo e' with
       | Some e'' => e''
-      | None     => Expr.Slice hi lo e'
+      | None     => Exp.Slice hi lo e'
       end
-  | Expr.Cast t e =>
+  | Exp.Cast t e =>
       let e' := cf_e e in
       match eval_cast t e' with
       | Some e'' => e''
-      | None     => Expr.Cast t e'
+      | None     => Exp.Cast t e'
       end
-  | Expr.Uop t op e =>
+  | Exp.Uop t op e =>
       let e' := cf_e e in
-      match eval_uop op e with
+      match eval_una op e with
       | Some e'' => e''
-      | None     => Expr.Uop t op e'
+      | None     => Exp.Uop t op e'
       end
-  | Expr.Bop t op e1 e2 =>
-      optimize_bop t op (cf_e e1) (cf_e e2)
-  | Expr.Lists ls es => Expr.Lists ls $ map cf_e es
-  | Expr.Index t e1 e2 =>
+  | Exp.Bop t op e1 e2 =>
+      optimize_bin t op (cf_e e1) (cf_e e2)
+  | Exp.Lists ls es => Exp.Lists ls $ map cf_e es
+  | Exp.Index t e1 e2 =>
       match cf_e e1, cf_e e2 with
-      | Expr.Lists _ es as e1', (_ `W n)%expr as e2'
+      | Exp.Lists _ es as e1', (_ `W n)%exp as e2'
         => match nth_error es $ Z.to_nat n with
           | Some v => v
-          | None => Expr.Index t e1' e2'
+          | None => Exp.Index t e1' e2'
           end
-      | e1', e2' => Expr.Index t e1' e2'
+      | e1', e2' => Exp.Index t e1' e2'
       end
-  | Expr.Member t x e =>
+  | Exp.Member t x e =>
       match cf_e e with
-      | Expr.Lists _ es as e'
+      | Exp.Lists _ es as e'
         =>  match nth_error es x with
            | Some v => v
-           | None => Expr.Member t x e'
+           | None => Exp.Member t x e'
            end
-      | e' => Expr.Member t x e'
+      | e' => Exp.Member t x e'
       end
   end.

@@ -38,8 +38,9 @@ Section FOL.
       from_opt (AList.get c v)
                ("Variable not found in ctx.").
 
-  Definition check_ctx (c: ctx) :=
-    List.forallb (fun '(v, sort) => sig_check_sort sig sort) c.
+  Definition check_ctx (c: ctx) : bool.
+    (*List.forallb (fun '(v, sort) => sig_check_sort sig sort) c.*)
+  Admitted.
 
   Fixpoint check_tm (c: ctx) (t: tm) (s: sort sort_sym) : bool :=
     match t with

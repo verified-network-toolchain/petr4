@@ -1077,6 +1077,8 @@ and Declaration : sig
 
   val name_opt : t -> P4string.t option
 
+  val has_type_params : t -> bool
+
 end = struct
   type 'a pt =
       Constant of
@@ -1286,6 +1288,35 @@ end = struct
     match name_opt d with
     | Some name -> name
     | None -> failwith "this declaration does not have a name"
+
+  let has_type_params decl =
+    match decl with
+    | Constant _
+    | Instantiation _
+    | Parser _
+    | Control _
+    | Variable _
+    | ValueSet _
+    | Action _
+    | Table _
+    | Header _
+    | HeaderUnion _
+    | Struct _
+    | Enum _
+    | SerializableEnum _
+    | MatchKind _
+    | Error _
+    | TypeDef _
+    | NewType _ ->
+      false
+    | Function {type_params; _}
+    | ExternFunction {type_params; _}
+    | ExternObject {type_params; _}
+    | ControlType {type_params; _}
+    | ParserType {type_params; _}
+    | PackageType {type_params; _} ->
+      List.length type_params > 0
+
 end
 
 and Statement : sig

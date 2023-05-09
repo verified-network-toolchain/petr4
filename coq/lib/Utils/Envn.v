@@ -53,6 +53,9 @@ Section EnvDefs.
 
   Definition remove (d : D) : t D T -> t D T :=
     List.filter (fun '(d',_) => if HE d d' then false else true).
+
+  Definition removes (ds : list D) (e : t D T) : t D T :=
+    List.fold_left (fun e d => remove d e) ds e.
   
   (** Scope Shadowing, [e1] shadows [e2]. *)
   Definition scope_shadow (e1 e2 : t D T) : t D T :=

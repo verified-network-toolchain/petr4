@@ -955,7 +955,13 @@ and add_cast env (expr: coq_Expression) new_typ =
   let orig_typ = type_of_expr expr in
   if cast_ok env orig_typ new_typ
   then add_cast_unsafe expr new_typ
-  else failwith "Cannot cast."
+  else begin
+    Printf.printf "Cannot cast\n%!";
+    Printp4.print_expr Format.str_formatter expr;
+    Printf.printf "to type\n%!";
+    Printp4.print_type Format.std_formatter new_typ;
+    failwith "Typecast error"
+  end
 
 and cast_if_needed env (expr: P4light.coq_Expression) typ : P4light.coq_Expression =
   let MkExpression (info, pre_expr, expr_typ, dir) = expr in
@@ -1118,6 +1124,17 @@ and eval_to_positive_int env tags expr =
   then value
   else failwith "expected positive integer" (*~info:(info: P4info.t)]*)
 
+and eval_to_nonneg_int env tags expr =
+  let value =
+    expr
+    |> type_expression env ExprCxConstant
+    |> compile_time_eval_bigint env
+  in
+  if Bigint.(value >= zero)
+  then value
+  else failwith "expected non-negative integer" (*~info:(info: P4info.t)]*)
+
+
 and gen_wildcard env: P4string.t =
   let str = Renamer.freshen_name (Checker_env.renamer env) "__wild" in
   {tags = P4info.dummy; str}
@@ -1135,8 +1152,8 @@ and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (typ: Surface.Ty
   | Integer _ -> ret TypInteger
   | String _ -> ret TypString
   | IntType {tags; expr} -> ret @@ TypInt (eval_to_positive_int env tags expr)
-  | BitType {tags; expr} -> ret @@ TypBit (eval_to_positive_int env tags expr)
-  | VarBit {tags; expr} -> ret @@ TypVarBit (eval_to_positive_int env tags expr)
+  | BitType {tags; expr} -> ret @@ TypBit (eval_to_nonneg_int env tags expr)
+  | VarBit {tags; expr} -> ret @@ TypVarBit (eval_to_nonneg_int env tags expr)
   | TypeName {name = nm; _} ->
     ret @@ TypTypeName (P4name.p4string_name_only nm)
   | SpecializedType {base; args; tags} ->
@@ -1306,12 +1323,14 @@ and expr_of_arg (arg: Argument.t): Expression.t option =
 and is_well_formed_type env (typ: coq_P4Type) : bool =
   match saturate_type env typ with
   (* Base types *)
+  | TypBit w
+  | TypVarBit w ->
+    Bigint.(w >= zero)
+  | TypInt w ->
+    Bigint.(w > zero)
   | TypBool
   | TypString
   | TypInteger
-  | TypInt _
-  | TypBit _
-  | TypVarBit _
   | TypError
   | TypMatchKind
   | TypVoid -> true
@@ -2273,6 +2292,8 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | TypBit b, TypBool
   | TypBool, TypBit b ->
      Bigint.(b = one) && explicit
+  | TypInteger, TypBool ->
+    explicit
   | TypInt width1, TypBit width2 
   | TypBit width1, TypInt width2 ->
     explicit && Bigint.(width1 = width2)
@@ -2282,14 +2303,14 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | TypInteger, TypBit _
   | TypInteger, TypInt _ ->
     true
+  | TypBit _, TypInteger
+  | TypInt _, TypInteger ->
+    explicit
   | TypEnum (name, Some t, members), TypEnum (_, Some t', _)
-  | TypEnum (name, Some t, members), t'
-  | t', TypEnum (name, Some t, members) ->
+  | t, TypEnum (name, Some t', members) ->
+    explicit && type_equality env [] t t'
+  | TypEnum (name, Some t, members), t' ->
     type_equality env [] t t'
-  | TypNewType (name1, typ1),
-    TypNewType (name2, typ2) ->
-    type_equality env [] typ1 new_type
-    || type_equality env [] original_type typ2
   | TypNewType (name, typ), t ->
     cast_ok ~explicit env typ t
   | t, TypNewType (name, typ) ->
@@ -2310,7 +2331,7 @@ and cast_ok ?(explicit = false) env original_type new_type =
     let types2 = List.map ~f:snd rec2 in
     casts_ok ~explicit env types1 types2 ||
       type_equality env [] (TypRecord rec1) (TypRecord rec2)
-  | _ -> not explicit && type_equality env [] original_type new_type
+  | _ -> type_equality env [] original_type new_type
 
 and casts_ok ?(explicit = false) env original_types new_types =
   match List.zip original_types new_types with

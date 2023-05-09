@@ -1,3 +1,4 @@
+
 Set Warnings "-custom-entry-overridden".
 From Coq Require Import Program.Basics Arith.EqNat.
 From Poulet4 Require Export P4cub.Syntax.AST
@@ -10,9 +11,9 @@ Import Env.EnvNotations Result ResultNotations.
 Open Scope string_scope.
 
 (** Compile to GCL *)
-Module ST := Stmt.
-Module CD := Control.
-Module E := Expr.
+Module ST := Stm.
+Module CD := Ctrl.
+Module E := Exp.
 Require Import Poulet4.GCL.Inline.
 
 Definition pos : (nat -> positive) := BinPos.Pos.of_nat.
@@ -166,13 +167,16 @@ Module GCL.
 Section GCL.
   Inductive t {lvalue rvalue form : Type} : Type :=
   | GSkip
-  | GAssign (type : E.t) (lhs : lvalue) (rhs : rvalue)
+  | GAssign (type : Typ.t) (lhs : lvalue) (rhs : rvalue)
   | GSeq (g1 g2 : t)
   | GChoice (g1 g2 : t)
   | GAssume (phi : form)
   | GAssert (phi : form)
-  | GExternVoid (e : string) (args : list rvalue)
-  | GExternAssn (x : lvalue) (e : string) (args : list rvalue).
+  | GExternVoid (e : string) (args : list (form + rvalue))
+  | GExternAssn (x : lvalue) (e : string) (args : list (form + rvalue))
+  | GTable (tbl : string)
+           (keys : list (rvalue * string))
+           (actions : list (string * ((list BitVec.t) * t))).
 
   Definition g_sequence {L R F : Type} : list (@t L R F) -> @t L R F :=
     fold_right GSeq GSkip.
@@ -182,6 +186,12 @@ Section GCL.
 
   Definition isone (v : BitVec.t) : Form.t :=
     Form.bveq v (BitVec.bit (Some 1) 1).
+
+  Definition either_map {A B C D : Type} (f : A -> C)  (g : B -> D) (e : A + B) : C + D :=
+    match e with
+    | inl x => inl (f x)
+    | inr y => inr (g y)
+    end.
 
   Fixpoint subst_form
            {L R F : Type}
@@ -200,9 +210,13 @@ Section GCL.
     | GAssert psi =>
       GAssert (f param phi psi)
     | GExternVoid e args =>
-      GExternVoid e (List.map (r param phi) args)
+
+      GExternVoid e (List.map (either_map (f param phi) (r param phi)) args)
     | GExternAssn x e args =>
-      GExternAssn (l param phi x) e (List.map (r param phi) args)
+      GExternAssn (l param phi x) e (List.map (either_map (f param phi) (r param phi)) args)
+    | GTable tbl keys actions =>
+      GTable tbl (List.map (fun '(key, kind) => (r param phi key, kind)) keys)
+        (List.map (fun '(x,(params, act)) => (x, (params, subst_form l r f param phi act))) actions)
     end.
 
   Fixpoint subst_rvalue
@@ -222,9 +236,12 @@ Section GCL.
     | GAssert psi =>
       GAssert (f param e psi)
     | GExternVoid ext args =>
-      GExternVoid ext (List.map (r param e) args)
+      GExternVoid ext (List.map (either_map (f param e) (r param e)) args)
     | GExternAssn x ext args =>
-      GExternAssn (l param e x) ext (List.map (r param e) args)
+      GExternAssn (l param e x) ext (List.map (either_map (f param e) (r param e)) args)
+    | GTable x keys actions =>
+      GTable x (List.map (fun '(key, kind) => (r param e key, kind)) keys)
+        (List.map (fun '(x, (params, act)) => (x, (params, subst_rvalue l r f param e act))) actions)
     end.
 
 End GCL.
@@ -238,9 +255,9 @@ Module Semantics.
 
   Module Arch.
     Section Arch.
-      Definition impl : Type := store -> list BitVec.t -> (store * option bv).
+      Definition impl : Type := store -> list (Form.t + BitVec.t) -> (store * option bv).
       Definition t := list (string * impl).
-      Fixpoint run (a : t) (s : store) (f : string) (args : list BitVec.t) :=
+      Fixpoint run (a : t) (s : store) (f : string) (args : list (Form.t + BitVec.t)) :=
         match a with
         | [] => error ("Could not find implementation for extern " ++ f)
         | (g,impl)::a' =>
@@ -534,6 +551,8 @@ Module Semantics.
         let* (s', ret_opt) := Arch.run a s f args in
         let*~ ret := ret_opt else "expected return value from fruitful extern" in
         ok [update s' x ret]
+      | GCL.GTable tbl _ _ =>
+        error (String.append "No semantics for tables, found " tbl )
       end.
   End Semantics.
 End Semantics.

@@ -56,6 +56,12 @@ Definition from_sum {Err A} (r : Err + A) : result Err A :=
   | inr a => ok a
   end.
 
+Definition to_opt {Err A} (r : result Err A) : option A :=
+  match r with
+  | Ok x => Some x
+  | Error _ => None
+  end.
+
 Definition map {Err A B : Type} (f : A -> B)  (r : result Err A) : result Err B :=
   match r with
   | Error err => error err
@@ -244,6 +250,14 @@ Ltac simpl_result_error H :=
 
 Ltac simpl_result_ok H :=
   apply ok_Ok_inj in H.
+
+
+Tactic Notation "simpl_to_opt" "as" simple_intropattern(E) :=
+  match goal with
+  | H: to_opt ?r = Some _ |- _ => destruct r eqn:E; try discriminate
+  end.
+
+Tactic Notation "simpl_to_opt" := simpl_to_opt as ?.
 
 Ltac simpl_result H :=
   inv_bind H ||

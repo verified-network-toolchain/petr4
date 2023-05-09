@@ -2,35 +2,35 @@ From Coq Require Import PArith.BinPos
      ZArith.BinInt NArith.BinNat Bool.Bool.
 From Poulet4 Require Import P4cub.Syntax.AST
      P4cub.Syntax.IndPrincip P4cub.Syntax.CubNotations.
-Import String Expr ExprNotations.
+Import String.
 
 Reserved Infix "=?" (at level 70).
 
-Fixpoint eqbt (τ1 τ2 : t) {struct τ1} : bool :=
-  let fix eqbl (ts1 ts2 : list t) {struct ts1} : bool :=
+Fixpoint eqb_typ (τ1 τ2 : Typ.t) {struct τ1} : bool :=
+  let fix eqbl (ts1 ts2 : list Typ.t) {struct ts1} : bool :=
     match ts1, ts2 with
     | [], []           => true
-    | t1::ts1', t2::ts2' => ((t1 =? t2)%ty && eqbl ts1' ts2')%bool
+    | t1::ts1', t2::ts2' => ((t1 =? t2)%typ && eqbl ts1' ts2')%bool
     | _, _             => false
     end in
   match τ1, τ2 with
-  | TBool, TBool
-  | TError, TError                 => true
-  | TVar X1, TVar X2               => Nat.eqb X1 X2
-  | TBit w1, TBit w2               => (w1 =? w2)%N
-  | TVarBit w1, TVarBit w2         => (w1 =? w2)%N
-  | TInt w1, TInt w2               => (w1 =? w2)%positive
-  | TArray n1 t1, TArray n2 t2     => (n1 =? n2)%N && (t1 =? t2)%ty
-  | TStruct b1 ts1, TStruct b2 ts2 => (Bool.eqb b1 b2) && eqbl ts1 ts2
+  | Typ.Bool, Typ.Bool
+  | Typ.Error, Typ.Error                 => true
+  | Typ.Var X1, Typ.Var X2               => Nat.eqb X1 X2
+  | Typ.Bit w1, Typ.Bit w2               => (w1 =? w2)%N
+  | Typ.VarBit w1, Typ.VarBit w2         => (w1 =? w2)%N
+  | Typ.Int w1, Typ.Int w2               => (w1 =? w2)%positive
+  | Typ.Array n1 t1, Typ.Array n2 t2     => (n1 =? n2)%N && (t1 =? t2)%typ
+  | Typ.Struct b1 ts1, Typ.Struct b2 ts2 => (Bool.eqb b1 b2) && eqbl ts1 ts2
   | _, _ => false
   end
-where "x '=?' y" := (eqbt x y) : ty_scope.
+where "x '=?' y" := (eqb_typ x y) : typ_scope.
 
-Definition lists_eqb (l1 l2 : Expr.lists) : bool :=
+Definition lists_eqb (l1 l2 : Lst.t) : bool :=
   match l1, l2 with
-  | lists_struct, lists_struct => true
-  | lists_array τ₁, lists_array τ₂ => (τ₁ =? τ₂)%ty
-  | lists_header b₁, lists_header b₂ => Bool.eqb b₁ b₂
+  | Lst.Struct, Lst.Struct => true
+  | Lst.Array τ₁, Lst.Array τ₂ => (τ₁ =? τ₂)%typ
+  | Lst.Header b₁, Lst.Header b₂ => Bool.eqb b₁ b₂
   | _, _ => false
   end.
 
@@ -43,9 +43,9 @@ Section TypeEquivalence.
   Hint Extern 4 => equiv_dec_refl_tactic : core.
   Local Hint Rewrite eqb_reflx : core.
   
-  Lemma eqbt_refl : forall τ, (τ =? τ)%ty = true.
+  Lemma eqb_typ_refl : forall τ, (τ =? τ)%typ = true.
   Proof.
-    induction τ using custom_t_ind; unravel;
+    induction τ using custom_typ_ind; unravel;
       autorewrite with core; auto;
       try ind_list_Forall;
       intuition; autorewrite with core;
@@ -77,9 +77,9 @@ Section TypeEquivalence.
 
   Hint Extern 5 => helper : core.
     
-  Lemma eqbt_eq : forall t1 t2, (t1 =? t2)%ty = true -> t1 = t2.
+  Lemma eqb_typ_eq : forall t1 t2, (t1 =? t2)%typ = true -> t1 = t2.
   Proof.
-    induction t1 using custom_t_ind; intros []; intros; unravel in *;
+    induction t1 using custom_typ_ind; intros []; intros; unravel in *;
       try discriminate; repeat destruct_andb; auto; f_equal;
       repeat destruct_lifted_andb; unravel in *; subst; auto;
       try match goal with
@@ -94,30 +94,30 @@ Section TypeEquivalence.
       auto using InitialRing.Neqb_ok.
   Qed.
 
-  Local Hint Resolve eqbt_refl : core.
-  Local Hint Resolve eqbt_eq : core.
+  Local Hint Resolve eqb_typ_refl : core.
+  Local Hint Resolve eqb_typ_eq : core.
   
-  Lemma eqbt_eq_iff : forall t1 t2 : t,
-      (t1 =? t2)%ty = true <-> t1 = t2.
+  Lemma eqb_typ_eq_iff : forall t1 t2 : Typ.t,
+      (t1 =? t2)%typ = true <-> t1 = t2.
   Proof.
     intros t1 t2; split; intros; subst; auto.
   Qed.
 
-  Local Hint Resolve eqbt_eq_iff : core.
+  Local Hint Resolve eqb_typ_eq_iff : core.
   
-  Lemma eqbt_reflect : forall t1 t2, reflect (t1 = t2) (t1 =? t2)%ty.
+  Lemma eqb_typ_reflect : forall t1 t2, reflect (t1 = t2) (t1 =? t2)%typ.
   Proof.
     intros; reflect_split; auto.
-    apply eqbt_eq_iff in H;
+    apply eqb_typ_eq_iff in H;
       rewrite H in Heqb; discriminate.
   Defined.
     
-  Transparent eqbt_reflect.
+  Transparent eqb_typ_reflect.
 
-  Lemma eq_dec : forall t1 t2 : t,
+  Lemma eq_dec : forall t1 t2 : Typ.t,
       t1 = t2 \/ t1 <> t2.
   Proof.
-    intros t1 t2. pose proof eqbt_reflect t1 t2 as H.
+    intros t1 t2. pose proof eqb_typ_reflect t1 t2 as H.
     inv H; auto.
   Qed.
 
@@ -150,71 +150,69 @@ Section TypeEquivalence.
   Defined.
 End TypeEquivalence.
   
-Global Instance TypeEqDec : EqDec t eq :=
-  { equiv_dec := fun t1 t2 => reflect_dec _ _ (eqbt_reflect t1 t2) }.
+Global Instance TypeEqDec : EqDec Typ.t eq :=
+  { equiv_dec := fun t1 t2 => reflect_dec _ _ (eqb_typ_reflect t1 t2) }.
 
-Global Instance ListsEqDec : EqDec lists eq :=
+Global Instance ListsEqDec : EqDec Lst.t eq :=
   { equiv_dec := fun l₁ l₂ => reflect_dec _ _ (lists_eqb_reflect l₁ l₂) }.
 
 (** Decidable Expression Equivalence. *)
-Global Instance UopEqDec : EqDec uop eq.
+Global Instance UopEqDec : EqDec Una.t eq.
 Proof.
   intros [] []; unravel in *; firstorder;
     try (right; intros ?; discriminate).
-  elim validity; elim validity0; auto;
-    try (right; intros ?; discriminate).
 Defined.
   
-Global Instance BopEqDec : EqDec bop eq.
+Global Instance BopEqDec : EqDec Bin.t eq.
 Proof.
   intros [] []; unfold equiv, complement in *;
     auto 2; right; intros ?; discriminate.
 Defined.
     
 (** Decidable Expression Equivalence. *)
-Fixpoint eqbe (e1 e2 : e) {struct e1} : bool :=
-  let fix lstruct (es1 es2 : list e) : bool :=
+Fixpoint eqb_exp (e1 e2 : Exp.t) {struct e1} : bool :=
+  let fix lstruct (es1 es2 : list Exp.t) : bool :=
     match es1, es2 with
     | [], _::_ | _::_, [] => false
     | [], [] => true
-    | e1::es1, e2::es2 => (e1 =? e2)%expr && lstruct es1 es2
+    | e1::es1, e2::es2 => (e1 =? e2)%exp && lstruct es1 es2
     end in
   match e1, e2 with
-  | Bool b1, Bool b2 => Bool.eqb b1 b2
-  | w1 `W n1, w2 `W n2
+  | Exp.Bool b1, Exp.Bool b2 => Bool.eqb b1 b2
+  | (w1 `W n1)%exp, (w2 `W n2)%exp
     => (w1 =? w2)%N && (n1 =? n2)%Z
-  | w1 `S z1, w2 `S z2
+  | (w1 `S z1)%exp, (w2 `S z2)%exp
     => (w1 =? w2)%positive && (z1 =? z2)%Z
-  | VarBit m1 w1 n1, VarBit m2 w2 n2
+  | Exp.VarBit m1 w1 n1, Exp.VarBit m2 w2 n2
     => (m1 =? m2)%N && (w1 =? w2)%N && (n1 =? n2)%Z
-  | Var τ1 og1 x1, Var τ2 og2 x2
-    => PeanoNat.Nat.eqb x1 x2 && (og1 =? og2)%string && (τ1 =? τ2)%ty
-  | Slice h1 l1 e1, Slice h2 l2 e2
-    => (h1 =? h2)%positive && (l1 =? l2)%positive && (e1 =? e2)%expr
-  | Cast τ1 e1, Cast τ2 e2
-    => (τ1 =? τ2)%ty && (e1 =? e2)%expr
-  | Uop t2 u1 e1, Uop t1 u2 e2
-    => equiv_dec u1 u2 &&&& (e1 =? e2)%expr && (t1 =? t2)%ty
-  | Bop t1 o1 el1 er1, Bop t2 o2 el2 er2
-    => equiv_dec o1 o2 &&&& (el1 =? el2)%expr && (er1 =? er2)%expr && (t1 =? t2)%ty
-  | Index t1 a1 b1, Index t2 a2 b2
-    => (t1 =? t2)%ty && (a1 =? a2)%expr && (b1 =? b2)%expr
-  | Member t1 x1 e1, Member t2 x2 e2
-    => PeanoNat.Nat.eqb x1 x2 && (e1 =? e2)%expr && (t1 =? t2)%ty
-  | Lists l1 es1, Lists l2 es2
+  | Exp.Var τ1 og1 x1, Exp.Var τ2 og2 x2
+    => PeanoNat.Nat.eqb x1 x2 && (og1 =? og2)%string && (τ1 =? τ2)%typ
+  | Exp.Slice h1 l1 e1, Exp.Slice h2 l2 e2
+    => (h1 =? h2)%positive && (l1 =? l2)%positive && (e1 =? e2)%exp
+  | Exp.Cast τ1 e1, Exp.Cast τ2 e2
+    => (τ1 =? τ2)%typ && (e1 =? e2)%exp
+  | Exp.Uop t2 u1 e1, Exp.Uop t1 u2 e2
+    => equiv_dec u1 u2 &&&& (e1 =? e2)%exp && (t1 =? t2)%typ
+  | Exp.Bop t1 o1 el1 er1, Exp.Bop t2 o2 el2 er2
+    => equiv_dec o1 o2 &&&& (el1 =? el2)%exp && (er1 =? er2)%exp && (t1 =? t2)%typ
+  | Exp.Index t1 a1 b1, Exp.Index t2 a2 b2
+    => (t1 =? t2)%typ && (a1 =? a2)%exp && (b1 =? b2)%exp
+  | Exp.Member t1 x1 e1, Exp.Member t2 x2 e2
+    => PeanoNat.Nat.eqb x1 x2 && (e1 =? e2)%exp && (t1 =? t2)%typ
+  | Exp.Lists l1 es1, Exp.Lists l2 es2
     => lists_eqb l1 l2 && lstruct es1 es2
-  | Error err1, Error err2
+  | Exp.Error err1, Exp.Error err2
     => if equiv_dec err1 err2 then true else false
   | _, _ => false
   end
-where "x '=?' y" := (eqbe x y) : expr_scope.
+where "x '=?' y" := (eqb_exp x y) : exp_scope.
 
 Section ExprEquivalenceDefs.
   Local Hint Rewrite String.eqb_refl : core.
   Local Hint Rewrite eqb_reflx : core.
   Local Hint Rewrite Pos.eqb_refl : core.
   Local Hint Rewrite Z.eqb_refl : core.
-  Local Hint Rewrite eqbt_refl : core.
+  Local Hint Rewrite eqb_typ_refl : core.
   Local Hint Rewrite lists_eqb_refl : core.
   Local Hint Extern 5 => equiv_dec_refl_tactic : core.
   Local Hint Rewrite PeanoNat.Nat.eqb_refl : core.
@@ -223,9 +221,9 @@ Section ExprEquivalenceDefs.
   Local Hint Rewrite N.eqb_refl : core.
   Local Hint Resolve eqb_reflx : core.
 
-  Lemma eqbe_refl : forall exp : e, (exp =? exp)%expr = true.
+  Lemma eqb_exp_refl : forall exp : Exp.t, (exp =? exp)%exp = true.
   Proof.
-    intro exp; induction exp using custom_e_ind;
+    intro exp; induction exp using custom_exp_ind;
       cbn; autorewrite with core;
       try match goal with
         | H: predop _ _ |- _ => inv H
@@ -262,22 +260,22 @@ Section ExprEquivalenceDefs.
     | H: context [if equiv_dec ?t1 ?t2 then _ else _] |- _
       => destruct (equiv_dec t1 t2) as [? | ?];
         unravel in H; try discriminate
-    | H: context [if eqbt ?t1 ?t2 then _ else _] |- _
-      => destruct (eqbt t1 t2) eqn:?;
+    | H: context [if eqb_typ ?t1 ?t2 then _ else _] |- _
+      => destruct (eqb_typ t1 t2) eqn:?;
                  unravel in H; try discriminate
-    | H: context [eqbt ?t1 ?t2 && _] |- _
-      => destruct (eqbt t1 t2) eqn:?;
+    | H: context [eqb_typ ?t1 ?t2 && _] |- _
+      => destruct (eqb_typ t1 t2) eqn:?;
                  unravel in H; try discriminate
-    | H: context [eqbe ?e1 ?e2 && _] |- _
-      => destruct (eqbe e1 e2) eqn:?;
+    | H: context [eqb_exp ?e1 ?e2 && _] |- _
+      => destruct (eqb_exp e1 e2) eqn:?;
                  unravel in H; try discriminate
-    | H: eqbt _ _ = true |- _
-      => apply eqbt_eq_iff in H
-    | H: context [if eqbe ?e1 ?e2 then _ else _] |- _
-      => destruct (eqbe e1 e2) eqn:?;
+    | H: eqb_typ _ _ = true |- _
+      => apply eqb_typ_eq_iff in H
+    | H: context [if eqb_exp ?e1 ?e2 then _ else _] |- _
+      => destruct (eqb_exp e1 e2) eqn:?;
                  unravel in H; try discriminate
-    | H: eqbe ?e1 _ = true,
-        IH: forall e2, eqbe ?e1 e2 = true -> ?e1 = e2 |- _
+    | H: eqb_exp ?e1 _ = true,
+        IH: forall e2, eqb_exp ?e1 e2 = true -> ?e1 = e2 |- _
       => apply IH in H
     | H: _ === _ |- _ => unfold equiv in H;
                        match goal with
@@ -295,43 +293,43 @@ Section ExprEquivalenceDefs.
     
   Local Hint Extern 5 => eq_true_terms : core.
     
-  Lemma eqbe_eq : forall e1 e2 : e,
-      (e1 =? e2)%expr = true -> e1 = e2.
+  Lemma eqb_exp_eq : forall e1 e2 : Exp.t,
+      (e1 =? e2)%exp = true -> e1 = e2.
   Proof.
-    induction e1 using custom_e_ind;
+    induction e1 using custom_exp_ind;
       intros [] ?; unravel in *;
       try discriminate; auto 1;
       repeat eq_true_terms;
       unfold equiv in *;
       subst; auto; try constructor; auto 1; f_equal; auto.
-    - rename exps into l1; rename es into l2.
+    - rename es into l1; rename es0 into l2.
       generalize dependent l2.
       ind_list_Forall; intros [| h2 l2] He; try discriminate; auto.
       apply andb_prop in He as [He1 He2]; f_equal; eauto.
   Qed.
   
-  Local Hint Resolve eqbe_refl : core.
-  Local Hint Resolve eqbe_eq : core.
+  Local Hint Resolve eqb_exp_refl : core.
+  Local Hint Resolve eqb_exp_eq : core.
     
-  Lemma eqbe_iff : forall e1 e2 : e,
-      (e1 =? e2)%expr = true <-> e1 = e2.
+  Lemma eqb_exp_iff : forall e1 e2 : Exp.t,
+      (e1 =? e2)%exp = true <-> e1 = e2.
   Proof. intros; split; intros; subst; auto. Qed.
     
-  Local Hint Resolve eqbe_iff : core.
+  Local Hint Resolve eqb_exp_iff : core.
   Local Hint Extern 5 =>
          match goal with
-         | H: eqbe ?e1 ?e2 = false,
+         | H: eqb_exp ?e1 ?e2 = false,
              H': ?e1 = ?e2 |- False
-           => apply eqbe_iff in H'; rewrite H' in H; discriminate
+           => apply eqb_exp_iff in H'; rewrite H' in H; discriminate
   end : core.
   
-  Lemma eqbe_reflect : forall e1 e2 : e,
-      reflect (e1 = e2) (e1 =? e2)%expr.
+  Lemma eqb_exp_reflect : forall e1 e2 : Exp.t,
+      reflect (e1 = e2) (e1 =? e2)%exp.
   Proof.
     intros; reflect_split; auto 2;
       autorewrite with core; auto 2.
   Qed.
 End ExprEquivalenceDefs.
   
-Global Instance ExprEqDec {tags_t : Type} : EqDec e eq :=
-  { equiv_dec := fun e1 e2 => reflect_dec _ _ (eqbe_reflect e1 e2) }.
+Global Instance ExprEqDec {tags_t : Type} : EqDec Exp.t eq :=
+  { equiv_dec := fun e1 e2 => reflect_dec _ _ (eqb_exp_reflect e1 e2) }.

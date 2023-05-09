@@ -21,8 +21,8 @@ open Surface
 open Core
 open Context
 
-let declare_vars vars = List.iter vars ~f:declare_var
-let declare_types types = List.iter types ~f:declare_type
+let declare_vars vars = List.iter vars ~f:(fun s -> declare_var s false)
+let declare_types types = List.iter types ~f:(fun s -> declare_type s false)
 
 let rec smash_annotations (l: P4string.t list) (tok2: P4string.t) : P4string.t list =
   match l with 
@@ -46,7 +46,7 @@ let rec smash_annotations (l: P4string.t list) (tok2: P4string.t) : P4string.t l
 %token<P4info.t> LE GE SHL AND OR NE EQ
 %token<P4info.t> PLUS MINUS PLUS_SAT MINUS_SAT MUL DIV MOD
 %token<P4info.t> BIT_OR BIT_AND BIT_XOR COMPLEMENT
-%token<P4info.t> L_BRACKET R_BRACKET L_BRACE R_BRACE L_ANGLE R_ANGLE R_ANGLE_SHIFT L_PAREN R_PAREN
+%token<P4info.t> L_BRACKET R_BRACKET L_BRACE R_BRACE L_ANGLE L_ANGLE_ARGS R_ANGLE R_ANGLE_SHIFT L_PAREN R_PAREN
 %token<P4info.t> ASSIGN COLON COMMA QUESTION DOT NOT SEMICOLON
 %token<P4info.t> AT PLUSPLUS
 %token<P4info.t> DONTCARE
@@ -74,7 +74,7 @@ let rec smash_annotations (l: P4string.t list) (tok2: P4string.t) : P4string.t l
 %left PLUSPLUS PLUS MINUS PLUS_SAT MINUS_SAT
 %left MUL DIV MOD
 %right PREFIX
-%nonassoc L_PAREN L_BRACKET
+%nonassoc L_PAREN L_BRACKET L_ANGLE_ARGS
 %left DOT
 
 
@@ -95,13 +95,13 @@ push_scope:
 push_name:
 | n = name
      { push_scope();
-       declare_type n;
+       declare_type n false;
        n}
 
 push_externName:
 | n = externName
     { push_scope();
-      declare_type n;
+      declare_type n false;
       n}
 
 pop_scope:
@@ -211,32 +211,32 @@ topDeclarationList:
 
 topDeclaration:
 | c = constantDeclaration
-    { declare_var (Declaration.name c);
+    { declare_var (Declaration.name c) (Declaration.has_type_params c);
       c }
 | e = externDeclaration
     { e }
 | a = actionDeclaration
-    { declare_var (Declaration.name a);
+    { declare_var (Declaration.name a) false;
       a }
 | p = parserDeclaration
-    { declare_type (Declaration.name p);
+    { declare_type (Declaration.name p) (Declaration.has_type_params p);
       p }
 | c = controlDeclaration
-    { declare_type (Declaration.name c);
+    { declare_type (Declaration.name c) (Declaration.has_type_params c);
       c }
 | i = instantiation
-    { declare_var (Declaration.name i);
+    { declare_var (Declaration.name i) false;
       i }
 | t = typeDeclaration
-    { declare_type (Declaration.name t);
+    { declare_type (Declaration.name t) (Declaration.has_type_params t);
       t }
 | e = errorDeclaration
-    { (* declare_type (Declaration.name e); *)
+    { (* declare_type (Declaration.name e) false; *)
       e }
 | m = matchKindDeclaration
     { m }
 | f = functionDeclaration
-    { declare_var (Declaration.name f);
+    { declare_var (Declaration.name f) (Declaration.has_type_params f);
       f }
 ;
 
@@ -611,13 +611,13 @@ simpleKeysetExpression:
 
 valueSetDeclaration:
 | annotations = optAnnotations
-    info1 = VALUESET L_ANGLE typ = baseType r_angle
+    info1 = VALUESET l_angle typ = baseType r_angle
     L_PAREN size = expression R_PAREN name = name info2 = SEMICOLON
 | annotations = optAnnotations
-    info1 = VALUESET L_ANGLE typ = tupleType r_angle
+    info1 = VALUESET l_angle typ = tupleType r_angle
     L_PAREN size = expression R_PAREN name = name info2 = SEMICOLON
 | annotations = optAnnotations
-    info1 = VALUESET L_ANGLE typ = typeName r_angle
+    info1 = VALUESET l_angle typ = typeName r_angle
     L_PAREN size = expression R_PAREN name = name info2 = SEMICOLON
     { let tags = P4info.merge info1 info2 in
       Declaration.ValueSet { annotations; typ; size; name; tags }  }
@@ -649,9 +649,9 @@ controlLocalDeclaration:
 | c = constantDeclaration
     { c }
 | a = actionDeclaration
-    { declare_var (Declaration.name a); a }
+    { declare_var (Declaration.name a) false; a }
 | t = tableDeclaration
-    { declare_var (Declaration.name t); t }
+    { declare_var (Declaration.name t) false; t }
 | i = instantiation
     { i }
 | v = variableDeclaration
@@ -673,7 +673,7 @@ externDeclaration:
      { let tags = P4info.merge info1 info2 in
        let type_decl =
           (Declaration.ExternObject { annotations; name; type_params; methods; tags }) in
-       declare_type (Declaration.name type_decl);
+       declare_type name (Declaration.has_type_params type_decl);
        type_decl }
 |  annotations = optAnnotations info1 = EXTERN
      func = functionPrototype pop_scope info2 = SEMICOLON
@@ -681,12 +681,12 @@ externDeclaration:
        let tags = P4info.merge info1 info2 in
        let decl =
           Declaration.ExternFunction { annotations; return; name; type_params; params; tags } in
-       declare_var (Declaration.name decl);
+       declare_var name (Declaration.has_type_params decl);
        decl }
 ;
 
 externName:
-| n = nonTypeName { declare_type n; n }
+| n = nonTypeName { declare_type n false; n }
 (* So that it is declared a typename before constructors are parsed
    Could use midrule instead x) *)
 ;
@@ -754,7 +754,7 @@ typeName:
 ;
 
 tupleType:
-| info1 = TUPLE L_ANGLE elements = typeArgumentList info_r = r_angle
+| info1 = TUPLE l_angle elements = typeArgumentList info_r = r_angle
     { let tags = P4info.merge info1 info_r in
        Type.Tuple {tags; xs = elements} }
 ;
@@ -766,7 +766,7 @@ headerStackType:
 ;
 
 specializedType:
-| base = prefixedType L_ANGLE args = typeArgumentList info_r = r_angle
+| base = prefixedType l_angle args = typeArgumentList info_r = r_angle
     { let tags = P4info.merge (Type.tags base) info_r in
       Type.SpecializedType { base; args; tags } }
 ;
@@ -782,32 +782,32 @@ baseType:
                                         tags = info};
                                   tags = info} in
       Type.BitType {expr = width; tags = info} }
-| info1 = BIT L_ANGLE value = INTEGER info_r = r_angle
+| info1 = BIT l_angle value = INTEGER info_r = r_angle
     { let value_int : P4int.t = fst value in 
       let value_info = value_int.tags in
       let width = Expression.Int {x = value_int; tags = value_info} in
       let tags = P4info.merge info1 info_r in
       Type.BitType {tags; expr = width} }
-| info1 = INT L_ANGLE value = INTEGER info_r = r_angle
+| info1 = INT l_angle value = INTEGER info_r = r_angle
      { let value_int : P4int.t = fst value in 
        let value_info = value_int.tags in 
        let width = Expression.Int {tags = value_info; x = value_int} in
        let tags = P4info.merge info1 info_r in
       Type.IntType {tags; expr = width} }
 
-| info1 = VARBIT L_ANGLE value = INTEGER info_r = r_angle 
+| info1 = VARBIT l_angle value = INTEGER info_r = r_angle 
      { let value_int : P4int.t = fst value in 
        let value_info = value_int.tags in
        let max_width = Expression.Int {tags = value_info; x = value_int} in
        let tags = P4info.merge info1 info_r in
       Type.VarBit {tags; expr = max_width} }
-| info1 = BIT L_ANGLE L_PAREN width = expression R_PAREN info_r = r_angle
+| info1 = BIT l_angle L_PAREN width = expression R_PAREN info_r = r_angle
     { let tags = P4info.merge info1 info_r in
        Type.BitType {tags; expr = width} }
-| info1 = INT L_ANGLE L_PAREN width = expression R_PAREN info_r = r_angle
+| info1 = INT l_angle L_PAREN width = expression R_PAREN info_r = r_angle
     { let tags = P4info.merge info1 info_r in
        Type.IntType {tags; expr = width} }
-| info1 = VARBIT L_ANGLE L_PAREN max_width = expression R_PAREN info_r = r_angle
+| info1 = VARBIT l_angle L_PAREN max_width = expression R_PAREN info_r = r_angle
     { let tags = P4info.merge info1 info_r in
        Type.VarBit {expr = max_width; tags} }
 | info = INT
@@ -828,7 +828,7 @@ typeOrVoid:
 
 optTypeParameters:
 | (* empty *) { [] }
-| L_ANGLE types = separated_list(COMMA, typeParameter) r_angle
+| l_angle types = separated_list(COMMA, typeParameter) r_angle
     { declare_types types;
       types }
 ;
@@ -866,14 +866,13 @@ typeDeclaration:
 | d = derivedTypeDeclaration
 | d = typedefDeclaration
 | d = packageTypeDeclaration pop_scope SEMICOLON
-  { declare_type (Declaration.name d);
-    d }
+  { d }
 | ctd = controlTypeDeclaration pop_scope SEMICOLON
   { let tags, annotations, name, type_params, params = ctd in
-     Declaration.ControlType { annotations; name; type_params; params; tags } }
+    Declaration.ControlType { annotations; name; type_params; params; tags } }
 | ptd = parserTypeDeclaration pop_scope SEMICOLON
   { let tags, annotations, name, type_params, params = ptd in
-     Declaration.ParserType { annotations; name; type_params; params; tags } }
+    Declaration.ParserType { annotations; name; type_params; params; tags } }
 ;
 
 derivedTypeDeclaration:
@@ -975,7 +974,7 @@ assignmentOrMethodCallStatement:
     { let type_args = [] in
       let tags = P4info.merge (Expression.tags func) info2 in 
        Statement.MethodCall { func; type_args; args; tags } }
-| func = lvalue L_ANGLE type_args = typeArgumentList r_angle
+| func = lvalue l_angle type_args = typeArgumentList r_angle
     L_PAREN args = argumentList R_PAREN info2 = SEMICOLON
     { let tags = P4info.merge (Expression.tags func) info2 in
        Statement.MethodCall { func; type_args; args; tags } }
@@ -1181,7 +1180,7 @@ actionDeclaration:
 variableDeclaration:
 | annotations = optAnnotations
     typ = typeRef name = name init = optInitialValue info2 = SEMICOLON
-    { declare_var name;
+    { declare_var name false;
       let tags = P4info.merge (Type.tags typ) info2 in
        Declaration.Variable { annotations; typ; name; init; tags } }
 ;
@@ -1331,7 +1330,7 @@ expression:
 | cond = expression QUESTION tru = expression COLON fls = expression
    { let tags = P4info.merge (Expression.tags cond) (Expression.tags fls) in
       Expression.Ternary { cond; tru; fls; tags } }
-| func = expression L_ANGLE type_args = realTypeArgumentList r_angle
+| func = expression l_angle type_args = realTypeArgumentList r_angle
     L_PAREN args = argumentList info2 = R_PAREN
    { let tags = P4info.merge (Expression.tags func) info2 in
       Expression.FunctionCall { func; type_args; args; tags } }
@@ -1367,7 +1366,7 @@ expression:
    { Op.Le {tags = info} }
 | info = GE
    { Op.Ge {tags = info} }
-| info = L_ANGLE
+| info = l_angle
    { Op.Lt {tags = info} }
 | info_r = r_angle
    { Op.Gt {tags = info_r} }
@@ -1392,6 +1391,10 @@ expression:
 %inline r_angle:
 | info_r = R_ANGLE { info_r } 
 | info_r = R_ANGLE_SHIFT { info_r }
+
+%inline l_angle:
+| info_r = L_ANGLE { info_r } 
+| info_r = L_ANGLE_ARGS { info_r }
 
 (* À jour avec le commit 45df9f41a2cf1af56f4fa1cfaa1f586adefd13b7
    de p4-spec; à dotPrefix et listes près *)

@@ -11,7 +11,7 @@ Local Open Scope string_scope.
 
 (* We reuse P4cub expressions and expression types. *)
 Module CUB := P4cub.Syntax.AST.
-Module Expr := CUB.Expr.
+Module Exp := CUB.Exp.
 
 Module Lval.
   Inductive lv :=
@@ -30,10 +30,10 @@ Module Pattern.
 End Pattern.
 
 (** * Statement and Block Grammar *)
-Module Stmt.
+Module Stm.
 
   (** Statements. *)
-  (* This datatype is mostly like CUB.Stmt.s, but without
+  (* This datatype is mostly like CUB.Stm.t, but without
      any calls to
         - functions,
         - actions,
@@ -44,93 +44,93 @@ Module Stmt.
      control plane name so that multiple inlined copies of the same
      table may share control-plane state. Extern calls are left
      unchanged. *)
-  Inductive s : Set :=
+  Inductive t : Set :=
   | Skip                          (** skip/no-op *)
-  | Return (e : option Expr.e)    (** return *)
+  | Return (e : option Exp.t)    (** return *)
   | Exit                          (** exit *)
-  | Assign (lhs rhs : Expr.e)     (** assignment *)
+  | Assign (lhs rhs : Exp.t)     (** assignment *)
   | ExternCall
       (extern_instance_name : string)
       (method_name : string)
-      (type_args : list Expr.t)
-      (args : Expr.args)
-      (returns : option Expr.e)
+      (type_args : list Exp.t)
+      (args : Exp.args)
+      (returns : option Exp.t)
   | Table
       (ctrl_plane_name: string)
-      (key: list Expr.e)
-      (actions: list (string * Expr.params * s))
+      (key: list Exp.t)
+      (actions: list (string * Exp.args * t))
   (** blocks of statements: *)
   | Var
       (original_name : string)
-      (expr : Expr.t (** unitialized decl *) + Expr.e (** initialzed decl *))
-      (tail : s) (** variable declaration/initialization
+      (expr : Exp.t (** unitialized decl *) + Exp.t (** initialzed decl *))
+      (tail : t) (** variable declaration/initialization
                      a let-in operator. *)
-  | Seq (head tail : s) (** sequenced blocks,
+  | Seq (head tail : t) (** sequenced blocks,
                             variables introduced in [head]
                             do not occur in [tail] *)
-  | Conditional (guard : Expr.e)
-      (tru_blk fls_blk : s) (** conditionals *).
-End Stmt.
+  | Conditional (guard : Exp.t)
+      (tru_blk fls_blk : t) (** conditionals *).
+End Stm.
 
 (** Top-Level Declarations *)
-Module TopDecl.
+Module Top.
   
   (** Top-level declarations. *)
-  Variant d : Set :=
+  Variant t : Set :=
     | Extern
         (extern_name : string)
         (type_params : nat)
-        (cparams : CUB.TopDecl.constructor_params)
-        (expr_cparams : list Expr.t)
+        (cparams : CUB.Top.constructor_params)
+        (expr_cparams : list Typ.t)
         (methods : Field.fs
                      string         (** method name *)
                      (nat           (** type parameters *)
                       * list string (** extern parameters *)
-                      * Expr.arrowT (** parameters *)))
+                      * CUB.Typ.arrowT (** parameters *)))
     (* Top-level blocks, to be included in packages. *)
     | ControlBlock
         (name : string)
-        (params: Expr.params)
-        (body : Stmt.s)
+        (params: CUB.Typ.params)
+        (body : Stm.t)
     (* Instantiations of packages. *)
     | Pkg (name: string) (cargs: list string).
 
   (** A p4flat program. *)
-  Definition prog : Set := list d.
+  Definition prog : Set := list t.
 
-  Definition d_name (decl: d) : string :=
+  Definition t_name (decl: t) : string :=
     match decl with
     | Extern name _ _ _ _
     | ControlBlock name _ _
     | Pkg name _ => name
     end.
 
-  Definition expect_extern (decl: d) :=
+  Definition expect_extern (decl: t) :=
     match decl with
     | Extern extern_name type_params cparams expr_cparams methods =>
         ok (extern_name, type_params, cparams, expr_cparams, methods)
     | _ => error "got other decl"
     end.
 
-  Definition expect_controlblock (decl: d) : result string (string * Expr.params * Stmt.s) :=
+  Definition expect_controlblock (decl: t) : result string (string * CUB.Typ.params * Stm.t) :=
     match decl with
     | ControlBlock name params body => ok (name, params, body)
     | _ => error "got other decl"
     end.
   
-  Definition expect_pkg (decl: d) : result string (string * list string) :=
+  Definition expect_pkg (decl: t) : result string (string * list string) :=
     match decl with
     | Pkg name cargs => ok (name, cargs)
     | _ => error "got other decl"
     end.
 
-  Fixpoint find_decl (name: string) (p: prog) : result string d :=
+  Fixpoint find_decl (name: string) (p: prog) : result string t :=
     match p with
     | decl :: p' =>
-        if String.eqb (d_name decl) name
+        if String.eqb (t_name decl) name
         then ok decl
         else find_decl name p'
     | [] => error "decl not found"
     end.
   
-End TopDecl.
+End Top.

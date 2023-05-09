@@ -6,8 +6,7 @@ From Poulet4 Require Import P4cub.Syntax.Syntax
 From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.Value.Syntax BigStep.Semantics BigStep.IndPrincip
      BigStep.Value.Typing BigStep.Determinism.
-Import AllCubNotations Val.ValueNotations
-  Val.LValueNotations Nat RecordSetNotations.
+Import Nat RecordSetNotations.
 
 Ltac len_app :=
   match goal with
@@ -54,20 +53,20 @@ Section Properties.
 
   Local Hint Resolve ctx_cutoff_le : core.
   Local Hint Resolve ForallMap.Forall2_dumb : core.
-  Local Hint Constructors expr_big_step : core.
+  Local Hint Constructors exp_big_step : core.
   Local Hint Extern 1 => len_app : core.
 
-  Lemma shift_e_eval : forall us vs ϵ e v,
+  Lemma shift_exp_eval : forall us vs ϵ e v,
       ⟨ us ++ ϵ, e ⟩ ⇓ v ->
       ⟨ us ++ vs ++ ϵ,
-        shift_e
+        shift_exp
           (Shifter (length us) (length vs)) e ⟩ ⇓ v.
   Proof using.
     intros us vs ϵ e v h.
     remember (us ++ ϵ) as usϵ eqn:husϵ.
     generalize dependent ϵ.
     generalize dependent us.
-    induction h using custom_expr_big_step_ind;
+    induction h using custom_exp_big_step_ind;
       intros us eps huseps; subst;
       unravel; eauto.
     - unfold shift_var. unravel.
@@ -92,15 +91,15 @@ Section Properties.
       assumption.
   Qed.
 
-  Local Hint Resolve shift_e_eval : core.
+  Local Hint Resolve shift_exp_eval : core.
 
   Lemma e_eval_shift : forall e v us vs ϵ,
       ⟨ us ++ vs ++ ϵ,
-        shift_e
+        shift_exp
           (Shifter (length us) (length vs)) e ⟩ ⇓ v ->
       ⟨ us ++ ϵ, e ⟩ ⇓ v.
   Proof using.
-    intro e; induction e using custom_e_ind;
+    intro e; induction e using custom_exp_ind;
       intros v us vs eps h; inv h; cbn in *; eauto.
     - unfold shift_var, cutoff, amt in * |-.
       destruct_if_hyp.
@@ -125,33 +124,33 @@ Section Properties.
   Qed.
     
   Local Hint Resolve e_eval_shift : core.
-  Local Hint Constructors parser_expr_big_step : core.
+  Local Hint Constructors trns_big_step : core.
 
-  Lemma shift_trans_eval : forall us ϵ p st,
+  Lemma shift_trns_eval : forall us ϵ p st,
       p⟨ us ++ ϵ , p ⟩ ⇓ st -> forall vs,
-        p⟨ us ++ vs ++ ϵ , shift_transition (Shifter (length us) (length vs)) p ⟩ ⇓ st.
+        p⟨ us ++ vs ++ ϵ , shift_trns (Shifter (length us) (length vs)) p ⟩ ⇓ st.
   Proof using.
     intros us eps p st h vs.
     inv h; unravel; auto.
   Qed.
 
-  Local Hint Resolve shift_trans_eval : core.
+  Local Hint Resolve shift_trns_eval : core.
 
-  Lemma trans_eval_shift : forall p st us vs ϵ,
-      p⟨ us ++ vs ++ ϵ , shift_transition (Shifter (length us) (length vs)) p ⟩ ⇓ st ->
+  Lemma trns_eval_shift : forall p st us vs ϵ,
+      p⟨ us ++ vs ++ ϵ , shift_trns (Shifter (length us) (length vs)) p ⟩ ⇓ st ->
       p⟨ us ++ ϵ , p ⟩ ⇓ st.
   Proof using.
     intros [lbl | e lbl cases] st us vs eps h; cbn in h; inv h; eauto.
   Qed.
 
-  Local Hint Resolve trans_eval_shift : core.
+  Local Hint Resolve trns_eval_shift : core.
   
-  Fixpoint shift_lv (sh : shifter) (lv : Val.lv) : Val.lv :=
+  Fixpoint shift_lv (sh : shifter) (lv : Lval.t) : Lval.t :=
   match lv with
-  | Val.Var x => Val.Var $ shift_var sh x
-  | Val.Slice hi lo lv => Val.Slice hi lo $ shift_lv sh lv
-  | Val.Member x lv => Val.Member x $ shift_lv sh lv
-  | Val.Index n lv => Val.Index n $ shift_lv sh lv
+  | Lval.Var x => Lval.Var $ shift_var sh x
+  | Lval.Slice hi lo lv => Lval.Slice hi lo $ shift_lv sh lv
+  | Lval.Member x lv => Lval.Member x $ shift_lv sh lv
+  | Lval.Index n lv => Lval.Index n $ shift_lv sh lv
   end.
 
   Lemma shift_lv_0_add : forall lv m n,
@@ -167,12 +166,12 @@ Section Properties.
     unfold shift_var. destruct_if; reflexivity.
   Qed.
   
-  Local Hint Constructors lexpr_big_step : core.
+  Local Hint Constructors lexp_big_step : core.
 
   Lemma shift_lv_eval : forall us vs ϵ e lv,
       l⟨ us ++ ϵ, e ⟩ ⇓ lv ->
       l⟨ us ++ vs ++ ϵ,
-          shift_e
+          shift_exp
             (Shifter (length us) (length vs)) e ⟩
         ⇓ shift_lv (Shifter (length us) (length vs)) lv.
   Proof using.
@@ -187,12 +186,12 @@ Section Properties.
 
   Lemma lv_eval_shift : forall e lv us vs ϵ,
       l⟨ us ++ vs ++ ϵ,
-          shift_e
+          shift_exp
             (Shifter (length us) (length vs)) e ⟩
         ⇓ shift_lv (Shifter (length us) (length vs)) lv ->
       l⟨ us ++ ϵ, e ⟩ ⇓ lv.
   Proof using.
-    intro e; induction e using custom_e_ind;
+    intro e; induction e using custom_exp_ind;
       intros [] us vs eps h; cbn in *; inv h; eauto.
     unfold shift_var, cutoff, amt in * |-.
     do 2 destruct_if_hyp; subst; try lia; auto.
@@ -201,21 +200,21 @@ Section Properties.
 
   Local Hint Resolve lv_eval_shift : core.
 
-  Lemma shift_e_lv_eval_shift_lv_exists :
+  Lemma shift_exp_lv_eval_shift_lv_exists :
     forall e lv us vs eps,
-      l⟨ us ++ vs ++ eps, shift_e (Shifter (length us) (length vs)) e ⟩ ⇓ lv -> exists lv',
+      l⟨ us ++ vs ++ eps, shift_exp (Shifter (length us) (length vs)) e ⟩ ⇓ lv -> exists lv',
         lv = shift_lv (Shifter (length us) (length vs)) lv'.
   Proof.
     intro e; induction e; intros lv us vs eps h;
       unravel in h; inv h; unravel; eauto.
-    - exists x. reflexivity.
+    - exists (Lval.Var x). reflexivity.
     - apply IHe in H3 as [lv h]; subst.
-      exists (Val.Slice hi lo lv). reflexivity.
+      exists (Lval.Slice hi lo lv). reflexivity.
     - apply IHe1 in H4 as [lv h]; subst.
-      exists (Val.Index (BinInt.Z.to_N n) lv).
+      exists (Lval.Index (BinInt.Z.to_N n) lv).
       reflexivity.
     - apply IHe in H3 as [lv h]; subst.
-      exists (lv DOT mem)%lvalue. reflexivity.
+      exists (lv DOT mem)%lval. reflexivity.
   Qed.   
   
   Lemma shift_lv_lookup : forall lv rs us ϵ,
@@ -327,7 +326,7 @@ Section Properties.
   Local Hint Resolve copy_out_from_args_length : core.
   Local Hint Rewrite copy_out_from_args_length : core.
 
-  Lemma lexpr_expr_big_step : forall ϵ e lv v,
+  Lemma lexp_exp_big_step : forall ϵ e lv v,
       l⟨ ϵ, e ⟩ ⇓ lv -> ⟨ ϵ, e ⟩ ⇓ v -> lv_lookup ϵ lv = Some v.
   Proof using.
     intros eps e lv v helv; generalize dependent v.
@@ -337,12 +336,12 @@ Section Properties.
     - rewrite (IHhelv _ H4). assumption.
     - rewrite (IHhelv _ H5).
       rewrite <- H3. f_equal.
-      pose proof expr_deterministic _ _ _ _ H H6 as h; inv h. lia.
+      pose proof exp_deterministic _ _ _ _ H H6 as h; inv h. lia.
   Qed.
 
   Local Hint Rewrite app_length : core.
   Local Hint Constructors relop : core.
-  Local Hint Constructors stmt_big_step : core.
+  Local Hint Constructors stm_big_step : core.
   Local Hint Constructors rel_paramarg : core.
 
   Lemma shift_arg_eval : forall us vs eps arg varg,
@@ -387,7 +386,7 @@ Section Properties.
 
   Local Hint Resolve arg_eval_shift : core.
 
-  Lemma arg_eval_shift_exists_shift_varg : forall us vs eps arg varg,
+  Lemma arg_eval_shift_exp_exists_shift_varg : forall us vs eps arg varg,
       arg_big_step
         (us ++ vs ++ eps)
         (shift_arg (Shifter (length us) (length vs)) arg)
@@ -397,9 +396,9 @@ Section Properties.
     unfold arg_big_step.
     intros us vs eps [] [] h; unravel in h; inv h; unravel; eauto.
     - exists (PAIn a0). reflexivity.
-    - apply shift_e_lv_eval_shift_lv_exists in H1 as [lv h]; subst.
+    - apply shift_exp_lv_eval_shift_lv_exists in H1 as [lv h]; subst.
       exists (PAOut lv); reflexivity.
-    - apply shift_e_lv_eval_shift_lv_exists in H1 as [lv h]; subst.
+    - apply shift_exp_lv_eval_shift_lv_exists in H1 as [lv h]; subst.
       exists (PAInOut lv); reflexivity.
   Qed.
   
@@ -419,7 +418,7 @@ Section Properties.
 
   Local Hint Resolve args_eval_shift : core.
 
-  Lemma args_eval_shift_exists_shift_varg : forall us vs eps args vargs,
+  Lemma args_eval_shift_exp_exists_shift_varg : forall us vs eps args vargs,
       args_big_step
         (us ++ vs ++ eps)
         (map (shift_arg (Shifter (length us) (length vs))) args)
@@ -431,7 +430,7 @@ Section Properties.
     induction args as [| arg args ih];
       intros [| varg vargs] h; inv h.
     - exists []; reflexivity.
-    - apply arg_eval_shift_exists_shift_varg in H2 as [varg' ?]; subst.
+    - apply arg_eval_shift_exp_exists_shift_varg in H2 as [varg' ?]; subst.
       apply ih in H4 as [vargs' ?]; subst.
       exists (varg' :: vargs'); reflexivity.
   Qed.
@@ -794,12 +793,12 @@ Section Properties.
       induction h; autorewrite with core in *; auto; lia.
   Qed.
   
-  Lemma shift_s_eval : forall Ψ us us' ϵ ϵ' c s sig ψ,
+  Lemma shift_stm_eval : forall Ψ us us' ϵ ϵ' c s sig ψ,
       length us = length us' ->
       ctx_cutoff (length ϵ) c ->
       ⧼ Ψ , us ++ ϵ , c , s ⧽ ⤋ ⧼ us' ++ ϵ' , sig , ψ ⧽ -> forall vs,
           ⧼ Ψ , us ++ vs ++ ϵ , c ,
-            shift_s (Shifter (length us) (length vs)) s ⧽
+            shift_stm (Shifter (length us) (length vs)) s ⧽
             ⤋ ⧼ us' ++ vs ++ ϵ' , sig , ψ ⧽.
   Proof using.
     intros Psi us us' eps eps' c s sig psi hus hc hs.
@@ -866,6 +865,8 @@ Section Properties.
     - pose proof shift_lv_update _ _ _ _ _ _ hus huseps' vs as hvs.
       rewrite <- hvs.
       constructor; auto.
+    - pose proof shift_lv_update _ _ _ _ _ _ hus huseps' vs0 as hvs.
+      rewrite <- hvs. eauto.
     - set (vargs' :=
              map (paramarg_map id (shift_lv
                                      {|
@@ -890,7 +891,7 @@ Section Properties.
                 (us ++ vs ++ eps)) by eauto.
       eapply sbs_action_call; try eassumption; eauto 3.
       eapply Forall2_map_l with (lc := ctrl_args).
-      eauto using sublist.Forall2_impl, shift_e_eval.
+      eauto using sublist.Forall2_impl, shift_exp_eval.
     - (* method call case, will be a repeat of the other call cases *)
       admit.
     - (* invoke case, will be a repeat of the other call cases *)
@@ -939,15 +940,15 @@ Section Properties.
       destruct b; auto.
   Admitted.
 
-  Lemma relop_lexpr_big_step_exists_shift : forall us vs eps oe olv,
+  Lemma relop_lexp_big_step_exists_shift : forall us vs eps oe olv,
       relop
-        (lexpr_big_step (us ++ vs ++ eps))
-        (option_map (shift_e (Shifter (length us) (length vs))) oe) olv -> exists olv',
+        (lexp_big_step (us ++ vs ++ eps))
+        (option_map (shift_exp (Shifter (length us) (length vs))) oe) olv -> exists olv',
         olv = option_map (shift_lv (Shifter (length us) (length vs))) olv'.
   Proof using.
     intros us vs eps oe olv h.
     destruct oe as [e |]; destruct olv as [lv |]; unravel in *; inv h.
-    - apply shift_e_lv_eval_shift_lv_exists in H1 as [lv' h]; subst.
+    - apply shift_exp_lv_eval_shift_lv_exists in H1 as [lv' h]; subst.
       exists (Some lv'); reflexivity.
     - exists None; reflexivity.
   Qed.
@@ -957,7 +958,7 @@ Section Properties.
       length vs = length vs' ->
       ctx_cutoff (length ϵ) c ->
       ⧼ Ψ , us ++ vs ++ ϵ , c ,
-        shift_s (Shifter (length us) (length vs)) s ⧽
+        shift_stm (Shifter (length us) (length vs)) s ⧽
         ⤋ ⧼ us' ++ vs' ++ ϵ' , sig , ψ ⧽ ->
       vs = vs'.
   Proof using.
@@ -967,8 +968,8 @@ Section Properties.
     - inv hctx.
       pose proof sbs_length _ _ _ _ _ _ _ H6 as hlen.
       rewrite app_assoc in H,H1.
-      pose proof f_equal (length (A:=Val.v)) H as hlen1.
-      pose proof f_equal (length (A:=Val.v)) H1 as hlen2.
+      pose proof f_equal (length (A:=Val.t)) H as hlen1.
+      pose proof f_equal (length (A:=Val.t)) H1 as hlen2.
       repeat rewrite app_length in hlen1,hlen2.
       rewrite <- firstn_skipn with
         (n := length eps - length ϵ₂) (l := eps) in H.
@@ -983,20 +984,21 @@ Section Properties.
       assert (hlenusvs : length (us ++ vs) = length (us' ++ vs'))
         by (rewrite !app_length; lia).
       apply sublist.app_eq_len_eq in h as [husvs _]; auto.
-    - apply shift_e_lv_eval_shift_lv_exists in H4 as [lv' ?]; subst. eauto 2.
-    - destruct call as [g ts oe | |]; unravel in *; inv H.
-      apply args_eval_shift_exists_shift_varg in H6 as [vargs' ?]; subst.
-      apply relop_lexpr_big_step_exists_shift in H3 as [olv' ?]; subst.
+    - apply shift_exp_lv_eval_shift_lv_exists in H4 as [lv' ?]; subst. eauto 2.
+    - apply shift_exp_lv_eval_shift_lv_exists in H4 as [lv' ?]; subst. eauto 2.
+    - destruct call as [g ts oe | | |]; unravel in *; inv H.
+      apply args_eval_shift_exp_exists_shift_varg in H6 as [vargs' ?]; subst.
+      apply relop_lexp_big_step_exists_shift in H3 as [olv' ?]; subst.
       apply lv_update_signal_shift_amt in H1; eauto 1.
-    - destruct call as [| act cargs |]; unravel in *; inv H.
-      apply args_eval_shift_exists_shift_varg in H7 as [vargs' ?]; subst.
+    - destruct call as [| act cargs | |]; unravel in *; inv H.
+      apply args_eval_shift_exp_exists_shift_varg in H7 as [vargs' ?]; subst.
       apply copy_out_shift_amt in H1; eauto 2.
     - admit.
+    - apply args_eval_shift_exp_exists_shift_varg in H5 as [vargs' ?]; subst.
+      apply copy_out_shift_amt in H1; eauto 2.
+    - apply args_eval_shift_exp_exists_shift_varg in H3 as [vargs' ?]; subst.
+      apply copy_out_shift_amt in H1; eauto 2.
     - admit.
-    - apply args_eval_shift_exists_shift_varg in H6 as [vargs' ?]; subst.
-      apply copy_out_shift_amt in H2; eauto 2.
-    - apply args_eval_shift_exists_shift_varg in H6 as [vargs' ?]; subst.
-      apply copy_out_shift_amt in H2; eauto 2.
     - unfold shext,smother,RecordSet.set,cutoff,amt in *.
       replace (1 + length us) with (length (v :: us)) in H8 by reflexivity.
       replace (v :: us ++ vs ++ eps) with ((v :: us) ++ vs ++ eps) in H8 by reflexivity.
@@ -1026,7 +1028,7 @@ Section Properties.
       length us = length us' ->
       ctx_cutoff (length ϵ) c ->
       ⧼ Ψ , us ++ vs ++ ϵ , c ,
-        shift_s (Shifter (length us) (length vs)) s ⧽
+        shift_stm (Shifter (length us) (length vs)) s ⧽
         ⤋ ⧼ us' ++ vs ++ ϵ' , sig , ψ ⧽ ->
       ⧼ Ψ , us ++ ϵ , c , s ⧽ ⤋ ⧼ us' ++ ϵ' , sig , ψ ⧽.
   Proof using.
@@ -1039,43 +1041,49 @@ Section Properties.
     - inv hctx.
       pose proof sbs_length _ _ _ _ _ _ _ H6 as hϵ3.
       admit.
-    - pose proof shift_e_lv_eval_shift_lv_exists
+    - pose proof shift_exp_lv_eval_shift_lv_exists
         _ _ _ _ _ H4 as [lv' ?]; subst.
       apply lv_update_shift in H3 as h; eauto.
       rewrite <- h. eauto.
-    - pose proof args_eval_shift_exists_shift_varg
+    - pose proof shift_exp_lv_eval_shift_lv_exists
+        _ _ _ _ _ H4 as [lv' ?]; subst.
+      apply lv_update_shift in H3 as h; eauto.
+      rewrite <- h. eauto.
+    - pose proof args_eval_shift_exp_exists_shift_varg
         _ _ _ _ _ H6 as [vargs' ?]; subst.
-      destruct call as [g ts oe| |]; unravel in *; inv H.
-      pose proof relop_lexpr_big_step_exists_shift _ _ _ _ _ H3 as [olv' h]; subst.
+      destruct call as [g ts oe| | |]; unravel in *; inv H.
+      pose proof relop_lexp_big_step_exists_shift _ _ _ _ _ H3 as [olv' h]; subst.
       apply lv_update_signal_shift in H1; eauto.
       rewrite <- H1.
       rewrite relop_map_both in H3.
       econstructor; eauto.
       eapply relop_impl in H3; eauto.
-    - pose proof args_eval_shift_exists_shift_varg
+    - pose proof args_eval_shift_exp_exists_shift_varg
         _ _ _ _ _ H7 as [dvargs ?]; subst.
-      destruct call as [| act cargs |]; unravel in *; inv H.
+      destruct call as [| act cargs | |]; unravel in *; inv H.
       apply copy_out_shift in H1; eauto.
       rewrite <- H1.
       econstructor; eauto 2.
       rewrite <- Forall2_map_l in H4.
       eapply sublist.Forall2_impl in H4; eauto 2.
     - admit.
+    - destruct call; unravel in *; inv H.
+      pose proof args_eval_shift_exp_exists_shift_varg
+        _ _ _ _ _ H5 as [vargs' ?]; subst.
+      apply copy_out_shift in H1; eauto.
+      rewrite <- H1.
+      econstructor; eauto.
+    - destruct call; unravel in *; inv H.
+      pose proof args_eval_shift_exp_exists_shift_varg
+        _ _ _ _ _ H3 as [vargs' ?]; subst.
+      apply copy_out_shift in H1; eauto.
+      rewrite <- H1.
+      rewrite map_length in H10.
+      econstructor; eauto.
     - admit.
-    - pose proof args_eval_shift_exists_shift_varg
-        _ _ _ _ _ H6 as [vargs' ?]; subst.
-      apply copy_out_shift in H2; eauto.
-      rewrite <- H2.
-      econstructor; eauto.
-    - pose proof args_eval_shift_exists_shift_varg
-        _ _ _ _ _ H6 as [vargs' ?]; subst.
-      apply copy_out_shift in H2; eauto.
-      rewrite <- H2.
-      rewrite map_length in H11.
-      econstructor; eauto.
     - pose proof IHs Psi (v :: us) (v' :: us') vs eps eps' c sig psi ltac:(cbn; lia) as ih.
       unfold shext,smother,RecordSet.set,cutoff,amt in H8. cbn in H8, ih.
-      destruct expr as [t | e]; inv H7; eauto.
+      destruct init as [t | e]; inv H7; eauto.
     - pose proof sbs_length _ _ _ _ _ _ _ H3 as hlen1.
       pose proof sbs_length _ _ _ _ _ _ _ H7 as hlen2.
       rewrite !app_length in hlen1, hlen2.

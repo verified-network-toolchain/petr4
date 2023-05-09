@@ -16,39 +16,66 @@
 open Core
 open Util
 
-type t = (bool StringMap.t) list [@@deriving sexp]
+type has_params = bool
+[@@deriving sexp]
+
+type ident_kind =
+  | TypeName of has_params
+  | Ident of has_params
+[@@deriving sexp]
+
+type t = (ident_kind StringMap.t) list [@@deriving sexp]
 
 (* Current context, stored as a mutable global variable *)
-let context = ref [StringMap.empty]
-let backup = ref []
+let context : t ref = ref [StringMap.empty]
+let backup : t ref = ref []
 
 (* Resets context *)
 let reset () =
   context := [StringMap.empty];
   backup := []
 
-(* Associates [id] with [b] in map for current scope *)
-let declare (id : P4string.t) (b : bool) : unit =
+(* Associates [id] with [k] in map for current scope *)
+let declare (id : P4string.t) (k : ident_kind) : unit =
   match !context with
   | [] ->
     failwith "ill-formed context"
   | m :: l ->
-    context := StringMap.set m ~key:id.str ~data:b :: l
+    context := StringMap.set m ~key:id.str ~data:k :: l
 
-let declare_type id = declare id true
-let declare_var id = declare id false
+let declare_type id has_params = declare id (TypeName has_params)
+let declare_var id has_params = declare id (Ident has_params)
 
 (* Tests whether [id] is known as a type name. *)
-let is_typename (id: P4string.t) =
+let get_kind (id: P4string.t) : ident_kind =
   let rec loop =
     function
     | [] ->
-      false
+      Ident false
     | m::rest ->
       match StringMap.find m id.str with
       | None -> loop rest
-      | Some b -> b in
+      | Some k -> k in
   loop !context
+
+let is_typename (id: P4string.t) : bool =
+  match get_kind id with
+  | TypeName _ -> true
+  | _ -> false
+
+let mark_template (id: P4string.t) =
+  let rec loop =
+    function
+    | [] -> []
+    | m::rest ->
+      match StringMap.find m id.str with
+      | None -> m :: loop rest
+      | Some (TypeName b) ->
+        StringMap.set m ~key:id.str ~data:(TypeName true) :: rest
+      | Some (Ident b) ->
+        StringMap.set m ~key:id.str ~data:(Ident true) :: rest
+  in
+  context := loop !context
 
 (* Takes a snapshot of the current context. *)
 let push_scope () = context := StringMap.empty::!context
@@ -79,6 +106,16 @@ let go_local () =
   context := !backup
 
 (* Printing functions for debugging *)
-let print_entry x b = Printf.printf "%s : %b" x b
-let print_map m = StringMap.iteri m ~f:(fun ~key:x ~data:b -> print_entry x b; print_endline "")
+let print_entry x k =
+  match k with
+  | TypeName true ->
+    Printf.printf "%s : type<...>" x
+  | TypeName false ->
+    Printf.printf "%s : type" x
+  | Ident true ->
+    Printf.printf "%s : ident<...>" x
+  | Ident false ->
+    Printf.printf "%s : ident" x
+
+let print_map m = StringMap.iteri m ~f:(fun ~key:x ~data:k -> print_entry x k; print_endline "")
 let print_context () = List.iter !context ~f:(fun m -> print_map m; print_endline "----")

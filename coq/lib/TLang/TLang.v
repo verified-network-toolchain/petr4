@@ -8,7 +8,7 @@ Import ListNotations.
 Local Open Scope string_scope.
 Local Open Scope sexp_scope.
 From Poulet4 Require GCL.Inline.
-Module E := AST.Expr.
+Module E := AST.Exp.
 From Poulet4 Require P4flat.Syntax.
 Module F := P4flat.Syntax.
 
@@ -101,7 +101,7 @@ Section Optimizer.
   Definition optimize_tm (t: tm) : R.result error tm :=
     tm_from_string (ExternalOptimizer (to_string t)).
 
-  Fixpoint e_to_tm (e: Inline.E.e) : R.result string tm :=
+  Fixpoint e_to_tm (e: Inline.E.t) : R.result string tm :=
     match e with
     | E.Bool b       => mret (TBool b)
     | E.Bit w n      => mret (TInt {|iwidth:=w; ivalue:=n|})
@@ -118,7 +118,7 @@ Section Optimizer.
         mret TNop
     | Inline.IAssign type lhs rhs =>
         match lhs with
-        | AST.Expr.Var _ name _ =>
+        | AST.Exp.Var _ name _ =>
             let* rhs_tm := e_to_tm rhs in
             mret (TSet name rhs_tm)
         | _ => mret TNop
@@ -158,6 +158,8 @@ Section Optimizer.
         R.error "t_to_tm: table invocation unimplemented"
     | Inline.IExternMethodCall extn method args ret =>
         R.error "t_to_tm: extern calls unimplemented"
+    | Inline.ISetValidity _ _ =>
+        R.error "t_to_tm: SetValidity unimplemented"
     end.
 
   Set Printing All.
@@ -167,7 +169,7 @@ Section Optimizer.
         let* e1' := tm_to_e e1 in
         let* t1 := tm_to_t c1 in
         let+ t2 := tm_to_t c2 in
-        Inline.IConditional E.TBool e1' t1 t2
+        Inline.IConditional AST.Typ.Bool e1' t1 t2
     | TSeq c1 c2 =>
         let* t1 := tm_to_t c1 in
         let+ t2 := tm_to_t c2 in
@@ -175,25 +177,25 @@ Section Optimizer.
     | TNop => mret Inline.ISkip
     | TSet x e =>
         let+ e' := tm_to_e e in
-        Inline.IAssign E.TBool (E.Var E.TBool x 0) e'
+        Inline.IAssign AST.Typ.Bool (E.Var AST.Typ.Bool x 0) e'
     | _ => Result.error "tm is not a command"
     end
-    with tm_to_e (e : tm) : R.result string Inline.E.e :=
+    with tm_to_e (e : tm) : R.result string Inline.E.t :=
       match e with
       | TBool b => mret (Inline.E.Bool b)
       | TInt i => mret (E.Bit (iwidth i) (ivalue i))
       | TAnd e1 e2 =>
           let* e1' := tm_to_e e1 in
           let+ e2' := tm_to_e e2 in
-          E.Bop E.TBool E.And e1' e2'
+          E.Bop AST.Typ.Bool AST.Bin.And e1' e2'
       | TNot e1 =>
           let+ e1' := tm_to_e e1 in
-          E.Uop E.TBool E.Not e1'
+          E.Uop AST.Typ.Bool AST.Una.Not e1'
       | TEq e1 e2 =>
           let* e1' := tm_to_e e1 in
           let+ e2' := tm_to_e e2 in
-          E.Bop E.TBool E.Eq e1' e2'
-      | TVar s => mret (Inline.E.Var E.TBool s 0)
+          E.Bop AST.Typ.Bool AST.Bin.Eq e1' e2'
+      | TVar s => mret (Inline.E.Var AST.Typ.Bool s 0)
       | _ => Result.error "tm is not an expression"
       end.
 
@@ -202,7 +204,7 @@ Section Optimizer.
     let* tprog_better := R.emap (fun x => "") (optimize_tm tprog) in
     tm_to_t tprog_better.
 
-  Definition optimize_p4flat (t: F.TopDecl.prog) : R.result string F.TopDecl.prog :=
+  Definition optimize_p4flat (t: F.Top.prog) : R.result string F.Top.prog :=
     let _ := ExternalOptimizer "" in
     mret t.
 

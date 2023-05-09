@@ -1,162 +1,157 @@
 From Coq Require Import PArith.BinPos ZArith.BinInt NArith.BinNat.
 From Poulet4 Require Export P4cub.Semantics.Climate
      Utils.P4Arith P4cub.Syntax.Syntax.
-Import String AllCubNotations.
 
 (** Statement signals. *)
-Variant signal : Set :=
-  | Cont   (** continue *)
-  | Exit   (** exit *)
-  | Trans  (** transition *)
-  | Return (** return *).
+Module Signal.
+  Variant t : Set :=
+    | Cnt  (** continue *)
+    | Ext  (** exit *)
+    | Ret  (** return *)
+    | Trns (** transition *).
 
-(** Least-upper bound on signals *)
-Definition lub (sg1 sg2 : signal) : option signal :=
-  match sg1, sg2 with
-  | Cont, _
-  | _, Cont => Some Cont
-  | Trans, (Exit | Trans)
-  | Exit, Trans => Some Trans
-  | Return, (Exit | Return)
-  | Exit, Return => Some Return
-  | Exit, Exit => Some Exit
-  | Trans, Return
-  | Return, Trans => None
-  end.
+  (** Least-upper bound on signals *)
+  Definition lub (sg1 sg2 : t) : option t :=
+    match sg1, sg2 with
+    | Cnt, _
+    | _, Cnt => Some Cnt
+    | Trns, (Ext | Trns)
+    | Ext, Trns => Some Trns
+    | Ret, (Ext | Ret)
+    | Ext, Ret => Some Ret
+    | Ext, Ext => Some Ext
+    | Trns, Ret
+  | Ret, Trns => None
+    end.
+End Signal.
 
 (** Evidence for a type being a numeric of a given width. *)
-Variant numeric_width : N -> Expr.t -> Prop :=
-| numeric_width_bit : forall w, numeric_width w (Expr.TBit w)
-| numeric_width_int : forall w, numeric_width (Npos w) (Expr.TInt w).
+Variant numeric_width : N -> Typ.t -> Prop :=
+| numeric_width_bit : forall w, numeric_width w (Typ.Bit w)
+| numeric_width_int : forall w, numeric_width (Npos w) (Typ.Int w).
 
 (** Evidence for a type being numeric. *)
-Definition numeric (τ : Expr.t) : Prop := exists w, numeric_width w τ.
+Definition numeric (τ : Typ.t) : Prop := exists w, numeric_width w τ.
 
 (** Evidence a unary operation is valid for a type. *)
-Variant uop_type : Expr.uop -> Expr.t -> Expr.t -> Prop :=
-  | UTBool :
-    uop_type `!%uop Expr.TBool Expr.TBool
-  | UTBitNot τ :
-    numeric τ -> uop_type `~%uop τ τ
-  | UTUMinus τ :
-    numeric τ -> uop_type `-%uop τ τ
-  | UTIsValid ts :
-    uop_type Expr.IsValid (Expr.TStruct true ts) Expr.TBool
-  | UTSetValidity b ts :
-    uop_type (Expr.SetValidity b) (Expr.TStruct true ts) (Expr.TStruct true ts).
+Variant una_type : Una.t -> Typ.t -> Typ.t -> Prop :=
+  | una_Bool :
+    una_type `!%una Typ.Bool Typ.Bool
+  | una_BitNot τ :
+    numeric τ -> una_type `~%una τ τ
+  | una_UMinus τ :
+    numeric τ -> una_type `-%una τ τ
+  | una_IsValid ts :
+    una_type Una.IsValid (Typ.Struct true ts) Typ.Bool.
 
 (** Evidence a binary operation is valid
     for operands of a type and produces some type. *)
-Variant bop_type : Expr.bop -> Expr.t -> Expr.t -> Expr.t -> Prop :=
-  | BTPlus τ : numeric τ -> bop_type `+%bop τ τ τ
-  | BTPlusSat τ : numeric τ -> bop_type |+|%bop τ τ τ
-  | BTMinus τ : numeric τ -> bop_type `-%bop τ τ τ
-  | BTMinusSat τ : numeric τ -> bop_type |-|%bop τ τ τ
-  | BTTimes τ : numeric τ -> bop_type ×%bop τ τ τ
-  | BTShl τ1 w2 : numeric τ1 -> bop_type <<%bop τ1 (Expr.TBit w2) τ1
-  | BTShr τ1 w2 : numeric τ1 -> bop_type >>%bop τ1 (Expr.TBit w2) τ1
-  | BTBitAnd τ : numeric τ -> bop_type &%bop τ τ τ
-  | BTBitXor τ : numeric τ -> bop_type ^%bop τ τ τ
-  | BTBitOr τ : numeric τ -> bop_type Expr.BitOr τ τ τ
-  | BTLe τ : numeric τ -> bop_type ≤%bop τ τ Expr.TBool
-  | BTLt τ : numeric τ -> bop_type `<%bop τ τ Expr.TBool
-  | BTGe τ : numeric τ -> bop_type ≥%bop τ τ Expr.TBool
-  | BTGt τ : numeric τ -> bop_type `>%bop τ τ Expr.TBool
-  | BTAnd : bop_type `&&%bop Expr.TBool Expr.TBool Expr.TBool
-  | BTOr : bop_type `||%bop Expr.TBool Expr.TBool Expr.TBool
-  | BTEq τ : bop_type `==%bop τ τ Expr.TBool
-  | BTNotEq τ : bop_type !=%bop τ τ Expr.TBool
-  | BTPlusPlusBit w1 w2 τ2 :
+Variant bin_type : Bin.t -> Typ.t -> Typ.t -> Typ.t -> Prop :=
+  | bin_Plus τ : numeric τ -> bin_type `+%bin τ τ τ
+  | bin_PlusSat τ : numeric τ -> bin_type |+|%bin τ τ τ
+  | bin_Minus τ : numeric τ -> bin_type `-%bin τ τ τ
+  | bin_MinusSat τ : numeric τ -> bin_type |-|%bin τ τ τ
+  | bin_Times τ : numeric τ -> bin_type ×%bin τ τ τ
+  | bin_Shl τ1 w2 : numeric τ1 -> bin_type <<%bin τ1 (Typ.Bit w2) τ1
+  | bin_Shr τ1 w2 : numeric τ1 -> bin_type >>%bin τ1 (Typ.Bit w2) τ1
+  | bin_BitAnd τ : numeric τ -> bin_type &%bin τ τ τ
+  | bin_BitXor τ : numeric τ -> bin_type ^%bin τ τ τ
+  | bin_BitOr τ : numeric τ -> bin_type Bin.BitOr τ τ τ
+  | bin_Le τ : numeric τ -> bin_type ≤%bin τ τ Typ.Bool
+  | bin_Lt τ : numeric τ -> bin_type `<%bin τ τ Typ.Bool
+  | bin_Ge τ : numeric τ -> bin_type ≥%bin τ τ Typ.Bool
+  | bin_Gt τ : numeric τ -> bin_type `>%bin τ τ Typ.Bool
+  | bin_And : bin_type `&&%bin Typ.Bool Typ.Bool Typ.Bool
+  | bin_Or : bin_type `||%bin Typ.Bool Typ.Bool Typ.Bool
+  | bin_Eq τ : bin_type `==%bin τ τ Typ.Bool
+  | bin_NotEq τ : bin_type !=%bin τ τ Typ.Bool
+  | bin_PlusPlusBit w1 w2 τ2 :
     numeric_width w2 τ2 ->
-    bop_type `++%bop (Expr.TBit w1) τ2 (Expr.TBit (w1 + w2)%N)
-  | BTPlusPlusInt w1 w2 τ2 :
+    bin_type `++%bin (Typ.Bit w1) τ2 (Typ.Bit (w1 + w2)%N)
+  | bin_PlusPlusInt w1 w2 τ2 :
     numeric_width (Npos w2) τ2 ->
-    bop_type `++%bop (Expr.TInt w1) τ2 (Expr.TInt (w1 + w2)%positive)
-  | BTPlusPlusIntZero w1 τ2 :
+    bin_type `++%bin (Typ.Int w1) τ2 (Typ.Int (w1 + w2)%positive)
+  | bin_PlusPlusIntZero w1 τ2 :
     numeric_width N0 τ2 ->
-    bop_type `++%bop (Expr.TInt w1) τ2 (Expr.TInt w1).
+    bin_type `++%bin (Typ.Int w1) τ2 (Typ.Int w1).
 
 (** Evidence a cast is proper. *)
-Variant proper_cast : Expr.t -> Expr.t -> Prop :=
-  | pc_bool_bit : proper_cast Expr.TBool (Expr.TBit 1)
-  | pc_bit_bool : proper_cast (Expr.TBit 1) Expr.TBool
-  | pc_bit_int w : proper_cast (Expr.TBit (Npos w)) (Expr.TInt w)
-  | pc_int_bit w : proper_cast (Expr.TInt w) (Expr.TBit (Npos w))
-  | pc_bit_bit w1 w2 : proper_cast (Expr.TBit w1) (Expr.TBit w2)
-  | pc_int_int w1 w2 : proper_cast (Expr.TInt w1) (Expr.TInt w2)
+Variant proper_cast : Typ.t -> Typ.t -> Prop :=
+  | pc_bool_bit : proper_cast Typ.Bool (Typ.Bit 1)
+  | pc_bit_bool : proper_cast (Typ.Bit 1) Typ.Bool
+  | pc_bit_int w : proper_cast (Typ.Bit (Npos w)) (Typ.Int w)
+  | pc_int_bit w : proper_cast (Typ.Int w) (Typ.Bit (Npos w))
+  | pc_bit_bit w1 w2 : proper_cast (Typ.Bit w1) (Typ.Bit w2)
+  | pc_int_int w1 w2 : proper_cast (Typ.Int w1) (Typ.Int w2)
   | pc_struct_hdr ts :
-    proper_cast (Expr.TStruct true ts) (Expr.TStruct false ts).
+    proper_cast (Typ.Struct true ts) (Typ.Struct false ts).
 
 (** Ok types. *)
-Inductive t_ok (Δ : nat) : Expr.t -> Prop :=
+Inductive typ_ok (Δ : nat) : Typ.t -> Prop :=
 | bool_ok :
-  t_ok Δ Expr.TBool
-| bit_ok w :
-  t_ok Δ (Expr.TBit w)
-| int_ok w :
-  t_ok Δ (Expr.TInt w)
-| varbit_ok w :
-  t_ok Δ (Expr.TVarBit w)
+  typ_ok Δ Typ.Bool
+| bityp_ok w :
+  typ_ok Δ (Typ.Bit w)
+| intyp_ok w :
+  typ_ok Δ (Typ.Int w)
+| varbityp_ok w :
+  typ_ok Δ (Typ.VarBit w)
 | error_ok :
-  t_ok Δ Expr.TError
+  typ_ok Δ Typ.Error
 | array_ok n t :
-  t_ok Δ t ->
-  t_ok Δ (Expr.TArray n t)
-| struct_ok b ts :
-  Forall (t_ok Δ) ts ->
-  t_ok Δ (Expr.TStruct b ts)
+  typ_ok Δ t ->
+  typ_ok Δ (Typ.Array n t)
+| structyp_ok b ts :
+  Forall (typ_ok Δ) ts ->
+  typ_ok Δ (Typ.Struct b ts)
 | var_ok T :
   (T < Δ)%nat ->
-  t_ok Δ T.
+  typ_ok Δ (Typ.Var T).
 
-Variant t_ok_lists (Δ : nat) : Expr.lists -> Prop :=
-  | t_ok_lists_array τ :
-    t_ok Δ τ -> t_ok_lists Δ (Expr.lists_array τ)
-  | t_ok_lists_struct :
-    t_ok_lists Δ Expr.lists_struct
-  | t_ok_lists_header b :
-    t_ok_lists Δ (Expr.lists_header b).
+Variant typ_ok_lists (Δ : nat) : Lst.t -> Prop :=
+  | typ_ok_lists_array τ :
+    typ_ok Δ τ -> typ_ok_lists Δ (Lst.Array τ)
+  | typ_ok_lists_struct :
+    typ_ok_lists Δ Lst.Struct
+  | typ_ok_lists_header b :
+    typ_ok_lists Δ (Lst.Header b).
 
 (** Function names to signatures. *)
 Definition fenv : Set :=
   Clmt.t
-    string (** function name. *)
+    String.string (** function name. *)
     (nat (** type parameters. *)
-     * Expr.arrowT (** signature. *)).
+     * Typ.arrowT (** signature. *)).
 
 (** Action names to signatures. *)
 Definition aenv : Set :=
   Clmt.t
-    string (** action name. *)
-    (list Expr.t (** control-plane parameters. *)
-     * Expr.params (** data-plane parameters *)).
-
-Variant instance_sig : Set :=
-  | ParserSig
-  | ControlSig.
+    String.string (** action name. *)
+    (list Typ.t (** control-plane parameters. *)
+     * Typ.params (** data-plane parameters *)).
 
 (** Instance names to types. *)
 Definition ienv : Set :=
   Clmt.t
-    string (** Instance name *)
+    String.string (** Instance name *)
     (Field.fs
-       string (** Method name. *)
-       (nat * Expr.arrowT (** Method type signature. *))
-     + instance_sig  (** Parser or control instance. *)
-       * list string (** Types of extern arguments. *)
-       * Expr.params (** Types of expression arguments. *)).
+       String.string (** Method name. *)
+       (nat * Typ.arrowT (** Method type signature. *))
+     + Cnstr.t (** Parser or control instance. *)
+       * list String.string (** Types of extern arguments. *)
+       * Typ.params (** Types of expression arguments. *)).
 
 (** Available table names. *)
 Definition tbl_env : Set :=
   Clmt.t
-    string (** table name *)
+    String.string (** table name *)
     nat      (** number of actions *).
 
 (** Statement context. *)
 Variant ctx : Set :=
   | CAction (available_actions : aenv)
             (available_instances : ienv) (* action block *)
-  | CFunction (return_type : option Expr.t)
+  | CFunction (return_type : option Typ.t)
   | CApplyBlock (tables : tbl_env)
                 (available_actions : aenv)
                 (available_instances : ienv) (* control apply block *)
@@ -189,11 +184,11 @@ Variant exit_ctx_ok : ctx -> Prop :=
     exit_ctx_ok (CApplyBlock tbls aa eis).
 
 (** Evidence applying an instance is ok. *)
-Variant apply_instance_ok (i : ienv) : instance_sig -> ctx -> Prop :=
+Variant apply_instance_ok (i : ienv) : Cnstr.t -> ctx -> Prop :=
   | apply_control_applyblk_ok {tbls} {aa} :
-    apply_instance_ok i ControlSig (CApplyBlock tbls aa i)
+    apply_instance_ok i Cnstr.Control (CApplyBlock tbls aa i)
   | apply_parser_state_ok {ts} :
-    apply_instance_ok i ParserSig (CParserState ts i).
+    apply_instance_ok i Cnstr.Parser (CParserState ts i).
 
 (** Evidence a void return is ok. *)
 Variant return_void_ok : ctx -> Prop :=
@@ -206,7 +201,7 @@ Variant return_void_ok : ctx -> Prop :=
     return_void_ok (CApplyBlock tbls aa cis).
 
 (** Put parameters into environment. *)
-Definition bind_all (ps : Expr.params) (Γ : list Expr.t) : list Expr.t :=
+Definition bind_all (ps : Typ.params) (Γ : list Typ.t) : list Typ.t :=
   map (fun 
        '(PAIn τ
         | PAOut τ
@@ -214,28 +209,24 @@ Definition bind_all (ps : Expr.params) (Γ : list Expr.t) : list Expr.t :=
 
 (** Constructor Parameter types, for instantiations *)
 Inductive constructor_type : Set :=
-| ControlType
-    (constructor_parameters : list TopDecl.it)
-    (expr_constructor_params : list Expr.t)
-    (extern_params : list string)
-    (parameters : Expr.params) (** control types *)
-| ParserType
-    (constructor_parameters : list TopDecl.it)
-    (expr_constructor_params : list Expr.t)
-    (extern_params : list string)
-    (parameters : Expr.params) (** parser types *)
+| CtrType
+    (flag : Cnstr.t)
+    (constructor_parameters : list InstTyp.t)
+    (expr_constructor_params : list Typ.t)
+    (extern_params : list String.string)
+    (parameters : Typ.params) (** control types *)
 | PackageType (** package types *)
-    (constructor_parameters : list TopDecl.it)
-    (expr_constructor_params : list Expr.t)
+    (constructor_parameters : list InstTyp.t)
+    (expr_constructor_params : list Typ.t)
 | ExternType (** extern types *)
     (type_params : nat)
-    (constructor_parameters : list TopDecl.it)
-    (expr_constructor_params : list Expr.t)
-    (extern_name : string) (* TODO: methods? *).
+    (constructor_parameters : list InstTyp.t)
+    (expr_constructor_params : list Typ.t)
+    (extern_name : String.string) (* TODO: methods? *).
 
 (** Available constructor signatures. *)
 Definition constructor_env : Set :=
-  Clmt.t string constructor_type.
+  Clmt.t String.string constructor_type.
 
 Import Clmt.Notations.
 Open Scope climate_scope.
@@ -250,63 +241,61 @@ Definition insts_bind_other x sig ext_params params insts : ienv :=
     into environments for typing
     control or parser declarations. *)
 Definition cbind_all :
-  ienv -> TopDecl.constructor_params -> ienv :=
+  ienv -> Top.constructor_params -> ienv :=
   List.fold_right
     (fun '(x,it) i =>
        match it with
-       | TopDecl.ControlInstType res pars
-         => insts_bind_other x ControlSig res pars i
-       | TopDecl.ParserInstType res pars
-         => insts_bind_other x ParserSig res pars i
-       | TopDecl.ExternInstType _ => i (* TODO *)
-       | TopDecl.PackageInstType => i (* TODO *)
+       | InstTyp.Ctr flag res pars
+         => insts_bind_other x flag res pars i
+       | InstTyp.Extern _ => i (* TODO *)
+       | InstTyp.Package => i (* TODO *)
        end).
 
 (** Valid parser states. *)
-Variant valid_state (total : nat) : Parser.state_label -> Prop :=
+Variant valid_state (total : nat) : Lbl.t -> Prop :=
   | start_valid :
-    valid_state total Parser.Start
+    valid_state total Lbl.Start
   | accept_valid :
-    valid_state total Parser.Accept
+    valid_state total Lbl.Accept
   | reject_valid :
-    valid_state total Parser.Reject
+    valid_state total Lbl.Reject
   | name_valid (st : nat) :
     (st < total)%nat ->
-    valid_state total st.
+    valid_state total (Lbl.Name st).
 
 (** Appropriate signal. *)
-Variant good_signal : Expr.arrowT -> signal -> Prop :=
+Variant good_signal : Typ.arrowT -> Signal.t -> Prop :=
   | good_signal_cont params :
-    good_signal {|paramargs:=params; rtrns:=None|} Cont
+    good_signal {|paramargs:=params; rtrns:=None|} Signal.Cnt
   | good_signal_return params ret :
-    good_signal {|paramargs:=params; rtrns:=Some ret|} Return.
+    good_signal {|paramargs:=params; rtrns:=Some ret|} Signal.Ret.
 
 (** (Syntactic) Evidence an expression may be an lvalue. *)
-Inductive lvalue_ok : Expr.e -> Prop :=
-| lvalue_var τ og x :
-  lvalue_ok (Expr.Var τ og x)
-| lvalue_bit_slice e h l :
-  lvalue_ok e ->
-  lvalue_ok (Expr.Slice h l e)
-| lvalue_index τ e₁ e₂ :
-  lvalue_ok e₁ ->
-  lvalue_ok (Expr.Index τ e₁ e₂)
-| lvalue_member τ x e :
-  lvalue_ok e ->
-  lvalue_ok (Expr.Member τ x e).
+Inductive lexpr_ok : Exp.t -> Prop :=
+| lexpr_var τ og x :
+  lexpr_ok (Exp.Var τ og x)
+| lexpr_bit_slice e h l :
+  lexpr_ok e ->
+  lexpr_ok (Exp.Slice h l e)
+| lexpr_index τ e₁ e₂ :
+  lexpr_ok e₁ ->
+  lexpr_ok (Exp.Index τ e₁ e₂)
+| lexpr_member τ x e :
+  lexpr_ok e ->
+  lexpr_ok (Exp.Member τ x e).
 
-Variant type_lists_ok
-  : Expr.lists -> Expr.t -> list Expr.t -> Prop :=
+Variant type_lst_ok
+  : Lst.t -> Typ.t -> list Typ.t -> Prop :=
   | type_array_ok w τ :
-    type_lists_ok
-      (Expr.lists_array τ)
-      (Expr.TArray w τ)
+    type_lst_ok
+      (Lst.Array τ)
+      (Typ.Array w τ)
       (List.repeat τ (N.to_nat w))
   | type_struct_ok τs :
-    type_lists_ok
-      Expr.lists_struct
-      (Expr.TStruct false τs) τs
+    type_lst_ok
+      Lst.Struct
+      (Typ.Struct false τs) τs
   | type_header_ok b τs :
-    type_lists_ok
-      (Expr.lists_header b)
-      (Expr.TStruct true τs) τs.
+    type_lst_ok
+      (Lst.Header b)
+      (Typ.Struct true τs) τs.

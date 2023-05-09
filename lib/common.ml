@@ -201,7 +201,7 @@ module MakeDriver (IO: DriverIO) = struct
     let open Poulet4 in
     let gas = 100000 in
     let coq_gcl =
-      V1model.gcl_from_p4cub TableInstr.instr gas depth prog
+      V1model.gcl_from_p4cub TableInstr.instr true gas depth prog
     in
     begin match coq_gcl with
     | Result.Error msg -> Error (ToGCLError msg)

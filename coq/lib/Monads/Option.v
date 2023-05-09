@@ -18,6 +18,16 @@ Global Instance option_monad_inst : Monad option :=
     mbind := option_bind;
   }.
 
+Notation "'let?' ' pat ':=' c1 'in' c2" := (option_bind _ _ c1 (fun x => 
+  match x with 
+  | pat => c2 
+  | _ => None
+  end))
+( at level 61, pat pattern, 
+  format "'let?'  ' pat  ':='  c1  'in' '//' c2", c1 at next level, 
+  right associativity
+) : monad_scope.
+
 Definition option_fail {A : Type} : option A := None.
 
 Fixpoint reduce_option {A : Type} (acts: list (option A)) (f : A -> A -> A) (base: A) : option A :=
@@ -95,6 +105,14 @@ Proof.
   intuition.
 Qed.
 
+Lemma map_monad_some :
+  forall (A B : Type) (f : A -> option B) (l : list A) (l' : list B),
+    map_monad f l = Some l' <-> Forall2 (fun x y => f x = Some y) l l'.
+Proof.
+  unfold map_monad, "∘". intros. rewrite <- Forall2_sequence_iff.
+  rewrite Forall2_map1. reflexivity.
+Qed.
+
 Lemma sequence_map : forall {U V : Type} (f : U -> V) us,
     sequence us >>| List.map f =
     sequence (List.map (lift_monad f) us).
@@ -104,14 +122,6 @@ Proof.
     unfold option_bind in *; auto.
   rewrite <- IHus.
   destruct (sequence us) as [sus |]; cbn in *; auto.
-Qed.
-
-Lemma map_monad_some :
-  forall (A B : Type) (f : A -> option B) (l : list A) (l' : list B),
-    map_monad f l = Some l' <-> Forall2 (fun x y => f x = Some y) l l'.
-Proof.
-  unfold map_monad, "∘". intros. rewrite <- Forall2_sequence_iff.
-  rewrite Forall2_map1. reflexivity.
 Qed.
 
 (** Proved w/o functional extentionality! *)

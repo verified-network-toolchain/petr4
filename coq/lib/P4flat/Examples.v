@@ -9,38 +9,38 @@ Local Open Scope string_scope.
 
 (* Dummy de bruijn index *)
 Definition db := 99.
-Definition one_table : P4flat.Syntax.TopDecl.prog :=
+Definition one_table : P4flat.Syntax.Top.prog :=
   [
-    TopDecl.ControlBlock
+    Top.ControlBlock
       "C_one_table"
-      [("x_one_table", PAInOut (Expr.TBit 8))]
-      (Stmt.Table "t_one_table"
-                  [Expr.Var (Expr.TBit 8%N) "x_one_table" db]
-                  [("nop", [], Stmt.Skip);
-                   ("set_x", [], Stmt.Assign (Expr.Var (Expr.TBit 8) "x_one_table" db) (Expr.Bit 8 0))]);
-    TopDecl.Pkg "main" ["C_one_table"]
+      [("x_one_table", PAInOut (Typ.Bit 8))]
+      (Stm.Table "t_one_table"
+                  [Exp.Var (Typ.Bit 8%N) "x_one_table" db]
+                  [("nop", [], Stm.Skip);
+                   ("set_x", [], Stm.Assign (Exp.Var (Typ.Bit 8) "x_one_table" db) (Exp.Bit 8 0))]);
+    Top.Pkg "main" ["C_one_table"]
   ].
 
 
-Definition seq_tables : P4flat.Syntax.TopDecl.prog :=
+Definition seq_tables : P4flat.Syntax.Top.prog :=
   [
-    TopDecl.ControlBlock
+    Top.ControlBlock
       "C_seq_tables"
-      [("x_seq_tables", PAInOut (Expr.TBit 8))]
-      (Stmt.Seq
-         (Stmt.Table "t1_seq_tables"
-                     [Expr.Var (Expr.TBit 8%N) "x_seq_tables" db]
-                     [("nop", [], Stmt.Skip);
-                      ("set_x", [], Stmt.Assign (Expr.Var (Expr.TBit 8) "x_seq_tables" db) (Expr.Bit 8 0))])
-         (Stmt.Table "t2_seq_tables"
-                     [Expr.Var (Expr.TBit 8%N) "x_seq_tables" db]
-                     [("nop", [], Stmt.Skip);
-                      ("set_x", [], Stmt.Assign (Expr.Var (Expr.TBit 8) "x_seq_tables" db) (Expr.Bit 8 0))]));
-    TopDecl.Pkg "main" ["C_seq_tables"]
+      [("x_seq_tables", PAInOut (Typ.Bit 8))]
+      (Stm.Seq
+         (Stm.Table "t1_seq_tables"
+                     [Exp.Var (Typ.Bit 8%N) "x_seq_tables" db]
+                     [("nop", [], Stm.Skip);
+                      ("set_x", [], Stm.Assign (Exp.Var (Typ.Bit 8) "x_seq_tables" db) (Exp.Bit 8 0))])
+         (Stm.Table "t2_seq_tables"
+                     [Exp.Var (Typ.Bit 8%N) "x_seq_tables" db]
+                     [("nop", [], Stm.Skip);
+                      ("set_x", [], Stm.Assign (Exp.Var (Typ.Bit 8) "x_seq_tables" db) (Exp.Bit 8 0))]));
+    Top.Pkg "main" ["C_seq_tables"]
   ].
 
 (* List of programs (p, q, s) such that s |= p <= q *)
-Definition refinements : list (TopDecl.prog * TopDecl.prog * fm (var + var) p4funs p4rels) :=
+Definition refinements : list (Top.prog * Top.prog * fm (var + var) p4funs p4rels) :=
   [(one_table, seq_tables, FEq (TVar (inl "x_one_table")) (TVar (inr "x_seq_tables")))].
 
 Eval cbv in (prog_to_stmt one_table).

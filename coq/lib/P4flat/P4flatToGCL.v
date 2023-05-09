@@ -44,7 +44,13 @@ Definition p4sig :=
   Sig.signature p4sorts p4funs p4rels.
 
 Definition initial_p4sig : p4sig :=
-  {| Sig.sig_sorts := [ (Bool, 0); (ActionName, 0) ];
+  {| Sig.sig_sorts :=
+    fun s =>
+      match s with
+      | Bool => Some 0
+      | ActionName => Some 0
+      | _ => None
+      end;
     Sig.sig_funs := fun f =>
                         if f == Sig.SSimple BTrue
                         then Some ([], (Sig.SSimple Bool))
@@ -56,31 +62,31 @@ Definition initial_p4sig : p4sig :=
 Definition mk_action (name: string) : Spec.tm var p4funs :=
   Spec.TFun (Sig.SSimple (BAction name)) [].
 
-Definition lhs_to_var (e: Expr.e) : result string var :=
+Definition lhs_to_var (e: Exp.t) : result string var :=
   match e with
-  | Expr.Var _ s _ => ok s
+  | Exp.Var _ s _ => ok s
   | _ => error "lvals besides vars not implemented"
   end.
 
-Definition e_to_tm (e: Expr.e) : result string (Spec.tm var p4funs) :=
+Definition e_to_tm (e: Exp.t) : result string (Spec.tm var p4funs) :=
   match e with
-  | Expr.Bit width val => ok (Spec.TFun (Sig.SSimple (BBitLit width val)) [])
-  | Expr.Var _ name _ => ok (Spec.TVar name)
+  | Exp.Bit width val => ok (Spec.TFun (Sig.SSimple (BBitLit width val)) [])
+  | Exp.Var _ name _ => ok (Spec.TVar name)
   | _ => error "e_to_tm unimplemented"
   end.
 
-Fixpoint s_to_stmt (s: Stmt.s) : StateT p4sig (result string) (stmt var p4funs p4rels) :=
+Fixpoint s_to_stmt (s: Stm.t) : StateT p4sig (result string) (stmt var p4funs p4rels) :=
   match s with
-  | Stmt.Skip => mret (GSkip _ _ _)
-  | Stmt.Return e => state_lift (error "return unimplemented")
-  | Stmt.Exit => state_lift (error "exit unimplemented")
-  | Stmt.Assign lhs rhs =>
+  | Stm.Skip => mret (GSkip _ _ _)
+  | Stm.Return e => state_lift (error "return unimplemented")
+  | Stm.Exit => state_lift (error "exit unimplemented")
+  | Stm.Assign lhs rhs =>
       let* lhs' := state_lift (lhs_to_var lhs) in
       let* rhs' := state_lift (e_to_tm rhs) in
       mret (GAssign lhs' rhs')
-  | Stmt.ExternCall extern_instance_name method_name type_args args returns =>
+  | Stm.ExternCall extern_instance_name method_name type_args args returns =>
       state_lift (error "extern call unimplemented")
-  | Stmt.Table ctrl_plane_name key actions =>
+  | Stm.Table ctrl_plane_name key actions =>
       let* key' := state_lift (sequence (List.map e_to_tm key)) in
       (* XXX generate an actually fresh variable here *)
       let result_var := ctrl_plane_name ++ "__res" in
@@ -95,18 +101,18 @@ Fixpoint s_to_stmt (s: Stmt.s) : StateT p4sig (result string) (stmt var p4funs p
                            actions) in
       let actions_stmt := List.fold_right GChoice (GSkip _ _ _) actions_stmts in
       mret (GSeq call_stmt actions_stmt)
-  | Stmt.Var original_name (inl typ) tail =>
+  | Stm.Var original_name (inl typ) tail =>
       (* declaration is a no-op. *)
       s_to_stmt tail
-  | Stmt.Var original_name (inr rhs) tail =>
+  | Stm.Var original_name (inr rhs) tail =>
       let* rhs' := state_lift (e_to_tm rhs) in
       let* tail' := s_to_stmt tail in
       mret (GSeq (GAssign original_name rhs') tail')
-  | Stmt.Seq head tail =>
+  | Stm.Seq head tail =>
       let* head' := s_to_stmt head in
       let* tail' := s_to_stmt tail in
       mret (GSeq head' tail')
-  | Stmt.Conditional guard tru_blk fls_blk =>
+  | Stm.Conditional guard tru_blk fls_blk =>
       let* guard' := state_lift (e_to_tm guard) in
       let then_cond := Spec.FEq guard' (Spec.TFun (Sig.SSimple BTrue) []) in
       let else_cond := Spec.FNeg then_cond in
@@ -116,15 +122,15 @@ Fixpoint s_to_stmt (s: Stmt.s) : StateT p4sig (result string) (stmt var p4funs p
                     (GSeq (GAssume else_cond) fls_blk'))
   end.
 
-Definition prog_to_stmt (p: TopDecl.prog) : StateT p4sig
+Definition prog_to_stmt (p: Top.prog) : StateT p4sig
                                                    (result string)
                                                    (stmt var p4funs p4rels) :=
-  let* (_, main_args) := state_lift (TopDecl.find_decl "main" p
-                                     >>= TopDecl.expect_pkg) in
+  let* (_, main_args) := state_lift (Top.find_decl "main" p
+                                     >>= Top.expect_pkg) in
   let* ctrl := match main_args with
                | [ctrl] => mret ctrl
                | _ => state_lift (error "wrong number of args to main pkg (expected exactly 1)")
                end in
-  let* (_, cparams, cstmt) := state_lift (TopDecl.find_decl ctrl p
-                                          >>= TopDecl.expect_controlblock) in
+  let* (_, cparams, cstmt) := state_lift (Top.find_decl ctrl p
+                                          >>= Top.expect_controlblock) in
   s_to_stmt cstmt.

@@ -250,6 +250,42 @@ Section Rel.
     Qed.
   End Map.
 
+  Section MapMonad.
+    Context {m : Type -> Type} {M : Monad m}.
+
+    Variable f : A -> m B.
+
+    Definition map_monad_values : AList K A R -> m (AList K B R) :=
+      map_monad $ fun '(k, v) =>
+        let^ v' := f v in
+        (k, v').
+
+  End MapMonad.
+
+  Lemma map_monad_values_some f entries entries' :
+    map_monad_values f entries = Some entries' <->
+    Forall2 (fun '(k, v) '(k', v') => k = k' /\ f v = Some v') entries entries'.
+  Proof.
+    split; intros.
+    - unfold map_monad_values in *. unravel in *. apply map_monad_some in H0.
+      induction H0; constructor; destruct x; match_some_inv; some_inv.
+      + split; auto.
+      + auto.
+    - unfold map_monad_values. unravel. induction H0.
+      + reflexivity.
+      + cbn. unravel. destruct x, y. inv H0. rewrite H3.
+        unfold map_monad in *. unravel in *. rewrite IHForall2. reflexivity.
+  Qed.
+
+  Lemma map_monad_values_keys f entries entries' :
+    map_monad_values f entries = Some entries' -> map fst entries = map fst entries'.
+  Proof.
+    intros. rewrite map_monad_values_some in H0.
+    generalize dependent entries'. induction entries; intros.
+    - inv H0. reflexivity.
+    - inv H0. destruct a, y. cbn. inv H3. f_equal. auto.
+  Qed.  
+
   Section Relate.
     Variable Q : A -> B -> Prop.
 

@@ -337,7 +337,7 @@ another program written in the surface IR.
 _Type checking_ is a simple type checking pass that states if a program is well-typed or
 not. 
 
-## Design Goals
+## Design Goals { #sec-design-goals }
 The design goals of this type system are the following:
 
 - **Simple representation**: the IR is designed to be as simple as possible and as close
@@ -360,7 +360,7 @@ definitions of this specification use this abstract syntax. For simplicity, the 
 
 We describe the various conventions that have been adopted in writing this document.
 
-### Grammar Notation
+### Grammar Notation { #sec-grammar-notation }
 
 The following conventions are adopted in defining the grammar rules for surface IR's abstract syntax:
 
@@ -371,7 +371,7 @@ The following conventions are adopted in defining the grammar rules for surface 
 - Each case of a syntactic category is accompanied with a phrase that describes the role of that case. For example, $\mathit{sym} ::= i \qquad \textit{integers}$ states that $i$ represents integers for the syntactic category of $\mathit{sym}$.
 - Large production rules may be split into multiple production rules. This is explicitly indicated by having ellipses at the beginning or/and end of a rule. For example, $\mathit{sym} ::= \cdots | A_i | \cdots$.
 
-### Auxiliary Notation
+### Auxiliary Notation { #sec-aux-notation-ast }
 
 Additionally, the following notation is used to keep definitions concise:
 
@@ -639,6 +639,8 @@ There are some types that do not fit into the surface, declared, or synthesized 
 
 ## Declarations { #sec-ast-dcl }    
 
+Various syntactic categories are needed to define declarations.
+
 ~ Begin P4Syntax
 
 **Parser states:**
@@ -677,30 +679,27 @@ There are some types that do not fit into the surface, declared, or synthesized 
 |   | $\vert$ | $\methodDef {\typ}\var \typVar {\prmDef}$ | $\qquad \text{methods}$ |
 { .booktable }
 
-**Declarations:**
+~ End P4Syntax
+
+Declarations can be divided into three groups:
+
+- declaring types
+- declaring objects and functions
+- initializing, declaring, or instantiation variables/constants/objects
+
+### Declaration of Types { #sec-ast-dcl-type }
+
+~ Begin P4Syntax
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\dcl$ | $::=$ | $\constDcl {\typ }\var \exp$ | $\qquad \text{constants}$ |
-|   | $\vert$ | $\inst {\typ}\arg \var \stmt$ | $\qquad \text{instantiations (initialized)}$ |
-|   | $\vert$ | $\instNoBlock {\typ}\arg \var$ | $\qquad \text{instantiations (uninitialized)}$ |
-|   | $\vert$ | $\parserDcl \var \typVar { { {\prmDef}}} { {\VVal {\prmDef}}} \dcl \state$ | $\qquad \text{parsers}$ |
-|   | $\vert$ | $\controlDcl \var \typVar { { {\prmDef}}} { {\VVal {\prmDef}}} \dcl \stmt$ | $\qquad \text{controls}$ |
-|   | $\vert$ | $\funcDcl {\typ}\var \typVar {\prmDef} \stmt$ | $\qquad \text{functions}$ |
-|   | $\vert$ | $\externFuncDcl {\typ}\var \typVar {\prmDef}$ | $\qquad \text{extern functions}$ |
-|   | $\vert$ | $\varDclInit {\typ}\var \exp$ | $\qquad \text{local variables (initialized)}$ |
-|   | $\vert$ | $\varDcl {\typ}\var$ | $\qquad \text{local variables (uninitialized)}$ |
-|   | $\vert$ | $\valSetDcl {\typ}\exp \var$ | $\qquad \text{parser value sets}$ |
-|   | $\vert$ | $\actionDcl \var {\prmDef} \stmt$ | $\qquad \text{actions}$ |
-|   | $\vert$ | $\tableDcl \var \prop$ | $\qquad \text{tables}$ |
-|   | $\vert$ | $\headerDcl \typName \typParam \field {\typ}$ | $\qquad \text{header types}$ |
+| $\dcl$ | $::=$ | $\headerDcl \typName \typParam \field {\typ}$ | $\qquad \text{header types}$ |
 |   | $\vert$ | $\headerUnionDcl \typName \typParam \field {\typ}$ | $\qquad \text{header union types}$ |
 |   | $\vert$ | $\structDcl \typName \typParam \field {\typ}$ | $\qquad \text{struct types}$ |
 |   | $\vert$ | $\errDcl \field$ | $\qquad \text{error types}$ |
 |   | $\vert$ | $\matchkindDcl \field$ | $\qquad \text{match kind types}$ |
 |   | $\vert$ | $\enumDcl \typName \field$ | $\qquad \text{enumerated types}$ |
 |   | $\vert$ | $\serEnumDcl {\typ}\typName \field \exp$ | $\qquad \text{serializable enumerated types}$ |
-|   | $\vert$ | $\externObjDcl \var \typVar \extMethod$ | $\qquad \text{extern objects}$ |
 |   | $\vert$ | $\typdefDcl  {\typ} \typName$ | $\qquad \text{type definitions}$ |
 |   | $\vert$ | $\typdefDcl \dcl \typName$ | $\qquad \text{type definitions (declarations)}$ |
 |   | $\vert$ | $\newtypeDcl  {\typ}\typName$ | $\qquad \text{generative type definitions}$ |
@@ -708,6 +707,43 @@ There are some types that do not fit into the surface, declared, or synthesized 
 |   | $\vert$ | $\controlTypDcl \typName \typVar {\prmDef}$ | $\qquad \text{control types}$ |
 |   | $\vert$ | $\parserTypDcl \typName \typVar {\prmDef}$ | $\qquad \text{parser types}$ |
 |   | $\vert$ | $\packageTypDcl \typName \typVar {\prmDef}$ | $\qquad \text{package types}$ |
+|   | $\vert$ | $\cdots$ | |
+{ .booktable }
+
+~ End P4Syntax
+
+### Declaration of Objects/Functions { #sec-ast-dcl-obj }
+
+~ Begin P4Syntax
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\dcl$ | $::=$ | $\cdots$ | |
+|   | $\vert$ | $\parserDcl \var \typVar { { {\prmDef}}} { {\VVal {\prmDef}}} \dcl \state$ | $\qquad \text{parsers}$ |
+|   | $\vert$ | $\controlDcl \var \typVar { { {\prmDef}}} { {\VVal {\prmDef}}} \dcl \stmt$ | $\qquad \text{controls}$ |
+|   | $\vert$ | $\funcDcl {\typ}\var \typVar {\prmDef} \stmt$ | $\qquad \text{functions}$ |
+|   | $\vert$ | $\externFuncDcl {\typ}\var \typVar {\prmDef}$ | $\qquad \text{extern functions}$ |
+|   | $\vert$ | $\actionDcl \var {\prmDef} \stmt$ | $\qquad \text{actions}$ |
+|   | $\vert$ | $\tableDcl \var \prop$ | $\qquad \text{tables}$ |
+|   | $\vert$ | $\externObjDcl \var \typVar \extMethod$ | $\qquad \text{extern objects}$ |
+|   | $\vert$ | $\cdots$ | |
+{ .booktable }
+
+~ End P4Syntax
+
+### Declaration of Variables/Constants/Instantiations { #sec-ast-dcl-var }
+
+~ Begin P4Syntax
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\dcl$ | $::=$ | $\cdots$ | |
+|   | $\vert$ | $\constDcl {\typ }\var \exp$ | $\qquad \text{constants}$ |
+|   | $\vert$ | $\inst {\typ}\arg \var \stmt$ | $\qquad \text{instantiations (initialized)}$ |
+|   | $\vert$ | $\instNoBlock {\typ}\arg \var$ | $\qquad \text{instantiations (uninitialized)}$ |
+|   | $\vert$ | $\varDclInit {\typ}\var \exp$ | $\qquad \text{local variables (initialized)}$ |
+|   | $\vert$ | $\varDcl {\typ}\var$ | $\qquad \text{local variables (uninitialized)}$ |
+|   | $\vert$ | $\valSetDcl {\typ}\exp \var$ | $\qquad \text{parser value sets}$ |
 { .booktable }
 
 ~ End P4Syntax
@@ -725,18 +761,33 @@ There are some types that do not fit into the surface, declared, or synthesized 
 
 
 
-# Type-Checker { #sec-type-checker }
+# Type Checker { #sec-type-checker }
 
-## Conventions
+The type checker takes a program written in the surface IR and simply states if the program is syntactically well-formed, that is, if the program is structurally valid. In which case it returns the type of the program. Note that the type checker does not change the given program at all. It assumes all type inference and cast insertion has already been taken care of. 
 
-### Auxiliary Notation
+## Conventions { #sec-conventions-type-checker }
 
-- For simplicity, we omit mapping a function/judgment on a list of elements. Instead, we just apply the function/judgment to a list. So every time you see a function applied to a list, read it as mapping the function over all the elements of the list.
-- An underscore (that is, $\_$) is used when we do not need to use some specific information returned by some helper in judgments.
-- $\mathit{is\_X} (\typ)$ checks if the type $\typ$ is of the specific kind/type/structure $X$.
+The type checker is defined by a type system over the abstract syntax of a program and all its parts. Thus, for each syntactic category of the surface IR, there is a typing judgement and a set of typing rules. For each syntactic category, the judgement form specifies the form that all typing rules for that syntactic category follow and the typing rules specify the constraints that apply to each case of the syntactic category. All rules are described in two formats:
 
+- In _informal notation_, describing the meaning in intuitive English format.
+- In _formal notation_, describing the rule in mathematical form.
 
-### Signatures { #sec-sig }
+### Contexts { #sec-ctxt }
+
+The type checker is defined over a _context_, which collects relevant information about the (sub-)program and carries in-scope definitions. In particular, it carries the following definitions:
+
+- Types: $\typEnv$
+- Type synonyms: $\typSynEnv$
+- Type variables: $\typParEnv$
+- Variables: $\varEnv$
+- Constants: $\constEnv$
+- Externs: $\externEnv$
+
+point out
+
+- accessing each instead of using field access
+- lookup from env
+- adding a new element to env
 
 In this section, we provide the signatures used throughout this document including the judgment forms (``TODO: revise``), environment signatures (``TODO: revise``), and function signatures (``TODO: maybe add``).
 
@@ -764,14 +815,80 @@ In this section, we provide the signatures used throughout this document includi
 | constant environment | $\constEnv$ | $\name \rightarrow \val $ |
 ~
 
+### Informal Notation { #sec-informal-notation }
+
+### Formal Notation { #sec-formal-notation }
+
+### Auxiliary Notation { #sec-aux-notation-type-checker }
+
+- For simplicity, we omit mapping a function/judgment on a list of elements. Instead, we just apply the function/judgment to a list. So every time you see a function applied to a list, read it as mapping the function over all the elements of the list.
+- An underscore (that is, $\_$) is used when we do not need to use some specific information returned by some helper in judgments.
+- $\mathit{is\_X} (\typ)$ checks if the type $\typ$ is of the specific kind/type/structure $X$.
+
+## Types { #sec-type-tc }
+
+The typing judgement for types has the form $to\_be\_filled$.
+
 
 This judgment is overloaded and checks if a surface type—and more generally a type—is well-formed or not. This judgment is used to check if a surface type is well-formed when it is used in expressions or if a type is well-formed when it is declared. Specifically, it has two forms, $\typWellFormed {\surfaceTyp}$ and $\typWellFormed {\typ}$, which state that the type $\surfaceTyp $ and $\typ$, respectively, are well-formed under the type environment $\typEnv$ and extern environment $\externEnv$. In other words, this judgment checks that types are syntactically correct.
 
-## Type Well-Formed Judgment { #sec-type-well-formed }
+### Boolean Type
 
-### Surface Types Well-Formedness { #sec-surface-typ-well-formed }
+### Error Type
 
-#### Base Types { #sec-base-t }
+### Match Kind Type
+
+### Integer Type
+
+### String Type
+
+### Fixed-Width Signed Integer Types
+
+### Fixed-Width Unsigned Integer Types
+
+### Variable-Width Integer Types
+
+### Type Names
+
+### Specialized Types
+
+### Header Stack Types
+
+### Tuple Types
+
+### Header Types
+
+### Header Union Types
+
+### Struct Types
+
+### Enum Types
+
+### Serializable Enum Types
+
+### Parser Types
+
+### Control Types
+
+### Package Types
+
+### Function Types
+
+### Set Types
+
+### Extern Types
+
+### Type Reference
+
+### Action Types
+
+### Constructor Types
+
+### Table Types
+
+### Void Type
+
+### Don't Care Type
 
 Some of the base types are well-formed unconditionally since there is not any room for an error while constructing a value of these types. For example, the $\boolTyp$ only has two constructors, $\mathit{true}$ and $\mathit{false}$, which do not take any argument so there is no room to construct a value incorrectly.
 

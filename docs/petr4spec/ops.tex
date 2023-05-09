@@ -677,19 +677,19 @@
 \newcommand{\funcTyp}[3]{\mathsf{function}\ {#1}\ \langle{#2}\rangle ({#3})}
 \newcommand{\simpFuncTyp}[2]{{#1} \rightarrow {#2}}
 %kind.type param. param. return type. 
-\newcommand{\funcType}[4]{\mathsf{function}\ {#1}\ \langle{#2}\rangle ({#3})\rightarrow {#4}}
+\newcommand{\funcType}[4]{\mathsf{function}\ {#1}\ \langle\overline{#2}\rangle (\overline{#3})\rightarrow {#4}}
 % type params: list of name. wildcard param: list of name. params: list of type dir name. return: typed.
 %% second arg is wildcard which is omitted for now. 
 %% \newcommand{\constructorTyp}[4]{\mathsf{constructor}\langle{#1},{#2}\rangle\ ({#3}) \rightarrow {#4}}
-\newcommand{\constructorTyp}[3]{\mathsf{constructor}\langle{#1},{#2}\rangle \rightarrow {#3}}
+\newcommand{\constructorTyp}[3]{\mathsf{constructor}\langle\overline{#1}\rangle (\overline{#2}) \rightarrow {#3}}
 \newcommand{\externTyp}[1]{\mathsf{extern} \  {#1}}
 \newcommand{\spcTyp}[2]{{#1}\langle\overline{#2}\rangle}
-\newcommand{\parserTyp}[2]{\mathsf{parser}\langle{#1}\rangle({#2})}
-\newcommand{\controlTyp}[2]{\mathsf{control}\langle{#1}\rangle({#2})}
-\newcommand{\packageTyp}[2]{\mathsf{package}\langle{#1}\rangle({#2})}
+\newcommand{\parserTyp}[2]{\mathsf{parser}\langle\overline{#1}\rangle(\overline{#2})}
+\newcommand{\controlTyp}[2]{\mathsf{control}\langle\overline{#1}\rangle(\overline{#2})}
+\newcommand{\packageTyp}[2]{\mathsf{package}\langle\overline{#1}\rangle(\overline{#2})}
 %% the third arg is wildcard which is omitted for now.
 %% \newcommand{\packageTyp}[3]{\mathsf{package}\langle{#1}\rangle({#2},{#3})}
-\newcommand{\actionTyp}[2]{\mathsf{action}(\mathsf{data:}\ {#1},\mathsf{control:}\ {#2})}
+\newcommand{\actionTyp}[2]{\mathsf{action}(\mathsf{data:}\ \overline{#1},\mathsf{control:}\ \overline{#2})}
 \newcommand{\tableTyp}[1]{\mathsf{table}\ {#1}}
 %% \newcommand{\typNameTyp}[1]{\mathsf{type\_name}\ {#1}}
 \newcommand{\unitTyp}{()}

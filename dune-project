@@ -74,9 +74,7 @@
   (coq-equations :build)
   (coq-record-update :build)
   (coq-compcert :build)
-  (coq-vst-zlist :build)
-  (coq-ceres :build)
-  (coq-itree :build)))
+  (coq-vst-zlist :build)))
 
 (package
  (name poulet4_Ccomp)

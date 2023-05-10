@@ -18,22 +18,20 @@ open Petr4
 
 let parse_ext_flag p = Pass.Run (Option.map p ~f:Pass.parse_output_exn)
 
-let parse_backend unroll_parsers output_gcl output_clight table_opt =
-  if table_opt
-  then Pass.Run (Pass.TblBackend)
-  else match output_gcl, output_clight with
-    | Some gcl, None ->
-      let message = "please provide a depth with -unroll-parsers when compiling to GCL" in
-      let depth = Option.value_exn unroll_parsers ~message in
-      let gcl_output = Pass.parse_output_exn gcl in
-      Pass.Run (Pass.GCLBackend {depth; gcl_output})
-    | None, Some clight ->
-      let clight_output = Pass.parse_output_exn clight in
-      Pass.Run (Pass.CBackend clight_output)
-    | Some _, Some _ ->
-      failwith "Can produce either C or GCL but not both."
-    | None, None ->
-      Pass.Skip
+let parse_backend unroll_parsers output_gcl output_clight =
+  match output_gcl, output_clight with
+  | Some gcl, None ->
+    let message = "please provide a depth with -unroll-parsers when compiling to GCL" in
+    let depth = Option.value_exn unroll_parsers ~message in
+    let gcl_output = Pass.parse_output_exn gcl in
+    Pass.Run (Pass.GCLBackend {depth; gcl_output})
+  | None, Some clight ->
+    let clight_output = Pass.parse_output_exn clight in
+    Pass.Run (Pass.CBackend clight_output)
+  | Some _, Some _ ->
+    failwith "Can produce either C or GCL but not both."
+  | None, None ->
+    Pass.Skip
 
 let parser_flags : Pass.parser_cfg Command.Param.t =
   let open Command.Let_syntax in
@@ -82,13 +80,11 @@ let compiler_flags : Pass.compiler_cfg Command.Param.t =
         ~doc:"file Output GCL to the specified file."
     and output_c = flag "-output-c" (optional string)
         ~doc:"file Output C to the specified file."
-    and table_opt = flag "-topt" no_arg
-        ~doc:"run the P4flat table optimizer"
     in
     Pass.{ cfg_checker;
            cfg_p4cub   = parse_ext_flag output_p4cub;
            cfg_p4flat  = parse_ext_flag output_p4flat;
-           cfg_backend = parse_backend unroll_parsers output_gcl output_c table_opt; }
+           cfg_backend = parse_backend unroll_parsers output_gcl output_c; }
   ]
 
 let interp_flags : Pass.interpreter_cfg Command.Param.t =

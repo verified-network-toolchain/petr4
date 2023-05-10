@@ -60,7 +60,6 @@ Require Poulet4.GCL.ToGCL.
 Require Poulet4.GCL.TableInstr.
 Require Poulet4.GCL.V1model.
 Require Poulet4.P4cub.ExportAll.
-Require Poulet4.TLang.TLang.
 Require Poulet4.Monads.State.
 Require Poulet4.P4flat.P4cubToP4flat.
 Require Poulet4.P4flat.Examples.
@@ -120,7 +119,6 @@ Separate Extraction
          Poulet4.GCL.TableInstr
          Poulet4.GCL.V1model
          Poulet4.P4cub.Transformations.Lifting.Statementize
-         Poulet4.TLang.TLang
          Poulet4.P4flat.P4cubToP4flat
          Poulet4.P4flat.P4flatToGCL
          Poulet4.P4flat.Examples

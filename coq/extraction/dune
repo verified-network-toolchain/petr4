@@ -40,7 +40,6 @@
   ToP4cub
   AST
   EquivDec
-  Decimal
   ToP4cub
   ToGCL
   GCL
@@ -95,18 +94,8 @@
   HeaderStack
   Shift
   RecordSet
-  TLang
-  CeresDeserialize
-  CeresSerialize
-  CeresParser
-  CeresParserInternal
-  CeresParserUtils
-  CeresFormat
-  CeresString
-  CeresUtils
-  CeresS
-  DecimalString
-  Pure)
+  Pure
+)
  (libraries zarith bignum)
  (theories Poulet4))
 

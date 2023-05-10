@@ -32,7 +32,6 @@ type error =
   | GenLocError
   | ToP4CubError of string
   | ToP4flatError of string
-  | TableOptError of string
   | ToGCLError of string
   | ToCLightError of string
   (* not an error but an indicator to stop processing data *)
@@ -54,8 +53,6 @@ let error_to_string (e : error) : string =
     Printf.sprintf "top4cub error: %s" s
   | ToP4flatError s ->
     Printf.sprintf "top4flat error: %s" s
-  | TableOptError s ->
-    Printf.sprintf "table_opt error: %s" s
   | ToGCLError s ->
     Printf.sprintf "togcl error: %s" s
   | ToCLightError s ->
@@ -192,11 +189,6 @@ module MakeDriver (IO: DriverIO) = struct
        Format.eprintf "TODO: implement p4flat pretty printing.\n";
        Ok prog
 
-  let table_opt (cfg: Pass.compiler_cfg) prog =
-    match Poulet4.TLang.optimize_p4flat (fun x -> x) prog with
-      | Poulet4.Result.Ok prog -> Ok prog
-      | Poulet4.Result.Error e -> Error (TableOptError e)
-
   let to_gcl depth prog =
     let open Poulet4 in
     let gas = 100000 in
@@ -256,7 +248,6 @@ module MakeDriver (IO: DriverIO) = struct
         | Run TblBackend ->
           flatten_declctx prog
           >>= to_p4flat cfg
-          >>= table_opt cfg
           >>= fun x -> Ok ()
         | Run (GCLBackend {depth; gcl_output}) ->
            to_gcl depth prog

@@ -1,7 +1,0 @@
-(sort Update (Map i64 i64))
-(sort Action (Map Update i64))
-
-(datatype Sets (Set Action))
-(function emp (Sets) i64)
-
-(rewrite (emp (empty)) 1)

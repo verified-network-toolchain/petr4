@@ -1,7 +1,0 @@
-[package]
-name = "table_opt"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-egg = "0.7"

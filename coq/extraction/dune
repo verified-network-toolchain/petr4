@@ -41,7 +41,6 @@
   LiftList
   Statementize
   HoistNameless
-  InferMemberTypes
   Substitution
   InlineTypeDecl
   InlineConstants

@@ -12,8 +12,13 @@ Definition observe (env: t) (x: string) : option t :=
   | None => Some (<[x:=()]>env)
   end.
 
-Definition observe_all (env: t) (x: list string) : option t.
-Admitted.
+Fixpoint observe_all (env: t) (xs: list string) : option t :=
+  match xs with
+  | [] => mret env
+  | x :: xs =>
+     env ← observe env x;
+     observe_all env xs
+  end.
 
 Definition freshen (env: t) (x: string) : string * t :=
   let x' := fresh_string x env in

@@ -473,6 +473,7 @@ The surface IR has a signle syntactic category for types, however, this syntacti
 |   | $\vert$ | $\parserTyp \typParam {\prmDef}$ | $\qquad \text{parsers}$ |
 |   | $\vert$ | $\controlTyp \typParam {\prmDef}$ | $\qquad \text{controls}$ |
 |   | $\vert$ | $\packageTyp \typParam {\prmDef}$ | $\qquad \text{packages}$ |
+|   | $\vert$ | $\newTypeTyp \typName {\typ}$ | $\qquad \text{reference}$ |
 |   | $\vert$ | $\cdots$ | |
 { .booktable }
 
@@ -488,7 +489,6 @@ The surface IR has a signle syntactic category for types, however, this syntacti
 |   | $\vert$ | $\funcType \kind \typParam {\prmDef } {\typ}$ | $\qquad \text{functions}$ |
 |   | $\vert$ | $\setTyp {\typ}$ | $\qquad \text{sets}$ |
 |   | $\vert$ | $\externTyp \name$ | $\qquad \text{externs}$ |
-|   | $\vert$ | $\newTypeTyp \typVar {\typ}$ | $\qquad \text{reference}$ |
 |   | $\vert$ | $\actionTyp { { {\prmDef}}} { {\VVal {\prmDef}}}$ | $\qquad \text{actions}$ |
 |   | $\vert$ | $\constructorTyp \typParam {\prmDef} \typ$ | $\qquad \text{constructors}$ |
 |   | $\vert$ | $\tableTyp \name$ | $\qquad \text{tables}$ |

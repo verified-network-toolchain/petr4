@@ -46,7 +46,6 @@
    js_of_ocaml-lwt
    js_of_ocaml-ppx
    (p4pp (>= "0.1.11"))
-   odoc
    (coq (and (<= "8.15.2" ) :build))))
 
 (package
@@ -74,7 +73,8 @@
   (coq-equations :build)
   (coq-record-update :build)
   (coq-compcert :build)
-  (coq-vst-zlist :build)))
+  (coq-vst-zlist :build)
+  (coq-stdpp :build)))
 
 (package
  (name poulet4_Ccomp)

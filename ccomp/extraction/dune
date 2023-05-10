@@ -2,6 +2,17 @@
  (prelude Extract)
  (theories Poulet4)
  (extracted_modules
+  NameGen
+  Base
+  Strings
+  Pretty
+  Numbers
+  Countable
+  Fin_maps
+  Gmap
+  Pmap
+  Stringmap
+  Option
    AST
    AST0
    Archi
@@ -40,7 +51,6 @@
    Floats
    Globalenvs
    Hexadecimal
-   IdentGen
    IEEE754_extra
    Integers
    List0

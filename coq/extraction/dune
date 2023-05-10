@@ -2,12 +2,16 @@
  (prelude Extract)
  (extracted_modules
   NameGen
-  Infinite
   Base
   Strings
   Pretty
   Numbers
-  List0
+  Countable
+  Fin_maps
+  Gmap
+  Pmap
+  Stringmap
+  Option0
   AList
   AListUtil
   Datatypes

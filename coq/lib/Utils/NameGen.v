@@ -1,12 +1,17 @@
 From stdpp Require Import
-     base
-     strings
-     infinite.
+     gmap
+     stringmap.
 
-Definition t : Type := list string.
+Definition t : Type := stringmap unit.
 
-Definition init : t := [].
+Definition init : t := empty.
+
+Definition observe (env: t) (x: string) : option t :=
+  match env !! x with
+  | Some _ => None
+  | None => Some (<[x:=()]>env)
+  end.
 
 Definition freshen (env: t) (x: string) : string * t :=
-  let x' := fresh env in
-  (x', x' :: env).
+  let x' := fresh_string x env in
+  (x', <[x':=()]>env).

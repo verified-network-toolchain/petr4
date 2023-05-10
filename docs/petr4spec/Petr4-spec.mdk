@@ -375,7 +375,7 @@ The following conventions are adopted in defining the grammar rules for surface 
 
 Additionally, the following notation is used to keep definitions concise:
 
-- $\mathit{is\_something}$ is a helper function that states if an input is a specific kind from a certain syntactic category. For example, $\mathit{is\_bool}(\typ)$ takes type $\typ$ and returns $\tru$ if $\typ$ is a boolean and $\fls$ otherwise. 
+- pairs TODO!!
 
 ### Metavariables { #sec-metavars }
 
@@ -770,48 +770,64 @@ The type checker is defined by a type system over the abstract syntax of a progr
 - In _informal notation_, describing the meaning in intuitive English format.
 - In _formal notation_, describing the rule in mathematical form.
 
-### Contexts { #sec-ctxt }
+### Enviornments { #sec-env }
 
-The type checker is defined over a _context_, which collects relevant information about the (sub-)program and carries in-scope definitions. In particular, it carries the following definitions:
+The type checker is defined over an _enviornment_, which collects relevant information about the (sub-)program and carries in-scope definitions. In particular, it carries the following definitions:
 
-- Types: $\typEnv$
-- Type synonyms: $\typSynEnv$
-- Type variables: $\typParEnv$
-- Variables: $\varEnv$
-- Constants: $\constEnv$
-- Externs: $\externEnv$
+- Types (denoted by $\typEnv$): the list of mapping a type name to its type
+- Type synonyms ($\typSynEnv$): the list of mapping a type name to another type name
+- Type variables ($\typParEnv$): the list of mapping a type variable to its type
+- Variables ($\varEnv$): the list of mapping a variable to its type and direction
+- Constants ($\constEnv$): the list of mapping a constant name to its value
+- Externs ($\externEnv$): the list of mapping an extern name to methods it provides
+- Context ($\ctxt$): states the lexical context and scope of the sub-program such as _top-level_, _parser_, etc, denoted 
 
-point out
+
+To be concrete, environements are all accumulated in one place and they are defined as record $\env$. what is a record TODO!!. The signatures use a function type (the arrow, i.e., $\rightarrow$) to denote a mapping.
+
+write context todo!!
+
+write extern methods todo!!
+
+~ Begin P4Syntax
+
+**Context:**
+
+|     |      |     |
+|~~~~:|:~~~~:|:~~~~|
+| $\ctxt$ | $::=$ | $\cte$ | 
+|  | $\vert$ | $\applyBlockCtxt$ |
+|  | $\vert$ | $\actionCtxt$ |
+|  | $\vert$ | $\tableActionCtxt$ |
+|  | $\vert$ | $\funcCtxt \typ$ |
+|  | $\vert$ | $\parserCtxt$ |
+|  | $\vert$ | $\toplevel$ |
+|  | $\vert$ | $\declLocalCtxt$ |
+{ .booktable }
+
+**Enviornment:**
+
+|     |      |     |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|:~~~~|
+| $\env$ | $::= \{$ | $\typEnv,$ | $\qquad \text{types}$ | $\qquad \typName \rightarrow \typ$ |
+|   |  | $\typSynEnv,$ | $\qquad \text{type synonyms}$ | $\qquad \name \rightarrow \typName$ |
+|   |  | $\typParEnv,$ | $\qquad \text{type variables}$ | $\qquad \typName \rightarrow \typ$ |
+|   |  | $\varEnv,$ | $\qquad \text{variables}$ | $\qquad \name \rightarrow (\typ, \dir)$ |
+|   |  | $\constEnv,$ | $\qquad \text{constants}$ | $\qquad \name \rightarrow \val$ |
+|   |  | $\externEnv,$ | $\qquad \text{externs}$ | $\qquad \name \rightarrow \externmethod$ |
+|   |  | $\ctxt\}$ | $\qquad \text{context}$ | |
+{ .booktable }
+
+
+~ End P4Syntax
+
+
+point outs. todo!!
 
 - accessing each instead of using field access
 - lookup from env
 - adding a new element to env
 
-In this section, we provide the signatures used throughout this document including the judgment forms (``TODO: revise``), environment signatures (``TODO: revise``), and function signatures (``TODO: maybe add``).
-
-* we may need to adjust the type well-formed judgment depending on whether we still need type and/or extern envs. 
-
-~ Center
-| **judgment name**   |   **judgment form** | ** where to find rules ** |
-|:----------------|:------------------|:------------------|
-| Type well-formedness | $\typWellFormed \typ$ | Section [#sec-type-well-formed] |
-| Type equality | $\typEqEnv {\overline {(\var, \prim \var)}} {\typ_1} {\typ_2}$ | Section [#sec-type-eq] |
-| Expression typing | $\expenv {\exp} {\prim \exp} \typ \dir $ | Section [#sec-exp-typing] |
-| Statement typing | $\stmtenv \stmt {\VVal \stmt} {\typ}$ | Section [#sec-stmt-typing] |
-| Declaration typing | $\dclenv \dcl {\VVal \dcl} {\VVal\varEnv} {\VVal \constEnv} {\VVal \typEnv} {\VVal \typSynEnv}$ | Section [#sec-decl-typing] |
-~
-
-
-~ Center
-| **environment name** | **symbol** | **signature** |
-|:----------------|:------------------|:------------------|
-| type environment | $\typEnv$ | $\typName \rightarrow \typ$ |
-| variable environment | $\varEnv$ | $\name \rightarrow (\typ, \dir)$ |
-| extern environment | $\externEnv$ | $\name \rightarrow \mathit{externmethod}$ |
-| type parameter environment | $\typParEnv$ | $\typName \rightarrow \typ$ |
-| type synonym environment | $\typSynEnv$| $\name \rightarrow \typName$ |
-| constant environment | $\constEnv$ | $\name \rightarrow \val $ |
-~
 
 ### Informal Notation { #sec-informal-notation }
 
@@ -821,12 +837,14 @@ In this section, we provide the signatures used throughout this document includi
 
 - For simplicity, we omit mapping a function/judgment on a list of elements. Instead, we just apply the function/judgment to a list. So every time you see a function applied to a list, read it as mapping the function over all the elements of the list.
 - An underscore (that is, $\_$) is used when we do not need to use some specific information returned by some helper in judgments.
-- $\mathit{is\_X} (\typ)$ checks if the type $\typ$ is of the specific kind/type/structure $X$.
+- $\mathit{is\_something}$ is a helper function that states if an input is a specific kind from a certain syntactic category. For example, $\mathit{is\_bool}(\typ)$ takes type $\typ$ and returns $\tru$ if $\typ$ is a boolean and $\fls$ otherwise. 
+
 
 ## Types { #sec-type-tc }
 
-The typing judgement for types has the form $to\_be\_filled$.
+The typing judgement for types has the form $to\_be\_filled$. todo!!
 
+It reads to be todo!!
 
 This judgment is overloaded and checks if a surface type—and more generally a type—is well-formed or not. This judgment is used to check if a surface type is well-formed when it is used in expressions or if a type is well-formed when it is declared. Specifically, it has two forms, $\typWellFormed {\surfaceTyp}$ and $\typWellFormed {\typ}$, which state that the type $\surfaceTyp $ and $\typ$, respectively, are well-formed under the type environment $\typEnv$ and extern environment $\externEnv$. In other words, this judgment checks that types are syntactically correct.
 

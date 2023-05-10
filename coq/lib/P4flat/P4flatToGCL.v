@@ -5,6 +5,7 @@ Require Import Poulet4.P4flat.Syntax.
 Require Import Poulet4.P4flat.GGCL.
 Require Import Poulet4.Monads.Result.
 Require Import Poulet4.Monads.State.
+Require Import Poulet4.Utils.Envn.
 Import ResultNotations.
 Import Dijkstra.
 
@@ -12,15 +13,24 @@ Open Scope string_scope.
 
 Definition var := string.
 
+Record tbl_sig :=
+  { tbl_sig_key: AST.Typ.t;
+    tbl_sig_acts: list (string * Exp.args * Stm.t) }.
+
+(* A map from table names to table signatures. *)
+Definition tbl_map :=
+  Env.t string tbl_sig.
+
 (* A map from de Bruijn indices to fresh names. *)
-Definition idx_map := list (string * AST.Typ.t).
+Definition idx_map :=
+  list (string * AST.Typ.t).
 
 (* TODO *)
 Definition freshen_name (m: idx_map) (s: string) :=
   s.
 
 Definition declare_var s t : idx_map -> idx_map :=
-  fun m => (s, t) :: m.
+  fun m => (freshen_name m s, t) :: m.
 
 Definition declare_param (name: string) (param: CUB.Typ.param) : idx_map -> idx_map :=
   fun m =>

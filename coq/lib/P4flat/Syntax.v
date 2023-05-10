@@ -40,7 +40,7 @@ Module Stm.
         - controls,
         - or parsers,
      all of which should be inlined. Tables are inlined at their call
-     site as a special Table statement. The table statement includes a
+     site as Invoke statements. The table statement includes a
      control plane name so that multiple inlined copies of the same
      table may share control-plane state. Extern calls are left
      unchanged. *)

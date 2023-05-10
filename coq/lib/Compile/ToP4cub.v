@@ -10,7 +10,6 @@ From Poulet4 Require Export
      P4light.Syntax.Syntax
      P4cub.Syntax.Syntax
      P4cub.Syntax.Substitution
-     P4cub.Syntax.InferMemberTypes
      P4cub.Syntax.HeaderStack
      Monads.Result.
 Import AST Result Envn ResultNotations.
@@ -2017,27 +2016,10 @@ Section ToP4cub.
   Fail Definition inline_cub_types (decls : DeclCtx) :=
     fold_left (fun acc '(x,t) => subst_type acc x t) (decls.(types)) decls.
 
-  Definition infer_member_types (decl : DeclCtx) :=
-    let infer_ds := List.map InferMemberTypes.inf_top in
-    let infer_Cds := List.map InferMemberTypes.inf_Cd in
-    let infer_pts := Field.map (fun '(cparams,ts) =>
-                                  (cparams, (* TODO: infer member types? *) ts)) in
-    {| variables := infer_Cds decl.(variables);
-       controls := infer_ds decl.(controls);
-       parsers := infer_ds decl.(parsers);
-       tables := infer_Cds decl.(tables);
-       actions := infer_Cds decl.(actions);
-       functions := infer_ds decl.(functions);
-       package_types := infer_pts decl.(package_types);
-       packages := infer_ds decl.(packages);
-       externs := infer_ds decl.(externs);
-       types := decl.(types);
-    |}.
-
   Definition translate_program (tags : tags_t) (p : program) : result string DeclCtx :=
     let* '(Program decls) := preprocess tags p in
     let+ cub_decls := translate_decls decls in
-    infer_member_types ((*inline_cub_types*) cub_decls).
+    cub_decls.
 
   Definition translate_program' (tags : tags_t) (p : program) : result string (list Top.t) :=
     let+ ctx := translate_program tags p in 

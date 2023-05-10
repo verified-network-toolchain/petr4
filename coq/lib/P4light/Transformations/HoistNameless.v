@@ -4,24 +4,11 @@ From Poulet4 Require Export
      Monads.Result Utils.Util.StringUtil.
 Require Import Coq.Lists.List.
 Import StringUtil ListNotations.
+Require Poulet4.Utils.NameGen.
 
 Require Import String.
 Open Scope string_scope.
 Import Result ResultNotations.
-
-Module NameGen.
-
-  Definition t := nat.
-
-  Definition name := "h'".
-
-  Definition init := 0.
-
-  Definition get_new (x : t) :=
-    (name ++ string_of_nat x, S x).
-
-End NameGen.
-
 
 Section Nameless.
   Variable (tags_t : Type).
@@ -35,7 +22,7 @@ Section Nameless.
           (g', List.app hoist hoists, e' :: es)
       in
       let '(g', rec_hoist, args') := List.fold_right f (g,[],[]) args in
-      let (fresh_string, g'') := NameGen.get_new g' in
+      let (fresh_string, g'') := NameGen.freshen g' "h" in
       let fresh_name := {| P4String.str := fresh_string;
                            P4String.tags := tags |} in
       let hoist := DeclInstantiation tags typ args' fresh_name [] in
@@ -68,7 +55,7 @@ Section Nameless.
 
   Definition hoist_nameless_instantiations (p : @program tags_t) : result string (@program tags_t) :=
     let '(Program decls) := p in
-    let+ (_,hoisted_decls) := List.fold_right (hoist_decl_inner) (ok (NameGen.init,[])) decls in
+    let+ (_,hoisted_decls) := List.fold_right (hoist_decl_inner) (ok (NameGen.init, [])) decls in
     Program hoisted_decls.
 
 End Nameless.

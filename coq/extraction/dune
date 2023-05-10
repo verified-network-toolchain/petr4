@@ -1,6 +1,13 @@
 (coq.extraction
  (prelude Extract)
  (extracted_modules
+  NameGen
+  Infinite
+  Base
+  Strings
+  Pretty
+  Numbers
+  List0
   AList
   AListUtil
   Datatypes
@@ -57,7 +64,6 @@
   FunUtil
   OptionUtil
   Bool
-  String
   Nat
   BinNums
   BinInt

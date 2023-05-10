@@ -2,6 +2,7 @@ Require Import Poulet4.P4light.Syntax.Syntax.
 From Poulet4.P4light.Syntax Require Import Typed SyntaxUtil.
 Require Import Poulet4.P4light.Transformations.SimplExpr.
 Require Import Poulet4.Monads.ExceptionState.
+Require Poulet4.Utils.NameGen.
 Require Import Coq.Strings.String.
 Require Import Coq.Strings.Ascii.
 Require Import Coq.NArith.NArith.
@@ -52,41 +53,31 @@ Section Transformer.
     | StatSwCaseFallThrough _ _ => nil
     end.
 
-  Definition state := list string.
+  Definition state := NameGen.t.
   Definition exception := unit.
   Definition monad := @state_monad state exception.
 
   Definition error {T: Type}: monad T := state_fail tt.
 
-  Definition has {T: Type} (eqb: T -> T -> bool) (x: T) (l: list T): bool :=
-    existsb (eqb x) l.
-
-  Definition equivb: string -> string -> bool := String.eqb.
-
-  Definition is_used (n: string): monad bool :=
-    let* used_list := get_state in
-    mret (has equivb n used_list).
-
-  Definition var_name (n: string) (cnt: N): string :=
-    if cnt =? 0%N then n else (n ++ (N_to_string cnt))%string.
-
-  Fixpoint fresh' (n: string) (cnt: N) (fuel: nat): monad string :=
-    match fuel with
-    | O => error
-    | S fuel =>
-        let n' := var_name n cnt in
-        let* b := is_used n' in
-        if b then fresh' n (cnt+1) fuel else mret n'
-    end.
-
   Definition use (n: string): monad unit :=
-    put_state (fun l => n :: l).
+    fun env =>
+      match NameGen.observe env n with
+      | None => (inr tt, env)
+      | Some ret => (inl tt, ret)
+      end.
+
+  Definition use_all (n: list string): monad unit :=
+    fun env =>
+      match NameGen.observe_all env n with
+      | None => (inr tt, env)
+      | Some ret => (inl tt, ret)
+      end.
 
   (* In case of preformance issue, we can extract this function into native OCaml. *)
   Definition fresh (n: string): monad string :=
-    let* used_list := get_state in
-    let* n' := fresh' n 0 (1 + length used_list)%nat in
-    let* _ := use n' in
+    let* env := get_state in
+    let (n', env') := NameGen.freshen env n in
+    put_state env';;
     mret n'.
 
   Definition env := IdentMap.t Locator.
@@ -251,7 +242,7 @@ Section Transformer.
     fun st' => let (res, _) := m st in (res, st').
 
   Definition with_empty_state {T} (m: monad T): monad T :=
-    with_state nil m.
+    with_state NameGen.init m.
 
   Definition declare_params (LCurScope: list string -> Locator) (e: env) (ns: list string)
                             (params: list (@P4Parameter tags_t)): monad env :=
@@ -449,7 +440,7 @@ Section Transformer.
         let* (locals', e''') := transform_decls LInstance e'' locals in
         let used_list := concat
               (map (fun ps => summarize_blk (list_statement_to_block default_tag (get_parser_state_statements ps))) states) in
-        let* _ := put_state (fun l => used_list ++ l) in
+        use_all used_list;;
         let* states' := sequence (map (transform_psrst e''') states) in
         mret (locals', states')
       ) in
@@ -464,8 +455,7 @@ Section Transformer.
         let* (locals', e''') := transform_decls LInstance e'' locals in
         (* If there is a direct application in the apply block, then there will not be a definition with
           the same name in local definitions because of shadowing. So there will not be any conflict. *)
-        let used_list := summarize_blk apply in
-        let* _ := put_state (fun l => used_list ++ l) in
+        use_all (summarize_blk apply);;
         let* apply' := transform_blk LInstance e''' nil apply in
         mret (locals', apply')
       ) in
@@ -495,7 +485,7 @@ Section Transformer.
   Definition transform_prog (prog: @program tags_t): @program tags_t + exception :=
     match prog with
     | Program decls =>
-      match transform_decls LGlobal IdentMap.empty decls nil with
+      match transform_decls LGlobal IdentMap.empty decls NameGen.init with
       | (inl (decls', _), _) => inl (Program decls')
       | (inr ex, _) => inr ex
       end

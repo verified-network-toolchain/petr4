@@ -12,6 +12,9 @@ Definition observe (env: t) (x: string) : option t :=
   | None => Some (<[x:=()]>env)
   end.
 
+Definition observe_all (env: t) (x: list string) : option t.
+Admitted.
+
 Definition freshen (env: t) (x: string) : string * t :=
   let x' := fresh_string x env in
   (x', <[x':=()]>env).

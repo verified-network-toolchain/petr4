@@ -364,18 +364,49 @@ We describe the various conventions that have been adopted in writing this docum
 
 The following conventions are adopted in defining the grammar rules for surface IR's abstract syntax:
 
+- A _phrase_ is a part of the program. 
 - Terminal symbols are writeen in sans-serif font or in symbolic form: $\boolTyp$, $\accept$, $\langle$, $\oplus$.
 - Nonterminal symbols are written in italic font: $\exp$, $\stmt$.
-- $\overline {A}$ is a list of zero or more $A$.
-- Production rules in grammar are written as $\mathit{sym} ::= A_1 | \cdots | A_n$. Each rule describes a syntactic category and has multiple cases. For example, the rule here describes the syntactic category $\mathit{sym}$ and has $n$ cases.
-- Each case of a syntactic category is accompanied with a phrase that describes the role of that case. For example, $\mathit{sym} ::= i \qquad \textit{integers}$ states that $i$ represents integers for the syntactic category of $\mathit{sym}$.
-- Large production rules may be split into multiple production rules. This is explicitly indicated by having ellipses at the beginning or/and end of a rule. For example, $\mathit{sym} ::= \cdots | A_i | \cdots$.
+- Each nonterminal symbol defines a new _syntactic category_.
+- Production rules in grammar are written as $\synCat ::= \A_1 | \cdots | \A_n$. Each rule describes a syntactic category and has multiple _constructor case_s. For example, the rule here describes the syntactic category $\synCat$ and has $n$ cases.
+- Each case of a syntactic category is accompanied with a pharse that describes the role of that case, as shown below. Such phrase is not part of the grammar and is solely used as a comment to clarify the grammar more.
+
+~ Begin P4Syntax
+
+|     |      |     |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|:~~~~|
+| $\synCat$ | $::= $ | $\A_1$ | $\qquad \text{comment}$ |
+|   | $\vert$ | $\A_2$ | $\qquad \text{comment}$|
+|   | $\vert$ | $\cdots$ | |
+{ .booktable }
+
+~ End P4Syntax
+
+- Large production rules may be split into multiple production rules. This is explicitly indicated by having ellipses at the beginning or/and end of a rule. For example, $\synCat ::= \cdots | \A_i | \cdots$.
 
 ### Auxiliary Notation { #sec-aux-notation-ast }
 
 Additionally, the following notation is used to keep definitions concise:
 
-- pairs TODO!!
+- The notation $(a,b)$ is a pair where the first element is $a$ and the second element is $b$. For examaple, $(\tru, 3)$ is a pair of $\tru$ and $3$.
+- The notation $a \rightarrow b$ denotes a function that has domain $a$ and co-domain $b$. Note that both $a$ and $b$ reperenst a (possibly different) type.
+- For simplicity, a function also denotes a mapping.
+- The notation $\A : \typ$ states that $\A$ has type $\typ$. For example, $\fls : \boolTyp$.
+- The following production rule is a record that its $\field_i$ has type $\typ_i$.
+
+~ Begin P4Syntax
+
+|     |      |     |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|:~~~~|
+| $r$ | $::= \{$ | $\field_1 : \typ_1$ |
+|   |  | $\field_2 : \typ_2$ |
+|   |  | $\cdots \}$ |
+{ .booktable }
+
+~ End P4Syntax
+
+- The notation $r.\field$ denotes the contents of the $\field$ component of $r$.
+- The notation $\with r {\VVal {\field_i}}$ is the same as record $r$ excpet that it updates the field $\field_i$ to $\VVal {\field_i}$.
 
 ### Metavariables { #sec-metavars }
 
@@ -384,6 +415,8 @@ _Metavariables_ are nonterminal symbols that sit in place of a specific kind of 
 ~ Center
 | **metavariable**   |   **values represented** |
 |:----------------:|:------------------|
+| $\synCat$ | syntactic categories     |
+| $\A$ | constructor case |
 | $\name$ | strings representing names |
 | $\typName$ | type names |
 | $\typVar$ | type variables |
@@ -761,11 +794,13 @@ Declarations can be divided into three groups:
 
 # Type Checker { #sec-type-checker }
 
-The type checker takes a program written in the surface IR and simply states if the program is syntactically well-formed, that is, if the program is structurally valid. In which case it returns the type of the program. Note that the type checker does not change the given program at all. It assumes all type inference and cast insertion has already been taken care of. 
+The type checker takes a program written in the surface IR and simply states if the program is syntactically _well-formed_, that is, if the program is structurally valid. In which case it returns the type of the program. Note that the type checker does not change the given program at all. It assumes all type inference and cast insertion has already been taken care of. 
 
 ## Conventions { #sec-conventions-type-checker }
 
-The type checker is defined by a type system over the abstract syntax of a program and all its parts. Thus, for each syntactic category of the surface IR, there is a typing judgement and a set of typing rules. For each syntactic category, the judgement form specifies the form that all typing rules for that syntactic category follow and the typing rules specify the constraints that apply to each case of the syntactic category. All rules are described in two formats:
+[#web-assembly-link]: https://webassembly.github.io/spec/core/index.html
+
+The type checker is defined by a type system over the abstract syntax of a program and all its parts. Thus, for each syntactic category of the surface IR, there is a typing judgement and a set of typing rules. For each syntactic category, the judgement form specifies the form that all typing rules for that syntactic category follow and the typing rules specify the constraints that apply to each case of the syntactic category. We adopt the approach used in [web assembly specification][#web-assembly-link] and describe all rules in two formats:
 
 - In _informal notation_, describing the meaning in intuitive English format.
 - In _formal notation_, describing the rule in mathematical form.
@@ -783,11 +818,7 @@ The type checker is defined over an _enviornment_, which collects relevant infor
 - Context ($\ctxt$): states the lexical context and scope of the sub-program such as _top-level_, _parser_, etc, denoted 
 
 
-To be concrete, environements are all accumulated in one place and they are defined as record $\env$. what is a record TODO!!. The signatures use a function type (the arrow, i.e., $\rightarrow$) to denote a mapping.
-
-write context todo!!
-
-write extern methods todo!!
+To be concrete, environements are all accumulated in one place and they are defined as the [record][#sec-aux-notation-ast] $\env$. 
 
 ~ Begin P4Syntax
 
@@ -795,7 +826,7 @@ write extern methods todo!!
 
 |     |      |     |
 |~~~~:|:~~~~:|:~~~~|
-| $\ctxt$ | $::=$ | $\cte$ | 
+| $\ctxtTyp$ | $::=$ | $\cte$ | 
 |  | $\vert$ | $\applyBlockCtxt$ |
 |  | $\vert$ | $\actionCtxt$ |
 |  | $\vert$ | $\tableActionCtxt$ |
@@ -807,38 +838,77 @@ write extern methods todo!!
 
 **Enviornment:**
 
-|     |      |     |     |     |
-|~~~~:|:~~~~:|:~~~~|:~~~~|:~~~~|
-| $\env$ | $::= \{$ | $\typEnv,$ | $\qquad \text{types}$ | $\qquad \typName \rightarrow \typ$ |
-|   |  | $\typSynEnv,$ | $\qquad \text{type synonyms}$ | $\qquad \name \rightarrow \typName$ |
-|   |  | $\typParEnv,$ | $\qquad \text{type variables}$ | $\qquad \typName \rightarrow \typ$ |
-|   |  | $\varEnv,$ | $\qquad \text{variables}$ | $\qquad \name \rightarrow (\typ, \dir)$ |
-|   |  | $\constEnv,$ | $\qquad \text{constants}$ | $\qquad \name \rightarrow \val$ |
-|   |  | $\externEnv,$ | $\qquad \text{externs}$ | $\qquad \name \rightarrow \externmethod$ |
-|   |  | $\ctxt\}$ | $\qquad \text{context}$ | |
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\env$ | $::= \{$ | $\typEnv :  \typName \rightarrow \typ$ | $\qquad \text{types}$ |
+|   |  | $\typSynEnv : \typName \rightarrow \typName$ | $\qquad \text{type synonyms}$ | $\qquad \name \rightarrow \typName$ |
+|   |  | $\typParEnv :  \typName \rightarrow \typ$ | $\qquad \text{type variables}$ | 
+|   |  | $\varEnv :  \name \rightarrow (\typ, \dir)$ | $\qquad \text{variables}$ |
+|   |  | $\constEnv :  \name \rightarrow \val$ | $\qquad \text{constants}$ | 
+|   |  | $\externEnv :  \name \rightarrow \externmethod$ | $\qquad \text{externs}$ | 
+|   |  | $\ctxt : \ctxtTyp\}$ | $\qquad \text{context}$ | 
 { .booktable }
-
 
 ~ End P4Syntax
 
-
-point outs. todo!!
-
-- accessing each instead of using field access
-- lookup from env
-- adding a new element to env
-
+- Accessing each enviornment can be done through field access of $\env$. For example, $\env.\typEnv$ gives access to the contents of type enviornment. However, for simpilicity and since the enviorment is global, we omit the $\env.$ part. So for example, $\typEnv$ is a shorthand for $\env.\typEnv$.
+- The notation $\lookupTypEnv \name$ looks up $\name$ in type enviornment $\typEnv$. Such notation is used for looking up in any of the enviornments. Note that we never use the notation $\env(\name)$ to avoid confusion of which enviornment is exactly being used for the lookup.
+- The notation $\insertToTypEnv \typName \typ $ extends the type environment with the new assignment of $\typ$ to $\typName$.
+- The notation $\emp$ denotes an empty environment.
 
 ### Informal Notation { #sec-informal-notation }
+The type checker is specified by rules for each syntactic category of the [surface IR's abstract syntax][#sec-syntax]. The rules states the constraint that have to hold for a phrase to type check. For [types abstract syntax][#sec-ast-type], the rules only state what such constraints are. However, for the rest of the abstract syntax, the rules additionally output the type of the phrase. The following conventions are adopted in stating these rules.
+
+- A type phrase $\A$ "is well-formed"  if and only if all constraints expressed by the respective rules hold.
+- A phrase $\A$ "type checks with type $\typ$" if and only if all constraints expressed by the respective rules hold. The type $\typ$ depends on what $\A$ is.
+- The rules implicitly assume a given [enviornment][#sec-env] $\env$.
+- In some cases, this environment is locally extended to enviornment $\VVal \env$ with extensions in one or more of the $\env$'s fields (enviornments). The formulation "under enviornment $\VVal \env$, ... statement ..." is adopted to express that the statement only holds under the extended enviornment $\VVal \env$.
+- In some cases, this environment is globally extended to environment $\VVal \env$ with extensions in one or more of the $\env$'s fields. In these cases, the extended enviornment is an output of the rule. The formulation "under enviornment $\env$, ... statment ... updates the environment to $\VVal \env$" is adopted to express this global extension of the enviornment. 
 
 ### Formal Notation { #sec-formal-notation }
 
+Conventionally, a typing rule is formally written as an inference rules. A rule follows the general form of:
+
+~ Begin InfRule
+
+  \inferrule
+     { \mathit{premise}_1 \\
+       \mathit{premise}_2 \\
+       \cdots \\
+        \mathit{premise}_n}
+     { \mathit{conclusion} }
+     \quad (\rn{RuleName})
+
+~ End InfRule
+
+Such a rule reads as an implication: if all the premises hold, the the conclusion holds. Some rules do not have any premises, such rules are _axioms_ that hold unconditionally.The conclusion is a judgment which can take one of the following forms. All the rules for a syntactic category have the same judgment form and there is one respective rule for each constructor case of the syntactic category.
+
+- $\env \vdash \A$ states that $\A$ is well-formed under the enviornment $\env$.
+- $\env \vdash \A : \typ$ states that $\A$ type checks and it has the type $\typ$ under the enviornment $\env$.
+- $\env \vdash \A : \typ \dashv \VVal \env$ states that $\A$ type checks, it has the type $\typ$ under the enviornment $\env$, and it outputs the extended enviornment $\VVal \env$.
+
+If a rule does not use $\env$ in its constraints, we omit the enviornment from the conclusion, for example, it takes the form $\vdash \A$. Still, the enviornment is implicitly assumed by the rule.
+
+In the rest of this section:
+
+- First, we introduce the judgment form for type checking eachof the syntactic categories of our surface IR.
+- Then, we read the judgment form out load.
+- And finally, we provide the rules for each case of a syntactic category in both the formal and informal form.
+
+[#pierce]: https://www.cis.upenn.edu/~bcpierce/tapl/
+
+Since this is a very brief introduction to type systems we refer an interested reader to [TPL by Benjamin C. Pierce][#pierce] for a detailed explanation of type systems with examples.
+
 ### Auxiliary Notation { #sec-aux-notation-type-checker }
 
-- For simplicity, we omit mapping a function/judgment on a list of elements. Instead, we just apply the function/judgment to a list. So every time you see a function applied to a list, read it as mapping the function over all the elements of the list.
-- An underscore (that is, $\_$) is used when we do not need to use some specific information returned by some helper in judgments.
+The following notations are used in the definitions of the rules in the rest of this section:
+
+- $\overline {\A}$ is a list of zero or more $\A$.
+- The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list of outputs $\overline y$. We adopt the similar notation for applying a judgement to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgement: $\env \vdash \overline \A : \overline \typ$.
+- An underscore (that is, $\whatevs$) is used when we do not need to use some specific information returned to us in a rule. For example, $\mathit{getLength}(\A)= \whatevs$ takes the length of $\A$, however, it actually does not care what the length is. Instead it just cares if $\A$ is a structure that has length.
 - $\mathit{is\_something}$ is a helper function that states if an input is a specific kind from a certain syntactic category. For example, $\mathit{is\_bool}(\typ)$ takes type $\typ$ and returns $\tru$ if $\typ$ is a boolean and $\fls$ otherwise. 
 
+Lots of helper functions are defined throughout defining the type checking rules. Although the names of these functions indicate what they do, we also provide their exact definition where they are used. todo: revise: before or after. 
 
 ## Types { #sec-type-tc }
 
@@ -1735,17 +1805,17 @@ The rules $\stringE$, $\integerE$, $\bitStringE$, and $\signedIntE$ are similar 
 
 The rule $\nameE$ looks up the name of a variable from the environment and returns its type and direction. Note that if the environment doesn't contain the name the rule will fail.
 
-- When $\lookupEnv \name$ looks up a variable name in the environment, it returns its type and direction. When we only need the
+- When $lookupEnv \name$ looks up a variable name in the environment, it returns its type and direction. When we only need the
 type or the direction of the variable we simply ignore the other one by using an underscore for it. So you could see
-formalization such as $\lookupEnv \name = (\typ, \_ )$ which states that we looked up variable
+formalization such as $lookupEnv \name = (\typ, \_ )$ which states that we looked up variable
 $\name$ from the environment and we found out that its type is $\typ$. Similarly, the
-formalization $\lookupEnv \name = (\typ, \dir)$ states that we looked up variable
+formalization $lookupEnv \name = (\typ, \dir)$ states that we looked up variable
 $\name$ in the environment $\env$ and it has the type $\typ$ and direction $\dir$.
 
 ~ Begin InfRule
 
   \inferrule
-     {\lookupEnv \name = (\typ, \dir)}
+     {\lookupVarEnv \name = (\typ, \dir)}
      {\expenv \name \name \typ \dir}
      \quad (\nameE)
 
@@ -2785,14 +2855,14 @@ They just look up $\name$ extended with the type or error, respectively, in the 
 ~ Begin InfRule
 
   \inferrule
-     {\lookupEnv {\typMem \typName \name} = (\typ, \dir)  }
+     {\lookupVarEnv {\typMem \typName \name} = (\typ, \dir)  }
      {\expenv {\typMem \typName \name} {\typMem \typName \name} \typ \less  }
      \quad (\typeMemE)
 
 \and
 
   \inferrule
-     {\lookupEnv {\errMem \name} = (\errTyp, \dir)  }
+     {\lookupVarEnv {\errMem \name} = (\errTyp, \dir)  }
      {\expenv {\errMem \name} {\errMem \name} \errTyp \less  }
      \quad (\errMemE)
 
@@ -3098,7 +3168,7 @@ It has the form $\resolveFuncOver \exp \args {\VVal \exp} \typVars \prms \kind {
   \mprset {vskip=0.5ex}
   {\inferrule
      % [\nameFuncNameE]
-     { \lookupEnv {\name_0} = \overline {(\typ, \dir)}\\
+     { \lookupVarEnv {\name_0} = \overline {(\typ, \dir)}\\
         (\funcType \kind \typParams {\overline {\prm 1}} {\typ_\ret},\dir_2)\in \overline {(\typ, \dir)}}
        % \exists (\typ,\dir) \in (\overline {\typ, \dir}). \typ = \funcType \kind \typParams {\pars 1 n} {\typ_\ret} }
      { \resolveFuncOver {\name_0} {\overline {\var_1 = \exp}} {\name_0} \typParams {\overline {\prm 1}} \kind {\typ_\ret} }
@@ -3109,7 +3179,7 @@ It has the form $\resolveFuncOver \exp \args {\VVal \exp} \typVars \prms \kind {
   \mprset {vskip=0.5ex}
   {\inferrule
      % [\nameFuncCountE]
-     { \lookupEnv {\name_0} = \overline {(\typ, \dir)}\\
+     { \lookupVarEnv {\name_0} = \overline {(\typ, \dir)}\\
         (\funcType \kind \typParams {\overline {\prm 1}} {\typ_\ret},\dir_2) \in \overline {(\typ, \dir)}\\
        % \exists (\typ,\dir) \in (\overline {\typ, \dir}). \typ = \funcType \kind \typParams \params {\typ_\ret}\\
        |\removeOptionalPars \params| = |\argexps|}
@@ -3133,7 +3203,7 @@ It has the form $\resolveFuncOver \exp \args {\VVal \exp} \typVars \prms \kind {
      % [\expMemExternNameE]
      { \expenv {\expMem {\name_0} {\exp_0}} {\exp_1} {\typ_1} {\dir_1}\\
        \reduce {\typ_1} = \externTyp {\name_1}\\\\
-       \lookupEnv { \name_1} = (\typParams, \methods {\name_2} {\typ_2})\\\\
+       lookupEnv { \name_1} = (\typParams, \methods {\name_2} {\typ_2})\\\\
         (\name_0, \funcType \kind {\overline {\VVal \typParam}} {\prms} {\typ_\ret}) \in {(\methods {\name_2} {\typ_2})}
        }
     {\resolveFuncOver {\expMem {\name_0} {\exp_0}} \argkvs {\exp_1} {\overline {\VVal \typParam}} \prms \kind {\typ_\ret}}
@@ -3146,7 +3216,7 @@ It has the form $\resolveFuncOver \exp \args {\VVal \exp} \typVars \prms \kind {
      % [\expMemExternCountE]
      { \expenv {\expMem {\name_0} {\exp_0}} {\exp_1} {\typ_1} {\dir_1}\\
        \reduce {\typ_1} = \externTyp {\name_1}\\\\
-       \lookupEnv { \name_1} = (\typParams, \methods {\name_2} {\typ_2})\\\\
+       lookupEnv { \name_1} = (\typParams, \methods {\name_2} {\typ_2})\\\\
         (\name_0, \funcType \kind {\overline {\VVal \typParam}} {\prms} {\typ_\ret}) \in {(\methods {\name_2} {\typ_2})}\\\\
        |\prms| = |\argexps|
        }
@@ -3256,7 +3326,7 @@ For detailed rules of this judgment refer to Section [#sec-type-unify].
 
   \mprset {vskip=0.5ex}
   {  \inferrule
-         { \lookupEnv \name = \overline {(\typ, \dir)} \\
+         { \lookupVarEnv \name = \overline {(\typ, \dir)} \\
             (\constructorTyp \typParams  \prms \retTyp, \dir) \in \overline {(\typ, \dir)}}
          { \resolveConstOver \name {\overline {\var = \exp}} \typParams \wildcardParams \prms \retTyp  }
          \quad (blah)
@@ -3264,7 +3334,7 @@ For detailed rules of this judgment refer to Section [#sec-type-unify].
 
   \mprset {vskip=0.5ex}
   {  \inferrule
-         { \lookupEnv \name = \overline {(\typ, \dir)} \\
+         { \lookupVarEnv \name = \overline {(\typ, \dir)} \\
             (\constructorTyp \typParams  \prms \retTyp, \dir) \in \overline {(\typ, \dir)} \\
            |\removeOptionalPars \params| = |\argexps|}
          { \resolveConstOver \name \argexps \typParams \wildcardParams \prms \retTyp  }

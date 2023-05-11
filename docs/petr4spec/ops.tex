@@ -1,6 +1,8 @@
 \newcommand{\VVal}[1]{#1'}
 \newcommand{\VVVal}[1]{#1''}
 
+\newcommand{\A}{A}
+\newcommand{\synCat}{\mathit{symbol}}
 
 %rule names:
 \newcommand{\rn}[1]{\TirName{#1}}
@@ -188,7 +190,7 @@
 \newcommand{\pprim}[1]{{#1}^{\prime\prime}}
 \newcommand{\ppprim}[1]{{#1}^{\prime\prime\prime}}
 \newcommand{\so}[2]{{#1} \Rightarrow {#2}}
-\newcommand{\lookupEnv}[1]{\env({#1})}
+\newcommand{\lookupVarEnv}[1]{\varEnv({#1})}
 \newcommand{\lookupExternEnv}[1]{\externEnv({#1})}
 \newcommand{\lookupTypEnv}[1]{\typEnv({#1})}
 \newcommand{\lookupTypSynEnv}[1]{\typSynEnv({#1})}
@@ -347,7 +349,8 @@
 \newcommand{\declaredTyp}{\nu}
 \newcommand{\synTyp}{\sigma}
 \newcommand{\typKind}{t}
-\newcommand{\ctxt}{c}
+\newcommand{\ctxt}{C}
+\newcommand{\ctxtTyp}{c}
 \newcommand{\bool}{b}
 \newcommand{\tru}{\mathsf{true}}
 \newcommand{\fls}{\mathsf{false}}
@@ -707,3 +710,6 @@
 
 %externs:
 \newcommand{\externmethod}{(\name, \typ)}
+
+
+\newcommand{\with}[2]{{#1}\ \mathsf{with} \ {#2}}

@@ -12,6 +12,10 @@ Definition observe (env: t) (x: string) : option t :=
   | None => Some (<[x:=()]>env)
   end.
 
+(* Like observe but allows duplicates *)
+Definition observe_dup (env: t) (x: string) : option t :=
+  Some (<[x:=()]>env).
+
 Fixpoint observe_all (env: t) (xs: list string) : option t :=
   match xs with
   | [] => mret env

@@ -31,7 +31,7 @@ Section Transformer.
   Fixpoint summarize_stmtpt (tags: tags_t) (stmt: @StatementPreT tags_t) (typ: StmType):
         (list string) :=
     match stmt with
-    | StatDirectApplication typ' _ args => [get_type_name typ']
+    | StatDirectApplication typ' _ args => []
     | StatBlock block => summarize_blk block
     | StatSwitch expr cases => concat (map summarize_ssc cases)
     | StatInstantiation typ' args name init => [P4String.str name]
@@ -61,7 +61,14 @@ Section Transformer.
 
   Definition use (n: string): monad unit :=
     fun env =>
-      match NameGen.observe env n with
+      match NameGen.observe_dup env n with
+      | None => (inr tt, env)
+      | Some ret => (inl tt, ret)
+      end.
+
+  Definition use_dup (n: string): monad unit :=
+    fun env =>
+      match NameGen.observe_dup env n with
       | None => (inr tt, env)
       | Some ret => (inl tt, ret)
       end.
@@ -251,7 +258,7 @@ Section Transformer.
       let loc := LCurScope (ns ++ [name]) in
       IdentMap.set name loc e in
     let e' := fold_left env_add names e in
-    let* _ := sequence (map use names) in
+    sequence (map use names);;
     mret e'.
 
   Definition transform_tblkey (e: env) (tk: @TableKey tags_t): @TableKey tags_t :=
@@ -349,11 +356,14 @@ Section Transformer.
       monad (@Declaration tags_t * env) :=
     match decl with
     | DeclConstant tags typ name value =>
-      let* _ := use (P4String.str name) in
-      let loc := LCurScope [P4String.str name] in
+      let* name' := fresh (P4String.str name) in
+      let p4name' := {| P4String.str := name';
+                        P4String.tags := P4String.tags name |} in
+      let loc := LCurScope [name'] in
       let e' := IdentMap.set (P4String.str name) loc e in
-      mret (DeclConstant tags typ name value, e')
+      mret (DeclConstant tags typ p4name' value, e')
     | DeclFunction tags ret name type_params params body =>
+      use (P4String.str name);;
       let inner_monad := (
         let* e' := declare_params LCurScope e [P4String.str name] params in
         let* body' := transform_blk LCurScope e' [P4String.str name] body in
@@ -364,18 +374,20 @@ Section Transformer.
       let e' := IdentMap.set (P4String.str name) loc e in
       mret (DeclFunction tags ret name type_params params body', e')
     | DeclExternFunction tags ret name type_params params =>
-      let* _ := use (P4String.str name) in
+      use_dup (P4String.str name);;
       let loc := LCurScope [P4String.str name] in
       let e' := IdentMap.set (P4String.str name) loc e in
       mret (decl, e')
     | DeclVariable tags typ name init =>
       let init' := option_map (transform_expr e) init in
-      let* _ := use (P4String.str name) in
-      let loc := LCurScope [P4String.str name] in
+      let* name' := fresh (P4String.str name) in
+      let p4name' := {| P4String.str := name';
+                        P4String.tags := P4String.tags name |} in
+      let loc := LCurScope [name'] in
       let e' := IdentMap.set (P4String.str name) loc e in
-      mret (DeclVariable tags typ name init', e')
+      mret (DeclVariable tags typ p4name' init', e')
     | DeclValueSet tags typ size name =>
-      let* _ := use (P4String.str name) in
+      use (P4String.str name);;
       let loc := LCurScope [P4String.str name] in
       let e' := IdentMap.set (P4String.str name) loc e in
       mret (DeclValueSet tags typ size name, e')
@@ -465,7 +477,7 @@ Section Transformer.
       mret (DeclControl tags name type_params params cparams locals' apply', e')
     | DeclInstantiation tags typ args name init =>
       let* (init', _) := transform_decls LCurScope e init in
-      let* _ := use (P4String.str name) in
+      use (P4String.str name);;
       let loc := LCurScope [P4String.str name] in
       let e' := IdentMap.set (P4String.str name) loc e in
       mret (DeclInstantiation tags typ args name init', e')

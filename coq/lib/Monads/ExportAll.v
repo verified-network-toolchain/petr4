@@ -5,5 +5,4 @@ From Poulet4 Require Export
      Monads.State
      Monads.Transformers
      Monads.Packet
-     Monads.Hoare.ExportAll
      Monads.Result.

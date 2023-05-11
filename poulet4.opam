@@ -26,6 +26,7 @@ depends: [
   "coq-record-update" {build}
   "coq-compcert" {build}
   "coq-vst-zlist" {build}
+  "coq-stdpp" {build}
   "odoc" {with-doc}
 ]
 build: [

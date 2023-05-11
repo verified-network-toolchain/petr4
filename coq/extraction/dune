@@ -7,6 +7,17 @@
   Sig
   Examples
   Syntax0
+  NameGen
+  Base
+  Strings
+  Pretty
+  Numbers
+  Countable
+  Fin_maps
+  Gmap
+  Pmap
+  Stringmap
+  Option0
   AList
   AListUtil
   Datatypes
@@ -40,13 +51,14 @@
   ToP4cub
   AST
   EquivDec
-  ToP4cub
-  ToGCL
-  GCL
-  Inline
+  Fin
+  VectorDef
+  Vector
+  VecUtil
+  ProdN
+  LiftList
   Statementize
   HoistNameless
-  InferMemberTypes
   Substitution
   InlineTypeDecl
   InlineConstants

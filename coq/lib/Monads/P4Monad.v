@@ -79,7 +79,7 @@ Definition Meta := unit.
 Definition PktParser (Result: Type) := @state_monad (@ParserState Meta) Error Result.
 
 Definition set_std_meta (f: StandardMeta -> StandardMeta) : PktParser unit :=
-  put_state (fun st => st <| std_meta ::= f |>).
+  with_state (fun st => st <| std_meta ::= f |>).
 
 (* Definition skip : PktParser  *)
 
@@ -89,7 +89,7 @@ Definition next_bit : PktParser bool :=
   let* st := get_state in
   match pkt st with
   | x :: pkt' =>
-    put_state (fun st => st <| pkt := pkt' |>) ;;
+    with_state (fun st => st <| pkt := pkt' |>) ;;
     state_return x
   | _ => reject
   end.

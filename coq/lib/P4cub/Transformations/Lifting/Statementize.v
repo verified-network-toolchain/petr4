@@ -2,48 +2,11 @@ Require Import Coq.Strings.String Coq.NArith.BinNat.
 From Poulet4 Require Import
      P4cub.Syntax.AST P4cub.Syntax.Auxiliary
      P4cub.Syntax.CubNotations P4cub.Syntax.Shift
-     Utils.ForallMap.
+     Utils.ForallMap P4cub.Transformations.Lifting.LiftList.
 Import ListNotations.
 
 Open Scope nat_scope.
 Open Scope string_scope.
-Open Scope list_scope.
-
-Section ShiftPairs.
-  Polymorphic Universe a.
-  Polymorphic Context {A : Type@{a}}.
-  Polymorphic Variable f : shifter -> A -> A.
-
-  Polymorphic Fixpoint shift_pairs (l : list (A * list Exp.t)) : list (A * list Exp.t) :=
-    match l with
-    | [] => []
-    | (a, es) :: l
-      => let n := list_sum $ map (@length _) $ map snd l in
-        (f (Shifter (length es) n) a,
-          shift_list shift_exp (Shifter 0 n) es) ::
-          map (fun '(a, es') => (f (Shifter 0 $ length es) a, es')) (shift_pairs l)
-    end.
-  
-  Polymorphic Lemma shift_pairs_length : forall l,
-      length (shift_pairs l) = length l.
-  Proof using.
-    intro l; induction l as [| [a es] l ih];
-      unravel; f_equal; auto.
-    rewrite map_length. assumption.                     
-  Qed.
-
-  Polymorphic Lemma shift_pairs_inner_length : forall l,
-      map (length (A:=Exp.t)) (map snd (shift_pairs l))
-      = map (length (A:=Exp.t)) (map snd l).
-  Proof using.
-    intro l; induction l as [| [a es] l ih];
-      unravel; f_equal; auto.
-    - rewrite shift_list_length.
-      reflexivity.
-    - rewrite map_snd_map,map_id.
-      assumption.
-  Qed.
-End ShiftPairs.
 
 (** [lift_e e = (l, e')],
     where e' is a lifted expression,
@@ -75,28 +38,21 @@ Fixpoint lift_exp (e : Exp.t) {struct e}
   | Exp.Index t e1 e2 =>
       let '(e1, l1) := lift_exp e1 in
       let '(e2, l2) := lift_exp e2 in
-      (Exp.Index
-         t
-         (shift_exp (Shifter 0 (length l2)) e1)
-         (shift_exp (Shifter (length l2) (length l1)) e2),
-        shift_list shift_exp (Shifter 0 (length l1)) l2 ++ l1)
+      let '(e1',e2',l2') := shift_couple shift_exp shift_exp e1 e2 l1 l2 in
+      (Exp.Index t e1' e2', (l2' ++ l1)%list)
   | Exp.Bop t op e1 e2 => 
       let '(e1, l1) := lift_exp e1 in
       let '(e2, l2) := lift_exp e2 in
+      let '(e1',e2',l2') := shift_couple shift_exp shift_exp e1 e2 l1 l2 in
       (Exp.Var t "lifted_bop" 0,
-        Exp.Bop
-          t op
-          (shift_exp (Shifter 0 (length l2)) e1)
-          (shift_exp (Shifter (length l2) (length l1)) e2)
-          :: shift_list shift_exp (Shifter 0 (length l1)) l2 ++ l1)
+        Exp.Bop t op e1' e2' :: l2' ++ l1)
   | Exp.Lists l es =>
-      let '(es', les) := List.split (shift_pairs shift_exp $ List.map lift_exp es) in
+      let '(es', les) := shift_pairs shift_exp $ List.map lift_exp es in
       (Exp.Var (typ_of_lists l es) "lifted_lists" 0, Exp.Lists l es' :: concat les)
   end.
 
-Definition lift_exp_list (es : list Exp.t) : list Exp.t * list Exp.t :=
-  let '(es, les) := List.split (shift_pairs shift_exp $ List.map lift_exp es) in
-  (es, concat les).
+Definition lift_exp_list : list Exp.t -> list Exp.t * list Exp.t :=
+  lift_A_list shift_exp lift_exp.
 
 Definition lift_arg (arg : paramarg Exp.t Exp.t)
   : paramarg Exp.t Exp.t * list Exp.t :=
@@ -109,15 +65,12 @@ Definition lift_arg (arg : paramarg Exp.t Exp.t)
       let '(e, le) := lift_exp e in (PAInOut e, le)
   end.
 
-Definition lift_args (args : Exp.args) : Exp.args * list Exp.t :=
-  let '(args, les) := List.split (shift_pairs shift_arg $ List.map lift_arg args) in
-  (args, concat les).
+Definition lift_args : Exp.args -> Exp.args * list Exp.t :=
+  lift_A_list shift_arg lift_arg.
 
 Definition lift_args_list
-  (argss : list Exp.args) : list Exp.args * list Exp.t :=
-  let '(argss, argsss) :=
-    List.split (shift_pairs (shift_list shift_arg) $ map lift_args argss) in
-  (argss, concat argsss).
+  : list Exp.args -> list Exp.args * list Exp.t :=
+  lift_A_list (shift_list shift_arg) lift_args.
 
 Fixpoint Unwind (es : list Exp.t) (s : Stm.t) : Stm.t :=
   match es with
@@ -165,10 +118,8 @@ Fixpoint lift_stm (s : Stm.t) : Stm.t :=
   | e1 `:= e2
     => let '(e1, le1) := lift_exp e1 in
       let '(e2, le2) := lift_exp e2 in
-      Unwind
-        (shift_list shift_exp (Shifter 0 (length le1)) le2 ++ le1)
-        (shift_exp (Shifter 0 (length le2)) e1
-           `:= shift_exp (Shifter (length le2) (length le1)) e2)
+      let '(e1', e2', le2') := shift_couple shift_exp shift_exp e1 e2 le1 le2 in
+      Unwind (le2' ++ le1) (e1' `:= e2')
   | Stm.SetValidity b e
     => let '(e, le) := lift_exp e in
       Unwind le $ Stm.SetValidity b e
@@ -178,23 +129,20 @@ Fixpoint lift_stm (s : Stm.t) : Stm.t :=
   | Stm.App fk args
     => let '(fk,lfk) := lift_call fk in
       let '(args,largs) := lift_args args in
-      Unwind
-        (shift_list shift_exp (Shifter 0 (length largs)) lfk ++ largs)
-        (Stm.App
-           (shift_call (Shifter (length lfk) (length largs)) fk)
-           (map (shift_arg $ Shifter 0 (length lfk)) args))
+      let '(args, fk, lfk) := shift_couple (fun c a => map (shift_arg c a)) shift_call args fk largs lfk in
+      Unwind (lfk ++ largs) (Stm.App fk args)
   | `let og := inl t `in s => `let og := inl t `in lift_stm s
   | `let og := inr e `in s =>
       let '(e,le) := lift_exp e in
       Unwind le $
         `let og := inr e `in
-        shift_stm (Shifter 1 (length le)) $ lift_stm s
+        shift_stm 1 (length le) $ lift_stm s
   | s₁ `; s₂ => lift_stm s₁ `; lift_stm s₂
   | `if e `then s₁ `else s₂ =>
       let '(e,le) := lift_exp e in
       Unwind
-        le $ `if e `then shift_stm (Shifter 0 (length le)) $ lift_stm s₁
-        `else shift_stm (Shifter 0 (length le)) $ lift_stm s₂
+        le $ `if e `then shift_stm 0 (length le) $ lift_stm s₁
+        `else shift_stm 0 (length le) $ lift_stm s₂
   end.
 
 Local Close Scope stm_scope.
@@ -204,7 +152,7 @@ Definition lift_ctrl (cd : Ctrl.t) : list Ctrl.t * nat :=
   | Ctrl.Var x (inl t) => ([Ctrl.Var x $ inl t], 0)
   | Ctrl.Var x (inr e) =>
       let '(e, es) := lift_exp e in
-      (List.map (Ctrl.Var "" ∘ inr) es ++ [Ctrl.Var x $ inr e], List.length es)
+      ((List.map (Ctrl.Var "" ∘ inr) es ++ [Ctrl.Var x $ inr e])%list, List.length es)
   | Ctrl.Action a cps dps body
     => ([Ctrl.Action a cps dps $ lift_stm body], 0)
   | Ctrl.Table t key acts def =>
@@ -215,26 +163,22 @@ Definition lift_ctrl (cd : Ctrl.t) : list Ctrl.t * nat :=
       let '(def,defes) :=
         omap_effect
           []
-          (fun '(a,es) => map_fst (pair a) $ lift_exp_list es)
+          (fun '(a,es) => prod_map_fst (pair a) $ lift_exp_list es)
           def in
-      (List.map (Ctrl.Var "" ∘ inr) argsss
-         ++ List.map (Ctrl.Var "" ∘ inr)
-         (List.map (shift_exp (Shifter 0 $ length argsss)) ees)
-         ++ List.map (Ctrl.Var "" ∘ inr)
-         (List.map (shift_exp (Shifter 0 (length es + length argsss))) defes)
-         ++ [Ctrl.Table
-               t
-               (List.combine
-                  (map (shift_exp $ Shifter 0 $ length defes)
-                     $ map (shift_exp $ Shifter (length ees) $ length argsss) es) mks)
-               (List.combine acts
-                  $ map
-                  (shift_list shift_arg
-                     $ Shifter 0 (length defes + length ees)) argss)
-                  (option_map
-                     (fun '(a, es) =>
-                        (a, map (shift_exp $ Shifter (length defes) (length ees + length argss)) es))
-                     def)],
+      let '(def,es,argss,ees,argsss) :=
+        shift_triple
+          (fun c a => option_map (prod_map_snd (List.map (shift_exp c a))))
+          (fun c a => List.map (shift_exp c a))
+          (fun c a => List.map (List.map (shift_arg c a)))
+          def es argss defes ees argsss in
+      ((List.map (Ctrl.Var "" ∘ inr) argsss
+          ++ List.map (Ctrl.Var "" ∘ inr) ees
+          ++ List.map (Ctrl.Var "" ∘ inr) defes
+          ++ [Ctrl.Table
+                t
+                (List.combine es mks)
+                (List.combine acts argss)
+                def])%list,
         List.length ees + List.length argsss)
   end.
 
@@ -244,7 +188,7 @@ Fixpoint lift_ctrls (cds : list Ctrl.t) : list Ctrl.t * nat :=
   | d :: ds =>
       let '(d, n) := lift_ctrl d in
       let '(ds, ns) := lift_ctrls ds in
-      (d ++ shift_ctrls (Shifter 0 n) ds, n + ns)
+      ((d ++ shift_ctrls 0 n ds)%list, n + ns)
   end.
 
 Definition lift_top (td : Top.t) : Top.t := 
@@ -255,7 +199,7 @@ Definition lift_top (td : Top.t) : Top.t :=
       let (ds, n) := lift_ctrls body in
       Top.Control
         c cparams expr_cparams eps params ds
-        $ shift_stm (Shifter 0 n) $ lift_stm apply_blk  
+        $ shift_stm 0 n $ lift_stm apply_blk  
   | Top.Parser p cparams expr_cparams eps params start states =>
       Top.Parser
         p cparams expr_cparams eps params

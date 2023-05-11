@@ -42,8 +42,8 @@ depends: [
   "js_of_ocaml-lwt"
   "js_of_ocaml-ppx"
   "p4pp" {>= "0.1.11"}
-  "odoc"
   "coq" {<= "8.15.2" & build}
+  "odoc" {with-doc}
 ]
 build: [
   ["dune" "subst"] {dev}

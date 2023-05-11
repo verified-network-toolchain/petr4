@@ -3,6 +3,7 @@ From Coq Require Import
      Lists.List.
 Require Import Poulet4.Monads.Result.
 Require Poulet4.P4cub.Syntax.Syntax.
+Require Poulet4.Utils.Envn.
 Require Poulet4.P4flat.Syntax.
 
 Import ResultNotations.

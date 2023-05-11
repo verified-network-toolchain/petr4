@@ -7,14 +7,15 @@
    Archi
    Ascii
    Auxiliary
+   Base
    Basics
-   Binary
-   BinarySingleNaN
    BinInt
    BinNat
    BinNums
    BinPos
    BinPosDef
+   Binary
+   BinarySingleNaN
    Bits
    Bool
    Byte
@@ -26,6 +27,7 @@
    Clightdefs
    Cop
    Coqlib
+   Countable
    Csyntax
    Ctypes
    Ctypesdefs
@@ -37,10 +39,11 @@
    EquivDec
    EquivUtil
    Errors
+   Fin_maps
    Floats
    Globalenvs
+   Gmap
    Hexadecimal
-   IdentGen
    IEEE754_extra
    Integers
    List0
@@ -50,13 +53,18 @@
    Memory
    Memtype
    Monad
+   NameGen
    Nat
    Number
+   Numbers
    Operations
+   Option
    P4Field
    P4Int
    P4String
    Petr4Runtime
+   Pmap
+   Pretty
    RecordSet
    Result
    Round
@@ -65,6 +73,8 @@
    Specif
    State
    String0
+   Stringmap
+   Strings
    Values
    ZArith_dec
    Zaux

@@ -45,15 +45,15 @@ Definition seq_tables : P4flat.Syntax.Top.prog :=
 Definition refinements : list (Top.prog * Top.prog * fm (var + var) p4funs p4rels) :=
   [(one_table, seq_tables, FEq (TVar (inl "x_one_table")) (TVar (inr "x_seq_tables")))].
 
-Eval cbv in (prog_to_stmt one_table).
-Eval cbv in (prog_to_stmt seq_tables).
+Eval vm_compute in (prog_to_stmt one_table).
+Eval vm_compute in (prog_to_stmt seq_tables).
 Definition my_spec : fm (var + var) p4funs p4rels :=
   FEq (TVar (inl "x_one_table")) (TVar (inr "x_seq_tables")).
-Eval cbv in (let comp :=
-               let* one := prog_to_stmt one_table in
-               let* seq := prog_to_stmt seq_tables in
-               mret (GGCL.Dijkstra.wp _ _ _
-                                      (GGCL.Dijkstra.seq_prod_prog _ _ one seq)
-                                      my_spec)
-             in
-             comp).
+Eval vm_compute in (let comp :=
+                      let* one := prog_to_stmt one_table in
+                      let* seq := prog_to_stmt seq_tables in
+                      mret (GGCL.Dijkstra.wp _ _ _
+                                             (GGCL.Dijkstra.seq_prod_prog _ _ one seq)
+                                             my_spec)
+                    in
+                    comp).

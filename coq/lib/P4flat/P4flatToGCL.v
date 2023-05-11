@@ -6,9 +6,11 @@ Require Import Poulet4.P4flat.GGCL.
 Require Import Poulet4.Monads.Result.
 Require Import Poulet4.Monads.State.
 Require Import Poulet4.Utils.Envn.
+Require Poulet4.Utils.NameGen.
 Import ResultNotations.
 Import Dijkstra.
 
+Module GEN := NameGen.NameGenParam.
 Open Scope string_scope.
 
 Definition var := string.
@@ -22,32 +24,37 @@ Definition tbl_map :=
   Env.t string tbl_sig.
 
 (* A map from de Bruijn indices to fresh names. *)
-Definition idx_map :=
-  list (string * AST.Typ.t).
+Record env :=
+  { idx_map: list string;
+    typ_map: GEN.t AST.Typ.t }.
 
-(* TODO *)
-Definition freshen_name (m: idx_map) (s: string) :=
-  s.
+Definition init_env :=
+  {| idx_map := [];
+     typ_map := GEN.init |}.
 
-Definition declare_var s t : idx_map -> idx_map :=
-  fun m => (freshen_name m s, t) :: m.
+Definition freshen_name (m: env) (s: string) (t: AST.Typ.t) : string * GEN.t AST.Typ.t :=
+  GEN.freshen m.(typ_map) s t.
 
-Definition declare_param (name: string) (param: CUB.Typ.param) : idx_map -> idx_map :=
+Definition declare_var (name: string) (typ: AST.Typ.t) : env -> env :=
   fun m =>
-    let typ := match param with
-               | PAIn t
-               | PAOut t 
-               | PAInOut t => t
-               end
-    in
-    declare_var (freshen_name m name) typ m.
-  
+    let (name', tmap') := freshen_name m name typ in
+    {| idx_map := name' :: m.(idx_map);
+       typ_map := tmap' |}.
+
+Definition declare_param (name: string) (param: CUB.Typ.param) : env -> env :=
+  let typ := match param with
+             | PAIn t
+             | PAOut t 
+             | PAInOut t => t
+             end
+  in
+  declare_var name typ.
     
-Definition declare_params (params: CUB.Typ.params) : idx_map -> idx_map :=
+Definition declare_params (params: CUB.Typ.params) : env -> env :=
   fold_left (fun m '(name, p) => declare_param name p m) params.
 
-Definition find_var (m: idx_map) (k: nat) : result string (string * AST.Typ.t) :=
-  from_opt (nth_error m k) "find_var: index not found in idx_map".
+Definition find_var (m: env) (k: nat) : result string string :=
+  from_opt (nth_error m.(idx_map) k) "find_var: index not found in idx_map".
 
 Inductive p4sorts :=
 | Bool
@@ -103,11 +110,9 @@ Definition initial_p4sig : p4sig :=
 Definition mk_action (name: string) : Spec.tm var p4funs :=
   Spec.TFun (Sig.SSimple (BAction name)) [].
 
-Definition lhs_to_var (m: idx_map) (e: Exp.t) : result string var :=
+Definition lhs_to_var (m: env) (e: Exp.t) : result string var :=
   match e with
-  | Exp.Var _ _ idx =>
-      let+ (name, typ) := find_var m idx in
-      name
+  | Exp.Var _ _ idx => find_var m idx
   | _ => error "lvals other than vars are not yet implemented"
   end.
 
@@ -118,7 +123,7 @@ Definition e_to_tm (e: Exp.t) : result string (Spec.tm var p4funs) :=
   | _ => error "e_to_tm unimplemented"
   end.
 
-Fixpoint s_to_stmt (m: idx_map) (s: Stm.t) : result string (stmt var p4funs p4rels) :=
+Fixpoint s_to_stmt (m: env) (s: Stm.t) : result string (stmt var p4funs p4rels) :=
   match s with
   | Stm.Skip => mret (GSkip _ _ _)
   | Stm.Ret e => (error "return unimplemented")
@@ -174,4 +179,4 @@ Definition prog_to_stmt (p: Top.prog) : result string (stmt var p4funs p4rels) :
                | _ => (error "wrong number of args to main pkg (expected exactly 1)")
                end in
   let* (_, eparams, params, cstmt) := (Top.find_decl ctrl p >>= Top.expect_controlblock) in
-  s_to_stmt (declare_params params []) cstmt.
+  s_to_stmt (declare_params params init_env) cstmt.

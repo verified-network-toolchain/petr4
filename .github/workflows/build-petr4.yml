@@ -19,12 +19,13 @@ jobs:
         uses: actions/checkout@v1
       
       - name: setup-ocaml
-        uses: ocaml/setup-ocaml@v1
+        uses: ocaml/setup-ocaml@v2
         with:
           ocaml-version: '4.14.0'
           dune-cache: yes
           opam-repositories: |
             default: https://coq.inria.fr/opam/released
+          opam-pin: yes
           opam-local-packages: "*.opam"
 
             #      - name: build-ubuntu

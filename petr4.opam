@@ -19,6 +19,8 @@ license: "Apache-2.0"
 homepage: "https://github.com/verified-network-toolchain/petr4"
 bug-reports: "https://github.com/verified-network-toolchain/petr4"
 depends: [
+  "conf-gmp"
+  "conf-m4"
   "poulet4"
   "poulet4_Ccomp"
   "coq-compcert"

@@ -33,9 +33,7 @@ jobs:
             #run: ./.github/scripts/build-petr4-ubuntu.sh
             #shell: bash
 
-      - name: ci-test
-        run: make ci-test
-
-      - name: test-gcl-compiler
-        run: ./.github/scripts/test-gcl-compiler.sh
-        shell: bash
+      - run: opam install . --deps-only
+      - run: opam exec -- dune build
+      - run: make ci-test
+      - run: ./.github/scripts/test-gcl-compiler.sh

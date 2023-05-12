@@ -24,6 +24,7 @@ jobs:
           ocaml-compiler: '4.14.0'
           dune-cache: false
           opam-repositories: |
+            default: https://opam.ocaml.org
             coq-released: https://coq.inria.fr/opam/released
           opam-pin: true
           opam-local-packages: "*.opam"

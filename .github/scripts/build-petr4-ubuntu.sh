@@ -12,11 +12,6 @@ export PETR4_DEPS="m4 \
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends ${PETR4_DEPS}
 
-opam switch 4.14.0
-eval $(opam env)
-opam repo add coq-released https://coq.inria.fr/opam/released
-opam update
-
 opam pin add --no-action p4pp https://github.com/cornell-netlab/p4pp.git
 opam pin add --no-action coq-vst-zlist https://github.com/PrincetonUniversity/VST.git
 

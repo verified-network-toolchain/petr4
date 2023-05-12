@@ -23,6 +23,8 @@
  (bug_reports  "https://github.com/verified-network-toolchain/petr4")
  (license      "Apache-2.0")
  (depends
+   conf-gmp
+   conf-m4
    poulet4
    poulet4_Ccomp
    coq-compcert

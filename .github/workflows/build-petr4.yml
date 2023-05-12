@@ -22,12 +22,20 @@ jobs:
         uses: ocaml/setup-ocaml@v1
         with:
           ocaml-version: '4.14.0'
+          dune-cache: yes
+          opam-repositories: |
+            default: https://coq.inria.fr/opam/released
+          opam-local-packages:
+            *.opam
 
-      - name: build-ubuntu
-        run: ./.github/scripts/build-petr4-ubuntu.sh
-        shell: bash
+            #      - name: build-ubuntu
+            #run: ./.github/scripts/build-petr4-ubuntu.sh
+            #shell: bash
 
-      - name: Run Tests
+      - name: ci-test
+        run: make ci-test
+
+      - name: test-gcl-compiler
         run: ./.github/scripts/test-gcl-compiler.sh
         shell: bash
 

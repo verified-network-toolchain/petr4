@@ -35,5 +35,5 @@ jobs:
 
       - run: opam install . --deps-only
       - run: opam exec -- dune build
-      - run: make ci-test
+      - run: opam exec -- make ci-test
       - run: ./.github/scripts/test-gcl-compiler.sh

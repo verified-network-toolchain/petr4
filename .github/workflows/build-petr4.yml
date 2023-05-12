@@ -21,7 +21,7 @@ jobs:
       - name: setup-ocaml
         uses: ocaml/setup-ocaml@v2
         with:
-          ocaml-version: '4.14.0'
+          ocaml-compiler: '4.14.0'
           dune-cache: true
           opam-repositories: |
             default: https://coq.inria.fr/opam/released
@@ -36,25 +36,5 @@ jobs:
         run: make ci-test
 
       - name: test-gcl-compiler
-        run: ./.github/scripts/test-gcl-compiler.sh
-        shell: bash
-
-  build-macos-latest:
-    runs-on: macos-latest
-
-    steps: 
-      - name: checkout-main
-        uses: actions/checkout@v1
-        
-      - name: setup-ocaml
-        uses: ocaml/setup-ocaml@v1
-        with: 
-          ocaml-version: '4.14.0'
-        
-      - name: build-macos
-        run: ./.github/scripts/build-petr4-macos.sh
-        shell: bash
-
-      - name: Run Tests
         run: ./.github/scripts/test-gcl-compiler.sh
         shell: bash

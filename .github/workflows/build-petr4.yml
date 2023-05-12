@@ -16,15 +16,15 @@ jobs:
 
     steps: 
       - name: checkout/main
-        uses: actions/checkout@v1
+        uses: actions/checkout@v3
       
       - name: setup-ocaml
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: '4.14.0'
-          dune-cache: true
+          dune-cache: false
           opam-repositories: |
-            default: https://coq.inria.fr/opam/released
+            coq-released: https://coq.inria.fr/opam/released
           opam-pin: true
           opam-local-packages: "*.opam"
 

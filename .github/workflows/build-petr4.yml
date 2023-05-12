@@ -25,8 +25,7 @@ jobs:
           dune-cache: yes
           opam-repositories: |
             default: https://coq.inria.fr/opam/released
-          opam-local-packages:
-            *.opam
+          opam-local-packages: "*.opam"
 
             #      - name: build-ubuntu
             #run: ./.github/scripts/build-petr4-ubuntu.sh

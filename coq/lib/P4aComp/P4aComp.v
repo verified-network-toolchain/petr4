@@ -1,15 +1,67 @@
 From Leapfrog Require Import Syntax Ntuple.
 From Poulet4.P4cub.Syntax Require Import Syntax P4Field.
-From Poulet4.Utils Require Import FinType P4Arith.
+From Poulet4.Monads Require Import Option.
+From Poulet4.Utils Require Import FinType P4Arith Envn.
 Require Import Coq.ZArith.ZArith
         Coq.micromega.Lia
         Coq.Bool.Bool.
 Import String.
 Open Scope string_scope.
+Import ListNotations.
 Module P4c := AST.
 Module P4a := Leapfrog.Syntax.
 (* Open Scope p4a. *)
 Open Scope nat_scope.
+
+Definition id := nat.
+
+Module IdGen.
+  Definition t := id.
+  Definition init : t := 0.
+  Definition fresh (k : t) : nat * t :=
+    (k, S k).
+End IdGen.
+
+Module BoundedIdGen.
+  Record t :=
+    Mk_t { max: id;
+           next: id }.
+  Definition init (max: id) : t := {| max := max;
+                                      next := 0; |}.
+  Definition fresh (env : t) : option (nat * t) :=
+    let '(Mk_t max next) := env in
+    if Nat.leb next max
+    then Some (next, {| max := max; next := next + 1 |})
+    else None.
+End BoundedIdGen.
+
+Module IdxMap.
+  (* Mapping from de Bruijn indices to generated names (nats) *)
+  Inductive shape :=
+  | Var (x: id)
+  | Struct (fields : list id).
+  Definition t := list shape.
+  Definition init : t := [].
+  Definition get_shape (m: t) (idx: nat) : option shape :=
+    nth_error m idx.
+  Definition add_shape (m: t) (x: shape) : t :=
+    x :: m.
+End IdxMap.
+
+Definition sz_map :=
+  Env.t id nat.
+
+Module CompEnv.
+  Record t :=
+    { env_idx: IdxMap.t;
+      env_sz: sz_map }.
+
+  Definition init: t :=
+    {| env_idx := IdxMap.init;
+       env_sz := Env.empty _ _ |}.
+
+End CompEnv.
+
 
 Section P4AComp. 
 
@@ -35,19 +87,7 @@ Fixpoint type_size (e:Typ.t) : option nat:=
     | Typ.Error => None
   end.
 
-Print List.nth_error.
-
-Definition size_struct_member (mem:nat) (arg:Exp.t) : option nat:=
-  match arg with 
-  | Exp.Var (Typ.Struct _ fields) _ _ => 
-    match List.nth_error fields mem with 
-    | Some field => type_size field
-    | None => None
-    end
-  | _ => None
-  end.
-
-  (* Find size of P4Cub Expr.e *)
+(* Find size of P4Cub Expr.e *)
 Fixpoint type_size_e (e:Exp.t) : option nat :=
   match e with 
     | Exp.Bool b => Some 1
@@ -57,68 +97,46 @@ Fixpoint type_size_e (e:Exp.t) : option nat :=
     | Exp.Var t name x => type_size t
     | Exp.Slice hi lo arg => 
       match type_size_e arg with 
-      | Some n1 => Some (Init.Nat.min (1 + Pos.to_nat hi) n1 -
-    Pos.to_nat lo)
+      | Some n1 => Some (Init.Nat.min (1 + Pos.to_nat hi) n1 - Pos.to_nat lo)
       | None => None
       end
     | Exp.Cast t arg => type_size t
     | Exp.Uop t op arg => type_size t
-    (* result_type seems wrong in p4cub output file *)
-    | Exp.Member result_type mem arg => 
-      match size_struct_member mem arg with
-        | Some field_size => Some field_size
-        | _ => None
-      end
+    | Exp.Member result_type mem arg =>
+        type_size result_type
     | _ => None
   end.
 
-(* Definition collect_hdrs_str5uct *)
-
-
 (* Get the headers from paramargs *)
-Definition collect_hdrs_params (p:Typ.params) : option (Field.fs nat nat) :=
-  let add_hdr hdrs (t:Typ.t) := 
-    match hdrs with 
-    | Some headers => 
-      match type_size t with 
-      | Some size_t => Some ((List.length headers, size_t)::headers)
-      | None => None 
-      end
-    | None => None
-    end in 
+Definition collect_hdrs_params (gen: IdGen.t) (p: Typ.params) : option (IdGen.t * CompEnv.t) :=
+  let add_hdr acc (t:Typ.t) :=
+    let* (gen, sz, hdrs) := acc in
+    let (next, gen') := IdGen.fresh gen in
+    let* size_t := type_size t in
+    Some (gen', Env.bind next size_t sz, hdrs ++ [next])%list
+  in
   match p with 
-  | (_ , PAOut (Typ.Struct false fields))::t => 
-    List.fold_left add_hdr fields (Some [])
+  | (_ , PAOut (Typ.Struct false fields)) :: t => 
+    let init := Some (gen, Env.empty id nat, []) in
+    let* '(gen', sz, shape) := List.fold_left add_hdr fields init in
+    mret (gen', {| CompEnv.env_sz := sz;
+                   CompEnv.env_idx := IdxMap.add_shape IdxMap.init (IdxMap.Struct shape) |})
   | _ => None
   end.
 
-Definition collect_hdrs_parser (p:Top.t) : option (Field.fs nat nat) :=
+Definition collect_hdrs_parser (gen: IdGen.t) (p:Top.t) : option (IdGen.t * CompEnv.t) :=
   match p with 
-  | Top.Parser _ _ _ _ params _ _ => collect_hdrs_params params
+  | Top.Parser _ _ _ _ params _ _ => collect_hdrs_params gen params
   | _ => None
   end.
-
-(* Note this works for V1model -> as it assumes all Out fields are headers *)
-Definition collect_hdrs_parsers (p: list Top.t) : option (Field.fs nat nat) := 
-  let collect_hdrs_parser accum parser:= 
-    match accum, parser with 
-    | Some accum_headers, Top.Parser _ _ _ _ params _ _ => 
-      match collect_hdrs_params params with 
-      | Some headers => Some (headers ++ accum_headers)%list
-      | None => None
-      end
-    | _, _ => None
-    end in 
-  List.fold_left collect_hdrs_parser p (Some []).
-  
 
 Definition test_header_from_params := [("hdr",
-(PAOut
-  (Typ.Struct false
-  [Typ.Struct true [Typ.Bit 48; Typ.Bit 48; Typ.Bit 16];
+                                         (PAOut
+                                            (Typ.Struct false
+                                                        [Typ.Struct true [Typ.Bit 48; Typ.Bit 48; Typ.Bit 16];
    Typ.Struct true [Typ.Bit 40; Typ.Bit 10]])))] : (Typ.params).
   
-  Compute collect_hdrs_params test_header_from_params.
+Compute collect_hdrs_params IdGen.init test_header_from_params.
 
 (* Create Fin type headers, hdrs might not be needed as everything is *)
 Definition mk_hdr_type (hdrs: Field.fs nat nat) : Type := Fin.t (List.length hdrs).
@@ -196,37 +214,42 @@ Proof.
 Defined.  
 
 (* Return size of an expression. Duplicate of type_size_e without returning the option *)
-Fixpoint expr_size (hdrs: Field.fs nat nat) (e:Exp.t) : nat := 
+Fixpoint expr_size (env: CompEnv.t) (e:Exp.t) : nat := 
   match e with 
-    | Exp.Bool b => 1
-    | Exp.VarBit max_width width val => (N.to_nat width)
-    | Exp.Bit w val => (N.to_nat w)
-    | Exp.Int w val => (Pos.to_nat w)
-    | Exp.Var t name x => 
-      (*  May need a type_size that is not wrapped in an option *)
+  | Exp.Bool b => 1
+  | Exp.VarBit max_width width val => (N.to_nat width)
+  | Exp.Bit w val => (N.to_nat w)
+  | Exp.Int w val => (Pos.to_nat w)
+  | Exp.Var t name idx =>
+      match IdxMap.get_shape (CompEnv.env_idx env) idx with
+      | Some (IdxMap.Var x) =>
+          match Env.find x (CompEnv.env_sz env) with
+          | Some sz => sz
+          | None => 0
+          end
+      | Some (IdxMap.Struct _) => 0
+      | None => 0
+      end
+  | Exp.Slice hi lo arg =>
+      (Init.Nat.min (1 + Pos.to_nat hi) (expr_size hdrs arg) -
+         Pos.to_nat lo)
+  | Exp.Cast t arg => 
       match type_size t with 
       | Some size => size
       | None => 0
       end
-    | Exp.Slice hi lo arg => (Init.Nat.min (1 + Pos.to_nat hi) (expr_size hdrs arg) -
-    Pos.to_nat lo)
-    | Exp.Cast t arg => 
+  | Exp.Uop t op arg =>
       match type_size t with 
-        | Some size => size
-        | None => 0
+      | Some size => size
+      | None => 0
       end
-    | Exp.Uop t op arg =>
-      match type_size t with 
-        | Some size => size
-        | None => 0
-      end
-    (* result_type seems wrong in p4cub output file *)
-    | Exp.Member result_type mem arg => 
+  (* result_type seems wrong in p4cub output file *)
+  | Exp.Member result_type mem arg => 
       match size_struct_member mem arg with
-        | Some field_size => field_size
-        | _ => 0
+      | Some field_size => field_size
+      | _ => 0
       end
-    | _ => 0
+  | _ => 0
   end.
 
 Definition args_sz (hdrs: Field.fs nat nat) (args:Exp.args) : nat := 

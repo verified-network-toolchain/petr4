@@ -1,0 +1,2 @@
+p4cubSexp: "Bool" -> "Bit"
+Why is Member result_type seemingly wrong? (when you print p4cubSexp)

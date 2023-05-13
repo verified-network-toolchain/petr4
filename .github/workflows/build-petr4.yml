@@ -24,7 +24,7 @@ jobs:
       - name: checkout/main
         uses: actions/checkout@v3
       
-      - run: sh -c 'echo storage mode: $DUNE_CACHE_STORAGE_MODE'
+      - run: sh -c "echo storage mode: $DUNE_CACHE_STORAGE_MODE"
 
       - name: setup-ocaml
         uses: ocaml/setup-ocaml@v2

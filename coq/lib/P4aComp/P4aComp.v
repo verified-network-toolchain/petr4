@@ -46,6 +46,14 @@ Module IdxMap.
     nth_error m idx.
   Definition add_shape (m: t) (x: shape) : t :=
     x :: m.
+    Check List.fold_left.
+  Definition get_size (m:t) : nat :=
+    let map_size accum s := 
+    match s with 
+    | Var x => accum + 1
+    | Struct fields => accum + (List.fold_left (fun accum' _ => accum'+1) fields 0)
+    end in 
+    List.fold_left map_size m 0.
 End IdxMap.
 
 Definition sz_map :=
@@ -59,6 +67,14 @@ Module CompEnv.
   Definition init: t :=
     {| env_idx := IdxMap.init;
        env_sz := Env.empty _ _ |}.
+
+       Print Env.
+  Definition hdr_sz (env:t) : nat -> nat :=
+    fun n =>
+      match Env.find n (env_sz env) with 
+      | Some sz => sz
+      | None => 0
+      end.
 
 End CompEnv.
 
@@ -130,23 +146,15 @@ Definition collect_hdrs_parser (gen: IdGen.t) (p:Top.t) : option (IdGen.t * Comp
   | _ => None
   end.
 
-Definition test_header_from_params := [("hdr",
-                                         (PAOut
-                                            (Typ.Struct false
-                                                        [Typ.Struct true [Typ.Bit 48; Typ.Bit 48; Typ.Bit 16];
-   Typ.Struct true [Typ.Bit 40; Typ.Bit 10]])))] : (Typ.params).
-  
-Compute collect_hdrs_params IdGen.init test_header_from_params.
-
 (* Create Fin type headers, hdrs might not be needed as everything is *)
-Definition mk_hdr_type (hdrs: Field.fs nat nat) : Type := Fin.t (List.length hdrs).
+Definition mk_hdr_type (env: CompEnv.t) : Type := Fin.t (IdxMap.get_size (CompEnv.env_idx env)).
 
 (* Create Fin type states *)
 (* + 3 at the end for Start, Accept, Reject respectively *)
 Definition mk_st_type (states: Field.fs nat Stm.t) : Type := Fin.t (List.length states).
 
 (* Get Fin type headers from list of headers and header name*)
-Definition inject_name (hdrs: list (nat * nat)) (hdr: nat) : option (mk_hdr_type hdrs).
+(* Definition inject_name (hdrs: list (nat * nat)) (hdr: nat) : option (mk_hdr_type hdrs).
 Proof.
   destruct (findi (fun kv => Nat.eqb hdr (fst kv)) hdrs) eqn:?.
   - apply Some.
@@ -170,14 +178,14 @@ Proof.
   - apply nth_error_None in Heqo.
     unfold Field.f in pf.
     lia.
-Defined.
+Defined. *)
 
 (* Get size of header *)
-Definition hdr_map (hdrs: list (nat * nat)) (h:mk_hdr_type hdrs) : nat := 
+(* Definition hdr_map (env: CompEnv.t) (h:mk_hdr_type hdrs) : nat := 
   match Field.get (extract_name hdrs h) hdrs with 
     | Some n => n 
     | None => 0   (* This shouldn't be needed *)
-  end.
+  end. *)
 
 (* Lemma test : forall {A: Type} (n:nat) h (l: list A), n < (Datatypes.length (h::l)) -> n < (Datatypes.length (h::l)) + 3.
 Proof.
@@ -213,6 +221,14 @@ Proof.
     lia.
 Defined.  
 
+
+Definition test (env: CompEnv.t) (mem:nat) (idx:nat) : nat := 
+  match IdxMap.get_shape (CompEnv.env_idx env) idx with
+    | Some (IdxMap.Var x) => 0
+    | Some (IdxMap.Struct id_list) => List.nth mem id_list 0
+    | None => 0
+  end.
+
 (* Return size of an expression. Duplicate of type_size_e without returning the option *)
 Fixpoint expr_size (env: CompEnv.t) (e:Exp.t) : nat := 
   match e with 
@@ -224,14 +240,14 @@ Fixpoint expr_size (env: CompEnv.t) (e:Exp.t) : nat :=
       match IdxMap.get_shape (CompEnv.env_idx env) idx with
       | Some (IdxMap.Var x) =>
           match Env.find x (CompEnv.env_sz env) with
-          | Some sz => sz
+          | Some index => (CompEnv.hdr_sz env index)
           | None => 0
           end
       | Some (IdxMap.Struct _) => 0
       | None => 0
       end
   | Exp.Slice hi lo arg =>
-      (Init.Nat.min (1 + Pos.to_nat hi) (expr_size hdrs arg) -
+      (Init.Nat.min (1 + Pos.to_nat hi) (expr_size env arg) -
          Pos.to_nat lo)
   | Exp.Cast t arg => 
       match type_size t with 
@@ -243,41 +259,52 @@ Fixpoint expr_size (env: CompEnv.t) (e:Exp.t) : nat :=
       | Some size => size
       | None => 0
       end
-  (* result_type seems wrong in p4cub output file *)
-  | Exp.Member result_type mem arg => 
-      match size_struct_member mem arg with
-      | Some field_size => field_size
-      | _ => 0
+  (* result_type seems wrong in p4cub output file?? *)
+  | Exp.Member result_type mem (Exp.Var t name idx) => CompEnv.hdr_sz env (test env mem idx)
+    (* match IdxMap.get_shape  (CompEnv.env_idx env) idx with
+    | Some (IdxMap.Var x) => 0
+    | Some (IdxMap.Struct id_list) => 
+      match List.nth_error id_list mem with 
+      | Some index => (CompEnv.hdr_sz env index)
+      | None => 0
       end
+    | None => 0
+    end *)
+
+  | Exp.Member result_type mem (Exp.Member result_type' mem' arg) => 
+    match type_size result_type with 
+    | Some sz => sz
+    | None => 0
+    end
   | _ => 0
   end.
 
-Definition args_sz (hdrs: Field.fs nat nat) (args:Exp.args) : nat := 
+Definition args_sz (env: CompEnv.t) (args:Exp.args) : nat := 
   let arg_sz (accum:nat) (arg: Exp.arg):= 
     match arg with 
-    | PAIn a => expr_size hdrs a
-    | PAOut b => expr_size hdrs b
-    | PAInOut b => expr_size hdrs b
+    | PAIn a => expr_size env a
+    | PAOut b => expr_size env b
+    | PAInOut b => expr_size env b
     end in 
     List.fold_left arg_sz args 0.
 
 (* Find the size of a P4cub state_block *)
-Fixpoint statement_sz (hdrs: Field.fs nat nat) (state: Stm.t) (accum:nat): nat := 
+Fixpoint statement_sz (env: CompEnv.t) (state: Stm.t) (accum:nat): nat := 
   match state with 
   (* Size of a extract call *)
-  | Stm.App (Call.Method "packet_in" "extract" _ _) args => args_sz hdrs args
-  | Stm.Seq head tail => statement_sz hdrs tail (statement_sz hdrs head accum)
+  | Stm.App (Call.Method "packet_in" "extract" _ _) args => args_sz env args
+  | Stm.Seq head tail => statement_sz env tail (statement_sz env head accum)
   | _ => 0
   end.
 
 (* Maps a P4cub state to its size using state_block_sz. (Might not need this definition) *)
-Definition st_map (hdrs: Field.fs nat nat) (states: list (nat * Stm.t)) (st:mk_st_type states) : nat := 
+Definition st_map (env: CompEnv.t) (states: list (nat * Stm.t)) (st:mk_st_type states) : nat := 
   match Field.get (extract_name_st states st) states with 
-  | Some st => statement_sz hdrs st 0
+  | Some st => statement_sz env st 0
   | None => 0
   end.
 
-Compute fun test (hdrs: Field.fs nat nat) => (ESlice _ _ 1 0).
+Compute fun test (env: CompEnv.t) => (ESlice _ _ 1 0).
 
 (* Translate P4cub expression to P4a. 
 [ctxt] holds mappings from debruijn to P4a Headers*)
@@ -307,19 +334,56 @@ Fixpoint ctxt_pop_n (ctxt:Field.fs nat nat) (n:nat) :=
   | S n' => ctxt_pop_n (ctxt_pop ctxt) n'
   end.
 
-Check option (expr (hdr_map _) (expr_size _ _)).
-Fixpoint translate_expr (ctxt: Field.fs nat Exp.t) (hdrs: Field.fs nat nat) (e:Exp.t) : option (expr (hdr_map hdrs) (expr_size hdrs e)) := 
-  match e with 
-  (* | Exp.Member result_t debruijn (Var ) =>  *)
-  (* | Exp.Member result_t debruijn arg_t => 
-    if debruijn + 1 == List.length ctxt then 
+Check CompEnv.env_sz.
+Check sz_map.
+Check Env.empty.
+(* Definition  *)
+Check fun (env: CompEnv.t) (e:Exp.t)  =>(expr ((CompEnv.hdr_sz) env) (expr_size env e)).
+(*
+Goal 
+forall 
+(translate_expr : Field.fs nat Exp.t ->
+                 forall (env : CompEnv.t) (e : Exp.t),
+                 option
+                   (expr (CompEnv.hdr_sz env)
+                      (expr_size env e)))
+(ctxt : Field.fs nat Exp.t)
+(env : CompEnv.t)
+(e : Exp.t)
+(result_t : Typ.t)
+(mem : nat)
+(t : Exp.t)
+(t0 : Typ.t)
+(name : string)
+(idx : nat)
+(s : IdxMap.shape)
+(id_list : list id)
+(ident : id),
+CompEnv.hdr_sz env ident = expr_size env
+   (Exp.Member result_t mem (Exp.Var t0 name idx)).
+   intros.
+   simpl.*)
 
-    else  *)
+Fixpoint translate_expr (env: CompEnv.t) (e:Exp.t)
+     : option (expr ((CompEnv.hdr_sz) env) (expr_size env e)) := 
+  match e as e0 return option (expr ((CompEnv.hdr_sz) env) (expr_size env e0)) with 
+
   | Exp.Slice hi lo arg => 
-      match translate_expr ctxt hdrs arg with
+      match translate_expr env arg with
         | Some e1 => Some (ESlice _ e1 (Pos.to_nat hi) (Pos.to_nat lo) )
         | None => None
       end
+  | Exp.Member result_t mem (Exp.Var t name idx) =>
+    Some (EHdr (test env mem idx))
+    (* match IdxMap.get_shape (CompEnv.env_idx env) idx with
+      | Some (IdxMap.Var x) => None
+      | Some (IdxMap.Struct id_list) => 
+        match List.nth_error id_list mem with 
+        | Some ident => Some (EHdr ident)
+        | None => None
+        end
+      | None => None
+    end *)
   | _ => None
   end.
 
@@ -341,65 +405,46 @@ Fixpoint extract_trans (s:Stm.t) : option (Stm.t * Trns.t) :=
   | _ => None (* Parser states presumably must end with transitions*)
   end.
 
-(* Translate transition statements *)
-Definition translate_trans (hdrs: Field.fs nat nat) (states:Field.fs nat Stm.t) 
-(trans:Trns.t) : option (transition (mk_st_type states) (hdr_map hdrs)) :=
-  match trans with 
-    | Trns.Direct st => 
-      match (st:Lbl.t) with 
-      | Lbl.Accept => Some (TGoto (hdr_map hdrs) (inr true))
-      | Lbl.Reject => Some (TGoto (hdr_map hdrs) (inr false))
+Definition translate_label (env:CompEnv.t) (states:Field.fs nat Stm.t) (st:Lbl.t) 
+  :option (transition (mk_st_type states) ( (CompEnv.hdr_sz) env)):=
+  match (st:Lbl.t) with 
+      | Lbl.Accept => Some (TGoto ((CompEnv.hdr_sz) env) (inr true))
+      | Lbl.Reject => Some (TGoto ((CompEnv.hdr_sz) env) (inr false))
       | Lbl.Start => 
         match inject_name_st states 0 with
-        | Some start_st => Some (TGoto (hdr_map hdrs) (inl start_st))
+        | Some start_st => Some (TGoto ((CompEnv.hdr_sz) env) (inl start_st))
         | None => None 
         end
       | Lbl.Name st_name => 
         match inject_name_st states st_name with
-        | Some start_st => Some (TGoto (hdr_map hdrs) (inl start_st))
+        | Some start_st => Some (TGoto ((CompEnv.hdr_sz) env) (inl start_st))
         | None => None 
         end
-      end
+  end.
+
+(* Translate transition statements *)
+Definition translate_trans (env: CompEnv.t) (states:Field.fs nat Stm.t) 
+(trans:Trns.t) : option (transition (mk_st_type states) ( (CompEnv.hdr_sz) env)) :=
+  match trans with 
+    | Trns.Direct st => translate_label env states st
     | Trns.Select discriminee default cases => None
   end.
 
-
-(* Fixpoint transform_st (ctxt: Field.fs nat Exp.t) (s:Stm.t) : prod (Field.fs nat Exp.t) Stm.t:=
-  match s with 
-  | Stm.Seq s1 s2 => 
-    match transform_st ctxt s1 with 
-    | ctxt', s' => 
-  | _ => s, ctxt
-  end. *)
+  Check paramarg nat nat.
 
 (* Need function for finding header associated with an expression *)
-Fixpoint translate_st (hdrs: Field.fs nat nat) (s:Stm.t): option (op (hdr_map hdrs)):= 
+Fixpoint translate_st (env: CompEnv.t) (s:Stm.t): option (op ((CompEnv.hdr_sz) env)):= 
   match s with 
   | Stm.Skip => Some (OpNil _)
-  (* | Stm.SVardecl x expr _ =>
-    match inject_name hdrs x with 
-    | Some hdr => 
-      match expr with 
-      | inl typ => Some (OpNil _) 
-      | inr e => 
-        match translate_expr hdrs e with 
-        | Some e1 => 
-          match coerce_size e1 (hdr_map hdrs hdr) with 
-          | Some e2 => Some (OpAsgn hdr e2)
-          | None => None
-          end
-        | None => None
-        end
-      end
-    | None => None
-    end *)
+  | Stm.App (Call.Method "packet_in" "extract" _ _) [(PAOut (Exp.Member _ mem (Exp.Var _ _ _)))] =>
+    Some (OpExtract (CompEnv.hdr_sz env) mem)
   (* | Stmt.SAssign lhs rhs _ => 
     match (translate_expr hdrs lhs), (translate_expr hdrs rhs) with 
       | Some (EHdr hdr), Some e1 => OpAsgn hdr e1
       |  
     end *)
   | Stm.Seq s1 s2 => 
-    match (translate_st hdrs s1), (translate_st hdrs s2) with 
+    match (translate_st env s1), (translate_st env s2) with 
     | Some st1, Some st2 => Some (OpSeq st1 st2)
     | _, _ => None
     end
@@ -419,6 +464,7 @@ Fixpoint translate_st (hdrs: Field.fs nat nat) (s:Stm.t): option (op (hdr_map hd
   (* | Stmt.SAssign lhs rhs i => translate_expr hdrs  *)
   | _ => None
   end.
+  
 
 (* Get all parser declarations from the program *)
 Fixpoint get_parsers (prog: list Top.t) (accum:list Top.t): list (Top.t) :=
@@ -445,10 +491,10 @@ Definition find_states (parser:Top.t) : Field.fs nat Stm.t :=
   | _ => []
   end.
 
-Definition find_hdrs (prog:Top.t) : Field.fs nat nat :=
-   match collect_hdrs_parser prog with 
-   | Some headers => headers
-   | None => []
+Definition find_hdrs (prog:Top.t) : CompEnv.t :=
+   match collect_hdrs_parser IdGen.init prog with 
+   | Some headers => snd headers
+   | None => CompEnv.init
    end.
 
 Definition fold_option {A} (l: list (option A)) :=
@@ -468,16 +514,16 @@ Definition fold_option {A} (l: list (option A)) :=
       end
     end. *)
 
-Definition translate_state (hdrs:Field.fs nat nat) (states:Field.fs nat Stm.t) (st : Stm.t * Trns.t) : option (state (mk_st_type states) (hdr_map hdrs)):= 
+Definition translate_state (env:CompEnv.t) (states:Field.fs nat Stm.t) (st : Stm.t * Trns.t) : option (state (mk_st_type states) ((CompEnv.hdr_sz) env)):= 
   match st with 
   | (st', trans') => 
-    match translate_st hdrs st', translate_trans hdrs states trans' with 
+    match translate_st env st', translate_trans env states trans' with 
     | Some t_stmt, Some transition => Some ({| st_op := t_stmt; st_trans := transition|})
     | _, _ => None
     end
   end.
 
-Definition translate_parser (parser:Top.t) : option (list (state (mk_st_type (find_states parser)) (hdr_map (find_hdrs parser)))) :=
+Definition translate_parser (parser:Top.t) : option (list (state (mk_st_type (find_states parser)) (CompEnv.hdr_sz (find_hdrs parser)))) := 
   let hdrs := find_hdrs parser in 
   let all_states := find_states parser in 
   (* Get all Stm.t from current parser *)
@@ -489,6 +535,54 @@ Definition translate_parser (parser:Top.t) : option (list (state (mk_st_type (fi
     | None => None
     end.
 End P4AComp.
+
+
+Definition parser_accept := 
+  (Top.Parser "MyParser" [] [] [] 
+  ([
+   ("hdr",
+     (PAOut
+      (Typ.Struct false
+       ([ ((Typ.Struct true ([ (Typ.Bit 48); (Typ.Bit 48); (Typ.Bit 16) ])))
+        ]))));
+    ("meta", (PAInOut (Typ.Struct false [])))
+   ])
+  (Stm.Trans (Trns.Direct (Lbl.Name 1)))
+  ([
+   (Stm.Trans (Trns.Direct (Lbl.Name 1)));
+    (Stm.Seq
+     (Stm.App (Call.Method "packet_in" "extract" [] None)
+      ([
+       ((PAOut
+         (Exp.Member (Typ.Bit 48) 0
+          (Exp.Var
+           (Typ.Struct false
+            ([
+             ((Typ.Struct true
+               ([ (Typ.Bit 48); (Typ.Bit 48); (Typ.Bit 16) ])))
+             ]))
+           "hdr" 0))))
+       ]))
+     (Stm.Trans (Trns.Direct Lbl.Accept)))
+   ])).
+
+Definition test_extract := 
+  (Stm.App (Call.Method "packet_in" "extract" [] (None))
+      ([
+       ((PAOut
+         (Exp.Member (Typ.Bit 48) 0
+          (Exp.Var
+           (Typ.Struct false
+            ([
+             ((Typ.Struct true
+               ([ (Typ.Bit 48); (Typ.Bit 48); (Typ.Bit 16) ])))
+             ]))
+           "hdr" 0))))
+       ])).
+
+
+Compute translate_st (find_hdrs parser_accept) test_extract.
+Compute translate_parser parser_accept.
 
 (* 
 ctxt => maps debruijn to headers in P4A

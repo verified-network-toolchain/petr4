@@ -6,11 +6,26 @@ open Poulet4.AST
     constructor with name [name] and arguments [args] *)
 let make_sexp name args = Sexp.List (Sexp.Atom name :: args)
 
-let sexp_of_strings = sexp_of_list sexp_of_string
-let sexp_of_bit_type width = make_sexp "Typ.Bit" [ Bigint.sexp_of_t width ]
-let sexp_of_int_type width = make_sexp "Typ.Int" [ Bigint.sexp_of_t width ]
-let sexp_of_type_var idx = make_sexp "Typ.Var" [ sexp_of_int idx ]
+let extractAtom s = 
+  match s with 
+  | Sexp.Atom s -> Some s
+  | _ -> None
 
+let isAtom elem = 
+  match elem with 
+  | Sexp.Atom _ -> true
+  | _ -> false
+
+let sexp_of_strings = sexp_of_list sexp_of_string
+let sexp_of_bit_type width = 
+  match Bigint.sexp_of_t width |> extractAtom with 
+  | Some s' -> Sexp.Atom ("Typ.Bit_" ^ s')
+  | None -> make_sexp "Typ.Bit" [ Bigint.sexp_of_t width ]
+let sexp_of_int_type width = 
+  match Bigint.sexp_of_t width |> extractAtom with 
+  | Some s' -> Sexp.Atom ("Typ.Bit_" ^ s')
+  | None -> make_sexp "Typ.Int" [ Bigint.sexp_of_t width ]
+let sexp_of_type_var idx = make_sexp "Typ.Var" [ sexp_of_int idx ]
 let sexp_of_set_validity valid =
   make_sexp "Una.SetValidity" [ sexp_of_bool valid ]
 
@@ -44,6 +59,26 @@ let string_of_bin = function
 
 let sexp_of_bin bin = Sexp.Atom (string_of_bin bin)
 
+let sexp_of_list conv t = 
+  let converted = sexp_of_list conv t in 
+  match converted with 
+  | Sexp.List [] -> Sexp.Atom "[]"
+  | Sexp.Atom _ -> converted
+  | Sexp.List sexp_list -> 
+    match Stdlib.List.for_all isAtom sexp_list with
+    | true -> 
+      let string_list = Stdlib.List.filter_map extractAtom sexp_list in 
+      let helper accum elem = accum ^ "||" ^ elem in 
+      let flattened_str = Stdlib.List.fold_left helper (Stdlib.List.hd string_list) (Stdlib.List.tl string_list) in 
+      Sexp.Atom ("[" ^ flattened_str ^ "]")
+    | false ->    
+    Sexp.List [Sexp.Atom "["; converted; Sexp.Atom "]"]
+
+let sexp_list_join delim list= 
+  match list with 
+  | [] -> "[]"
+  | h::t -> "[" ^ (Stdlib.List.fold_left (fun accum x -> accum ^ delim ^ x) h t) ^ "]"
+
 let rec sexp_of_type = function
   | Typ.Bool -> Sexp.Atom "Typ.Bool"
   | Typ.Bit width -> sexp_of_bit_type width
@@ -57,7 +92,13 @@ let rec sexp_of_type = function
 and sexp_of_types types = sexp_of_list sexp_of_type types
 
 and sexp_of_struct_type is_header fields =
-  make_sexp "Typ.Struct" [ sexp_of_bool is_header; sexp_of_types fields ]
+  let fields_sexp = Stdlib.List.map sexp_of_type fields in 
+  if Stdlib.List.for_all isAtom fields_sexp && Stdlib.List.length fields_sexp > 0 then 
+    let fields_str = sexp_list_join "||" (Stdlib.List.filter_map extractAtom fields_sexp) in 
+    Sexp.List ([Sexp.Atom "Typ.Struct"; sexp_of_bool is_header;  Sexp.Atom fields_str])
+  else 
+    make_sexp "Typ.Struct" [sexp_of_bool is_header; sexp_of_types fields]
+
 
 and sexp_of_array_type size typ =
   make_sexp "Typ.Array" [ Bigint.sexp_of_t size; sexp_of_type typ ]
@@ -392,6 +433,7 @@ let sexp_of_top_decl : Top.t -> Sexp.t = function
   | Top.Funct (name, type_params, signature, body) ->
       sexp_of_funct name type_params signature body
 
-let sexp_of_prog : Top.prog -> Sexp.t = sexp_of_list sexp_of_top_decl
+let sexp_of_prog : Top.prog -> Sexp.t = Sexplib.Conv.sexp_of_list sexp_of_top_decl
 
-let print fmt prog = prog |> sexp_of_prog |> Sexp.pp_hum fmt
+let print fmt prog = 
+  prog |> sexp_of_prog |> Sexp.pp_hum fmt

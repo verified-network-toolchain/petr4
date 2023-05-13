@@ -25,7 +25,7 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: '4.14.0'
-          dune-cache: false
+          dune-cache: true
           opam-repositories: |
             default: https://opam.ocaml.org
             coq-released: https://coq.inria.fr/opam/released

@@ -27,7 +27,6 @@
    conf-m4
    poulet4
    poulet4_Ccomp
-   coq-compcert
    alcotest
    bignum
    (ocaml (>= "4.09.1"))

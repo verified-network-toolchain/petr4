@@ -7,7 +7,7 @@
    Archi
    Ascii
    Auxiliary
-   Base
+   base
    Basics
    BinInt
    BinNat
@@ -27,7 +27,7 @@
    Clightdefs
    Cop
    Coqlib
-   Countable
+   countable
    Csyntax
    Ctypes
    Ctypesdefs
@@ -39,10 +39,10 @@
    EquivDec
    EquivUtil
    Errors
-   Fin_maps
+   fin_maps
    Floats
    Globalenvs
-   Gmap
+   gmap
    Hexadecimal
    IEEE754_extra
    Integers
@@ -56,15 +56,15 @@
    NameGen
    Nat
    Number
-   Numbers
+   numbers
    Operations
-   Option
+   option
    P4Field
    P4Int
    P4String
    Petr4Runtime
-   Pmap
-   Pretty
+   pmap
+   pretty
    RecordSet
    Result
    Round
@@ -73,8 +73,8 @@
    Specif
    State
    String0
-   Stringmap
-   Strings
+   stringmap
+   strings
    Values
    ZArith_dec
    Zaux

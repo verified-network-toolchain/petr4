@@ -98,6 +98,7 @@ The optimizations somehow optimize away the nested fixpoint and avoid this error
 Set Extraction Flag 716.
 Extraction Inline Interpreter.interp_isValid.
 Extraction NoInline Interpreter.interp_isValid_fields.
+Extraction Blacklist option.
 
 (* Extract Constant VarNameGen.string_of_nat => "Int.to_string". *)
 Separate Extraction

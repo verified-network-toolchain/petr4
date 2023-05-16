@@ -717,7 +717,6 @@ Section ToP4cub.
               let+ cub_expr := translate_expression expr in
               E.Uop Typ.Bool Una.IsValid cub_expr
             else
-
               let* cub_type := translate_exp_type typ in
               match get_type_of_expr expr with
               | TypRecord fs
@@ -756,11 +755,22 @@ Section ToP4cub.
               end
         | ExpTernary cond tru fls =>
             error "Ternary expressions should have been hoisted by a previous pass"
-        (*| ExpFunctionCall _ =>*)
         | ExpFunctionCall func type_args args =>
-            error
-              ("calling " ++ get_func_name func
-                 ++ ", Function Calls should have been hoisted by a previous pass")
+            let '(MkExpression tags func_pt typ dir) := func in
+            match func_pt with
+            | ExpExpressionMember expr {| P4String.str := name |} =>
+                if (name =? "isValid")%string then
+                  let+ cub_expr := translate_expression expr in
+                  E.Uop Typ.Bool Una.IsValid cub_expr
+                else
+                  error
+                    ("calling " ++ get_func_name func
+                       ++ ", Function Calls should have been hoisted by a previous pass")
+            | _ =>
+                  error
+                    ("calling " ++ get_func_name func
+                       ++ ", Function Calls should have been hoisted by a previous pass")
+            end
         | ExpNamelessInstantiation typ args =>
             error "Nameless Intantiations should have been hoisted by a previous pass"
         | ExpDontCare =>

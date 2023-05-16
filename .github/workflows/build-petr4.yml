@@ -11,42 +11,28 @@ on:
   workflow_call:
 
 jobs:
-  build-ubuntu:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps: 
       - name: checkout/main
-        uses: actions/checkout@v1
+        uses: actions/checkout@v3
       
       - name: setup-ocaml
-        uses: ocaml/setup-ocaml@v1
+        uses: ocaml/setup-ocaml@v2
         with:
-          ocaml-version: '4.14.0'
+          ocaml-compiler: '4.14.0'
+          dune-cache: true
+          opam-repositories: |
+            default: https://opam.ocaml.org
+            coq-released: https://coq.inria.fr/opam/released
+          opam-pin: true
+          opam-local-packages: "*.opam"
 
-      - name: build-ubuntu
-        run: ./.github/scripts/build-petr4-ubuntu.sh
-        shell: bash
-
-      - name: Run Tests
-        run: ./.github/scripts/test-gcl-compiler.sh
-        shell: bash
-
-  build-macos-latest:
-    runs-on: macos-latest
-
-    steps: 
-      - name: checkout-main
-        uses: actions/checkout@v1
-        
-      - name: setup-ocaml
-        uses: ocaml/setup-ocaml@v1
-        with: 
-          ocaml-version: '4.14.0'
-        
-      - name: build-macos
-        run: ./.github/scripts/build-petr4-macos.sh
-        shell: bash
-
-      - name: Run Tests
-        run: ./.github/scripts/test-gcl-compiler.sh
-        shell: bash
+      - run: opam install . --deps-only
+      - run: opam exec -- dune build
+      - run: opam exec -- make ci-test
+      - run: ./.github/scripts/test-gcl-compiler.sh

@@ -8,16 +8,16 @@
   Examples
   Syntax0
   NameGen
-  Base
-  Strings
-  Pretty
-  Numbers
-  Countable
-  Fin_maps
-  Gmap
-  Pmap
-  Stringmap
-  Option0
+  base
+  strings
+  pretty
+  numbers
+  countable
+  fin_maps
+  gmap
+  pmap
+  stringmap
+  option1
   AList
   AListUtil
   Datatypes
@@ -100,7 +100,7 @@
   Ascii
   BinIntDef
   Monad
-  Option
+  Option0
   State
   ExceptionState
   HeaderStack

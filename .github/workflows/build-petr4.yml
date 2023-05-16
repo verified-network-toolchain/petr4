@@ -33,10 +33,6 @@ jobs:
           opam-local-packages: "*.opam"
 
       - run: opam install . --deps-only
-
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-
       - run: opam exec -- dune build
       - run: opam exec -- make ci-test
       - run: ./.github/scripts/test-gcl-compiler.sh

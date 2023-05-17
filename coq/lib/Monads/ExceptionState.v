@@ -14,7 +14,10 @@ Definition state_fail {State Exception Result: Type} (exc: Exception) : @state_m
 Definition get_state {State Exception : Type} : @state_monad State Exception State :=
   fun env => (inl env, env).
 
-Definition put_state {State Exception : Type} (f: State -> State) : @state_monad State Exception unit :=
+Definition put_state {State Exception : Type} (env: State) : @state_monad State Exception unit :=
+  fun _ => (inl tt, env).
+
+Definition with_state {State Exception : Type} (f: State -> State) : @state_monad State Exception unit :=
   fun env => (inl tt, f env).
 
 

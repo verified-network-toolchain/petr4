@@ -79,7 +79,7 @@ Definition map_pkt (f: list bool -> list bool) : Packet unit :=
   fun bs => mret tt (f bs).
 
 Definition emit_bits (bs : list bool) : Packet unit :=
-  ExceptionState.put_state (fun pkt => pkt ++ bs).
+  ExceptionState.with_state (fun pkt => pkt ++ bs).
 
 Definition emit_bit (b : bool) : Packet unit :=
   emit_bits [b].

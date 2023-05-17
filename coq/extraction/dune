@@ -1,6 +1,17 @@
 (coq.extraction
  (prelude Extract)
  (extracted_modules
+  NameGen
+  base
+  strings
+  pretty
+  numbers
+  countable
+  fin_maps
+  gmap
+  pmap
+  stringmap
+  option1
   AList
   AListUtil
   Datatypes
@@ -57,7 +68,6 @@
   FunUtil
   OptionUtil
   Bool
-  String
   Nat
   BinNums
   BinInt
@@ -83,7 +93,7 @@
   Ascii
   BinIntDef
   Monad
-  Option
+  Option0
   State
   ExceptionState
   HeaderStack

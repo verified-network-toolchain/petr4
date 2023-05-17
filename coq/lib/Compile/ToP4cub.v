@@ -73,27 +73,6 @@ Fixpoint
       end
   end.
 
-Module NameGen.
-  Definition t := list (string * nat).
-  Fixpoint rep s n :=
-    match n with
-    | O => "_"
-    | S n' => s ++ rep s n'
-    end.
-
-  Fixpoint fresh (g : t) (x : string) : (t * string) :=
-    match g with
-    | [] => ([(x, 1)], x)
-    | (y,n)::g' =>
-      if String.eqb y x
-      then
-        ((y,n+1)::g', x ++ rep "$" n)
-      else
-        let (g'', x') := fresh g' x in
-        ((y,n)::g'', x')
-    end.
-End NameGen.
-
 Section ToP4cub.
   Variable tags_t : Type.
 

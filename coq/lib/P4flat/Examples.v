@@ -1,4 +1,5 @@
 Require Import Poulet4.P4cub.Syntax.Syntax.
+Require Import Poulet4.Monads.ExceptionState.
 Require Import Poulet4.P4flat.Syntax.
 Require Import Poulet4.P4flat.Spec.
 Require Import Poulet4.P4flat.P4flatToGCL.
@@ -45,15 +46,15 @@ Definition seq_tables : P4flat.Syntax.Top.prog :=
 Definition refinements : list (Top.prog * Top.prog * fm (var + var) p4funs p4rels) :=
   [(one_table, seq_tables, FEq (TVar (inl "x_one_table")) (TVar (inr "x_seq_tables")))].
 
-Eval vm_compute in (prog_to_stmt one_table).
-Eval vm_compute in (prog_to_stmt seq_tables).
+Eval vm_compute in (fst (run_with_state var_env_init (prog_to_sig_stmt one_table))).
+Eval vm_compute in (fst (run_with_state var_env_init (prog_to_sig_stmt seq_tables))).
 Definition my_spec : fm (var + var) p4funs p4rels :=
   FEq (TVar (inl "x_one_table")) (TVar (inr "x_seq_tables")).
 Eval vm_compute in (let comp :=
-                      let* one := prog_to_stmt one_table in
-                      let* seq := prog_to_stmt seq_tables in
+                      let* (fsig1, one) := prog_to_sig_stmt one_table in
+                      let* (fsig2, seq) := prog_to_sig_stmt seq_tables in
                       mret (GGCL.Dijkstra.wp _ _ _
                                              (GGCL.Dijkstra.seq_prod_prog _ _ one seq)
                                              my_spec)
                     in
-                    comp).
+                    fst (run_with_state var_env_init comp)).

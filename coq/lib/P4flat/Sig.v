@@ -79,7 +79,6 @@ Section Signature.
   Definition rank :=
     list sort.
 
-  (* Signature without arities *)
   Record signature : Type :=
     { (* tracks arities for indexed sorts and is 0 if sort is simple *)
       sig_sorts : sort_sym -> option nat;
@@ -145,6 +144,8 @@ Arguments sig_check_sort {sort_sym func_sym rel_sym _}.
 Arguments sig_get_fun {sort_sym func_sym rel_sym}.
 Arguments sig_get_rel {sort_sym func_sym rel_sym}.
 Arguments sig_wf {sort_sym func_sym rel_sym _}.
+
+
 
 Inductive builtin_sort_sym :=
 | BVSort.

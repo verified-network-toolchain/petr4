@@ -251,7 +251,8 @@ Section Rel.
   End Map.
 
   Section MapMonad.
-    Context {m : Type -> Type} {M : Monad m}.
+    Context {m : Type -> Type}.
+    Context `{M : Monad m}.
 
     Variable f : A -> m B.
 

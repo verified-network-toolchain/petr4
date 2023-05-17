@@ -1,23 +1,26 @@
 Require Export Poulet4.Monads.Monad.
+Require Poulet4.Monads.Result.
 
 Open Scope monad.
 
-Definition state_monad {State Exception Result: Type} :=
+Definition state_monad State Exception Result: Type :=
   State -> (Result + Exception) * State.
 
-Definition state_return {State Exception Result: Type} (res: Result) : @state_monad State Exception Result :=
+Definition state_return {State Exception Result: Type} (res: Result) : state_monad State Exception Result :=
   fun env => (inl res, env).
 
-Definition state_fail {State Exception Result: Type} (exc: Exception) : @state_monad State Exception Result :=
+Definition state_fail {State Exception Result: Type} (exc: Exception) : state_monad State Exception Result :=
   fun env => (inr exc, env).
 
-Definition get_state {State Exception : Type} : @state_monad State Exception State :=
+Definition error {State Exception Result} := @state_fail State Exception Result.
+
+Definition get_state {State Exception : Type} : state_monad State Exception State :=
   fun env => (inl env, env).
 
-Definition put_state {State Exception : Type} (env: State) : @state_monad State Exception unit :=
+Definition put_state {State Exception : Type} (env: State) : state_monad State Exception unit :=
   fun _ => (inl tt, env).
 
-Definition with_state {State Exception : Type} (f: State -> State) : @state_monad State Exception unit :=
+Definition with_state {State Exception : Type} (f: State -> State) : state_monad State Exception unit :=
   fun env => (inl tt, f env).
 
 
@@ -45,6 +48,22 @@ Definition run_with_state
   : (Result + Exception) * State := act st.
 
 Definition skip {State Exception: Type}: @state_monad State Exception unit := state_return tt.
+
+Definition from_opt {State Exception Result}
+           (r : option Result) (exc : Exception)
+  : state_monad State Exception Result :=
+  match r with
+  | None => error exc
+  | Some res => mret res
+  end.
+
+Definition from_result {State Exception Result}
+           (r : Result.result Exception Result)
+  : state_monad State Exception Result :=
+  match r with
+  | Result.Error e => error e
+  | Result.Ok res => mret res
+  end.
 
 
 Global Hint Unfold state_bind run_with_state state_fail state_return : core.

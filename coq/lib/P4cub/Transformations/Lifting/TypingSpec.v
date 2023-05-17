@@ -224,24 +224,29 @@ Section TypeExp.
     Qed.
 
     Local Hint Resolve Lift_exp_lexpr_ok : core.
-    Local Hint Constructors rel_paramarg : core.
 
-    Lemma Lift_arg_type_arg : forall arg param,
-        type_arg Δ Γ arg param -> forall arg' es,
-          Lift_arg arg arg' es -> exists ts,
+    Lemma Lift_arg_type_inn_arg : forall arg param,
+        type_inn_arg Δ Γ arg param -> forall arg' es,
+          Lift_exp arg arg' es -> exists ts,
             type_decl_list Δ Γ es ts
-            /\ type_arg Δ (ts ++ Γ) arg' param.
+            /\ type_inn_arg Δ (ts ++ Γ) arg' param.
     Proof using hG Γ Δ.
-      unfold type_arg.
-      intros arg param ht arg' es h.
-      inv ht; inv h;
-        try match goal with
-          | h: _ /\ _ |- _ => destruct h as [? ?]
-          end;
-        try match goal with
-          | h: `⟨ _, _ ⟩ ⊢ ?e ∈ _, H: Lift_exp ?e _ _
-            |- _ => pose proof Lift_exp_type_exp _ _ h _ _ H as (ts & hts & ht)
-          end; eauto.
+      unfold type_inn_arg.
+      intros arg [x param] ht arg' es h. eauto.
+    Qed.
+
+    Lemma Lift_arg_type_out_arg : forall arg param,
+        type_out_arg Δ Γ arg param -> forall arg' es,
+          Lift_exp arg arg' es -> exists ts,
+            type_decl_list Δ Γ es ts
+            /\ type_out_arg Δ (ts ++ Γ) arg' param.
+    Proof using hG Γ Δ.
+      unfold type_out_arg.
+      intros arg [x param] [hl ht] arg' es h.
+      eapply Lift_exp_type_exp in hl; eauto.
+      eapply Lift_exp_lexpr_ok in ht; eauto.
+      destruct hl as [ts hl]. exists ts.
+      conj_destr. auto.
     Qed.
 End TypeExp.
 
@@ -270,7 +275,7 @@ Section TypeStm.
   Fail Local Hint Resolve shift_type_stm : core.
   Local Hint Constructors relop : core.
   Fail Local Hint Constructors ctx_cuttoff : core.
-  Fail Local Hint Resolve ctx_cuttoff_le : core.  
+  Fail Local Hint Resolve ctx_cuttoff_add : core.  
 End TypeStm.
 (*          
 Lemma lift_e_list_type_exp : forall Δ Γ es τs,

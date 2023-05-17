@@ -249,7 +249,7 @@ Section StatementLifting.
   Local Hint Resolve shift_stm_eval : core.
   Local Hint Constructors relop : core.
   Local Hint Constructors ctx_cutoff : core.
-  Local Hint Resolve ctx_cutoff_le : core.
+  Local Hint Resolve ctx_cutoff_add : core.
   
   Lemma Lift_stm_good : forall Ψ ϵ ϵ' c s sig ψ,
       ctx_cutoff (length ϵ) c ->
@@ -277,6 +277,7 @@ Section StatementLifting.
     - admit.
     - econstructor; eauto.
       eapply IHhs; cbn; eauto.
+      apply ctx_cutoff_add with (l:=1). assumption.
     - inv H.
       pose proof Lift_exp_good _ _ _ H1 _ _ H4 as (vs & hvs & hv).
       eapply eval_decl_list_Unwind; eauto.
@@ -287,6 +288,7 @@ Section StatementLifting.
       rewrite (eval_decl_list_length _ _ _ hvs). 
       eapply shift_stm_eval; cbn; eauto.
       apply IHhs; cbn; eauto.
+      apply ctx_cutoff_add with (l:=1). assumption.
     - eapply sbs_seq_cont; eauto.
       apply IHhs2; auto.
       erewrite <- sbs_length by eauto; assumption.

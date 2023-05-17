@@ -213,15 +213,15 @@ let sexp_of_call = function
       sexp_of_method extern_name name type_args ret
   | Call.Inst (name, ext_args) -> sexp_of_apply name ext_args
 
-let sexp_of_paramarg f = function
-  | PAIn a -> make_sexp "PAIn" [ f a ]
-  | PAOut a -> make_sexp "PAOut" [ f a ]
-  | PAInOut a -> make_sexp "PAInOut" [ f a ]
+let sexp_of_inout f g ({ inn; out } : ('a, 'b) InOut.t) =
+  Sexp.List
+    [
+      Sexp.List [ Sexp.Atom "inn"; f inn ];
+      Sexp.List [ Sexp.Atom "out"; g out ];
+    ]
 
-let sexp_of_param = sexp_of_paramarg sexp_of_type
-let sexp_of_params = sexp_of_dict sexp_of_param
-let sexp_of_arg = sexp_of_paramarg sexp_of_exp
-let sexp_of_args = sexp_of_list sexp_of_arg
+let sexp_of_params = sexp_of_inout (sexp_of_dict sexp_of_type) (sexp_of_dict sexp_of_type)
+let sexp_of_args = sexp_of_inout (sexp_of_list sexp_of_exp) (sexp_of_list sexp_of_exp)
 
 let sexp_of_app call args =
   make_sexp "Stm.App" [ sexp_of_call call; sexp_of_args args ]
@@ -311,9 +311,9 @@ let sexp_of_constructor_param_type = function
 
 let sexp_of_constructor_params = sexp_of_dict sexp_of_constructor_param_type
 
-let sexp_of_function_type ({ paramargs; rtrns } : Typ.arrowT) =
-  let params_sexp = sexp_of_params paramargs in
-  let rtrns_sexp = sexp_of_option sexp_of_type rtrns in
+let sexp_of_function_type ({ inout; ret } : Typ.arrow) =
+  let params_sexp = sexp_of_params inout in
+  let rtrns_sexp = sexp_of_option sexp_of_type ret in
   Sexp.List
     [
       Sexp.List [ Sexp.Atom "paramargs"; params_sexp ];

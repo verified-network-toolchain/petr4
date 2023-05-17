@@ -23,8 +23,7 @@ Module Lval.
 End  Lval.
 
 (** Evaluated arguments. *)
-Definition Argv : Set := paramarg Val.t Lval.t.
-Definition Argsv : Set := list (paramarg Val.t Lval.t).
+Definition Argsv : Set := InOut.t Val.t Lval.t.
 
 Declare Scope val_scope.
 Delimit Scope val_scope with val.

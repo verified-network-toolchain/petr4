@@ -81,44 +81,35 @@ Fixpoint lv_update
       end
   end.
 
-(** Create a new environment
-    from a closure environment where
-    vals of args are substituted
-    into the function parameters. *)
-Definition copy_in
-           (argsv : Argsv)
-           (ϵcall : list Val.t) : option (list Val.t) :=
-  argsv
-    ▷ map (fun arg =>
-             match arg with
-             | PAIn v     => Some v
-             | PAOut lv
-             | PAInOut lv => lv_lookup ϵcall lv
-             end)
-    ▷ sequence.
+(** Get initial values for out parameters for copy in. *)
+Definition get_out_inits (out_args : list Exp.t) : option (list Val.t) :=
+  sequence $ map val_of_typ $ map typ_of_exp $ out_args.
+
+Lemma get_out_inits_length : forall out_args out_inits,
+    get_out_inits out_args = Some out_inits -> length out_args = length out_inits.
+Proof.
+  intros es vs h.
+  unfold get_out_inits in h.
+  unravel in h.
+  rewrite <- Forall2_sequence_iff in h.
+  apply Forall2_length in h.
+  do 2 rewrite map_length in h.
+  assumption.
+Qed.
 
 (** Update call-site environment with
-    out variables from function call evaluation. *)
+    out values from function call evaluation. *)
+Definition copy_out
+  (lvs : list Lval.t) (vs ϵ_call : list Val.t)  : list Val.t :=
+  List.fold_right (uncurry lv_update) ϵ_call (combine lvs vs).
 
-Definition copy_out_argv
-  (n : nat) (argv : Argv) (ϵ_func : list Val.t) (ϵ_call : list Val.t) : list Val.t :=
-  match argv with
-  | PAIn _ => ϵ_call
-  | PAOut lv
-  | PAInOut lv =>
-      match nth_error ϵ_func n with
-      | None   => ϵ_call
-      | Some v => lv_update lv v ϵ_call
-      end
-  end.
+Lemma copy_out_nil : forall ϵ,
+    copy_out [] [] ϵ = ϵ.
+Proof. intro eps; reflexivity. Qed.
 
-Fixpoint copy_out
-  (n : nat) (argsv : Argsv)
-  (ϵ_func : list Val.t) (ϵ_call : list Val.t) : list Val.t :=
-  match argsv with
-  | [] => ϵ_call
-  | argv :: argsv => copy_out (S n) argsv ϵ_func (copy_out_argv n argv ϵ_func ϵ_call)
-  end.
+Lemma copy_out_cons : forall lv lvs v vs ϵ,
+    copy_out (lv :: lvs) (v :: vs) ϵ = lv_update lv v (copy_out lvs vs ϵ).
+Proof. intros lv lvs v vs eps; reflexivity. Qed.
 
 Section Properties.
   Local Hint Constructors type_val : core.
@@ -140,23 +131,16 @@ Section Properties.
   Qed.
 
   Local Hint Rewrite lv_update_length : core.
-
-  Lemma copy_out_argv_length : forall v n ϵ ϵ',
-      length (copy_out_argv n v ϵ ϵ') = length ϵ'.
-  Proof.
-    intros [v | lv | lv] n eps eps'; cbn; auto;
-      destruct (nth_error eps n) as [v |];
-      autorewrite with core; reflexivity.
-  Qed.
-
-  Local Hint Rewrite copy_out_argv_length : core.
   
-  Lemma copy_out_length : forall vs n ϵ ϵ',
-      length (copy_out n vs ϵ ϵ') = length ϵ'.
+  Lemma copy_out_length : forall lvs vs ϵ,
+      length (copy_out lvs vs ϵ) = length ϵ.
   Proof using.
-    intro vs; induction vs as [| v vs ih];
-      intros n ϵ ϵ'; cbn in *; auto;
-      try rewrite ih; autorewrite with core; reflexivity.
+    intros lvs vs ϵ.
+    unfold copy_out.
+    remember (combine lvs vs) as lvvs.
+    clear dependent lvs. clear vs.
+    induction lvvs as [| [lv v] lvvs ih]; cbn;
+      autorewrite with core; auto.
   Qed.
 
   Local Hint Rewrite Zcomplements.Zlength_correct : core.

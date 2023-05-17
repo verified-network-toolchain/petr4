@@ -27,9 +27,8 @@ Definition parser_start_state : s :=
   Stm.Trans (Trns.Direct Lbl.Accept).
 Definition parsr_cparams : Top.constructor_params := [].
 Definition parsr_params : Typ.params :=
-  [ ("hdr",PAOut hdrs)
-    ; ("meta",PAInOut metadata)
-    ; ("standard_meta",PAInOut std_meta)].
+  {| InOut.inn := [ ("meta", metadata) ; ("standard_meta", std_meta)]
+  ; InOut.out := [ ("hdr", hdrs) ; ("meta", metadata) ; ("standard_meta", std_meta)] |}.
 Definition myparser : tpdecl :=
   Top.Parser
     "MyParser"
@@ -41,11 +40,10 @@ Definition instance_myparser : tpdecl :=
 
 Definition gress_cparams : Top.constructor_params := [].
 Definition gress_params : Typ.params :=
-  [ ("hdr",PAInOut hdrs)
-    ; ("meta",PAInOut metadata)
-    ; ("standard_meta",PAInOut std_meta)].
+  {| InOut.inn := [ ("hdr", hdrs) ; ("meta", metadata) ; ("standard_meta", std_meta)]
+  ; InOut.out := [ ("hdr", hdrs) ; ("meta", metadata) ; ("standard_meta", std_meta)] |}.
 Definition ingress_decl : ct_d := 
-  Ctrl.Action "test_ingress" [] [] Stm.Skip.
+  Ctrl.Action "test_ingress" [] {| InOut.inn:=[]; InOut.out:=[] |} Stm.Skip.
 Definition ingress : tpdecl :=
   Top.Control
     "MyIngress" gress_cparams [] [] gress_params
@@ -54,7 +52,7 @@ Definition instance_myingress : tpdecl :=
   Top.Instantiate "MyIngress" "my_ingress" [] [] [].
 
 Definition egress_decl : ct_d := 
-  Ctrl.Action "test_egress" [] [] Stm.Skip.
+  Ctrl.Action "test_egress" [] {| InOut.inn:=[]; InOut.out:=[] |} Stm.Skip.
 Definition egress : tpdecl := 
   Top.Control
     "MyEgress" gress_cparams [] [] gress_params
@@ -63,10 +61,10 @@ Definition instance_myegress : tpdecl :=
   Top.Instantiate "MyEgress" "my_egress" [] [] [].
 
 Definition deparser_cparams : Top.constructor_params := [].
-Definition deparser_params : Typ.params := [ ("hdr",PAIn hdrs)].
+Definition deparser_params : Typ.params := {| InOut.inn := [("hdr", hdrs)]; InOut.out := [] |}.
 Definition mydeparser_decl : ct_d :=
   Ctrl.Action
-    "test_deparser" [] [] (`let "x" := inr oneplusone `in Stm.Skip)%stm.
+    "test_deparser" [] {| InOut.inn:=[]; InOut.out:=[] |} (`let "x" := inr oneplusone `in Stm.Skip)%stm.
 
 Definition mydeparser : tpdecl := 
   Top.Control
@@ -79,9 +77,10 @@ Definition instance_mydeparser : tpdecl :=
 
 Definition checksum_cparams : Top.constructor_params := [].
 Definition checksum_params : Typ.params :=
-  [("hdr",PAInOut hdrs); ("meta",PAInOut metadata)].
+  {| InOut.inn := [ ("hdr", hdrs) ; ("meta", metadata) ]
+  ; InOut.out := [ ("hdr", hdrs) ; ("meta", metadata) ] |}.
 Definition verify_decl : ct_d :=
-  Ctrl.Action "test_verifyChecksum" [] [] Stm.Skip.
+  Ctrl.Action "test_verifyChecksum" [] {| InOut.inn:=[]; InOut.out:=[] |} Stm.Skip.
 Definition verify : tpdecl :=
   Top.Control
     "MyVerifyChecksum"
@@ -91,7 +90,7 @@ Definition instance_myverify : tpdecl :=
   Top.Instantiate "MyVerifyChecksum" "my_verify" [] [] [].
 
 Definition compute_decl : ct_d :=
-  Ctrl.Action "test_computeChecksum" [] [] Stm.Skip.
+  Ctrl.Action "test_computeChecksum" [] {| InOut.inn:=[]; InOut.out:=[] |} Stm.Skip.
 Definition compute : tpdecl :=
   Top.Control
       "MyComputeChecksum"

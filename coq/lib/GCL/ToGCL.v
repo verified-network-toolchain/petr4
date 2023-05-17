@@ -552,24 +552,19 @@ Section ToGCL.
       ok (iteb phi tg fg, ctx).
 
     Definition arrowE_to_arglist
-      : F.fs string (paramarg E.t E.t)
-        -> result string (list (string * (Form.t + BV.t))) :=
-      List.fold_right (fun '(name, pa) acc_res =>
+      (args : InOut.t (string * Exp.t) (string * Exp.t))
+      : result string (list (string * (Form.t + BV.t))) :=
+      List.fold_right (fun '(name, e) acc_res =>
                          let* res := acc_res in
-                         match pa with
-                         | PAIn e
-                         | PAOut e
-                         | PAInOut e =>
-                           match typ_of_exp e with
-                           | Typ.Bool =>
+                         match typ_of_exp e with
+                         | Typ.Bool =>
                              let* phi := to_form e (*over "couldn't convert form in arrowE_to_arglist"*) in
                              ok ((name, inl phi) :: res)
-                           | _ =>
+                         | _ =>
                              let* e' := to_rvalue e (*over "couldn't convert rvalue in arrowE_to_arglist"*) in
                              ok ((name, inr e') :: res)
-                           end
                          end)
-                      (ok []).
+        (ok []) (InOut.concat args).
 
 
     Definition lvalue_subst param new old :=
@@ -643,7 +638,7 @@ Section ToGCL.
         let* actions' := rred (map (fun '(name, (params, act)) =>
                                       let* bv_params := rred (List.map (fun '(name, type) =>
                                                                           let+ w := width_of_type name type in
-                                                                          BV.BVVar name w) params) in
+                                                                          BV.BVVar name w) $ InOut.concat params) in
                                       let+ (gcl_act,_) := inline_to_gcl c arch act in
                                       (name, (bv_params, gcl_act))) actions)
         in

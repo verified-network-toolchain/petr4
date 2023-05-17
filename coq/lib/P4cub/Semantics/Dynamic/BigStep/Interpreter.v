@@ -3,7 +3,7 @@ From Coq Require Import NArith.BinNat ZArith.BinInt ssr.ssrbool.
 From RecordUpdate Require Import RecordSet.
 
 From Poulet4 Require Import
-  Monads.Monad
+  Monads.Option
   P4cub.Syntax.Syntax
   P4cub.Syntax.CubNotations
   P4cub.Semantics.Climate
@@ -11,6 +11,7 @@ From Poulet4 Require Import
   P4cub.Semantics.Dynamic.BigStep.Value.Value
   P4cub.Semantics.Dynamic.BigStep.Value.Embed
   P4cub.Semantics.Dynamic.BigStep.Semantics
+  P4cub.Semantics.Dynamic.BigStep.Properties
   P4light.Syntax.Syntax
   P4light.Architecture.Target
   Utils.Util.ListUtil.
@@ -412,61 +413,50 @@ Section Stm.
     - apply interpret_exp_sound. assumption.
   Qed.
 
-  Definition interpret_arg (ϵ : list Val.t) : Exp.arg -> option Argv := 
-    paramarg_strength ∘ paramarg_map (interpret_exp ϵ) (interpret_lexp ϵ).
-
-  Lemma interpret_arg_sound :
-    forall ϵ e v, 
-      interpret_arg ϵ e = Some v -> arg_big_step ϵ e v.
-  Proof.
-    destruct e; cbn; unfold option_bind; intros; 
-    match_some_inv; some_inv; constructor.
-    - apply interpret_exp_sound. assumption.
-    - apply interpret_lexp_sound. assumption.
-    - apply interpret_lexp_sound. assumption.
-  Qed.
-
-  Lemma interpret_arg_complete :
-    forall ϵ e v, 
-      arg_big_step ϵ e v -> interpret_arg ϵ e = Some v.
-  Proof.
-    intros. inv H; cbn; unfold option_bind.
-    - apply interpret_exp_complete in H0. rewrite H0. reflexivity.
-    - apply interpret_lexp_complete in H0. rewrite H0. reflexivity.
-    - apply interpret_lexp_complete in H0. rewrite H0. reflexivity.
-  Qed.
-
-  Definition interpret_arg_adequate :
-    forall ϵ e v, 
-      interpret_arg ϵ e = Some v <-> arg_big_step ϵ e v.
-  Proof.
-    split.
-    - apply interpret_arg_sound.
-    - apply interpret_arg_complete.
-  Qed.
-
-  Definition interpret_args ϵ := map_monad (interpret_arg ϵ).
+  Definition interpret_args (ϵ : list Val.t) : Exp.args -> option Argsv :=
+    InOut.opt_seq ∘ InOut.map (interpret_exp ϵ) (interpret_lexp ϵ).
 
   Lemma interpret_args_sound :
     forall ϵ es vs,
       interpret_args ϵ es = Some vs -> args_big_step ϵ es vs.
-  Proof.
-    intros. unfold interpret_args in *. rewrite map_monad_some in H.
-    induction H; constructor.
-    - apply interpret_arg_sound. assumption.
-    - assumption.
+  Proof using.
+    intros. unfold interpret_args, InOut.opt_seq in H.
+    unravel in H.
+    do 2 match_some_inv. some_inv.
+    unfold args_big_step.
+    constructor; cbn;
+      auto using interpret_exps_sound.
+    rewrite <- Forall2_sequence_iff in Heqo0.
+    rewrite sublist.Forall2_map1 in Heqo0.
+    eapply sublist.Forall2_impl in Heqo0; eauto using interpret_lexp_sound.
   Qed.
 
   Lemma interpret_args_complete :
     forall ϵ es vs,
       args_big_step ϵ es vs -> interpret_args ϵ es = Some vs.
   Proof.
-    intros. induction H.
-    - reflexivity.
-    - cbn. unfold option_bind.
-      apply interpret_arg_complete in H. rewrite H.
-      unfold interpret_args, map_monad, "∘" in IHForall2.
-      rewrite IHForall2. reflexivity.
+    intros. inv H.
+    unfold interpret_args, InOut.opt_seq; unravel.
+    apply
+      (sublist.Forall2_impl
+         _ _ $ interpret_exp_complete ϵ)
+      in inn_forall2.
+    apply
+      (sublist.Forall2_impl
+         _ _ $ interpret_lexp_complete ϵ)
+      in out_forall2.
+    rewrite <- sublist.Forall2_map1
+      with (P := fun ov v => ov = Some v)
+           (f:=interpret_exp ϵ)
+      in inn_forall2.
+    rewrite <- sublist.Forall2_map1
+      with (P := fun ov v => ov = Some v)
+           (f:=interpret_lexp ϵ)
+      in out_forall2.
+    rewrite Forall2_sequence_iff in inn_forall2.
+    rewrite Forall2_sequence_iff in out_forall2.
+    rewrite inn_forall2, out_forall2.
+    destruct vs; reflexivity.
   Qed.
 
   Lemma interpret_args_adequate :
@@ -479,12 +469,6 @@ Section Stm.
   Qed.
 
   Local Open Scope nat_scope.
-
-  Lemma args_invariant : 
-    forall (vargs : Argsv), Forall2 (rel_paramarg eq (fun _ _ => True)) vargs vargs.
-  Proof.
-    induction vargs; constructor; auto. destruct a; constructor; auto.
-  Qed.
 
   Definition initialized_value (ϵ : list Val.t) (initializer : Typ.t + Exp.t) : option Val.t :=
     match initializer with
@@ -537,7 +521,7 @@ Section Stm.
     - destruct def; try discriminate. destruct p. inv H. constructor.
   Qed.
 
-  Fixpoint write_out_values {A B C : Set} (args : list (paramarg A B)) (values : list C) : option (list (paramarg A C)) :=
+  (*Fixpoint write_out_values {A B C : Set} (args : list (paramarg A B)) (values : list C) : option (list (paramarg A C)) :=
     match args, values with
     | [], [] => Some []
     | PAIn v as arg :: args, _ =>
@@ -585,7 +569,7 @@ Section Stm.
           repeat constructor. eauto.
         + destruct values; try discriminate. match_some_inv. some_inv.
           repeat constructor. eauto.
-    Qed.
+    Qed.*)
 
   Definition project_signal (sig : Value.signal) : option signal :=
     match sig with
@@ -605,7 +589,7 @@ Section Stm.
     unravel in *. destruct v; try (some_inv; constructor);
     (match_some_inv; some_inv; constructor; apply project_sound; auto).
   Qed.
-
+  
   Fixpoint interpret_stmt (fuel : Fuel) (Ψ : stm_eval_env ext_sem) (ϵ : list Val.t) (c : ctx) (s : Stm.t) : option (list Val.t * signal * extern_state) :=
     match fuel with
     | MoreFuel fuel =>
@@ -627,50 +611,52 @@ Section Stm.
         end
       | Stm.Asgn e1 e2, _ => interpret_assign Ψ ϵ e1 e2
       | Stm.App (Call.Funct f τs eo) args, _ =>
-        let* FDecl fun_clos body := functs Ψ f in
+        let* FDecl fun_clos _ body := functs Ψ f in
         let* olv := interpret_relop (interpret_lexp ϵ) eo in
         let* vargs := interpret_args ϵ args in
-        let* ϵ' := copy_in vargs ϵ in
+        let* out_inits := get_out_inits args.(InOut.out) in
         let env := Ψ <| functs := fun_clos |> in
         let body := tsub_stm (gen_tsub τs) body in
-        let^ (ϵ'', sig, ψ) := interpret_stmt fuel env ϵ' CFunction body in
-        let ϵ''' := lv_update_signal olv sig (copy_out O vargs ϵ'' ϵ) in
-        (ϵ''', Cont, ψ)
+        let^ (ϵ', sig, ψ) := interpret_stmt fuel env (vargs.(InOut.inn) ++ out_inits) CFunction body in
+        let ϵ'' := lv_update_signal olv sig (copy_out vargs.(InOut.out) (skipn (List.length vargs.(InOut.inn)) ϵ') ϵ) in
+        (ϵ'', Cont, ψ)
       | Stm.App (Call.Action a ctrl_args) data_args, _ =>
         let* actions := interpret_actions_of_ctx c in
-        let* ADecl clos act_clos body := actions a in
+        let* ADecl clos act_clos _ _ body := actions a in
         let* vctrl_args := interpret_exps ϵ ctrl_args in
         let* vdata_args := interpret_args ϵ data_args in
-        let* ϵ' := copy_in vdata_args ϵ in
-        let action_env := vctrl_args ++ ϵ' ++ clos in
-        let^ (ϵ'', sig, ψ) := interpret_stmt fuel Ψ action_env (CAction act_clos) body in
-        (copy_out O vdata_args ϵ'' ϵ, Cont, ψ)
+        let* out_inits := get_out_inits data_args.(InOut.out) in
+        let action_env := vctrl_args ++ vdata_args.(InOut.inn) ++ out_inits ++ clos in
+        let^ (ϵ', sig, ψ) := interpret_stmt fuel Ψ action_env (CAction act_clos) body in
+        (copy_out
+           (InOut.out vdata_args)
+           (firstn (List.length out_inits) $
+              skipn (List.length vctrl_args + List.length (A:=Val.t) $ InOut.inn vdata_args) ϵ') ϵ, Cont, ψ)
       | Stm.LetIn og te s, _ =>
         let* v := initialized_value ϵ te in
         let* (ϵ', sig, ψ) := interpret_stmt fuel Ψ (v :: ϵ) c s in
         let^ ϵ' := tl_error ϵ' in
         (ϵ', sig, ψ)
       | Stm.Seq s1 s2, _ =>
-        let* (ϵ', sig, ψ) := interpret_stmt fuel Ψ ϵ c s1 in
+        let* '(ϵ', sig, ψ) := interpret_stmt fuel Ψ ϵ c s1 in
         match sig with
         | Cont => interpret_stmt fuel (Ψ <| extrn_state := ψ |>) ϵ' c s2
-        | Exit | Rtrn _ | Rjct => mret (ϵ', sig, ψ)
+        | Exit | Rtrn _ | Rjct => Some (ϵ', sig, ψ)
         | Acpt => None
         end
       | Stm.App (Call.Method ext meth τs eo) args, _ =>
         let* olv := interpret_relop (interpret_lexp ϵ) eo in
         let* vargs := interpret_args ϵ args in
         let* light_typs := embed_types (dummy_tags:=tt) (string_list:=[]) τs in
-        let in_args := List.flat_map (fun v => match v with PAIn v => [v] | _ => [] end) vargs in
-        let light_in_vals := embed_values in_args in
+        let light_in_vals := embed_values $ InOut.inn vargs in
         let* (ψ, light_out_vals, light_sig) :=
           to_opt $ interp_extern (extrn_env Ψ) (extrn_state Ψ) ext meth [] light_typs light_in_vals
         in
-        let* vargs' := write_out_values vargs =<< project_values light_out_vals in
+        let* out_vals := project_values light_out_vals in
         let^ sig := project_signal light_sig in
-        ( lv_update_signal olv sig (copy_out_from_args vargs vargs' ϵ), sig, ψ )
+        ( lv_update_signal olv sig (copy_out vargs.(InOut.out) out_vals ϵ), sig, ψ )
       | Stm.Invoke eo t, CApplyBlock tbls acts insts =>
-        let* (n, key, actions, def) := tbls t in
+        let* Table.mk_t n key actions def := tbls t in
         let* lvo := interpret_relop (interpret_lexp ϵ) eo in
         guard (n <=? List.length ϵ) ;;
         let* (ϵ₁, ϵ₂) := split_at (List.length ϵ - n) ϵ in
@@ -696,20 +682,20 @@ Section Stm.
         in
         mret (sig, Cont, ψ )
       | Stm.App (Call.Inst p ext_args) args, CParserState n strt states parsers =>
-        let? 'ParserInst p_fun p_prsr p_eps p_strt p_states := parsers p in
+        let? 'ParserInst p_fun p_prsr p_eps _ p_strt p_states := parsers p in
         let* vargs := interpret_args ϵ args in
-        let* ϵ' := copy_in vargs ϵ in
-        let ctx' := CParserState (List.length args) p_strt p_states p_prsr in
-        let* (ϵ'', final, ψ) := interpret_stmt fuel (Ψ <| functs := p_fun |>) (ϵ' ++ p_eps) ctx' p_strt in
+        let* out_inits := get_out_inits args.(InOut.out) in
+        let ctx' := CParserState (InOut.length args) p_strt p_states p_prsr in
+        let* (ϵ', final, ψ) := interpret_stmt fuel (Ψ <| functs := p_fun |>) (InOut.inn vargs ++ out_inits ++ p_eps) ctx' p_strt in
         let^ sig := interpret_parser_signal final in
-        (copy_out O vargs ϵ'' ϵ, sig, ψ)
+        (copy_out vargs.(InOut.out) (firstn (List.length out_inits) $ skipn (List.length vargs.(InOut.inn)) ϵ') ϵ, sig, ψ)
       | Stm.App (Call.Inst c ext_args) args, CApplyBlock tbls actions control_insts =>
-        let? 'ControlInst fun_clos inst_clos tbl_clos action_clos eps_clos apply_block := control_insts c in
+        let? 'ControlInst fun_clos inst_clos tbl_clos action_clos eps_clos _ apply_block := control_insts c in
         let* vargs := interpret_args ϵ args in
-        let* ϵ' := copy_in vargs ϵ in
+        let* out_inits := get_out_inits args.(InOut.out) in
         let ctx' := CApplyBlock tbl_clos action_clos inst_clos in
-        let^ (ϵ'', sig, ψ) := interpret_stmt fuel (Ψ <| functs := fun_clos |>) (ϵ' ++ eps_clos) ctx' apply_block in
-        (copy_out O vargs ϵ'' ϵ, Cont, ψ)
+        let^ (ϵ', sig, ψ) := interpret_stmt fuel (Ψ <| functs := fun_clos |>) (InOut.inn vargs ++ out_inits ++ eps_clos) ctx' apply_block in
+        (copy_out vargs.(InOut.out) (firstn (List.length out_inits) $ skipn (List.length vargs.(InOut.inn)) ϵ') ϵ, Cont, ψ)
       | Stm.Cond e s1 s2, _ =>
         let? 'Val.Bool b := interpret_exp ϵ e in
         interpret_stmt fuel Ψ ϵ c $ if b then s1 else s2
@@ -718,6 +704,8 @@ Section Stm.
     | NoFuel => None
     end.
 
+  Local Arguments interpret_args : simpl never.
+  
   Lemma interpret_stmt_sound :
     forall fuel Ψ ϵ c s ϵ' sig ψ,
       interpret_stmt fuel Ψ ϵ c s = Some (ϵ' , sig , ψ) ->
@@ -750,44 +738,96 @@ Section Stm.
     - apply interpret_assign_sound. assumption.
     - unfold option_bind in *. destruct call eqn:E; try discriminate.
       + destruct (functs Ψ function_name) eqn:?; try discriminate.
-        destruct f. repeat match_some_inv. some_inv. do 2 destruct p. inv H1.
+        destruct f. repeat match_some_inv. destruct p as [[eps' sig'] ψ'].
+        some_inv.
         apply interpret_args_sound in Heqo1.
-        apply IHfuel in Heqo3. econstructor; eauto.
-        eapply interpret_relop_sound; eauto.
-        apply interpret_lexp_sound.
+        apply IHfuel in Heqo3.
+        eapply sbs_funct_call with (prefix:=firstn (List.length (InOut.inn a)) eps'); eauto.
+        * rewrite firstn_length.
+          apply sbs_length in Heqo3.
+          rewrite app_length in Heqo3.
+          lia.
+        * eapply interpret_relop_sound; eauto using interpret_lexp_sound.
+        * rewrite firstn_skipn. assumption.
       + repeat match_some_inv. apply interpret_actions_of_ctx_sound in Heqo.
         destruct a0. repeat match_some_inv. some_inv. repeat destruct p. inv H1.
         apply interpret_exps_sound in Heqo1.
         apply interpret_args_sound in Heqo2.
-        apply IHfuel in Heqo4. econstructor; eauto.
+        apply IHfuel in Heqo4.
+        unravel.
+        rewrite <- firstn_skipn with (n:=List.length l) (l:=l1) in Heqo4.
+        rewrite <- firstn_skipn with (n:=List.length (InOut.inn a0)) (l:=skipn (List.length l) l1) in Heqo4.
+        rewrite <- firstn_skipn with
+          (n:=List.length l0)
+          (l:= skipn (List.length (InOut.inn a0)) (skipn (List.length l) l1)) in Heqo4.
+        rewrite Nat.add_comm.
+        rewrite <- sublist.skipn_drop.
+        eapply sbs_action_call with
+          (ctrl_prefix:=firstn (List.length l) l1)
+          (data_prefix:=firstn (List.length (InOut.inn a0)) (skipn (List.length l) l1))
+          (*(out_vals:=firstn (List.length (InOut.out a0)) (skipn (List.length (InOut.inn a0)) (skipn (List.length l) l1)))*)
+          (ϵ':=skipn (List.length l0) (skipn (List.length (InOut.inn a0)) (skipn (List.length l) l1)))
+          (vctrl_args:=l) (out_inits:=l0); eauto.
+        * apply sbs_length in Heqo4.
+          repeat rewrite firstn_skipn in Heqo4.
+          repeat rewrite app_length in Heqo4.
+          rewrite firstn_length. lia.
+        * apply sbs_length in Heqo4.
+          repeat rewrite firstn_skipn in Heqo4.
+          repeat rewrite app_length in Heqo4.
+          rewrite firstn_length,skipn_length. lia.
+        * apply sbs_length in Heqo4.
+          repeat rewrite firstn_skipn in Heqo4.
+          repeat rewrite app_length in Heqo4.
+          rewrite firstn_length.
+          do 2 rewrite skipn_length.
+          apply get_out_inits_length in Heqo3.
+          inv Heqo2.
+          apply Forall2_length in inn_forall2, out_forall2. lia.
       + repeat match_some_inv. unravel in *. repeat destruct p.
         repeat match_some_inv. some_inv.
         simpl_to_opt as Hextern. cbn in *. some_inv.
-        econstructor.
-        * eapply write_out_values_invariant. eauto.
-        * eapply interpret_relop_sound; eauto. apply interpret_lexp_sound.
-        * apply interpret_args_sound. assumption.
-        * apply embed_types_sound. eauto.
-        * apply embed_values_sound.
-        * apply interp_extern_safe. eauto.
-        * apply project_values_sound. apply write_out_values_sound in Heqo3.
-          subst. assumption.
-        * apply project_signal_sound. assumption.
+        unfold embed_values in Hextern.
+        apply project_values_sound in Heqo3.
+        apply project_signal_sound in Heqo4.
+        econstructor; eauto using embed_types_sound, embed_values_sound, interpret_args_sound, interp_extern_safe.
+        eapply interpret_relop_sound; eauto. apply interpret_lexp_sound.
       + destruct c; try discriminate.
         * match_some_inv. destruct i; try discriminate.
           match_some_inv as Eargs. apply interpret_args_sound in Eargs.
-          match_some_inv as Ecopyin. match_some_inv as Estmt. some_inv.
-          repeat destruct p. inv H1. eapply IHfuel in Estmt.
-          econstructor; eauto.
+          match_some_inv as Eoutinits. match_some_inv as Estmt. some_inv.
+          repeat destruct p. inv H1. eapply IHfuel in Estmt. unravel.
+          rewrite <- firstn_skipn with (n:=List.length a.(InOut.inn)) (l:=l0) in Estmt.
+          rewrite <- firstn_skipn with (n:=List.length l) (l:=skipn (List.length (InOut.inn a)) l0) in Estmt.
+          eapply sbs_apply_control with (prefix:=firstn (List.length (InOut.inn a)) l0); eauto.
+          rewrite firstn_length.
+          apply sbs_length in Estmt.
+          repeat rewrite firstn_skipn in Estmt.
+          repeat rewrite app_length in Estmt. lia.
         * match_some_inv. destruct i; try discriminate.
           match_some_inv as Eargs. apply interpret_args_sound in Eargs.
-          match_some_inv as Ecopyin. match_some_inv as Estmt.
+          match_some_inv as Eoutinits. match_some_inv as Estmt.
           repeat destruct p. match_some_inv as Esignal. some_inv.
           apply interpret_parser_signal_sound in Esignal.
-          eapply IHfuel in Estmt. econstructor; eauto.
+          eapply IHfuel in Estmt. unravel.
+          rewrite <- firstn_skipn with (n:=List.length a.(InOut.inn)) (l:=l0) in Estmt.
+          rewrite <- firstn_skipn with (n:=List.length l) (l:=skipn (List.length (InOut.inn a)) l0) in Estmt.
+          eapply sbs_apply_parser with
+            (out_inits:=l)
+            (prefix:=firstn (List.length (InOut.inn a)) l0); eauto.
+          -- rewrite firstn_length.
+             apply sbs_length in Estmt.
+             repeat rewrite firstn_skipn in Estmt.
+             repeat rewrite app_length in Estmt. lia.
+          -- rewrite firstn_length, skipn_length.
+             apply sbs_length in Estmt.
+             repeat rewrite firstn_skipn in Estmt.
+             repeat rewrite app_length in Estmt. lia.
     - (* Table Invocations *)
       destruct c; try discriminate. unravel in *.
-      match_some_inv as Htables. repeat destruct p. match_some_inv as Hlhs.
+      match_some_inv as Htables.
+      destruct t as [n tkey tacts tdef].
+      match_some_inv as Hlhs.
       destruct (n <=? List.length ϵ) eqn:Hlen; try discriminate. cbn in *.
       apply Nat.leb_le in Hlen. match_some_inv as Hϵ.
       destruct p as [ϵ₁ ϵ₂]. apply split_at_partition in Hϵ as Hpartition.
@@ -842,9 +882,12 @@ Section Top.
     match c with
     | Ctrl.Var _ te => interpret_ctrl_var cbs_env te
     | Ctrl.Action a ctrl_params data_params body =>
-      mret $ cbs_env <| cbs_actions := a ↦ ADecl (cbs_epsilon cbs_env) (cbs_actions cbs_env) body ,, cbs_actions cbs_env |>
+        mret (cbs_env
+                <| cbs_actions :=
+                a ↦ ADecl (cbs_epsilon cbs_env) (cbs_actions cbs_env)
+                  (map snd ctrl_params) data_params body ,, cbs_actions cbs_env |>)
     | Ctrl.Table t key actions def => 
-      mret $ cbs_env <| cbs_tables := t ↦ (List.length (cbs_epsilon cbs_env), key, actions, def) ,, cbs_tables cbs_env |>
+        mret $ cbs_env <| cbs_tables := t ↦ Table.mk_t (List.length (cbs_epsilon cbs_env)) key actions def ,, cbs_tables cbs_env |>
     end.
 
   Lemma interpret_ctrl_sound :
@@ -877,30 +920,30 @@ Section Top.
   Definition interpret_top (tbs_env : top_bs_env) (top : Top.t) : option top_bs_env :=
     match top with
     | Top.Control c cparams ecparams extparams params body s =>
-      mret $ tbs_env <| top_decls := c ↦ ControlDecl (top_functs tbs_env) (top_insts tbs_env) (map fst cparams) body s ,, top_decls tbs_env |>
+      mret $ tbs_env <| top_decls := c ↦ ControlDecl (top_functs tbs_env) (top_insts tbs_env) (map fst cparams) params body s ,, top_decls tbs_env |>
     | Top.Parser p cparams ecparams extparams params strt states =>
-      mret $ tbs_env <| top_decls := p ↦ ParserDecl (top_functs tbs_env) (top_insts tbs_env) (map fst cparams) strt states ,, top_decls tbs_env |>
+      mret $ tbs_env <| top_decls := p ↦ ParserDecl (top_functs tbs_env) (top_insts tbs_env) (map fst cparams) params strt states ,, top_decls tbs_env |>
     | Top.Extern ext TS cparams ecparams methods =>
       mret $ tbs_env <| top_decls := ext ↦ ExternDecl (top_functs tbs_env) (top_insts tbs_env) (map fst cparams) ,, top_decls tbs_env |>
     | Top.Funct f TS arrow body =>
-      mret $ tbs_env <| top_functs := f ↦ FDecl (top_functs tbs_env) body ,, top_functs tbs_env |>
+      mret $ tbs_env <| top_functs := f ↦ FDecl (top_functs tbs_env) arrow.(Arr.inout) body ,, top_functs tbs_env |>
     | Top.Instantiate c x τs cargs es =>
       let* decls := top_decls tbs_env c in
       let* vs := interpret_exps [] es in
       match decls, τs with
-      | ControlDecl cfs cinsts cparams local_decls apply_blk, [] =>
+      | ControlDecl cfs cinsts cparams params local_decls apply_blk, [] =>
         let^ cbs_env := interpret_ctrls local_decls {| cbs_tables := ∅; cbs_actions := ∅; cbs_epsilon  := vs |} in
         tbs_env
           <| top_insts :=
           x ↦ ControlInst
             cfs (bind_constructor_args cparams cargs (top_insts tbs_env) cinsts)
-            (cbs_tables cbs_env) (cbs_actions cbs_env) vs apply_blk ,, top_insts tbs_env |>
-      | ParserDecl pfs pinsts cparams strt states, [] =>
+            (cbs_tables cbs_env) (cbs_actions cbs_env) vs params apply_blk ,, top_insts tbs_env |>
+      | ParserDecl pfs pinsts cparams params strt states, [] =>
         mret $ tbs_env
           <| top_insts :=
           x ↦ ParserInst
             pfs (bind_constructor_args cparams cargs (top_insts tbs_env) pinsts)
-            vs strt states ,, top_insts tbs_env |>
+            vs params strt states ,, top_insts tbs_env |>
       | ExternDecl extfs extinsts cparams, _ =>
         mret $ tbs_env <| top_insts := x ↦ ExternInst extfs (bind_constructor_args cparams cargs (top_insts tbs_env) extinsts) vs ,, top_insts tbs_env |>
       | _, _ => None

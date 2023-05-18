@@ -202,6 +202,19 @@ Section Shift.
     end.
 End Shift.
 
+Lemma nth_error_shift_var@{a} : forall (A : Type@{a}) (l1 l2 l3 : list A) n,
+    nth_error (l1 ++ l2 ++ l3) (shift_var (length l1) (length l2) n)
+    = nth_error (l1 ++ l3) n.
+Proof.
+  intros A l1 l2 l3 n.
+  unfold shift_var.
+  destruct_if.
+  - do 3 rewrite nth_error_app2 by lia.
+    f_equal. lia.
+  - do 2 rewrite nth_error_app1 by lia.
+    reflexivity.
+Qed.
+
 Section Shift.
   Variable c : nat.
 

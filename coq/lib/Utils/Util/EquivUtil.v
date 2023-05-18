@@ -248,6 +248,20 @@ Section Predop.
   Proof using.
     intros [[a b] |]; split; intro h; inv h; auto.
   Qed.
+
+  Lemma predop_map : forall (f : B -> A) (o : option B),
+      predop P (option_map f o) <-> predop (fun a => P (f a)) o.
+  Proof using.
+    intros f o; split; intro h.
+    - destruct o; cbn in h; inv h; auto.
+    - inv h; cbn; auto.
+  Qed.
+
+  Lemma predop_forall_impl : forall (Q : A -> Prop),
+      (forall a, P a -> Q a) -> forall o, predop P o -> predop Q o.
+  Proof using.
+    intros Q thm o h; inv h; auto.
+  Qed.
 End Predop.
 
 (** * Option Relations *)
@@ -301,6 +315,12 @@ Section Relop.
     intros A B C D R f g oa ob.
     rewrite relop_map_l,relop_map_r.
     reflexivity.
+  Qed.
+
+  Lemma relop_forall_impl : forall {A B : Type} (R Q : A -> B -> Prop),
+      (forall a b, R a b -> Q a b) -> forall a b, relop R a b -> relop Q a b.
+  Proof using.
+    intros A B R Q thm a b h; inv h; auto.
   Qed.
 End Relop.
     

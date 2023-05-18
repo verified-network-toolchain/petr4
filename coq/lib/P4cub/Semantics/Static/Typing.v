@@ -149,6 +149,14 @@ Definition type_args
     (type_inn_arg Δ Γ)
     (type_out_arg Δ Γ).
 
+Variant return_ok (Δ : nat) (Γ : list Typ.t) : ctx -> option Exp.t -> Prop :=
+  | return_ok_fruit τ e :
+    `⟨ Δ, Γ ⟩ ⊢ e ∈ τ ->
+    return_ok Δ Γ (CFunction (Some τ)) (Some e)
+  | return_ok_void c :
+    return_void_ok c ->
+    return_ok Δ Γ c None.
+
 Reserved Notation "'`⧼' Δ , Γ , f , c ⧽ ⊢ s ⊣ sig" (at level 80, no associativity).
 
 Local Open Scope stm_scope.
@@ -158,11 +166,7 @@ Inductive type_stm (Δ : nat) (Γ : list Typ.t) (fs : fenv)
 | type_skip c :
   `⧼ Δ, Γ, fs, c ⧽ ⊢ Stm.Skip ⊣ Signal.Cnt
 | type_ret c eo :
-  match c, eo with
-  | CFunction (Some τ), Some e => `⟨ Δ, Γ ⟩ ⊢ e ∈ τ
-  | c, None => return_void_ok c
-  | _, _ => False
-  end ->
+  return_ok Δ Γ c eo ->
   `⧼ Δ, Γ, fs, c ⧽ ⊢ Stm.Ret eo ⊣ Signal.Ret
 | type_exit c :
   exit_ctx_ok c ->

@@ -155,9 +155,9 @@ Section Fourple.
   Definition fourple_4 '((_,_,_,d) : A * B * C * D) : D := d.
 End Fourple.
 
-Definition
-  map_sum
-  {A B C D : Type} (f : A -> B) (g : C -> D) (e : A + C) : B + D :=
+Polymorphic Definition map_sum@{a b c d}
+  {A : Type@{a}} {B : Type@{b}} {C : Type@{c}} {D : Type@{d}}
+  (f : A -> B) (g : C -> D) (e : A + C) : B + D :=
   match e with
   | inl a => inl (f a)
   | inr b => inr (g b)
@@ -243,7 +243,33 @@ Section Forall_Sum.
     | Forall_inl a : P a -> SumForall (inl a)
     | Forall_inr b : Q b -> SumForall (inr b).
 End Forall_Sum.
+
+
+Section Forall_sum.
+  Polymorphic Universes a b.
+  Polymorphic Context {A : Type@{a}} {B : Type@{b}}.
+  Polymorphic Variables (P P' : A -> Prop) (Q Q' : B -> Prop).
+  Polymorphic Hypothesis hp : forall a, P a -> P' a.
+  Polymorphic Hypothesis hq : forall a, Q a -> Q' a.
+
+  Local Hint Constructors SumForall : core.
   
+  Polymorphic Lemma SumForall_forall_impl : forall s,
+      SumForall P Q s -> SumForall P' Q' s.
+  Proof using A B P P' Q Q' hp hq.
+    intros s h; inv h; auto.
+  Qed.
+
+  Polymorphic Universes c d.
+  Polymorphic Context {C : Type@{c}} {D : Type@{d}}.
+  Polymorphic Variables (f : C -> A) (g : D -> B).
+
+  Polymorphic Lemma SumForall_map_sum : forall s,
+      SumForall P Q (map_sum f g s) <-> SumForall (fun c => P (f c)) (fun d => Q (g d)) s.
+  Proof using.
+    intros [c | d]; cbn; split; intro h; inv h; auto.
+  Qed.
+End Forall_sum.
 
 Reserved Infix "`^" (at level 10, left associativity).
 

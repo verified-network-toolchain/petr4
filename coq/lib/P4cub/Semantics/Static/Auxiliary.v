@@ -36,6 +36,14 @@ Section Lemmas.
   Qed.
       
   Local Hint Resolve shift_lexpr_ok : core.
+
+  Lemma lexpr_ok_shift : forall c a e,
+      lexpr_ok (shift_exp c a e) -> lexpr_ok e.
+  Proof.
+    intros c a e h; induction e; cbn in *; inv h; auto.
+  Qed.
+
+  Local Hint Resolve lexpr_ok_shift : core.
   Local Hint Resolve Forall_impl : core.
 
   Lemma shift_lexprs_ok : forall c a es,
@@ -160,6 +168,8 @@ Section Lemmas.
       rewrite <- Forall2_map_l; unravel; assumption.
   Qed.
 
+  Local Hint Rewrite nth_error_shift_var : core.
+  
   Lemma shift_type_exp : forall ts1 ts2 e τ,
       `⟨ Δ, ts1 ++ Γ ⟩ ⊢ e ∈ τ ->
       `⟨ Δ, ts1 ++ ts2 ++ Γ ⟩
@@ -169,26 +179,34 @@ Section Lemmas.
     (*generalize dependent ts2.*)
     remember (ts1 ++ Γ) as TS eqn:hTS.
     induction h using custom_type_exp_ind;
-      (*intros ts2;*) subst; unravel; eauto.
-    - constructor; auto.
-      unfold shift_var. destruct_if.
-      + assert (length (ts1 ++ ts2) <= length ts2 + x) as h.
-        { rewrite app_length. lia. }
-        rewrite app_assoc.
-        rewrite nth_error_app2 in * by assumption.
-        rewrite app_length.
-        replace (length ts2 + x - (length ts1 + length ts2))
-          with (x - length ts1) by lia.
-        assumption.
-      + rewrite nth_error_app1 in * by assumption.
-        assumption.
+      (*intros ts2;*) subst; unravel;
+      autorewrite with core; eauto.
+    - constructor; autorewrite with core; auto.
     - econstructor; eauto.
     - econstructor; eauto.
       rewrite <- Forall2_map_l; unravel.
       apply Forall2_dumb in H2; assumption || reflexivity.
   Qed.
-
+  
   Local Hint Resolve shift_type_exp : core.
+  Local Hint Resolve Forall2_length : core.
+
+  Lemma type_exp_shift : forall ts1 ts2 e τ,
+      `⟨ Δ, ts1 ++ ts2 ++ Γ ⟩
+        ⊢ shift_exp (length ts1) (length ts2) e ∈ τ ->
+      `⟨ Δ, ts1 ++ Γ ⟩ ⊢ e ∈ τ.
+  Proof using.
+    intros ts1 ts2 e;
+      induction e using custom_exp_ind; intros t h;
+      cbn in *; inv h; autorewrite with core in *; eauto.
+    rewrite <- Forall2_map_l in H5.
+    apply Forall_specialize_Forall2 with (vs:=τs) in H; eauto.
+    eapply Forall2_impl with
+      (R:=fun e t => `⟨ Δ, ts1 ++ ts2 ++ Γ ⟩ ⊢ shift_exp (length ts1) (length ts2) e ∈ t)
+      (Q:=fun e t => `⟨ Δ, ts1 ++ Γ ⟩ ⊢ e ∈ t) in H; eauto.
+  Qed.
+      
+  Local Hint Resolve type_exp_shift : core.
   Local Hint Resolve sublist.Forall2_impl : core.
 
   Lemma shift_type_exps : forall ts1 ts2 es τs,
@@ -211,6 +229,18 @@ Section Lemmas.
   Qed.
 
   Local Hint Resolve shift_type_inn_arg : core.
+
+  Lemma type_inn_arg_shift : forall ts1 ts2 e param,
+      type_inn_arg Δ (ts1 ++ ts2 ++ Γ)
+        (shift_exp (length ts1) (length ts2) e) param ->
+      type_inn_arg Δ (ts1 ++ Γ) e param.
+  Proof using.
+    unfold type_inn_arg.
+    intros ts1 ts2 e [_ t].
+    eauto.
+  Qed.
+
+  Local Hint Resolve type_inn_arg_shift : core.
   
   Lemma shift_type_inn_args : forall ts1 ts2 es params,
       Forall2 (type_inn_arg Δ (ts1 ++ Γ)) es params ->
@@ -236,6 +266,18 @@ Section Lemmas.
 
   Local Hint Resolve shift_type_out_arg : core.
 
+  Lemma type_out_arg_shift : forall ts1 ts2 e param,
+      type_out_arg Δ (ts1 ++ ts2 ++ Γ)
+        (shift_exp (length ts1) (length ts2) e) param ->
+      type_out_arg Δ (ts1 ++ Γ) e param.
+  Proof using.
+    unfold type_out_arg.
+    intros ts1 ts2 e [_ t] [ht hl].
+    eauto.
+  Qed.
+
+  Local Hint Resolve type_out_arg_shift : core.
+
   Lemma shift_type_out_args : forall ts1 ts2 es params,
       Forall2 (type_out_arg Δ (ts1 ++ Γ)) es params ->
       Forall2
@@ -257,5 +299,142 @@ Section Lemmas.
     unfold type_args.
     intros ts1 ts2 [innargs outargs] [innparams outparams] [hinn hout].
     constructor; cbn in *; eauto.
+  Qed.
+
+  Local Hint Resolve shift_type_args : core.
+
+  Lemma type_args_shift : forall ts1 ts2 args params,
+      type_args Δ (ts1 ++ ts2 ++ Γ)
+        (shift_args (length ts1) (length ts2) args) params ->
+      type_args  Δ (ts1 ++ Γ) args params.
+  Proof using.
+    unfold type_args.
+    intros ts1 ts2 [innargs outargs] [innparams outparams] [hinn hout].
+    cbn in *.
+    rewrite <- Forall2_map_l in hinn,hout.
+    apply (sublist.Forall2_impl _ _ (type_inn_arg_shift _ _)) in hinn.
+    apply (sublist.Forall2_impl _ _ (type_out_arg_shift _ _)) in hout.
+    constructor; cbn; auto.
+  Qed.
+
+  Local Hint Resolve type_args_shift : core.
+  Local Hint Constructors type_trns : core.
+
+  Lemma shift_type_trns : forall Γ₁ Γ₂ n p,
+      type_trns n Δ (Γ₁ ++ Γ) p ->
+      type_trns n Δ (Γ₁ ++ Γ₂ ++ Γ) (shift_trns (length Γ₁) (length Γ₂) p).
+  Proof using.
+    intros G1 G2 n p h; inv h; unravel; eauto.
+  Qed.
+
+  Local Hint Resolve shift_type_trns : core.
+
+  Lemma type_trns_shift : forall Γ₁ Γ₂ n p,
+      type_trns n Δ (Γ₁ ++ Γ₂ ++ Γ) (shift_trns (length Γ₁) (length Γ₂) p) ->
+      type_trns n Δ (Γ₁ ++ Γ) p.
+  Proof using.
+    intros G1 G2 n p h; destruct p; cbn in *; inv h; eauto.
+  Qed.
+
+  Local Hint Resolve type_trns_shift : core.
+  Local Hint Constructors type_call : core.
+  Local Hint Constructors predop : core.
+  Local Hint Constructors relop : core.
+  Local Hint Resolve predop_forall_impl : core.
+  Local Hint Resolve relop_forall_impl : core.
+  Local Hint Resolve shift_type_exps : core.
+  
+  Lemma shift_type_call : forall Γ₁ Γ₂ fs cx c τs params,
+      type_call Δ (Γ₁ ++ Γ) fs cx c τs params ->
+      type_call Δ (Γ₁ ++ Γ₂ ++ Γ) fs cx (shift_call (length Γ₁) (length Γ₂) c) τs params.
+  Proof using.
+    intros G1 G2 fs cx c ts params h; inv h; unravel; eauto.
+    - econstructor; eauto.
+      + rewrite predop_map. eauto.
+      + rewrite relop_map_l. eauto.
+    - econstructor; eauto.
+      + rewrite predop_map. eauto.
+      + rewrite relop_map_l. eauto.
+  Qed.
+
+  Local Hint Resolve shift_type_call : core.
+
+  Lemma type_call_shift : forall Γ₁ Γ₂ fs cx c τs params,
+      type_call Δ (Γ₁ ++ Γ₂ ++ Γ) fs cx (shift_call (length Γ₁) (length Γ₂) c) τs params ->
+      type_call Δ (Γ₁ ++ Γ) fs cx c τs params.
+  Proof using.
+    intros G1 G2 fs cx c ts params h;
+      destruct c; unravel in *; inv h; eauto.
+    - rewrite relop_map_l in H6.
+      rewrite predop_map in H5.
+      apply (predop_forall_impl _ _ (lexpr_ok_shift _ _)) in H5.
+      apply (relop_forall_impl _ _ (type_exp_shift _ _)) in H6.
+      eauto.
+    - rewrite <- Forall2_map_l in H5.
+      apply (sublist.Forall2_impl _ _ (type_exp_shift _ _)) in H5.
+      eauto.
+    - rewrite relop_map_l in H9.
+      rewrite predop_map in H8.
+      apply (predop_forall_impl _ _ (lexpr_ok_shift _ _)) in H8.
+      apply (relop_forall_impl _ _ (type_exp_shift _ _)) in H9.
+      eauto.
+  Qed.
+
+  Local Hint Resolve type_call_shift : core.
+  Local Hint Constructors return_ok : core.
+  Local Hint Constructors return_void_ok : core.
+
+  Lemma shift_return_ok : forall Γ₁ Γ₂ cx eo,
+      return_ok Δ (Γ₁ ++ Γ) cx eo ->
+      return_ok Δ (Γ₁ ++ Γ₂ ++ Γ) cx (option_map (shift_exp (length Γ₁) (length Γ₂)) eo).
+  Proof using.
+    intros G1 G2 c eo h; inv h; cbn; auto.
+  Qed.
+
+  Local Hint Resolve shift_return_ok : core.
+
+  Lemma return_ok_shift : forall Γ₁ Γ₂ cx eo,
+      return_ok Δ (Γ₁ ++ Γ₂ ++ Γ) cx (option_map (shift_exp (length Γ₁) (length Γ₂)) eo) ->
+      return_ok Δ (Γ₁ ++ Γ) cx eo.
+  Proof using.
+    intros G1 G2 c [e |] h; inv h; cbn in *; eauto.
+  Qed.
+
+  Local Hint Resolve return_ok_shift : core.
+  Local Hint Constructors type_stm : core.
+  Local Hint Resolve SumForall_forall_impl : core.
+  Local Hint Constructors SumForall : core.
+  
+  Lemma shift_type_stm : forall Γ₁ Γ₂ fs cx s sig,
+      `⧼ Δ, Γ₁ ++ Γ, fs, cx ⧽ ⊢ s ⊣ sig ->
+      `⧼ Δ, Γ₁ ++ Γ₂  ++ Γ, fs, cx ⧽ ⊢ shift_stm (length Γ₁) (length Γ₂) s ⊣ sig.
+  Proof using.
+    intros G1 G2 fs cx s sig h.
+    remember (G1 ++ Γ) as G.
+    generalize dependent G1.
+    induction h; intros G1 hG; subst; unravel; eauto.
+    - inv H0; cbn; eauto.
+    - econstructor; eauto.
+      + inv H; cbn; try conj_destr; subst; eauto.
+      + unfold id.
+        replace (S (length G1)) with (length (τ :: G1)) by reflexivity.
+        replace (τ :: G1 ++ G2 ++ Γ) with ((τ :: G1) ++ G2 ++ Γ) by reflexivity.
+        eauto.
+  Qed.
+
+  Lemma type_stm_shift : forall Γ₁ Γ₂ fs cx s sig,
+      `⧼ Δ, Γ₁ ++ Γ₂  ++ Γ, fs, cx ⧽ ⊢ shift_stm (length Γ₁) (length Γ₂) s ⊣ sig ->
+      `⧼ Δ, Γ₁ ++ Γ, fs, cx ⧽ ⊢ s ⊣ sig.
+  Proof using.
+    intros G1 G2 fs cx s;
+      generalize dependent cx;
+      generalize dependent fs;
+      generalize dependent G2;
+      generalize dependent G1.
+    induction s; intros G1 G2 fs xs sig h; unravel in h; inv h; eauto.
+    - destruct lhs; inv H4; eauto.
+    - specialize IHs with (G1 := τ :: G1); cbn in IHs.
+      destruct init; unravel in *; unfold id in *; inv H4;
+        try conj_destr; subst; econstructor; eauto.
   Qed.
 End Lemmas.

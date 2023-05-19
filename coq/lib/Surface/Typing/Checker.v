@@ -35,6 +35,76 @@ Section Checker.
     end.
 
   (*dummy function definition. fill in later. TODO.*)
+  (*hint: takes in two tags and combines and appends them to the output *)
+  Definition append_tags input1 input2 output :=
+    error (Exn.Other "fill out.")
+
+  Definition type_has_equality_test arg :=
+    match arg with
+  | TypBool
+  | TypString
+  | TypInteger
+  | TypInt _
+  | TypBit _
+  | TypVarBit _
+  | TypError
+  | TypMatchKind =>
+    true
+  | TypArray (typ, _)
+  | TypSet typ =>
+    type_has_equality_test typ
+  | TypTuple types
+  | TypList types =>
+    List.forallb type_has_equality_test types
+  | TypHeader fields
+  | TypHeaderUnion fields
+  | TypStruct fields =>
+    List.forallb (fun field => type_has_equality_test (snd field)) fields
+  | TypNewType (_, typ) =>
+    type_has_equality_test typ
+  | TypEnum (_, typ, _) =>
+    begin match typ with
+      | Some typ => type_has_equality_test typ
+      | None => true
+    end
+  | TypTypeName name =>
+    error (Exn.Other "type name in saturated type?")
+  | _ =>
+    false
+
+
+
+
+  Definition is_nonneg env arg typ :=
+    (*compile_time_eval env arg *)
+    match typ with
+    | TypInteger =>
+      let e_value = compile_time_eval env arg in
+      (e_value >= 0)
+    | TypBit _ => true
+    | _ => false
+
+  Definition is_pos env arg typ :=
+    match typ with
+  | TypInteger =>
+    let e_value = compile_time_eval env arg in
+    (e_value > 0)
+  | TypBit _ =>
+    begin match compile_time_eval env arg with
+      | None =>
+        true
+      | Some value =>
+        match value with
+          | ValInt (_, v)
+          | ValBit (_, v)
+          | ValInteger v
+           => (v > 0)
+        | None =>
+          error (Exn.Other "bit<> evaluated to non numerical value?")
+    end
+  | _ => false
+
+  (*dummy function definition. fill in later. TODO.*)
   (*hint: bitstring access rule from the formalized spec. ignore inserting casts rule.*)
   (*hint: lib/checker.ml --> type_bit_string_access. *)
   (*hint: similar to type_array_access a little down this file.*)
@@ -48,34 +118,83 @@ Section Checker.
     match op with
     | And _
     | Or _
-      => error (Exn.Other "@Harim fill out.")
+      => match type_arg1,type_arg2 with 
+      | TypBool _, TypBool _ => ok append_tags(type_arg1, type_arg2, TypBool)
+      | _, TypBool _ => error (Exn.Other "binary arg1 type not bool")
+      | TypBool _, _ => error (Exn.Other "binary arg2 type not bool")
+      | _ , _ => error (Exn.Other "binary arg types not bool")
     | Plus _
     | Minus _
     | Mul _
-      => error (Exn.Other "@Harim fill out.")
+      => match type_arg1,type_arg2 with 
+      | TypInteger _, TypInteger _ => ok append_tags(type_arg1, type_arg2,TypInteger)
+      | TypBit _ w1, TypBit _ w2=> ok append_tags(type_arg1, type_arg2,TypBit)
+      | TypInt _ w1, TypInt _ w2=> ok append_tags(type_arg1, type_arg2,TypInt)
+      | _ , _ => error (Exn.Other "binary arg types not equivalent and/or not numeric")
     | Eq _
     | NotEq _
-      => error (Exn.Other "@Harim fill out.")
+      => if type_eq type_arg1 type_arg2 /\ type_has_equality_test env type_arg1
+      then ok TypBool
+      else error (Exn.Other "arg types are not equal or cannot be compared for equality")
+
     | PlusSat _
     | MinusSat _
-      => error (Exn.Other "@Harim fill out.")
+      => match type_arg1,type_arg2 with 
+      | TypBit _ w1, TypBit _ w2=> ok append_tags(type_arg1, type_arg2,TypBit)
+      | TypInt _ w1, TypInt _ w2=> ok append_tags(type_arg1, type_arg2,TypInt)
+      | _ , _ => error (Exn.Other "binary arg types not equivalent and/or not fixed width int")
     | BitAnd _
     | BitXor _
     | BitOr _
-      => error (Exn.Other "@Harim fill out.")
+      => match type_arg1,type_arg2 with 
+      | TypBit _ w1, TypBit _ w2=> ok append_tags(type_arg1, type_arg2,TypBit)
+      | TypInt _ w1, TypInt _ w2=> ok append_tags(type_arg1, type_arg2,TypInt)
+      | _ , _ => error (Exn.Other "binary arg types not equivalent and/or not fixed width int")
     | PlusPlus _
-      => error (Exn.Other "@Harim fill out.")
+      => match type_arg1 with 
+      | TypBit _ w1 =>
+        match type_arg2 with 
+        | TypBit _ w2 
+        | TypInt _ w2 => ok append_tags(type_arg1, type_arg2,(TypBit _ (w1+w2)))
+      | TypInt _ w1 =>
+        match type_arg2 with 
+        | TypBit _ w2 
+        | TypInt _ w2 => ok append_tags(type_arg1, type_arg2,(TypInt _ (w1+w2)))
+      | _ , _ => error (Exn.Other "binary arg types not fixed width int")
     | Le _
     | Ge _
     | Lt _
     | Gt _
-      => error (Exn.Other "@Harim fill out.")
+      => match type_arg1,type_arg2 with 
+      | TypInteger _, TypInteger _ => ok append_tags(type_arg1, type_arg2,TypBool)
+      | TypBit _ w1, TypBit _ w2=> ok append_tags(type_arg1, type_arg2,TypBool)
+      | TypInt _ w1, TypInt _ w2=> ok append_tags(type_arg1, type_arg2,TypBool)
+      | _ , _ => error (Exn.Other "binary arg types not equivalent and/or not numeric")
+
     | Mod _
     | Div _
-      => error (Exn.Other "@Harim fill out.")
+      => match type_arg1,type_arg2 with 
+        | TypInteger _,TypInteger _ => 
+        if is_nonneg env arg1 /\ is_pos env arg2
+        then ok append_tags(type_arg1, type_arg2,TypInteger)
+        else error (Exn.Other "binary arg1 not nonnegative and/or arg2 not positive")
+        | TypBit _ w1,TypBit _ w2 => ok append_tags(type_arg1, type_arg2,TypBit)=> 
+        if is_nonneg env arg1 /\ is_pos env arg2
+        then ok append_tags(type_arg1, type_arg2,TypInteger)
+        else error (Exn.Other "binary arg1 not nonnegative and/or arg2 not positive")
     | Shl _
     | Shr _
-      => error (Exn.Other "@Harim fill out.")
+      => 
+      if is_nonneg env arg2
+      then match type_arg1 with 
+        | TypBit _ w1 => ok append_tags(type_arg1, type_arg2,TypBit)
+        | TypInt _ w1 => ok append_tags(type_arg1, type_arg2,TypInt)
+        | TypInteger _ => 
+          if compile_time_known type_arg2
+          then ok append_tags(type_arg1, type_arg2,TypInteger)
+          else error (Exn.Other "binary arg1 is TypInteger but binary arg2 is not compile time known")
+        | _  => error (Exn.Other "binary arg1 type not numeric")
+      else error (Exn.Other "binary arg2 is not nonnegative")
     end.
 
   (*dummy function definition. fill in later. TODO.*)

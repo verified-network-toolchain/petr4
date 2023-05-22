@@ -41,7 +41,7 @@ Definition mem := PathMap.t Sval.
 
 Notation ident := string.
 Notation path := (list ident).
-             
+
 Record inst_ref : Type :=
   { iclass:ident; ipath:path; itargs:list (@P4Type tags_t) }.
 
@@ -384,7 +384,7 @@ Definition loc_to_sval (loc : Locator) (s : state) : Result.result Exn.t Sval :=
   | LGlobal p =>
       Result.from_opt (PathMap.get p (get_memory s))
                       (Exn.LocNotFoundInState
-                         loc 
+                         loc
                          "Called from loc_to_sval.")
   end.
 
@@ -977,7 +977,7 @@ Definition get_arg_directions (func : @Expression tags_t) : Result.result Exn.t 
   | _ =>
       Result.error (Exn.Other ("get_arg_directions: passed type that is not a function type"))
   end.
-    
+
 
 (* given expression and direction, evaluate to argument. *)
 (* in -> (Some _, None) *)
@@ -1916,13 +1916,34 @@ Fixpoint process_locals (locals : list (@Declaration tags_t)) : @Block tags_t :=
 Definition empty_func_type : @P4Type tags_t :=
   TypFunction (MkFunctionType nil nil FunParser TypVoid).
 
+Fixpoint parser_cases_cast_2_if (expr: @Expression tags_t)
+  (l: list (@ParserCase tags_t)) : Statement :=
+  match l with
+  | [] => empty_statement (* TODO should trigger a runtime error *)
+  | (MkParserCase tags matches next) :: rest =>
+      match matches with
+      | [MkMatch tagm (MatchCast mtyp mexpr) atyp] =>
+          let val_expr := MkExpression tagm (ExpCast mtyp mexpr) atyp Directionless in
+          let cond := MkExpression tagm (ExpBinaryOp Eq expr val_expr) TypBool Directionless in
+          let method := MkExpression dummy_tags (ExpName (BareName next) (LInstance [str next])) empty_func_type Directionless in
+      let stmt := MkStatement tags (StatMethodCall method nil nil) StmUnit in
+      MkStatement tags (StatConditional cond stmt (Some (parser_cases_cast_2_if expr rest))) StmUnit
+      | _ => empty_statement (* TODO *)
+      end
+  end.
+
 Definition load_parser_transition (p : path) (trans : @ParserTransition tags_t) : @Block tags_t :=
   match trans with
   | ParserDirect tags next =>
       let method := MkExpression dummy_tags (ExpName (BareName next) (LInstance [str next])) empty_func_type Directionless in
       let stmt := MkStatement tags (StatMethodCall method nil nil) StmUnit in
       BlockSingleton stmt
-  | ParserSelect _ _ _ => BlockNil (* TODO *)
+  | ParserSelect tags exprs cases =>
+      match exprs with
+      | [] => BlockNil
+      | [expr] => BlockSingleton (parser_cases_cast_2_if expr cases)
+      | _ => BlockNil (* TODO *)
+      end
   end.
 
 Definition block_of_list_statement (stmts : list (@Statement tags_t)) : @Block tags_t :=

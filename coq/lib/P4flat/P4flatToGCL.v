@@ -56,8 +56,7 @@ Open Scope string_scope.
 Inductive p4sorts :=
 | Bool
 | Bit (width: N)
-| Prod (s1 s2 : p4sorts)
-| ActionName.
+| Prod (s1 s2 : p4sorts).
 Scheme Equality for p4sorts.
 #[global]
 Instance p4sorts_EqDec : EqDec p4sorts eq := 
@@ -70,20 +69,25 @@ Inductive p4funs_base :=
 | BBitLit (width: N) (val: Z)
 | BProj1
 | BProj2.
+Scheme Equality for p4funs_base.
 #[global]
-Instance p4funs_base_EqDec : EqDec p4funs_base eq.
-Admitted.
+Instance p4funs_base_EqDec : EqDec p4funs_base eq :=
+  p4funs_base_eq_dec.
 
 (* Function symbols arising from particular programs. *)
 Inductive p4funs_prog :=
 | BTable (name: string)
 | BAction (name: string).
+Scheme Equality for p4funs_prog.
 #[global]
-Instance p4funs_prog_EqDec : EqDec p4funs_prog eq.
-Admitted.
+Instance p4funs_prog_EqDec : EqDec p4funs_prog eq :=
+  p4funs_prog_eq_dec.
 
 Definition p4funs : Type :=
   p4funs_base + p4funs_prog.
+#[global]
+Instance p4funs_EqDec : EqDec p4funs eq :=
+  ltac:(typeclasses eauto).
 
 Inductive p4rels :=
 (* no relation symbols *)
@@ -101,7 +105,6 @@ Definition initial_p4sig : p4sig :=
     fun s =>
       match s with
       | Bool => true
-      | ActionName => true
       | Bit k => true
       | _ => false
       end;

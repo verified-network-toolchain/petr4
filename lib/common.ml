@@ -291,19 +291,26 @@ module MakeDriver (IO: DriverIO) = struct
       >>= fun _ -> Ok ()
 end
 
-let print_fun (f: Poulet4.P4flatToGCL.p4funs) : string =
+open Poulet4.P4flatToGCL
+
+let print_fun (f: (p4funs_base, (p4funs_prog, p4funs_prog) P4light.sum) P4light.sum) =
   let open Poulet4.P4flatToGCL in
   match f with
   | Coq_inl BTrue -> "true"
   | Coq_inl BFalse -> "false"
   | Coq_inl BBitLit (width, value) ->
     Bigint.to_string value
-  | Coq_inr (BTable name) ->
-    "table_symb__" ^ name
+  | Coq_inr (Coq_inl (BTable name)) ->
+    name ^ "__l"
+  | Coq_inr (Coq_inr (BTable name)) ->
+    name ^ "__r"
   | Coq_inl BProj1 -> "first"
   | Coq_inl BProj2 -> "second"
-  | Coq_inr (BAction act) ->
-    "action_symb__" ^ act
+  | Coq_inr (Coq_inl (BAction act)) ->
+    act ^ "__l"
+  | Coq_inr (Coq_inr (BAction act)) ->
+    act ^ "__r"
+
 
 let print_rel r : string =
   failwith "no relation symbols..."
@@ -361,6 +368,34 @@ let expect_inl (e: ('a, 'b) P4light.sum) : 'a =
   | Coq_inl v -> v
   | _ -> failwith "expect_inl failed"
 
+let rec print_sort (s: p4sorts) =
+  match s with
+  | Bool -> "Bool"
+  | Bit k -> "Int"
+  | Prod (s1, s2) ->
+    Printf.sprintf "(Pair %s %s)" (print_sort s1) (print_sort s2)
+
+let print_fn_decl (f: (p4funs_prog, p4funs_prog) P4light.sum * (p4sorts Poulet4.Sig.rank * p4sorts Poulet4.Sig.ident)) =
+  let symb, (args, ret) = f in
+  Printf.sprintf "(declare_fun %s (%s) %s)"
+    (print_fun (Coq_inr symb))
+    (List.map ~f:(print_ident print_sort) args
+     |> String.concat ~sep:" ")
+    (print_ident print_sort ret)
+
+let declare_fn (f: (p4funs_prog, p4funs_prog) P4light.sum * (p4sorts Poulet4.Sig.rank * p4sorts Poulet4.Sig.ident)) =
+  Printf.printf "%s\n" (print_fn_decl f)
+
+let declare_fns (fns: ((p4funs_prog, p4funs_prog) P4light.sum, p4sorts Poulet4.Sig.rank * p4sorts Poulet4.Sig.ident) P4light.pre_AList) =
+  List.iter ~f:declare_fn fns
+
+
+let declare_var ((var, sort): (string, string) P4light.sum * p4sorts Poulet4.Sig.ident) =
+  Printf.printf "(declare-const %s %s)\n" (sum_printer var) (print_ident print_sort sort)
+
+let declare_vars vars =
+  List.iter ~f:declare_var vars
+
 let check_refinement ((prog_l, prog_r), rel) =
   let open Poulet4.P4flatToGCL in
   let open Poulet4.GGCL in
@@ -374,8 +409,11 @@ let check_refinement ((prog_l, prog_r), rel) =
     | _, _ -> false
   in
   let vc = wp eqdec prod rel in
-  Printf.printf "(declare-const x_one_table__l Int)\n (declare-const x_seq_tables__r Int)\n \n (declare-datatypes (T1 T2) ((Pair (mk-pair (first T1) (second T2)))))\n (declare-fun table_symb__t_one_table (Int) (Pair Int Int))\n \n (declare-fun table_symb__t1_seq_tables (Int) (Pair Int Int))\n (declare-fun table_symb__t2_seq_tables (Int) (Pair Int Int))\n \n (define-const action_symb__nop Int 0)\n (define-const action_symb__set_x Int 1)\n";
-  Printf.printf "\n(assert (not %s))\n(check-sat)\n(reset)\n" (print_fm (fun _ -> "TODO") sum_printer vc);
+  Printf.printf "(declare-datatypes (T1 T2) ((Pair (mk-pair (first T1) (second T2)))))\n";
+  declare_fns fns;
+  declare_vars vars;
+  (*Printf.printf "(declare-const x_one_table__l Int)\n (declare-const x_seq_tables__r Int)\n \n (declare-datatypes (T1 T2) ((Pair (mk-pair (first T1) (second T2)))))\n (declare-fun table_symb__t_one_table (Int) (Pair Int Int))\n \n (declare-fun table_symb__t1_seq_tables (Int) (Pair Int Int))\n (declare-fun table_symb__t2_seq_tables (Int) (Pair Int Int))\n \n (define-const action_symb__nop Int 0)\n (define-const action_symb__set_x Int 1)\n";*)
+  Printf.printf "\n(assert (not %s))\n(check-sat)\n(reset)\n" (print_fm print_fun sum_printer vc);
   ()
 
 let run_tbl () =

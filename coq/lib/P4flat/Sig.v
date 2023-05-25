@@ -66,7 +66,6 @@ Section Ident.
   Defined.
 End Ident.
 Arguments ident T : clear implicits.
-Arguments ident_EqDec : clear implicits.
 
 Section Signature.
   Variables (sort_sym func_sym rel_sym: vocab).
@@ -79,15 +78,16 @@ Section Signature.
   Definition rank :=
     list sort.
 
+  (* Signature without arities *)
   Record signature : Type :=
-    { (* tracks arities for indexed sorts and is 0 if sort is simple *)
-      sig_sorts : sort_sym -> option nat;
+    { sig_sorts : sort_sym -> bool;
       sig_funs  : func -> option (rank * sort);
       sig_rels  : rel -> option rank }.
 
   Definition sig_get_sort (sig: signature) (s: sort_sym) :=
-    from_opt (sig.(sig_sorts) s)
-             ("Sort symbol not found in sig.").
+    if sig.(sig_sorts) s
+    then ok tt
+    else error "Sort symbol not found in sig.".
 
   Definition sig_get_fun (sig: signature) (f: func) :=
     from_opt (sig.(sig_funs) f)
@@ -101,11 +101,10 @@ Section Signature.
     match
       match s with
       | SSimple s =>
-          let* idx_arity := sig_get_sort sig s in
-          mret (idx_arity ==b 0)
+          sig_get_sort sig s;;
+          mret true
       | SIdx s args =>
-          let* idx_arity := sig_get_sort sig s in
-          mret (idx_arity ==b List.length args)
+          mret false
       end
     with 
     | Ok b => b
@@ -113,7 +112,8 @@ Section Signature.
     end.
 
   Definition sort_wf (sig: signature) (sort: sort) : Prop :=
-    sig_sorts sig (ident_base sort) = Some (ident_arglen sort).
+    ident_arglen sort = 0 /\
+    sig_sorts sig (ident_base sort) = true.
 
   Definition rank_wf (sig: signature) (rank: rank) : Prop :=
     List.Forall (sort_wf sig) rank.
@@ -145,8 +145,6 @@ Arguments sig_get_fun {sort_sym func_sym rel_sym}.
 Arguments sig_get_rel {sort_sym func_sym rel_sym}.
 Arguments sig_wf {sort_sym func_sym rel_sym _}.
 
-
-
 Inductive builtin_sort_sym :=
 | BVSort.
 
@@ -160,3 +158,8 @@ Inductive builtin_rel_sym :=
 Definition builtin_sig: signature builtin_sort_sym builtin_func_sym builtin_rel_sym.
 Admitted.
 
+Definition ident_fmap {X Y} (f: X -> Y) (i: ident X) : ident Y :=
+  match i with
+  | SSimple x => SSimple (f x)
+  | SIdx x args => SIdx (f x) args
+  end.

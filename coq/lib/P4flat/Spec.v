@@ -21,7 +21,6 @@ Section FOL.
   Context `{@EqDec func_sym eq eq_equivalence}.
   Context `{@EqDec rel_sym eq eq_equivalence}.
   Context `{@EqDec sort_sym eq eq_equivalence}.
-  Print signature.
   Variable (sig: signature sort_sym func_sym rel_sym).
 
   (* First-order terms (either functions or variables). *)
@@ -182,4 +181,22 @@ Fixpoint fm_map_vars {V W func_sym rel_sym} (m: V -> W) (f: fm V func_sym rel_sy
   | FOr f1 f2 => FOr (fm_map_vars m f1) (fm_map_vars m f2)
   | FAnd f1 f2 => FAnd (fm_map_vars m f1) (fm_map_vars m f2)
   | FImpl f1 f2 => FImpl (fm_map_vars m f1) (fm_map_vars m f2)
+  end.
+
+Fixpoint tm_map_funs {V F G} (m: F -> G) (t: tm V F) : tm V G :=
+  match t with
+  | TVar v => TVar v
+  | TFun f args => TFun (ident_fmap m f) (List.map (tm_map_funs m) args)
+  end.
+
+Fixpoint fm_map_funs {V F G rel_sym} (m: F -> G) (f: fm V F rel_sym) : fm V G rel_sym :=
+  match f with
+  | FTrue _ _ _ => FTrue _ _ _
+  | FFalse _ _ _ => FFalse _ _ _
+  | FEq t1 t2 => FEq (tm_map_funs m t1) (tm_map_funs m t2)
+  | FRel r args => FRel r (List.map (tm_map_funs m) args)
+  | FNeg f => fm_map_funs m f
+  | FOr f1 f2 => FOr (fm_map_funs m f1) (fm_map_funs m f2)
+  | FAnd f1 f2 => FAnd (fm_map_funs m f1) (fm_map_funs m f2)
+  | FImpl f1 f2 => FImpl (fm_map_funs m f1) (fm_map_funs m f2)
   end.

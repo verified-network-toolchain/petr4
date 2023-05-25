@@ -43,18 +43,18 @@ Definition seq_tables : P4flat.Syntax.Top.prog :=
   ].
 
 (* List of programs (p, q, s) such that s |= p <= q *)
-Definition refinements : list (Top.prog * Top.prog * fm (var + var) p4funs p4rels) :=
+Definition refinements : list (Top.prog * Top.prog * fm (string + string) (p4funs_base + (p4funs_prog + p4funs_prog))%type p4rels) :=
   [(one_table, seq_tables, FEq (TVar (inl "x_one_table")) (TVar (inr "x_seq_tables")))].
 
 Eval vm_compute in (fst (run_with_state var_env_init (prog_to_sig_stmt one_table))).
 Eval vm_compute in (fst (run_with_state var_env_init (prog_to_sig_stmt seq_tables))).
-Definition my_spec : fm (var + var) p4funs p4rels :=
+Definition my_spec : fm (string + string) (p4funs_base + (p4funs_prog + p4funs_prog))%type p4rels :=
   FEq (TVar (inl "x_one_table")) (TVar (inr "x_seq_tables")).
+Set Typeclasses Depth 5.
 Eval vm_compute in (let comp :=
-                      let* (fsig1, one) := prog_to_sig_stmt one_table in
-                      let* (fsig2, seq) := prog_to_sig_stmt seq_tables in
-                      mret (GGCL.Dijkstra.wp _ _ _
-                                             (GGCL.Dijkstra.seq_prod_prog _ _ one seq)
-                                             my_spec)
+                      let* (fsig1, gamma1, one) := prog_to_sig_stmt one_table in
+                      let* (fsig2, gamma2, seq) := prog_to_sig_stmt seq_tables in
+                      let (_, prod) := GGCL.seq_prod_prog _ _ _ _ _ fsig1 gamma1 one fsig2 gamma2 seq in
+                      mret (GGCL.wp _ _ _ prod my_spec)
                     in
                     fst (run_with_state var_env_init comp)).

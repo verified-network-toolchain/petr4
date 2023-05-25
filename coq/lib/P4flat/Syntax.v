@@ -102,6 +102,10 @@ Module Top.
         (params : Typ.params)              (** invocation params *)
         (start : Stm.t) (** start state *)
         (states : list Stm.t) (** parser states *)
+    | Table
+        (name : string)
+        (key_type : list (Typ.t * string (* match_kind *)))
+        (ctrl_plane_params : list (list Typ.param))
     (* Instantiations of packages. *)
     | Pkg (name: string) (cargs: list string).
 
@@ -113,6 +117,7 @@ Module Top.
     | Extern name _ _ _ _
     | ControlBlock name _ _ _
     | ParserBlock name _ _ _ _
+    | Table name _ _
     | Pkg name _ => name
     end.
 

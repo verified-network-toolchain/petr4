@@ -294,18 +294,16 @@ end
 let print_fun (f: Poulet4.P4flatToGCL.p4funs) : string =
   let open Poulet4.P4flatToGCL in
   match f with
-  | BTrue -> "true"
-  | BFalse -> "false"
-  | BBitLit (width, value) ->
+  | Coq_inl BTrue -> "true"
+  | Coq_inl BFalse -> "false"
+  | Coq_inl BBitLit (width, value) ->
     Bigint.to_string value
-  | BTable name ->
+  | Coq_inr (BTable name) ->
     "table_symb__" ^ name
-  | BProj1 -> "first"
-  | BProj2 -> "second"
-  | BAction act ->
+  | Coq_inl BProj1 -> "first"
+  | Coq_inl BProj2 -> "second"
+  | Coq_inr (BAction act) ->
     "action_symb__" ^ act
-  | BVar name ->
-    name
 
 let print_rel r : string =
   failwith "no relation symbols..."
@@ -320,57 +318,65 @@ let print_ident (printer: 'a -> string) (i: 'a Poulet4.Sig.ident) : string =
       (List.map ~f:string_of_int args
        |> String.concat ~sep:" ")
 
-let rec print_tm vp tm : string =
+let rec print_tm fp vp tm : string =
   let open Poulet4.Spec in
   match tm with
   | TVar x -> vp x
   | TFun (f, args) ->
     if List.length args > 0
     then Printf.sprintf "(%s %s)"
-        (print_ident print_fun f)
-        (print_tms vp args)
-    else print_ident print_fun f
+        (print_ident fp f)
+        (print_tms fp vp args)
+    else print_ident fp f
 
-and print_tms vp tms : string =
-  List.map ~f:(print_tm vp) tms
+and print_tms fp vp tms : string =
+  List.map ~f:(print_tm fp vp) tms
   |> String.concat ~sep:" "
 
-let rec print_fm vp fm =
+let rec print_fm fp vp fm =
   let open Poulet4.Spec in
   match fm with
   | FTrue -> "true"
   | FFalse -> "false"
   | FEq (t1, t2) ->
-    Printf.sprintf "(= %s %s)" (print_tm vp t1) (print_tm vp t2)
+    Printf.sprintf "(= %s %s)" (print_tm fp vp t1) (print_tm fp vp t2)
   | FRel (r, args) ->
-    Printf.sprintf "(%s %s)" (print_rel r) (print_tms vp args)
+    Printf.sprintf "(%s %s)" (print_rel r) (print_tms fp vp args)
   | FNeg f ->
-    Printf.sprintf "(not %s)" (print_fm vp f)
+    Printf.sprintf "(not %s)" (print_fm fp vp f)
   | FOr (f1, f2) ->
-    Printf.sprintf "(or %s %s)" (print_fm vp f1) (print_fm vp f2)
+    Printf.sprintf "(or %s %s)" (print_fm fp vp f1) (print_fm fp vp f2)
   | FAnd (f1, f2) ->
-    Printf.sprintf "(and %s %s)" (print_fm vp f1) (print_fm vp f2)
+    Printf.sprintf "(and %s %s)" (print_fm fp vp f1) (print_fm fp vp f2)
   | FImpl (f1, f2) ->
-    Printf.sprintf "(=> %s %s)" (print_fm vp f1) (print_fm vp f2)
+    Printf.sprintf "(=> %s %s)" (print_fm fp vp f1) (print_fm fp vp f2)
 
 let sum_printer (v: (string, string) P4light.sum) : string =
   match v with
   | Coq_inl var -> Printf.sprintf "%s__l" var
   | Coq_inr var -> Printf.sprintf "%s__r" var
 
+let expect_inl (e: ('a, 'b) P4light.sum) : 'a =
+  match e with
+  | Coq_inl v -> v
+  | _ -> failwith "expect_inl failed"
+
 let check_refinement ((prog_l, prog_r), rel) =
-  let wp =
-    Poulet4.GGCL.Dijkstra.seq_prod_wp
-      String.equal
-      String.equal in
-  match Poulet4.P4flatToGCL.prog_to_sig_stmt prog_l Poulet4.P4flatToGCL.var_env_init |> fst,
-        Poulet4.P4flatToGCL.prog_to_sig_stmt prog_r Poulet4.P4flatToGCL.var_env_init |> fst with
-  | Coq_inl (_, prog_l_gcl), Coq_inl (_, prog_r_gcl) ->
-    let vc = wp prog_l_gcl prog_r_gcl rel in
-    Printf.printf "(declare-const x_one_table__l Int)\n (declare-const x_seq_tables__r Int)\n \n (declare-datatypes (T1 T2) ((Pair (mk-pair (first T1) (second T2)))))\n (declare-fun table_symb__t_one_table (Int) (Pair Int Int))\n \n (declare-fun table_symb__t1_seq_tables (Int) (Pair Int Int))\n (declare-fun table_symb__t2_seq_tables (Int) (Pair Int Int))\n \n (define-const action_symb__nop Int 0)\n (define-const action_symb__set_x Int 1)\n";
-    Printf.printf "\n(assert (not %s))\n(check-sat)\n(reset)\n" (print_fm sum_printer vc);
-  | _, _ ->
-    Printf.printf "prog_to_stmt failure"
+  let open Poulet4.P4flatToGCL in
+  let open Poulet4.GGCL in
+  let ((fns1, vars1), gcl1) = prog_to_sig_stmt prog_l var_env_init |> fst |> expect_inl in
+  let ((fns2, vars2), gcl2) = prog_to_sig_stmt prog_r var_env_init |> fst |> expect_inl  in
+  let ((fns, vars), prod) = seq_prod_prog fns1 vars1 gcl1 fns2 vars2 gcl2 in
+  let eqdec (x: (string, string) P4light.sum) (y: (string, string) P4light.sum) =
+    match x, y with
+    | Coq_inl x', Coq_inl y' -> String.equal x' y'
+    | Coq_inr x', Coq_inr y' -> String.equal x' y'
+    | _, _ -> false
+  in
+  let vc = wp eqdec prod rel in
+  Printf.printf "(declare-const x_one_table__l Int)\n (declare-const x_seq_tables__r Int)\n \n (declare-datatypes (T1 T2) ((Pair (mk-pair (first T1) (second T2)))))\n (declare-fun table_symb__t_one_table (Int) (Pair Int Int))\n \n (declare-fun table_symb__t1_seq_tables (Int) (Pair Int Int))\n (declare-fun table_symb__t2_seq_tables (Int) (Pair Int Int))\n \n (define-const action_symb__nop Int 0)\n (define-const action_symb__set_x Int 1)\n";
+  Printf.printf "\n(assert (not %s))\n(check-sat)\n(reset)\n" (print_fm (fun _ -> "TODO") sum_printer vc);
+  ()
 
 let run_tbl () =
   let tests = Poulet4.Examples.refinements in

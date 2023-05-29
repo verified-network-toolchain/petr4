@@ -296,6 +296,26 @@ Definition packet_in_extract : extern_func := {|
   ef_sem := packet_in_extract_sem
 |}.
 
+Definition advance (n: nat) (pkt: packet_in) : signal * packet_in :=
+  let (res, pkt') := extract_bits n pkt in
+  match res with
+  | inl _ => (SReturnNull, pkt')
+  | inr (Reject err) => (SReject (Packet.error_to_string err), pkt')
+  | inr (TypeError _) => (SReject "it will not happen", pkt')
+  end.
+
+Inductive packet_in_advance_sem : extern_func_sem :=
+| exec_packet_in_advance : forall e s p pin len sig pin',
+      PathMap.get p s = Some (ObjPin pin) ->
+      advance len pin = (sig, pin') ->
+      packet_in_advance_sem e s p [] [] (PathMap.set p (ObjPin pin') s) [] sig.
+
+Definition packet_in_advance : extern_func := {|
+  ef_class := "packet_in";
+  ef_func := "advance";
+  ef_sem := packet_in_advance_sem
+|}.
+
 Definition emit (v : Val) : Packet (list bool) :=
   Extract.emit v;;
   get_state.

@@ -403,8 +403,7 @@ Definition loc_to_sval_const (this : path) (loc : Locator) : option Sval :=
 
 (* Execution relation for side-effectless expressions. *)
 Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
-  : path -> (* temp_env -> *) state -> (@Expression tags_t) -> Sval ->
-    (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
+  : path -> state -> (@Expression tags_t) -> Sval -> Prop :=
   | exec_expr_bool : forall b this st tag typ dir,
                      exec_expr read_one_bit this st
                      (MkExpression tag (ExpBool b) typ dir)
@@ -1336,7 +1335,7 @@ with exec_block (read_one_bit : option bool -> bool -> Prop) :
   | exec_block_nil : forall this_path st tags,
                      exec_block read_one_bit this_path st (BlockEmpty tags) st SContinue
   | exec_block_cons : forall stmt rest this_path st st' st'' sig sig',
-                      (* This style is for avoiding backtracking *)
+                      (* This style is for avoiding backtracking when executing by "econstructor". *)
                       exec_stmt read_one_bit this_path st stmt st' sig ->
                       exec_block read_one_bit this_path st'
                           (if is_continue sig then rest else empty_block) st'' sig' ->

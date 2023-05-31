@@ -881,7 +881,12 @@ Conventionally, a typing rule is formally written as an inference rules. A rule 
 
 ~ End InfRule
 
-Such a rule reads as an implication: if all the premises hold, the the conclusion holds. Some rules do not have any premises, such rules are _axioms_ that hold unconditionally.The conclusion is a judgment which can take one of the following _form_s. All the rules for a syntactic category have the same judgment form and there is one respective rule for each constructor case of the syntactic category.
+Such a rule reads as an implication: if all the premises hold, the the conclusion holds. Some rules do not have any premises, such rules are _axioms_ that hold unconditionally. The premises can either be:
+
+- predicates that return true or false, for example, $ n > 1$ or $\isInt \exp$.
+- assignments where the result of a function application is assigned to a variable that will be used in either other premises or the conclusion, for example, $\compileTimeEval \exp = \int$ evaluates the expression $\exp$ and assigns its value to $\int$.
+
+The conclusion is a judgment which can take one of the following _form_s. All the rules for a syntactic category have the same judgment form and there is one respective rule for each constructor case of the syntactic category.
 
 - $\env \vdash \A$ states that $\A$ is well-formed under the enviornment $\env$.
 - $\env \vdash \A : \typ$ states that $\A$ type checks and it has the type $\typ$ under the enviornment $\env$.
@@ -901,11 +906,18 @@ Since this is a very brief introduction to type systems we refer an interested r
 
 ### Auxiliary Notation { #sec-aux-notation-type-checker }
 
+[#p4-type-nesting-rules]: https://p4.org/p4-spec/docs/P4-16-v-1.2.3.html#sec-type-nesting
+
 The following notations are used in the definitions of the rules in the rest of this section:
 
 - $\compileTimeEval \exp$ evaluates the expression $\exp$ with the enviornment $\env$ at compile time.
+- $\compTimeKnown \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile time.
 - $\overline {\A}$ is a list of zero or more $\A$.
 - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgement to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgement: $\env \vdash \overline \A : \overline \typ$. Note that in this example the enviornment will not be extended so we do not need to pass it as a list.
+- $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union.
+- $\isValidNestedTyp \typ$ is a predicate that returns true if the type $\typ$ can have nested types and its nested types are legal based on [P4's spec type nesting rules][#p4-type-nesting-rules]. We state explicitly what types can be nested in another type when defining the rule for the outer type to be well-formed.
+- $\distinct \fields$ is a predicate that returns $\tru$ if fields in $\fields$ are all distinct.
+- $\isSurface \typ$ is a predicate that returns $\tru$ if type $\typ$ is one of the cases of [surface types][#sec-ast-surface-type].
 - An underscore (that is, $\whatevs$) is used when we do not need to use some specific information returned to us in a rule. For example, $\mathit{getLength}(\A)= \whatevs$ takes the length of $\A$, however, it actually does not care what the length is. Instead it just cares if $\A$ is a structure that has length.
 - $\mathit{is\_something}$ is a helper function that states if an input is a specific kind from a certain syntactic category. For example, $\mathit{is\_bool}(\typ)$ takes type $\typ$ and returns $\tru$ if $\typ$ is a boolean and $\fls$ otherwise. 
 
@@ -915,7 +927,7 @@ The following notations are used in the definitions of the rules in the rest of 
 The typing judgement for types has the form $\typWellFormed \typ$ and it reads "the type $\typ$ is well-formed under the enviornment $\env$". 
 
 
-### Boolean Type
+### Boolean Type { #sec-bool-t }
 
 Boolean types are always well-formed.
 
@@ -932,7 +944,7 @@ $\boolTyp$
 
 ~ End InfRule
 
-### Error Type
+### Error Type { #sec-error-t }
 
 Error types are always well-formed.
 
@@ -947,7 +959,7 @@ $\errTyp$
      \quad (\errT)
 ~ End InfRule
 
-### Match Kind Type
+### Match Kind Type { #sec-match-kind-t }
 
 Match kind types are always well-formed.
 
@@ -962,7 +974,7 @@ $\matchKindTyp$
      \quad (\matchKindT)
 ~ End InfRule
 
-### Integer Type
+### Integer Type { #sec-integer-t }
 Integer types are always well-formed.
 
 $\integerTyp$
@@ -976,7 +988,7 @@ $\integerTyp$
      \quad (\intT)
 ~ End InfRule
 
-### String Type
+### String Type { #sec-string-t }
 String types are alway well-formed.
 
 $\stringTyp$
@@ -990,7 +1002,7 @@ $\stringTyp$
      \quad (\stringT)
 ~ End InfRule
 
-### Fixed-Width Signed Integer Types
+### Fixed-Width Signed Integer Types { #sec-signed-int-t }
 Fixed-width singed integer types can have a literal integer as their width or an expression that will be evaluated to an integer at compile time. Such intgeer must be more than one. 
 
 $\intWidthTyp \exp$
@@ -1008,7 +1020,7 @@ $\intWidthTyp \exp$
      \quad (\intWidthExpT)
 ~ End InfRule
 
-### Fixed-Width Unsigned Integer Types
+### Fixed-Width Unsigned Integer Types { #sec-unsigned-int-t }
 Fixed-width unsingned integer types are Similar to singed integer types except that they require a non-negative width
 
 $\bitWidthTyp \exp$
@@ -1026,7 +1038,7 @@ $\bitWidthTyp \exp$
      \quad (\bitWidthExpT)
 ~ End InfRule
 
-### Variable-Width Integer Types
+### Variable-Width Integer Types { #sec-varbit-t }
 Varbit types well-formedness is the same as fixed-width unsigned integer types.
 
 $\varbitTyp \exp$
@@ -1046,13 +1058,80 @@ $\varbitTyp \exp$
 
 ~ End InfRule
 
-### Type Names
+### Type Names { #sec-type-name-t }
 
-### Specialized Types
+### Specialized Types { #sec-specialized-t }
 
-### Header Stack Types
+### Header Stack Types { #sec-stack-t }
+Header stack (array) types are represented by a type and a size. Their type may be expressed either as a type name or a type specialization.
 
-### Tuple Types
+
+$\headerStackTyp \typName \exp$
+
+- The type $\typName$ must be defined in the type environment $\typEnv$.
+- The type represented by $\typName$ must either be a header or header union.
+- The size of the array must be a well-formed integer.
+- The size of the array must be known at compile time.
+- The size of the array must evaluate to a positive number.
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+  {\inferrule
+     { \lookupTypEnv \typName = \typ \\
+       \isHeaderOrUnion {\typ} \\\\
+       \expCheck \exp \integerTyp \\
+       \compileTimeEval \exp = \size\\
+       \size > 0
+       % \isValidNestedTyp {\headerStackTyp {\surfaceTyp} \exp}
+       }
+     { \typWellFormed {\headerStackTyp {\typName} \exp} }}
+     \quad (\arrayT)
+~ End InfRule
+
+$\headerStackTyp {\spcTyp \typName {\typArg}} \exp$
+
+- The type specilization must be well-formed.
+- The header stack type of the generic type must be well-formed. 
+
+
+~ Begin InfRule
+  \mprset {vskip=0.7ex}
+  {\inferrule
+     { \typWellFormed {\spcTyp \typName {\typArg}}\\
+       \typWellFormed {\headerStackTyp \typName \exp}
+       }
+     { \typWellFormed {\headerStackTyp {\spcTyp \typName {\typArg}} \exp} }}
+     \quad (\arraySpecT)
+~ End InfRule
+
+### Tuple Types { #sec-tuple-t }
+
+$\tupleTyps \typ$
+
+- All the types inside a tuple type, i.e, $\typs$, must be well-formed.
+- Not every type can be wrapped inside a tuple type. Only the following types or a type name representing them can legally be wrapped inside a tuple type: ``what about types defined with typedef or type keywords? open issue on p4 spec``
+
+   + $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
+   + $\intWidthTyp \exp$ and $\compTimeKnown \exp$
+   + $\varbitTyp \exp$ and $\compTimeKnown \exp$
+   + $\errTyp$
+   + $\boolTyp$
+   + $\enumTypDef$ ``what about serializable enums? open issue on p4 spec.``
+   + $\headerTyps \typParam \field \typ$
+   + $\headerStackTyp \typName \exp$
+   + $\headerUnionTyps \typParam \field \typ$
+   + $\structTyps \typParam \field \typ$
+   + $\tupleTyps \typ$
+
+~ Begin InfRule
+  \mprset {vskip=0.7ex}
+  {\inferrule
+     { \typWellFormed {\typs} \\
+        \isValidNestedTyp {\tupleTyps {\typ}}}
+     { \typWellFormed {\tupleTyps {\typ}} }
+     \quad (\tupleT)}
+~ End InfRule
 
 ### Header Types
 
@@ -1060,9 +1139,52 @@ $\varbitTyp \exp$
 
 ### Struct Types
 
-### Enum Types
+### Enum Types { #sec-enum-t }
 
-### Serializable Enum Types
+$\enumTypNoTypDef$
+
+- An enum type is well-formed if its fields are distinct.
+
+~ Begin InfRule
+  % \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\distinct \fields}
+      {\typWellFormed \enumTypNoTypDef}
+    \quad (\enumWellT)}
+~ End InfRule
+
+### Serializable Enum Types { #sec-ser-enum-t }
+
+Additionally, if it is a serializable enum its underlying type must either be a fixed-length integer or a name representing a fixed-length integer.
+
+$\enumTypDef$
+
+- blald
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\widthInt {\surfaceTyp} = \width \\
+       % \isConstant \exp \\
+       \compTimeKnown \exp\\\\
+       \distinct \fields}
+      {\typWellFormed \enumTypDef}
+    \quad (\serenumWellT)}
+~ End InfRule
+
+$\enumTyp {\VVal \typName} \typName \fields$
+
+- blsk
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\lookupTypSynEnv {\VVal \typName} = \surfaceTyp \\
+       \typWellFormed \enumTypDef
+      }
+      {\typWellFormed {\enumTyp {\VVal \typName} \typName \fields}}
+    \quad (\serenumTypedefWellT)}
+~ End InfRule
 
 ### Parser Types
 
@@ -1088,118 +1210,8 @@ $\varbitTyp \exp$
 
 ### Don't Care Type
 
-Some of the base types are well-formed unconditionally since there is not any room for an error while constructing a value of these types. For example, the $\boolTyp$ only has two constructors, $\mathit{true}$ and $\mathit{false}$, which do not take any argument so there is no room to construct a value incorrectly.
 
-
-~ Begin InfRule
-
-  \inferrule
-     { }
-     { \typWellFormed \boolTyp }
-     \quad (\boolT)
-
-\and
-
-  \inferrule
-     { }
-     { \typWellFormed \errTyp}
-     \quad (\errT)
-
-\and
-
-  \inferrule
-     { }
-     { \typWellFormed \matchKindTyp}
-     \quad (\matchKindT)
-
-\and
-
-  \inferrule
-     { }
-     { \typWellFormed \integerTyp }
-     \quad (\intT)
-
-\and
-
-  \inferrule
-     { }
-     { \typWellFormed \stringTyp }
-     \quad (\stringT)
-
-% \and
-
-%   \inferrule
-%      {1 < \width}
-%      { \typWellFormed {\intWidthTyp \width} }
-%      \quad (\intWidthT)
-
-% \and
-
-%   \inferrule
-%      {0 \leq \width} % p4 spec has this
-%      { \typWellFormed {\bitWidthTyp \width} }
-%      \quad (\bitWidthT)
-
-% \and
-
-%   \inferrule
-%      {0 \leq \width}
-%      { \typWellFormed {\varbitTyp \width} }
-%      \quad (\varbitT)
-
-\and
-
-  \inferrule
-     {\expenv \exp {\VVal \exp} \integerTyp \less  \\
-     \compileTimeEval {\VVal \exp} = \width \\\\
-     1 < \width} % p4 spec has this
-     %% { }
-     { \typWellFormed {\intWidthTyp \exp} }
-     \quad (\intWidthExpT)
-
-\and
-
-  \inferrule
-     {\expenv \exp {\VVal \exp} \integerTyp \less  \\
-     \compileTimeEval {\VVal \exp} = \width \\\\
-     0 \leq \width} % p4 spec has this
-     % { 0 \leq \width} % p4 spec has this
-     %% { }
-     { \typWellFormed {\bitWidthTyp \exp} }
-     \quad (\bitWidthExpT)
-
-\and
-
-  \inferrule
-     { \expenv \exp {\VVal \exp} \integerTyp \less  \\
-     \compileTimeEval {\VVal \exp} = \width \\\\
-     0 \leq \width}
-     { \typWellFormed {\varbitTyp \exp} }
-     \quad (\varbitExpT)
-
-% \and
-
-%   \inferrule
-%      {1 < \width} 
-%      { \typWellFormed {\intWidthTyp \width} }
-%      \quad (\intWidthT)
-
-% \and
-
-%   \inferrule
-%      {0 \leq \width} 
-%      { \typWellFormed {\bitWidthTyp \width} }
-%      \quad (\bitWidthT)
-
-% \and
-
-%   \inferrule
-%      { 0 \leq \width}
-%      { \typWellFormed {\varbitTyp \width} }
-%      \quad (\varbitT)
-
-~ End InfRule
-
+*the following is from an older version*
 #### Type Identifier { #sec-identifier-t }
 
 ~ Begin InfRule
@@ -1240,118 +1252,9 @@ The rule $\specializedExternT$ states that the specialization of an extern type 
 
 ~ End InfRule
 
-#### Header Stack Type { #sec-stack-t }
-
-```done..```
-
-An array (header stack) type has a specific type and size.
-The rule $\arrayT$ states that under environment $\env$, an array is well-formed if its
-type is well-formed and it follows the nesting rules of P4.
-
-~ Begin InfRule
-
-  \mprset {vskip=0.7ex}
-  {\inferrule
-     { \lookupTypEnv \typName = \typ \\
-       \isHeaderOrUnion {\typ} \\\\
-       \compileTimeEval \exp = \size\\
-       \size > 0
-       % \isValidNestedTyp {\headerStackTyp {\surfaceTyp} \exp}
-       }
-     { \typWellFormed {\headerStackTyp {\typName} \exp} }}
-     \quad (\arrayT)
-
-\and
-
-  \mprset {vskip=0.7ex}
-  {\inferrule
-     { \typWellFormed {\spcTyp \typName {\typArg}}\\
-       \typWellFormed {\headerStackTyp \typName \exp}
-       }
-     { \typWellFormed {\headerStackTyp {\spcTyp \typName {\typArg}} \exp} }}
-     \quad (\arraySpecT)
-
-
-~ End InfRule
-
-#### Tuple Type { #sec-tuple-t }
-
-``todo: make sure it covers both \surfacetyp \exp and \typ``
-
-Each element of a tuple can have a distinct type so a tuple type is simply a list of types. Note that lists also have a tuple type. The rule $\tupleT$ states that under
-environment $\env$, a tuple type is well-formed if all its types are well-formed and it
-follows the nesting typing rules of P4. 
-
-``todo: add isvalidenestedtyp for tuples. the text below is taken from headers. 
-A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function. For a header type, the inner types can be one of the following:``
-
-- $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
-- $\intWidthTyp \exp$ and $\compTimeKnown \exp$
-- $\integerTyp$
-- $\boolTyp$
-- $\enumTypDef$ and $\compTimeKnown \exp$
-- a struct or nested struct type that has the same properties, that is, it must contain only the above subtypes. 
-
-
-~ Begin InfRule
-
-  \mprset {vskip=0.7ex}
-  {\inferrule
-     { \typWellFormed {\surfaceTyps} \\
-        \isValidNestedTyp {\tupleTyps {\surfaceTyp}}}
-     { \typWellFormed {\tupleTyps {\surfaceTyp}} }
-     \quad (\tupleT)}
-
-  % \inferrule[List]
-  %    { 1 \leq i \leq n. \typWellFormed {\typ_i} \\
-  %      1 \leq i \leq n.  \isValidNestedTyp {\listTyp {\typ_1} {\typ_n}} {\typ_i}}
-  %    { \typWellFormed {\listTyp {\typ_1} {\typ_n}} }
-
-~ End InfRule
-
 ### Declared Types Well-Formedness { #sec-declared-typ-well-formed }
 
 ``todo: figure these out: why is extern not in declared types? why is match kind in synthesized types? add type syn env to explanation of the judgment.``
-
-#### Well-Formed Enum Type
-
-```done```
-
-An enum is well-formed if its fields are distinct. Additionally, if it is a serializable enum its underlying type must either be a fixed-length integer or a name representing a fixed-length integer.
-
-- $\distinct \fields$ checks that fields in $\fields$ are all distinct.
-
-~ Begin InfRule
-
-  \mprset {vskip = 0.7ex}
-    {\inferrule
-      {\distinct \fields}
-      {\typWellFormed \enumTypNoTypDef}
-    \quad (\enumWellT)}
-
-\and
-
-  \mprset {vskip = 0.7ex}
-    {\inferrule
-      {\widthInt {\surfaceTyp} = \width \\
-       % \isConstant \exp \\
-       \compTimeKnown \exp\\\\
-       \distinct \fields}
-      {\typWellFormed \enumTypDef}
-    \quad (\serenumWellT)}
-
-\and
-
-  \mprset {vskip = 0.7ex}
-    {\inferrule
-      {\lookupTypSynEnv {\VVal \typName} = \surfaceTyp \\
-       \typWellFormed \enumTypDef
-      }
-      {\typWellFormed {\enumTyp {\VVal \typName} \typName \fields}}
-    \quad (\serenumTypedefWellT)}
-
-~ End InfRule
-
 
 #### Well-Formed Header Type
 

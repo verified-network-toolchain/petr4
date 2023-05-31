@@ -227,6 +227,9 @@
 %% \newcommand{\forallcond}[3]{\forall {#1} \in {#2}\ . \ {#3}}
 
 %typing judgments:
+%checker
+\newcommand{\expCheck}[2]{\env \vdash {#1} : {#2}}
+%inference
 \newcommand{\envOne}[2]{\Delta, T, \Gamma \vdash {#1} : {#2}}
 \newcommand{\expenvNoTrans}[2]{\Gamma \vdash {#1} : {#2}}
 \newcommand{\expenvForWorkshop}[2]{\Gamma \vdash {#1} \leadsto {#2}}
@@ -236,8 +239,9 @@
 \newcommand{\expenvWithCtxt}[5]{\constEnv, \varEnv, \typEnv, {#1} \vdash {#2} \leadsto {#3}, {#4}, {#5}}
 \newcommand{\coerceBinArgsEnv}[3]{\env, \ctxt \vdash {#1} \twoheadrightarrow ({#2}), ({#3})}
 \newcommand{\binOpEnv}[7]{\env \vdash {#1}, ({#4}, {#5}), ({#6}, {#7}) : {#2}, {#3}}
-\newcommand{\typWellFormed}[1]{\typEnv, \typParEnv, \externEnv, \typSynEnv \vdash {#1}}
-\newcommand{\typNotWellFormed}[1]{\typEnv, \externEnv \nvdash {#1}}
+\newcommand{\typWellFormed}[1]{\env \vdash {#1}}
+\newcommand{\typWellFormedNoEnv}[1]{\vdash {#1}}
+\newcommand{\typNotWellFormed}[1]{\env \nvdash {#1}}
 \newcommand{\typWellFormedWithEnv}[3]{{#1}, {#2}, \externEnv \vdash {#3}}
 \newcommand{\typEqEnv}[3]{ {#2} ==_{\env,{#1}} {#3}} %%todo: fix env
 \newcommand{\typeEq}[2]{{#1} ==_\env {#2}}%for p4 workshop
@@ -546,7 +550,7 @@
 %% - $\isConstant \exp$ checks whether the expression $\exp$ is a constant or not.  
 \newcommand{\isInstantiation}[1]{\mathit{is\_instantiation} ({#1})}
 \newcommand{\isVariable}[1]{\mathit{is\_variable} ({#1})}
-\newcommand{\compileTimeEval}[1]{\llbracket{#1}\rrbracket_{\constEnv, \typEnv}}
+\newcommand{\compileTimeEval}[1]{\llbracket{#1}\rrbracket_{\env}}
 \newcommand{\implicitCast}[2]{\mathit{implicit\_cast}({#1},{#2})}
 \newcommand{\insertImplCast}[2]{\mathit{insert\_implicit\_cast}({#1},{#2})}
 \newcommand{\insertEnumImplCast}[2]{\mathit{insert\_enum\_implicit\_cast}({#1},{#2})}

@@ -354,7 +354,7 @@ A P4 program is parsed to the surface IR and can be represented in the surface I
 structure of this IR is deescribed in the form of an abstract syntax tree (AST). All
 definitions of this specification use this abstract syntax. For simplicity, the surface IR does not contain annotations and meta-information.
 
-
+*Todo: distinguish between abstract and concrete syntax.*
 
 ## Conventions { #sec-conventions }
 
@@ -852,7 +852,7 @@ To be concrete, environements are all accumulated in one place and they are defi
 ~ End P4Syntax
 
 - Accessing each enviornment can be done through field access of $\env$. For example, $\env.\typEnv$ gives access to the contents of type enviornment. However, for simpilicity and since the enviorment is global, we omit the $\env.$ part. So for example, $\typEnv$ is a shorthand for $\env.\typEnv$.
-- The notation $\lookupTypEnv \name$ looks up $\name$ in type enviornment $\typEnv$. Such notation is used for looking up in any of the enviornments. Note that we never use the notation $\env(\name)$ to avoid confusion of which enviornment is exactly being used for the lookup.
+- The notation $\lookupTypEnv \name$ looks up $\name$ in type enviornment $\typEnv$. Such notation is used for looking up in any of the enviornments. Note that $\typEnv$ stands for $\env . \typEnv$ in a lookup as well. Consequently, the notation $\env(\name)$ is meaningless since it does not state which enviornment field of $\env$ is being used for the lookup.
 - The notation $\insertToTypEnv \typName \typ $ extends the type environment with the new assignment of $\typ$ to $\typName$.
 - The notation $\emp$ denotes an empty environment.
 
@@ -881,17 +881,17 @@ Conventionally, a typing rule is formally written as an inference rules. A rule 
 
 ~ End InfRule
 
-Such a rule reads as an implication: if all the premises hold, the the conclusion holds. Some rules do not have any premises, such rules are _axioms_ that hold unconditionally.The conclusion is a judgment which can take one of the following forms. All the rules for a syntactic category have the same judgment form and there is one respective rule for each constructor case of the syntactic category.
+Such a rule reads as an implication: if all the premises hold, the the conclusion holds. Some rules do not have any premises, such rules are _axioms_ that hold unconditionally.The conclusion is a judgment which can take one of the following _form_s. All the rules for a syntactic category have the same judgment form and there is one respective rule for each constructor case of the syntactic category.
 
 - $\env \vdash \A$ states that $\A$ is well-formed under the enviornment $\env$.
 - $\env \vdash \A : \typ$ states that $\A$ type checks and it has the type $\typ$ under the enviornment $\env$.
 - $\env \vdash \A : \typ \dashv \VVal \env$ states that $\A$ type checks, it has the type $\typ$ under the enviornment $\env$, and it outputs the extended enviornment $\VVal \env$.
 
-If a rule does not use $\env$ in its constraints, we omit the enviornment from the conclusion, for example, it takes the form $\vdash \A$. Still, the enviornment is implicitly assumed by the rule.
+If a rule does not use $\env$ in its constraints, we omit the enviornment from the conclusion, that is, it takes the form $\vdash \A$. Still, the enviornment is implicitly assumed by the rule.
 
 In the rest of this section:
 
-- First, we introduce the judgment form for type checking eachof the syntactic categories of our surface IR.
+- First, we introduce the judgment form for type checking each of the syntactic categories of our surface IR.
 - Then, we read the judgment form out load.
 - And finally, we provide the rules for each case of a syntactic category in both the formal and informal form.
 
@@ -908,31 +908,142 @@ The following notations are used in the definitions of the rules in the rest of 
 - An underscore (that is, $\whatevs$) is used when we do not need to use some specific information returned to us in a rule. For example, $\mathit{getLength}(\A)= \whatevs$ takes the length of $\A$, however, it actually does not care what the length is. Instead it just cares if $\A$ is a structure that has length.
 - $\mathit{is\_something}$ is a helper function that states if an input is a specific kind from a certain syntactic category. For example, $\mathit{is\_bool}(\typ)$ takes type $\typ$ and returns $\tru$ if $\typ$ is a boolean and $\fls$ otherwise. 
 
-Lots of helper functions are defined throughout defining the type checking rules. Although the names of these functions indicate what they do, we also provide their exact definition where they are used. todo: revise: before or after. 
 
 ## Types { #sec-type-tc }
 
-The typing judgement for types has the form $to\_be\_filled$. todo!!
+The typing judgement for types has the form $\typWellFormed \typ$ and it reads "the type $\typ$ is well-formed under the enviornment $\env$". 
 
-It reads to be todo!!
-
-This judgment is overloaded and checks if a surface type—and more generally a type—is well-formed or not. This judgment is used to check if a surface type is well-formed when it is used in expressions or if a type is well-formed when it is declared. Specifically, it has two forms, $\typWellFormed {\surfaceTyp}$ and $\typWellFormed {\typ}$, which state that the type $\surfaceTyp $ and $\typ$, respectively, are well-formed under the type environment $\typEnv$ and extern environment $\externEnv$. In other words, this judgment checks that types are syntactically correct.
 
 ### Boolean Type
 
+Boolean types are always well-formed.
+
+$\boolTyp$
+
+- The boolean type is well-formed.
+
+~ Begin InfRule
+
+  \inferrule
+     { }
+     { \typWellFormedNoEnv \boolTyp }
+     \quad (\boolT)
+
+~ End InfRule
+
 ### Error Type
+
+Error types are always well-formed.
+
+$\errTyp$
+
+- The error type is well-formed.
+
+~ Begin InfRule
+  \inferrule
+     { }
+     { \typWellFormedNoEnv \errTyp}
+     \quad (\errT)
+~ End InfRule
 
 ### Match Kind Type
 
+Match kind types are always well-formed.
+
+$\matchKindTyp$ 
+
+- The match kind is well-formed.
+
+~ Begin InfRule
+  \inferrule
+     { }
+     { \typWellFormedNoEnv \matchKindTyp}
+     \quad (\matchKindT)
+~ End InfRule
+
 ### Integer Type
+Integer types are always well-formed.
+
+$\integerTyp$
+
+- The integer type is well-formed.
+
+~ Begin InfRule
+  \inferrule
+     { }
+     { \typWellFormedNoEnv \integerTyp }
+     \quad (\intT)
+~ End InfRule
 
 ### String Type
+String types are alway well-formed.
+
+$\stringTyp$
+
+- The string type is well-formed.
+
+~ Begin InfRule
+  \inferrule
+     { }
+     { \typWellFormedNoEnv \stringTyp }
+     \quad (\stringT)
+~ End InfRule
 
 ### Fixed-Width Signed Integer Types
+Fixed-width singed integer types can have a literal integer as their width or an expression that will be evaluated to an integer at compile time. Such intgeer must be more than one. 
+
+$\intWidthTyp \exp$
+
+- The width must be a well-formed integer.
+- The width must be known at compile time.
+- The width must evaluate to a positive number more than one.
+
+~ Begin InfRule
+  \inferrule
+     {\expCheck \exp \integerTyp   \\
+     \compileTimeEval { \exp} = \width \\
+     1 < \width} 
+     { \typWellFormed {\intWidthTyp \exp} }
+     \quad (\intWidthExpT)
+~ End InfRule
 
 ### Fixed-Width Unsigned Integer Types
+Fixed-width unsingned integer types are Similar to singed integer types except that they require a non-negative width
+
+$\bitWidthTyp \exp$
+
+- The width must be a well-formed integer.
+- The width must be known at compile time.
+- The width must evaluate to a non-negative number.
+
+~ Begin InfRule
+  \inferrule
+     {\expCheck \exp \integerTyp  \\
+     \compileTimeEval {\VVal \exp} = \width \\
+     0 \leq \width} 
+     { \typWellFormed {\bitWidthTyp \exp} }
+     \quad (\bitWidthExpT)
+~ End InfRule
 
 ### Variable-Width Integer Types
+Varbit types well-formedness is the same as fixed-width unsigned integer types.
+
+$\varbitTyp \exp$
+
+- The width of the integer must be a well-formed integer.
+- The width must be known at compile time.
+- The width must evaluate to a non-negative number.
+
+
+~ Begin InfRule
+  \inferrule
+     { \expenv \exp {\VVal \exp} \integerTyp \less  \\
+     \compileTimeEval {\VVal \exp} = \width \\\\
+     0 \leq \width}
+     { \typWellFormed {\varbitTyp \exp} }
+     \quad (\varbitExpT)
+
+~ End InfRule
 
 ### Type Names
 

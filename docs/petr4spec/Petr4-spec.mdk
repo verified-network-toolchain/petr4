@@ -903,6 +903,7 @@ Since this is a very brief introduction to type systems we refer an interested r
 
 The following notations are used in the definitions of the rules in the rest of this section:
 
+- $\compileTimeEval \exp$ evaluates the expression $\exp$ with the enviornment $\env$ at compile time.
 - $\overline {\A}$ is a list of zero or more $\A$.
 - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgement to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgement: $\env \vdash \overline \A : \overline \typ$. Note that in this example the enviornment will not be extended so we do not need to pass it as a list.
 - An underscore (that is, $\whatevs$) is used when we do not need to use some specific information returned to us in a rule. For example, $\mathit{getLength}(\A)= \whatevs$ takes the length of $\A$, however, it actually does not care what the length is. Instead it just cares if $\A$ is a structure that has length.
@@ -1019,7 +1020,7 @@ $\bitWidthTyp \exp$
 ~ Begin InfRule
   \inferrule
      {\expCheck \exp \integerTyp  \\
-     \compileTimeEval {\VVal \exp} = \width \\
+     \compileTimeEval { \exp} = \width \\
      0 \leq \width} 
      { \typWellFormed {\bitWidthTyp \exp} }
      \quad (\bitWidthExpT)
@@ -1037,8 +1038,8 @@ $\varbitTyp \exp$
 
 ~ Begin InfRule
   \inferrule
-     { \expenv \exp {\VVal \exp} \integerTyp \less  \\
-     \compileTimeEval {\VVal \exp} = \width \\\\
+     { \expCheck \exp \integerTyp  \\
+     \compileTimeEval { \exp} = \width \\
      0 \leq \width}
      { \typWellFormed {\varbitTyp \exp} }
      \quad (\varbitExpT)

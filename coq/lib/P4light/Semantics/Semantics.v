@@ -976,7 +976,6 @@ Definition get_arg_directions (func : @Expression tags_t) : Result.result Exn.t 
   | _ =>
       Result.error (Exn.Other ("get_arg_directions: passed type that is not a function type"))
   end.
-    
 
 (* given expression and direction, evaluate to argument. *)
 (* in -> (Some _, None) *)
@@ -995,6 +994,17 @@ Definition get_arg_directions (func : @Expression tags_t) : Result.result Exn.t 
       4. If a direction out parameter has any other type, e.g. bit<W>, an implementation need
          not initialize it to any predictable value.
 *)
+(* Qinshi: This definition does not allow passing objects as arguments.
+  The P4 Spec allows directionless arguments to be objects,
+  which is reasonable as directionless arguments are already required to be compile-time known.
+  This mechnism is not widely used. I have only seen
+  that packet_in in parsers and packet_out in deparsers are passed in this way.
+  Nate told me when I asked him, that packet_in and packet_out mean to be constructor parameters.
+  So the instantiation phase uses special rules to convert them into constructor parameters.
+  If we want to support passing objects as arguments,
+  we'll need the argument passing mechanism to use (Val + path) instead of (Val),
+  since objects are represented by paths.
+  Nonetheless, this definition allows unbounded integer (included in Val) as directionless argument. *)
 Inductive exec_arg (read_one_bit : option bool -> bool -> Prop) :
                    path -> state -> option (@Expression tags_t) -> direction -> argument -> signal -> Prop :=
   | exec_arg_directionless : forall this st expr v sv,

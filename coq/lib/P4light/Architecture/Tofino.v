@@ -306,9 +306,10 @@ Definition advance (n: nat) (pkt: packet_in) : signal * packet_in :=
 
 Inductive packet_in_advance_sem : extern_func_sem :=
 | exec_packet_in_advance : forall e s p pin len sig pin',
-      PathMap.get p s = Some (ObjPin pin) ->
-      advance len pin = (sig, pin') ->
-      packet_in_advance_sem e s p [] [] (PathMap.set p (ObjPin pin') s) [] sig.
+    PathMap.get p s = Some (ObjPin pin) ->
+    Z.of_nat len < 2 ^ 32 ->
+    advance len pin = (sig, pin') ->
+    packet_in_advance_sem e s p [] [ValBaseBit (to_lbool 32 (Z.of_nat len))] (PathMap.set p (ObjPin pin') s) [] sig.
 
 Definition packet_in_advance : extern_func := {|
   ef_class := "packet_in";
@@ -418,6 +419,9 @@ Inductive exec_extern : extern_env -> extern_state -> ident (* class *) -> ident
   | exec_extern_packet_in_extract : forall e s p targs args s' args' vret,
       apply_extern_func_sem packet_in_extract e s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret ->
       exec_extern e s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret
+  | exec_extern_packet_in_advance : forall e s p targs args s' args' vret,
+      apply_extern_func_sem packet_in_advance e s (ef_class packet_in_advance) (ef_func packet_in_advance) p targs args s' args' vret ->
+      exec_extern e s (ef_class packet_in_advance) (ef_func packet_in_advance) p targs args s' args' vret
   | exec_extern_packet_out_emit : forall e s p targs args s' args' vret,
       apply_extern_func_sem packet_out_emit e s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret ->
       exec_extern e s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret.

@@ -754,15 +754,8 @@ Fixpoint to_lbool'' (width : nat) (value : Z) : list bool :=
   end.
 
 Lemma to_lbool'_app : forall width value res,
-  P4Arith.le_to_lbool' width value res = (P4Arith.le_to_lbool' width value [] ++ res)%list.
-Proof.
-  induction width; intros.
-  - auto.
-  - simpl.
-    rewrite IHwidth.
-    rewrite IHwidth with (res := [Z.odd value]).
-    list_solve.
-Qed.
+  le_to_lbool' width value res = le_to_lbool' width value [] ++ res.
+Proof. exact nil_le_to_lbool'. Qed.
 
 Lemma to_lbool''_to_lbool' : forall width value,
   rev (to_lbool'' width value) = P4Arith.le_to_lbool' width value [].
@@ -863,6 +856,23 @@ Proof.
   pose proof (le_to_lbool_bit_mod w v).
   unfold le_to_lbool in H.
   congruence.
+Qed.
+
+Lemma to_lbool_inj_bit_mod: forall w v1 v2,
+    to_lbool w v1 = to_lbool w v2 ->
+    BitArith.mod_bound w v1 = BitArith.mod_bound w v2.
+Proof.
+  intro w. unfold to_lbool, BitArith.mod_bound, BitArith.upper_bound.
+  rewrite <- N_nat_Z. remember (N.to_nat w). clear dependent w.
+  induction n; intros v1 v2 H.
+  - unfold two_power_nat. simpl. rewrite !Zmod_1_r. reflexivity.
+  - simpl in H.
+    rewrite to_lbool'_app with (res := [Z.odd v1]) in H.
+    rewrite to_lbool'_app with (res := [Z.odd v2]) in H.
+    apply ListUtil.app_eq_len_tail_app in H. 2: reflexivity.
+    destruct H as [Hl Ho]. inversion Ho. clear Ho.
+    rewrite Nat2Z.inj_succ, Z.pow_succ_r, <- !div_2_mod_2_pow by lia.
+    specialize (IHn _ _ Hl). rewrite IHn, H0. reflexivity.
 Qed.
 
 Lemma le_to_lbool_bit_plus: forall w v1 v2,

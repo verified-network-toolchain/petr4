@@ -352,9 +352,8 @@ each pass simpler and easier to understand.
 
 A P4 program is parsed to the surface IR and can be represented in the surface IR. The
 structure of this IR is deescribed in the form of an abstract syntax tree (AST). All
-definitions of this specification use this abstract syntax. For simplicity, the surface IR does not contain annotations and meta-information.
-
-*Todo: distinguish between abstract and concrete syntax.*
+definitions of this specification use this abstract syntax.
+For simplicity, the surface IR does not contain annotations and meta-information.
 
 ## Conventions { #sec-conventions }
 
@@ -543,6 +542,7 @@ There are some types that do not fit into the surface, declared, or synthesized 
 |   | $\vert$ | $\voidTyp$ | $\qquad \text{void}$ |
 |   | $\vert$ | $\typVar$ | $\qquad \text{type variables}$ |
 |   | $\vert$ | $\dontcareTyp$ | $\qquad \text{don't care}$ |
+|   | $\vert$ | $\notInstantiatedTyp$ | $\qquad \text{not instantiated}$ |
 
 ~ End P4Syntax
 
@@ -854,11 +854,10 @@ To be concrete, environements are all accumulated in one place and they are defi
 - Accessing each enviornment can be done through field access of $\env$. For example, $\env.\typEnv$ gives access to the contents of type enviornment. However, for simpilicity and since the enviorment is global, we omit the $\env.$ part. So for example, $\typEnv$ is a shorthand for $\env.\typEnv$.
 - The notation $\lookupTypEnv \name$ looks up $\name$ in type enviornment $\typEnv$. Such notation is used for looking up in any of the enviornments. Note that $\typEnv$ stands for $\env . \typEnv$ in a lookup as well. Consequently, the notation $\env(\name)$ is meaningless since it does not state which enviornment field of $\env$ is being used for the lookup.
 - The notation $\insertToTypEnv \typName \typ $ extends the type environment with the new assignment of $\typ$ to $\typName$. This notation is used for extending any of the environments.
+- The notation $\insertToTypParEnv \typParam$ is a shorthand for $\insertToTypParEnv {\typParam = \notInstantiatedTyp}$ which extends the type parameter environment with the new parameter $\typParam$ that is not instantiated. 
 - The notation $\updateEnv {\typEnv = \VVal \typEnv}$ denotes the same environment as $\env$, except that the type environement $\typEnv$ has been replaced with type environment $\VVal \typEnv$.
 - The notation $\updateEnv {\insertToTypEnv \typName \typ}$ denotes the same environment as $\env$, except that the type environement $\typEnv$ has been extended with the assignment of $\typ$ to $\typName$.
 - The notation $\emp$ denotes an empty environment.
-
-*todo: extending type par env without instantiation shorthand $\insertToTypParEnv \typParams$*
 
 ### Informal Notation { #sec-informal-notation }
 The type checker is specified by rules for each syntactic category of the [surface IR's abstract syntax][#sec-syntax]. The rules states the constraint that have to hold for a phrase to type check. For [types abstract syntax][#sec-ast-type], the rules only state what such constraints are. However, for the rest of the abstract syntax, the rules additionally output the type of the phrase. The following conventions are adopted in stating these rules.
@@ -890,13 +889,15 @@ Such a rule reads as an implication: if all the premises hold, the the conclusio
 - predicates that return true or false, for example, $ n > 1$ or $\isInt \exp$.
 - assignments where the result of a function application is assigned to a variable that will be used in either other premises or the conclusion, for example, $\compileTimeEval \exp = \int$ evaluates the expression $\exp$ and assigns its value to $\int$.
 
-The conclusion is a judgment which can take one of the following _form_s. All the rules for a syntactic category have the same judgment form and there is one respective rule for each constructor case of the syntactic category.
+The conclusion is a judgment which can take one of the following *form*s. All the rules for a syntactic category have the same judgment form and there is one respective rule for each constructor case of the syntactic category.
 
 - $\env \vdash \A$ states that $\A$ is well-formed under the enviornment $\env$.
 - $\env \vdash \A : \typ$ states that $\A$ type checks and it has the type $\typ$ under the enviornment $\env$.
 - $\env \vdash \A : \typ \dashv \VVal \env$ states that $\A$ type checks, it has the type $\typ$ under the enviornment $\env$, and it outputs the extended enviornment $\VVal \env$.
 
 If a rule does not use $\env$ in its constraints, we omit the enviornment from the conclusion, that is, it takes the form $\vdash \A$. Still, the enviornment is implicitly assumed by the rule.
+
+
 
 *todo: add that rules are pattern matched so more specific cases are presented first and then more general. an algorithm/impl should follow this order if pattern matching or add a predicate to the more general case that removes the more specific one. think if you need to say this in informal notation somehow. example: ser enum well-formed.*
 
@@ -919,7 +920,7 @@ The following notations are used in the definitions of the rules in the rest of 
 - $\compileTimeEval \exp$ evaluates the expression $\exp$ with the enviornment $\env$ at compile time.
 - $\compTimeKnown \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile time.
 - $\overline {\A}$ is a list of zero or more $\A$.
-- The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgement to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgement: $\env \vdash \overline \A : \overline \typ$. Note that in this example the enviornment will not be extended so we do not need to pass it as a list.
+- The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgement to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgement: $\env \vdash \overline \A : \overline \typ$. Note that in this example the enviornment will not be extended so we do not need to pass it as a list. Applying a predicate to an empty list returns $\tru$ unless stated otherwise.
 - $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union.
 - $\isValidNestedTyp \typ$ is a predicate that returns true if the type $\typ$ can have nested types and its nested types are legal based on [P4's spec type nesting rules][#p4-type-nesting-rules]. We state explicitly what types can be nested in another type when defining the rule for the outer type to be well-formed.
 - $\distinct \fields$ is a predicate that returns $\tru$ if fields in $\fields$ are all distinct.
@@ -1114,8 +1115,6 @@ $\headerStackTyp {\spcTyp \typName {\typArg}} \exp$
 
 ### Tuple Types { #sec-tuple-t }
 
-*todo: talk about zero/empty tuple*
-
 $\tupleTyps \typ$
 
 - All the types inside a tuple type, i.e, $\typs$, must be well-formed.
@@ -1134,6 +1133,8 @@ $\tupleTyps \typ$
    + $\structTyps \typParam \field \typ$
    + $\tupleTyps \typ$
 
+- A tuple type with no component is always well-type because it does not have any types that needs to satisfy the premises.
+
 ~ Begin InfRule
   \mprset {vskip=0.7ex}
   {\inferrule
@@ -1145,11 +1146,6 @@ $\tupleTyps \typ$
 
 ### Header Types { #sec-header-t }
 Header types may be generic. This is expressed in two forms, however, there is no need to express this in two forms. We only do this to highlight that the generic one contains the non-generic one within it even though these two forms might seem differet. P4 has multiple generic types and we do not demonstrate this point for the rest of them although it still holds.
-
-A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function. For a header type the inner types can be one of the followings:
-
-
-Note that for a generic header, the rule checks that the fields only refer to type parameters that are defined in the header. Later when the header is instantiated the specialized type rule checks if the header is instantiated correctly based on the nesting rules above.
 
 $\headerTypsNoGen \field \typ$
 
@@ -1178,11 +1174,11 @@ $\headerTypsNoGen \field \typ$
 
 $\headerTyps  \typParam \field \typ$
 
-- Type variables must be distinct.
-- Type variables cannot be free, that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. ``are phantom types are useful in P4? i.e., do we want to allow free type variables in type decl? open issue on p4 spec``
+- Type variables must be distinct. Note that if the header is not generic, that is, $\typParams = \emp$, the predicate $\distinct \typParams$ still holds.
+- Type variables cannot be free, that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. Similarly, if the header is not generic the predicate $\noFreeTypVar \emp$ still holds. ``are phantom types are useful in P4? i.e., do we want to allow free type variables in type decl? open issue on p4 spec``
 - The fields of the header must be distinct.
-- The types of the fields must be well-formed under the environment $\env$ extended with the type variables declared for the header.
-- Not every type can be assigned to the fields. Only the folloing types or a type name representing them can legally be assigned to the fields:
+- The types of the fields must be well-formed under the environment $\env$ extended with the type variables declared for the header. Note that if the header is not generic the type parameter environment $\typParEnv$ will not be extended for checking if $\typs$ are well-formed.
+- Not every type can be assigned to the fields. Note that this is exactly the same for generic headers and non-generic headers. Only the folloing types or a type name representing them can legally be assigned to the fields:
 
    + $\bitWidthTyp \exp$ 
    + $\intWidthTyp \exp$ 
@@ -1196,7 +1192,7 @@ $\headerTyps  \typParam \field \typ$
     {\inferrule
       {
        \distinct \typParams \\
-       \noFreeTypVar \typParams \\\\
+       \noFreeTypVar {\headerTyps  \typParam \field \typ} \\\\
        \distinct \fields \\
        \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\
        % \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps} \\\\
@@ -1205,7 +1201,7 @@ $\headerTyps  \typParam \field \typ$
     \quad (\headerGenericTypWellT)
 ~ End InfRule
 
-*todo: point out the difference and how the second one supports the first one*
+As pointed out in the informal form, the $\headerGenericTypWellT$ rule contains the $\headerTypWellT$ rule within it since the premises that check a condition for type variables in a generic header still hold if the header is not generic. Thus, there is no need to have both rule, the $\headerGenericTypWellT$ rule suffices.
 
 ### Header Union Types
 

@@ -899,7 +899,7 @@ If a rule does not use $\env$ in its constraints, we omit the enviornment from t
 
 
 
-*todo: add that rules are pattern matched so more specific cases are presented first and then more general. an algorithm/impl should follow this order if pattern matching or add a predicate to the more general case that removes the more specific one. think if you need to say this in informal notation somehow. example: ser enum well-formed.*
+*todo: add that rules are pattern matched so more specific cases are presented first and then more general. an algorithm/impl should follow this order if pattern matching or add a predicate to the more general case that removes the more specific one. think if you need to say this in informal notation somehow. example: ser enum well-formed. also state that if you limit the syn category to a specific case and others don't exist it will fails.*
 
 In the rest of this section:
 
@@ -924,7 +924,9 @@ The following notations are used in the definitions of the rules in the rest of 
 - $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union.
 - $\isValidNestedTyp \typ$ is a predicate that returns true if the type $\typ$ can have nested types and its nested types are legal based on [P4's spec type nesting rules][#p4-type-nesting-rules]. We state explicitly what types can be nested in another type when defining the rule for the outer type to be well-formed.
 - $\distinct \fields$ is a predicate that returns $\tru$ if fields in $\fields$ are all distinct.
+- $\noFreeTypVar \typ$ is a predicate that returns $\tru$ if none of the type variables defined for the generic type $\typ$ are not free. 
 - $\isWidthInt \typ$ is a predicate that returns $\tru$ if the type $\typ$ is either $\intWidthTyp \exp$ or $\bitWidthTyp \exp$.
+- $\isHeader \typ$ is a predicate that returns $\tru$ if the type $\typ$ is a header. 
 - $\isSurface \typ$ is a predicate that returns $\tru$ if type $\typ$ is one of the cases of [surface types][#sec-ast-surface-type].
 - An underscore (that is, $\whatevs$) is used when we do not need to use some specific information returned to us in a rule. For example, $\mathit{getLength}(\A)= \whatevs$ takes the length of $\A$, however, it actually does not care what the length is. Instead it just cares if $\A$ is a structure that has length.
 - $\mathit{is\_something}$ is a helper function that states if an input is a specific kind from a certain syntactic category. For example, $\mathit{is\_bool}(\typ)$ takes type $\typ$ and returns $\tru$ if $\typ$ is a boolean and $\fls$ otherwise. 
@@ -1175,7 +1177,7 @@ $\headerTypsNoGen \field \typ$
 $\headerTyps  \typParam \field \typ$
 
 - Type variables must be distinct. Note that if the header is not generic, that is, $\typParams = \emp$, the predicate $\distinct \typParams$ still holds.
-- Type variables cannot be free, that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. Similarly, if the header is not generic the predicate $\noFreeTypVar \emp$ still holds. ``are phantom types are useful in P4? i.e., do we want to allow free type variables in type decl? open issue on p4 spec``
+- Type variables cannot be free, that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. Similarly, if the header is not generic the predicate $\noFreeTypVar {\headerTypsNoGen \field {\typ}}$ still holds. ``are phantom types are useful in P4? i.e., do we want to allow free type variables in type decl? open issue on p4 spec``
 - The fields of the header must be distinct.
 - The types of the fields must be well-formed under the environment $\env$ extended with the type variables declared for the header. Note that if the header is not generic the type parameter environment $\typParEnv$ will not be extended for checking if $\typs$ are well-formed.
 - Not every type can be assigned to the fields. Note that this is exactly the same for generic headers and non-generic headers. Only the folloing types or a type name representing them can legally be assigned to the fields:
@@ -1192,9 +1194,9 @@ $\headerTyps  \typParam \field \typ$
     {\inferrule
       {
        \distinct \typParams \\
-       \noFreeTypVar {\headerTyps  \typParam \field \typ} \\\\
+       \noFreeTypVar {\headerTyps  \typParam \field {\typ}} \\\\
        \distinct \fields \\
-       \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\
+       \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\\\
        % \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps} \\\\
        \isValidNestedTyp {\headerTyps  \typParam \field {\typ}}}
       { \typWellFormed {\headerTyps  \typParam \field {\typ}}}}
@@ -1203,7 +1205,33 @@ $\headerTyps  \typParam \field \typ$
 
 As pointed out in the informal form, the $\headerGenericTypWellT$ rule contains the $\headerTypWellT$ rule within it since the premises that check a condition for type variables in a generic header still hold if the header is not generic. Thus, there is no need to have both rule, the $\headerGenericTypWellT$ rule suffices.
 
-### Header Union Types
+### Header Union Types { #sec-header-union-t }
+Similar to headers, header unions may also be generic.
+
+$\headerUnionTyps  \typParam \field {\typName}$
+
+- The fields must be distinct.
+- The only type that can be assigned to the fields is a header type and this is done by refering to the header with its name.
+- The header names assigned to the fields must exists in the type environment $\typEnv$. Note that these header types are well-formed since they have already been stored in the enviornment. 
+- The type parameters of the header union must be distinct.
+- Type variables in the header union cannot be free.
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {
+      \distinct \fields \\\\
+       \lookupTypEnv \typNames = \typs \\
+       % \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs \\
+       \isHeader \typs\\\\
+       \distinct \typParams\\
+       \noFreeTypVar   {\headerUnionTyps  \typParam \field {\typName}}}
+      { \typWellFormed {\headerUnionTyps  \typParam \field {\typName}}}}
+    \quad (\headerUnionTypWellT)
+
+~ End InfRule
+
 
 ### Struct Types
 
@@ -1323,34 +1351,6 @@ The rule $\specializedExternT$ states that the specialization of an extern type 
 ~ End InfRule
 
 ### Declared Types Well-Formedness { #sec-declared-typ-well-formed }
-
-
-#### Well-Formed Header Type
-
-```done..only have to add the nesting rules for instantiation of generic header```
-
-
-#### Well-Formed Header Union Type
-
-```done..except for generic..```
-
-A header union can have zero or more fields of type header. Note that in order for the fields to have a header type they must use a type name.
-
-- $\isHeader \typ$ checks if the type $\typ$ is a header. 
-
-~ Begin InfRule
-
-  \mprset {vskip = 0.7ex}
-    {\inferrule
-      {\distinct \fields \\
-       % \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\typNames} \\\\ %this has been commented out because of the new with notation. look at header types.
-       % \lookupTypEnv \typName = \headerTyps {\whatevs} \whatevs \whatevs\\
-       \lookupTypEnv \typNames = \typs \\
-       \isHeader \typs}
-      { \typWellFormed {\headerUnionTyps  \typParam \field {\typName}}}}
-    \quad (\headerUnionTypWellT)
-
-~ End InfRule
 
 #### Well-Formed Struct Type
 

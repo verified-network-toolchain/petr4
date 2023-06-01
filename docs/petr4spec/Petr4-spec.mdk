@@ -853,8 +853,12 @@ To be concrete, environements are all accumulated in one place and they are defi
 
 - Accessing each enviornment can be done through field access of $\env$. For example, $\env.\typEnv$ gives access to the contents of type enviornment. However, for simpilicity and since the enviorment is global, we omit the $\env.$ part. So for example, $\typEnv$ is a shorthand for $\env.\typEnv$.
 - The notation $\lookupTypEnv \name$ looks up $\name$ in type enviornment $\typEnv$. Such notation is used for looking up in any of the enviornments. Note that $\typEnv$ stands for $\env . \typEnv$ in a lookup as well. Consequently, the notation $\env(\name)$ is meaningless since it does not state which enviornment field of $\env$ is being used for the lookup.
-- The notation $\insertToTypEnv \typName \typ $ extends the type environment with the new assignment of $\typ$ to $\typName$.
+- The notation $\insertToTypEnv \typName \typ $ extends the type environment with the new assignment of $\typ$ to $\typName$. This notation is used for extending any of the environments.
+- The notation $\updateEnv {\typEnv = \VVal \typEnv}$ denotes the same environment as $\env$, except that the type environement $\typEnv$ has been replaced with type environment $\VVal \typEnv$.
+- The notation $\updateEnv {\insertToTypEnv \typName \typ}$ denotes the same environment as $\env$, except that the type environement $\typEnv$ has been extended with the assignment of $\typ$ to $\typName$.
 - The notation $\emp$ denotes an empty environment.
+
+*todo: extending type par env without instantiation shorthand $\insertToTypParEnv \typParams$*
 
 ### Informal Notation { #sec-informal-notation }
 The type checker is specified by rules for each syntactic category of the [surface IR's abstract syntax][#sec-syntax]. The rules states the constraint that have to hold for a phrase to type check. For [types abstract syntax][#sec-ast-type], the rules only state what such constraints are. However, for the rest of the abstract syntax, the rules additionally output the type of the phrase. The following conventions are adopted in stating these rules.
@@ -894,6 +898,8 @@ The conclusion is a judgment which can take one of the following _form_s. All th
 
 If a rule does not use $\env$ in its constraints, we omit the enviornment from the conclusion, that is, it takes the form $\vdash \A$. Still, the enviornment is implicitly assumed by the rule.
 
+*todo: add that rules are pattern matched so more specific cases are presented first and then more general. an algorithm/impl should follow this order if pattern matching or add a predicate to the more general case that removes the more specific one. think if you need to say this in informal notation somehow. example: ser enum well-formed.*
+
 In the rest of this section:
 
 - First, we introduce the judgment form for type checking each of the syntactic categories of our surface IR.
@@ -917,6 +923,7 @@ The following notations are used in the definitions of the rules in the rest of 
 - $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union.
 - $\isValidNestedTyp \typ$ is a predicate that returns true if the type $\typ$ can have nested types and its nested types are legal based on [P4's spec type nesting rules][#p4-type-nesting-rules]. We state explicitly what types can be nested in another type when defining the rule for the outer type to be well-formed.
 - $\distinct \fields$ is a predicate that returns $\tru$ if fields in $\fields$ are all distinct.
+- $\isWidthInt \typ$ is a predicate that returns $\tru$ if the type $\typ$ is either $\intWidthTyp \exp$ or $\bitWidthTyp \exp$.
 - $\isSurface \typ$ is a predicate that returns $\tru$ if type $\typ$ is one of the cases of [surface types][#sec-ast-surface-type].
 - An underscore (that is, $\whatevs$) is used when we do not need to use some specific information returned to us in a rule. For example, $\mathit{getLength}(\A)= \whatevs$ takes the length of $\A$, however, it actually does not care what the length is. Instead it just cares if $\A$ is a structure that has length.
 - $\mathit{is\_something}$ is a helper function that states if an input is a specific kind from a certain syntactic category. For example, $\mathit{is\_bool}(\typ)$ takes type $\typ$ and returns $\tru$ if $\typ$ is a boolean and $\fls$ otherwise. 
@@ -1107,17 +1114,20 @@ $\headerStackTyp {\spcTyp \typName {\typArg}} \exp$
 
 ### Tuple Types { #sec-tuple-t }
 
+*todo: talk about zero/empty tuple*
+
 $\tupleTyps \typ$
 
 - All the types inside a tuple type, i.e, $\typs$, must be well-formed.
 - Not every type can be wrapped inside a tuple type. Only the following types or a type name representing them can legally be wrapped inside a tuple type: ``what about types defined with typedef or type keywords? open issue on p4 spec``
 
-   + $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
-   + $\intWidthTyp \exp$ and $\compTimeKnown \exp$
-   + $\varbitTyp \exp$ and $\compTimeKnown \exp$
+   + $\bitWidthTyp \exp$
+   + $\intWidthTyp \exp$
+   + $\varbitTyp \exp$ 
    + $\errTyp$
    + $\boolTyp$
-   + $\enumTypDef$ ``what about serializable enums? open issue on p4 spec.``
+   + $\enumTypDef$ ``what about enums? since it doesn't have footnote i assumed it is allowed. open issue on p4 spec.``
+   + $\enumTypNoTypDef$
    + $\headerTyps \typParam \field \typ$
    + $\headerStackTyp \typName \exp$
    + $\headerUnionTyps \typParam \field \typ$
@@ -1133,7 +1143,69 @@ $\tupleTyps \typ$
      \quad (\tupleT)}
 ~ End InfRule
 
-### Header Types
+### Header Types { #sec-header-t }
+Header types may be generic. This is expressed in two forms, however, there is no need to express this in two forms. We only do this to highlight that the generic one contains the non-generic one within it even though these two forms might seem differet. P4 has multiple generic types and we do not demonstrate this point for the rest of them although it still holds.
+
+A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function. For a header type the inner types can be one of the followings:
+
+
+Note that for a generic header, the rule checks that the fields only refer to type parameters that are defined in the header. Later when the header is instantiated the specialized type rule checks if the header is instantiated correctly based on the nesting rules above.
+
+$\headerTypsNoGen \field \typ$
+
+- The fields of the header must be distinct.
+- The types of the fields must be well-formed.
+- Not every type can be assigned to the fields. Only the folloing types or a type name representing them can legally be assigned to the fields:
+
+   + $\bitWidthTyp \exp$ 
+   + $\intWidthTyp \exp$ 
+   + $\varbitTyp \exp$ 
+   + $\boolTyp$
+   + $\enumTypDef$
+   + a struct or nested struct type that contains only the above types assigned to its fields ``why does it not allow varbit? open issue on p4 spec. also does the footnote 1 and 2 in the table of type nesting rules apply for all enums and sturcts or only when they're subtypes of headers?``
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\distinct \fields \\
+       \typWellFormed  {\typs} \\\\
+       \isValidNestedTyp {\headerTypsNoGen \field {\typ}}}
+      { \typWellFormed {\headerTypsNoGen \field {\typ}}}}
+    \quad (\headerTypWellT)
+
+~ End InfRule
+
+$\headerTyps  \typParam \field \typ$
+
+- Type variables must be distinct.
+- Type variables cannot be free, that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. ``are phantom types are useful in P4? i.e., do we want to allow free type variables in type decl? open issue on p4 spec``
+- The fields of the header must be distinct.
+- The types of the fields must be well-formed under the environment $\env$ extended with the type variables declared for the header.
+- Not every type can be assigned to the fields. Only the folloing types or a type name representing them can legally be assigned to the fields:
+
+   + $\bitWidthTyp \exp$ 
+   + $\intWidthTyp \exp$ 
+   + $\varbitTyp \exp$ 
+   + $\boolTyp$
+   + $\enumTypDef$
+   + a struct or nested struct type that contains only the above types assigned to its fields
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {
+       \distinct \typParams \\
+       \noFreeTypVar \typParams \\\\
+       \distinct \fields \\
+       \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\
+       % \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps} \\\\
+       \isValidNestedTyp {\headerTyps  \typParam \field {\typ}}}
+      { \typWellFormed {\headerTyps  \typParam \field {\typ}}}}
+    \quad (\headerGenericTypWellT)
+~ End InfRule
+
+*todo: point out the difference and how the second one supports the first one*
 
 ### Header Union Types
 
@@ -1149,41 +1221,43 @@ $\enumTypNoTypDef$
   % \mprset {vskip = 0.7ex}
     {\inferrule
       {\distinct \fields}
-      {\typWellFormed \enumTypNoTypDef}
+      {\typWellFormedNoEnv \enumTypNoTypDef}
     \quad (\enumWellT)}
 ~ End InfRule
 
 ### Serializable Enum Types { #sec-ser-enum-t }
 
-Additionally, if it is a serializable enum its underlying type must either be a fixed-length integer or a name representing a fixed-length integer.
-
-$\enumTypDef$
-
-- blald
-
-~ Begin InfRule
-  \mprset {vskip = 0.7ex}
-    {\inferrule
-      {\widthInt {\surfaceTyp} = \width \\
-       % \isConstant \exp \\
-       \compTimeKnown \exp\\\\
-       \distinct \fields}
-      {\typWellFormed \enumTypDef}
-    \quad (\serenumWellT)}
-~ End InfRule
+Serializable enum types have an underlying type. This type may be expressed either as a type name that represents a type or a type. 
 
 $\enumTyp {\VVal \typName} \typName \fields$
 
-- blsk
+- The type name exists in the type environment $\typSynEnv$.
+- The substituation of the type represented by the type name as the underlying type of the enum results in a well-formed enum.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
     {\inferrule
-      {\lookupTypSynEnv {\VVal \typName} = \surfaceTyp \\
+      {\lookupTypSynEnv {\VVal \typName} = \typ \\
        \typWellFormed \enumTypDef
       }
       {\typWellFormed {\enumTyp {\VVal \typName} \typName \fields}}
     \quad (\serenumTypedefWellT)}
+~ End InfRule
+
+$\enumTypDef$
+
+- The underlying type is either a fixed-width signed or unsigned integer.
+- The underlying type is well-formed.
+- The fields are distinct. 
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\isWidthInt {\typ} \\
+       \typWellFormed \typ \\\\
+       \distinct \fields}
+      {\typWellFormed \enumTypDef}
+    \quad (\serenumWellT)}
 ~ End InfRule
 
 ### Parser Types
@@ -1254,36 +1328,11 @@ The rule $\specializedExternT$ states that the specialization of an extern type 
 
 ### Declared Types Well-Formedness { #sec-declared-typ-well-formed }
 
-``todo: figure these out: why is extern not in declared types? why is match kind in synthesized types? add type syn env to explanation of the judgment.``
 
 #### Well-Formed Header Type
 
 ```done..only have to add the nesting rules for instantiation of generic header```
 
-A header type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function. For a header type the inner types can be one of the followings:
-
-``todo: check if this is complete and according to p4 spec. ``
-
-- $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
-- $\intWidthTyp \exp$ and $\compTimeKnown \exp$
-- $\integerTyp$
-- $\boolTyp$
-- $\enumTypDef$ and $\compTimeKnown \exp$
-- a struct or nested struct type that has the same properties, that is, it must contain only the above subtypes. 
-
-Note that for a generic header, the rule checks that the fields only refer to type parameters that are defined in the header. Later when the header is instantiated the specialized type rule checks if the header is instantiated correctly based on the nesting rules above.
-
-~ Begin InfRule
-
-  \mprset {vskip = 0.7ex}
-    {\inferrule
-      {\distinct \fields \\
-       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps} \\\\
-       \isValidNestedTyp {\headerTyps  \typParam \field {\surfaceTyp}}}
-      { \typWellFormed {\headerTyps  \typParam \field {\surfaceTyp}}}}
-    \quad (\headerTypWellT)
-
-~ End InfRule
 
 #### Well-Formed Header Union Type
 
@@ -1298,7 +1347,7 @@ A header union can have zero or more fields of type header. Note that in order f
   \mprset {vskip = 0.7ex}
     {\inferrule
       {\distinct \fields \\
-       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\typNames} \\\\
+       % \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\typNames} \\\\ %this has been commented out because of the new with notation. look at header types.
        % \lookupTypEnv \typName = \headerTyps {\whatevs} \whatevs \whatevs\\
        \lookupTypEnv \typNames = \typs \\
        \isHeader \typs}
@@ -1332,7 +1381,7 @@ A struct type is well-formed if its fields are distinct and its inner types foll
   \mprset {vskip = 0.7ex}
     {\inferrule
       {\distinct \fields \\
-       \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps} \\
+       % \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps} \\ %this has been commented out because of the new with notation. look at header types.
        \isValidNestedTyp {\structTyps  \typParam \field {\surfaceTyp}}}
       {\typWellFormed {\structTyps  \typParam \field {\surfaceTyp}}}
     }

@@ -603,7 +603,7 @@ There are some types that do not fit into the surface, declared, or synthesized 
 |   | $\vert$ | $\str$ | $\qquad \text{strings}$ |
 |   | $\vert$ | $\int$ | $\qquad \text{integers}$ |
 |   | $\vert$ | $\intWidth \int \width$ | $\qquad \text{fixed-width signed integers}$ |
-|   | $\vert$ | $\bitWidth \bit \width$ | $\qquad \text{fixed-width unsigned integers}$ |
+|   | $\vert$ | $\bitWidth \int \width$ | $\qquad \text{fixed-width unsigned integers}$ |
 |   | $\vert$ | $\name$ | $\qquad \text{names (variables)}$ |
 |   | $\vert$ | $\arrayAccess {\exp_1} {\exp_2}$ | $\qquad \text{array accesses}$ |
 |   | $\vert$ | $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$ | $\qquad \text{bitstring slices}$ |
@@ -1017,7 +1017,7 @@ Fixed-width singed integer types can have a literal integer as their width or an
 
 $\intWidthTyp \exp$
 
-- The width must be a well-formed integer.
+- The expression representing the width must be a [well-formed integer][#sec-exp-type-checker].
 - The width must be known at compile time.
 - The width must evaluate to a positive number more than one.
 
@@ -1035,7 +1035,7 @@ Fixed-width unsingned integer types are Similar to singed integer types except t
 
 $\bitWidthTyp \exp$
 
-- The width must be a well-formed integer.
+- The expression representing the width must be a [well-formed integer][#sec-exp-type-checker].
 - The width must be known at compile time.
 - The width must evaluate to a non-negative number.
 
@@ -1053,7 +1053,7 @@ Varbit types well-formedness is the same as fixed-width unsigned integer types.
 
 $\varbitTyp \exp$
 
-- The width of the integer must be a well-formed integer.
+- The expression representing the width of the integer must be a [well-formed integer][#sec-exp-type-checker].
 - The width must be known at compile time.
 - The width must evaluate to a non-negative number.
 
@@ -1080,7 +1080,7 @@ $\headerStackTyp \typName \exp$
 
 - The type $\typName$ must be defined in the type environment $\typEnv$.
 - The type represented by $\typName$ must either be a header or header union.
-- The size of the array must be a well-formed integer.
+- The expression representing the size of the array must be a [well-formed integer][#sec-exp-type-checker].
 - The size of the array must be known at compile time.
 - The size of the array must evaluate to a positive number.
 
@@ -1344,121 +1344,78 @@ $\enumTypDef$
 ### Don't Care Type
 
 ## Expressions { #sec-exp-type-checker }
-The type checker judgment for expressions has the form $$ and it reads "". 
+The type checker judgment for expressions has the form $\expCheck \exp \typ$ and it reads "the expression $\exp$ is well-formed with type $\typ$ under the enviornment $\env$". 
 
 
-*the following is from an older version*
+### Boolean Literals { #sec-bool-lit-type-checker }
 
-#### Specialized Type { #sec-specialized-t }
+$\bool$
 
-``todo: make sure it covers both \surfacetyp \exp and \typ``
-
-A specialized type specifies the types of parameters in a generic type, the underlying generic type in a specialized type is called the base type. A specialized type is necessary when the compiler cannot infer type arguments.
-
-The rule $\specializedExternT$ states that the specialization of an extern type is well-formed if the extern $\name$ exists in the environment $\env$ and the specialization specifies the type of all its type parameters. Similarly, the rule $\specializedRestT$ states that the specialization of a package/control/parser/function is well-formed if it specifies the type of all its type parameters.
-
-- $\lookupExternEnv \name$ looks up a variable $\name$ in extern environment $\externEnv$ and it returns the type parameters and methods of the extern. Since the rule $\specializedExternT$ only cares about the parameters we do not care about the methods, thus, we don't assign a variable name to it and use an underscore instead of it. 
-- $\getTypeParams \typ$ returns the type parameters from types that have type parameters including package, control, parser, and function.
+- A boolean literal is well-formed.
 
 ~ Begin InfRule
-
-  \mprset {vskip=0.7ex}
-  {\inferrule
-     { \lookupExternEnv \name = ([\params], \_ ) \\
-        % 1 \leq i \leq n. \typWellFormed {\typ_i} \\
-        \typWellFormed \typs\\
-        |\typs| = |\params|}
-     { \typWellFormed {\spcTyp {\externTyp \name} \typ} }
-     \quad (\specializedExternT)}
-
-\and
-
-  \mprset {vskip=0.7ex}
-  {\inferrule
-     { \getTypeParams \typ = \{\params\}\\
-        \typWellFormed {\typs} \\
-        |\params| = |\typs|}
-     { \typWellFormed {\spcTyp \typName {\typ}} }
-     \quad (\specializedRestT)}
-
+  \inferrule
+     { }
+     {\expCheck  \bool \boolTyp}
+     \quad (\boolE)
 ~ End InfRule
 
-# Expression Typing Rules { #sec-exp-typing }
+### String Literals { #sec-str-lit-type-checker }
 
-``TODO: -inserts implicit casts and type inference``
-``TODO: edit judgment form and explanation``
+$\str$
 
-The judgment form
-$\expenv {\exp} {\prim \exp} \typ \dir $ states that expression $\exp$
-written in surface syntax translates to expression $\prim \exp$ in the IR syntax with
-the type $\typ$ and direction $\dir$ under environment $\env$. For now, we do not
-present the syntax of the surface syntax and IR. Note that there is not much difference
-between the two.
-
-``**Restriction**``
-Petr4 doesn't have the product operation where multiple sets can be combined using
-Cartesian product and the type of a product of sets is a set of tuples. (refer to
-section 8.12.5. of P4 spec (**DISCUSS**))
-
-
-## Boolean, String, and Integer Constructor Rules { #sec-base-const-e }
-
-```done```
-
-Base constructors such as boolean, string, and all integer constructors simply construct values of their type. 
-The rule $\boolE$ states that a boolean expression in surface syntax has the type $\boolTyp$, translates to the same boolean expression in the IR syntax, and has the $\less$ direction.
-The rules $\stringE$, $\integerE$, $\bitStringE$, and $\signedIntE$ are similar to $\boolE$. 
+- A string literal is well-formed.
 
 ~ Begin InfRule
-
   \inferrule
      { }
-     {\expenv \bool \bool \boolTyp \less}
-     \quad (\boolE)
-
-  \inferrule
-     { }
-     {\expenv \str \str \stringTyp \less}
+     {\expCheck \str \stringTyp}
      \quad (\stringE)
+~ End InfRule
 
+### Integer Literfals { #sec-int-lit-type-checker }
+
+$\int$
+
+- An integer literal is well-formed.
+
+~ Begin InfRule
   \inferrule
      { }
-     {\expenv \int \int \integerTyp \less}
+     {\expCheck \int  \integerTyp}
      \quad (\integerE)
+~ End InfRule
 
-  \inferrule
-     { \width \geq 0}
-     {\expenv {\bitWidth \bit \width} {\bitWidth \bit \width} {\bitWidthTyp \width} \less}
-     \quad (\bitStringE)
+### Fixed-Width Signed Integer Literals { #sec-int-width-lit-type-checker }
 
+$\intWidth \int \width$
+
+- A fixed-width signed integer literal is well-formed if its width is positive.
+
+~ Begin InfRule
   \inferrule
      { \width \geq 1}
-     {\expenv {\intWidth \int \width} {\intWidth \int \width} {\intWidthTyp \width} {\less}}
+     {\expCheck {\intWidth \int \width}  {\intWidthTyp \width}}
      \quad (\signedIntE)
-
 ~ End InfRule
 
-## Name Rule { #sec-name-e }
+### Fixed-Width Unsigned Integer Literals { #sec-bit-width-lit-type-checker }
 
-The rule $\nameE$ looks up the name of a variable from the environment and returns its type and direction. Note that if the environment doesn't contain the name the rule will fail.
+$\bitWidth \int \width$
 
-- When $lookupEnv \name$ looks up a variable name in the environment, it returns its type and direction. When we only need the
-type or the direction of the variable we simply ignore the other one by using an underscore for it. So you could see
-formalization such as $lookupEnv \name = (\typ, \_ )$ which states that we looked up variable
-$\name$ from the environment and we found out that its type is $\typ$. Similarly, the
-formalization $lookupEnv \name = (\typ, \dir)$ states that we looked up variable
-$\name$ in the environment $\env$ and it has the type $\typ$ and direction $\dir$.
+- A fixed-width unsigned integer literal is well-formed if its width is non-negative.
 
 ~ Begin InfRule
-
   \inferrule
-     {\lookupVarEnv \name = (\typ, \dir)}
-     {\expenv \name \name \typ \dir}
-     \quad (\nameE)
-
+     { \width \geq 0}
+     {\expCheck {\bitWidth \int \width} {\bitWidthTyp \width} }
+     \quad (\bitStringE)
 ~ End InfRule
 
-## Array Access Rule { #sec-array-access-e }
+### Variables { #sec-var-type-checker }
+
+
+### Array Access { #sec-array-access-type-checker }
 
 ```tuple done```
 
@@ -1501,6 +1458,107 @@ compile time, we still consider it known at compile time.
       1 \leq i \leq n}
      {\expenv {\arrayAccess {\exp_1} {\exp_2}} {\arrayAccess {\VVal {\exp_1}} {\VVal {\exp_2}}} {\typ_i} \dir }
      \quad (\tupleAccessE)
+
+~ End InfRule
+
+### Bitstring Slice { #sec-bitstring-slice-type-checker }
+
+### List Constructor { #sec-list-const-type-checker }
+
+### Record Constructor { #sec-record-const-type-checker }
+
+### Unary Operations { #sec-unary-ops-type-checker }
+
+### Binary Operations { #sec-bin-ops-type-checker }
+
+### Cast Operation { #sec-cast-type-checker }
+
+### Type Member Operation { #sec-type-mem-type-checker }
+
+### Error Member Operation { #sec-err-mem-type-checker }
+
+### Expression Member Operation { #sec-exp-mem-type-checker }
+
+### Conditional { #sec-cond-type-checker }
+
+### Function Call { #sec-func-call-type-checker }
+
+### Anonymous Instantiation { #sec-ano-inst-type-checker }
+
+### Bit Mask Operation { #sec-bit-mask-type-checker }
+
+### Range Operation { #sec-range-type-checker }
+
+#*the following is from an older version*
+
+#### Specialized Type well-formed { #sec-specialized-t }
+
+``todo: make sure it covers both \surfacetyp \exp and \typ``
+
+A specialized type specifies the types of parameters in a generic type, the underlying generic type in a specialized type is called the base type. A specialized type is necessary when the compiler cannot infer type arguments.
+
+The rule $\specializedExternT$ states that the specialization of an extern type is well-formed if the extern $\name$ exists in the environment $\env$ and the specialization specifies the type of all its type parameters. Similarly, the rule $\specializedRestT$ states that the specialization of a package/control/parser/function is well-formed if it specifies the type of all its type parameters.
+
+- $\lookupExternEnv \name$ looks up a variable $\name$ in extern environment $\externEnv$ and it returns the type parameters and methods of the extern. Since the rule $\specializedExternT$ only cares about the parameters we do not care about the methods, thus, we don't assign a variable name to it and use an underscore instead of it. 
+- $\getTypeParams \typ$ returns the type parameters from types that have type parameters including package, control, parser, and function.
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+  {\inferrule
+     { \lookupExternEnv \name = ([\params], \_ ) \\
+        % 1 \leq i \leq n. \typWellFormed {\typ_i} \\
+        \typWellFormed \typs\\
+        |\typs| = |\params|}
+     { \typWellFormed {\spcTyp {\externTyp \name} \typ} }
+     \quad (\specializedExternT)}
+
+\and
+
+  \mprset {vskip=0.7ex}
+  {\inferrule
+     { \getTypeParams \typ = \{\params\}\\
+        \typWellFormed {\typs} \\
+        |\params| = |\typs|}
+     { \typWellFormed {\spcTyp \typName {\typ}} }
+     \quad (\specializedRestT)}
+
+~ End InfRule
+
+# Expression Type Inference { #sec-exp-typing }
+
+``TODO: -inserts implicit casts and type inference``
+``TODO: edit judgment form and explanation``
+
+The judgment form
+$\expenv {\exp} {\prim \exp} \typ \dir $ states that expression $\exp$
+written in surface syntax translates to expression $\prim \exp$ in the IR syntax with
+the type $\typ$ and direction $\dir$ under environment $\env$. For now, we do not
+present the syntax of the surface syntax and IR. Note that there is not much difference
+between the two.
+
+``**Restriction**``
+Petr4 doesn't have the product operation where multiple sets can be combined using
+Cartesian product and the type of a product of sets is a set of tuples. (refer to
+section 8.12.5. of P4 spec (**DISCUSS**))
+
+## Name Rule { #sec-name-e }
+
+The rule $\nameE$ looks up the name of a variable from the environment and returns its type and direction. Note that if the environment doesn't contain the name the rule will fail.
+
+- When $lookupEnv \name$ looks up a variable name in the environment, it returns its type and direction. When we only need the
+type or the direction of the variable we simply ignore the other one by using an underscore for it. So you could see
+formalization such as $lookupEnv \name = (\typ, \_ )$ which states that we looked up variable
+$\name$ from the environment and we found out that its type is $\typ$. Similarly, the
+formalization $lookupEnv \name = (\typ, \dir)$ states that we looked up variable
+$\name$ in the environment $\env$ and it has the type $\typ$ and direction $\dir$.
+
+~ Begin InfRule
+
+  \inferrule
+     {\lookupVarEnv \name = (\typ, \dir)}
+     {\expenv \name \name \typ \dir}
+     \quad (\nameE)
 
 ~ End InfRule
 

@@ -233,8 +233,6 @@
 \newcommand{\expCheck}[2]{\env \vdash {#1} : {#2}}
 %inference
 \newcommand{\envOne}[2]{\Delta, T, \Gamma \vdash {#1} : {#2}}
-\newcommand{\expenvNoTrans}[2]{\Gamma \vdash {#1} : {#2}}
-\newcommand{\expenvForWorkshop}[2]{\Gamma \vdash {#1} \leadsto {#2}}
 \newcommand{\expenv}[4]{\constEnv, \varEnv, \typEnv, \ctxt \vdash {#1} \leadsto {#2}, {#3}, {#4}}
 \newcommand{\expenvv}[5]{\constEnv_{#5}, \varEnv_{#5}, \typEnv_{#5}, \ctxt_{#5} \vdash {#1} \leadsto {#2}, {#3}, {#4}}
 \newcommand{\expenvvv}[3]{{#1}, \ctxt \vdash {#2} \leadsto {#3}} %%TODO: check where you've used this and correct the envs

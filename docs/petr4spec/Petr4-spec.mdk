@@ -1127,7 +1127,7 @@ $\tupleTyps \typ$
    + $\varbitTyp \exp$ 
    + $\errTyp$
    + $\boolTyp$
-   + $\enumTypDef$ ``what about enums? since it doesn't have footnote i assumed it is allowed. open issue on p4 spec.``
+   + $\enumTypDef$ ``what about enums? since it doesn't have footnote i assumed it is allowed. open issue on p4 spec. same for struct.``
    + $\enumTypNoTypDef$
    + $\headerTyps \typParam \field \typ$
    + $\headerStackTyp \typName \exp$
@@ -1176,8 +1176,6 @@ $\headerTypsNoGen \field \typ$
 
 $\headerTyps  \typParam \field \typ$
 
-- Type variables must be distinct. Note that if the header is not generic, that is, $\typParams = \emp$, the predicate $\distinct \typParams$ still holds.
-- Type variables cannot be free, that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. Similarly, if the header is not generic the predicate $\noFreeTypVar {\headerTypsNoGen \field {\typ}}$ still holds. ``are phantom types are useful in P4? i.e., do we want to allow free type variables in type decl? open issue on p4 spec``
 - The fields of the header must be distinct.
 - The types of the fields must be well-formed under the environment $\env$ extended with the type variables declared for the header. Note that if the header is not generic the type parameter environment $\typParEnv$ will not be extended for checking if $\typs$ are well-formed.
 - Not every type can be assigned to the fields. Note that this is exactly the same for generic headers and non-generic headers. Only the folloing types or a type name representing them can legally be assigned to the fields:
@@ -1189,16 +1187,20 @@ $\headerTyps  \typParam \field \typ$
    + $\enumTypDef$
    + a struct or nested struct type that contains only the above types assigned to its fields
 
+- Type variables must be distinct. Note that if the header is not generic, that is, $\typParams = \emp$, the predicate $\distinct \typParams$ still holds.
+- Type variables cannot be free, that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. Similarly, if the header is not generic the predicate $\noFreeTypVar {\headerTypsNoGen \field {\typ}}$ still holds. ``are phantom types are useful in P4? i.e., do we want to allow free type variables in type decl? open issue on p4 spec. this goes for all generic type declarations such as struct.``
+
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
     {\inferrule
       {
-       \distinct \typParams \\
-       \noFreeTypVar {\headerTyps  \typParam \field {\typ}} \\\\
        \distinct \fields \\
        \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\\\
        % \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps} \\\\
-       \isValidNestedTyp {\headerTyps  \typParam \field {\typ}}}
+       \isValidNestedTyp {\headerTyps  \typParam \field {\typ}}\\
+       \distinct \typParams \\
+       \noFreeTypVar {\headerTyps  \typParam \field {\typ}}
+       }
       { \typWellFormed {\headerTyps  \typParam \field {\typ}}}}
     \quad (\headerGenericTypWellT)
 ~ End InfRule
@@ -1233,7 +1235,40 @@ $\headerUnionTyps  \typParam \field {\typName}$
 ~ End InfRule
 
 
-### Struct Types
+### Struct Types { #sec-struct-t }
+
+- The fields of the header must be distinct.
+- The types of the fields must be well-formed under the environment $\env$ extended with the type variables declared for the header.
+- Not every type can be assigned to the fields of a struct type. Only the folloing types or a type name representing them can legally be assigned to the fields:
+
+   + $\bitWidthTyp \exp$
+   + $\intWidthTyp \exp$
+   + $\varbitTyp \exp$ 
+   + $\errTyp$
+   + $\boolTyp$
+   + $\enumTypDef$
+   + $\enumTypNoTypDef$
+   + $\headerTyps \typParam \field \typ$
+   + $\headerStackTyp \typName \exp$
+   + $\headerUnionTyps \typParam \field \typ$
+   + $\structTyps \typParam \field \typ$
+   + $\tupleTyps \typ$
+
+- Type variables must be distinct.
+- Type variables cannot be free in a struct type.
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\distinct \fields \\
+      \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\\\
+       \isValidNestedTyp {\structTyps  \typParam \field {\typ}}\\
+       \distinct \typParams\\
+       \noFreeTypVar   {\headerUnionTyps  \typParam \field {\typName}}}
+      {\typWellFormed {\structTyps  \typParam \field {\typ}}}
+    }
+    \quad (\structTypWellT)
+~ End InfRule
 
 ### Enum Types { #sec-enum-t }
 
@@ -1351,39 +1386,6 @@ The rule $\specializedExternT$ states that the specialization of an extern type 
 ~ End InfRule
 
 ### Declared Types Well-Formedness { #sec-declared-typ-well-formed }
-
-#### Well-Formed Struct Type
-
-```done```
-
-A struct type is well-formed if its fields are distinct and its inner types follow the type nesting rules, done by the $\isValidNestedTyp \typ$ helper function. For a struct type the inner types can be one of the followings:
-
-- $\bitWidthTyp \exp$ and $\compTimeKnown \exp$
-- $\intWidthTyp \exp$ and $\compTimeKnown \exp$
-- $\varbitTyp \exp$ and $\compTimeKnown \exp$
-- $\errTyp$
-- $\boolTyp$
-- $\enumTypNoTypDef$
-- $\enumTypDef$
-- $\headerTyps \typParam \field {\surfaceTyp}$
-- $\headerUnionTyps \typParam \field {\typName}$
-- $\headerStackTyp {\surfaceTyp} \exp $
-- $\structTyps \typParam \field {\surfaceTyp}$
-- $\tupleTyps \typ$
-
-
-~ Begin InfRule
-
-  \mprset {vskip = 0.7ex}
-    {\inferrule
-      {\distinct \fields \\
-       % \typWellFormedWithEnv \typEnv {\insertToTypParEnv \typParams} {\surfaceTyps} \\ %this has been commented out because of the new with notation. look at header types.
-       \isValidNestedTyp {\structTyps  \typParam \field {\surfaceTyp}}}
-      {\typWellFormed {\structTyps  \typParam \field {\surfaceTyp}}}
-    }
-    \quad (\structTypWellT)
-
-~ End InfRule
 
 #### Well-Formed Parser Type
 

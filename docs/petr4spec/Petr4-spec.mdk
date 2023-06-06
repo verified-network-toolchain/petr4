@@ -919,36 +919,40 @@ Since this is a very brief introduction to type systems we refer an interested r
 
 The following notations are used in the definitions of the rules in the rest of this section:
 
-- $\compileTimeEval \exp$ evaluates the well-formed expression $\exp$ with the enviornment $\env$ at compile-time.
-- $\compTimeKnown \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time. However, if the expression $\exp$ is
-a specialized type, extern, package, control, or parser but we cannot evaluate it at
-compile-time, we still consider it known at compile-time.
-- $\overline {\A}$ is a list of zero or more $\A$.
-- The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgement to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgement: $\env \vdash \overline \A : \overline \typ$. Note that in this example the enviornment will not be extended so we do not need to pass it as a list. Applying a predicate to an empty list returns $\tru$ unless stated otherwise.
-- $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union.
-- $\isValidNestedTyp \typ$ is a predicate that returns true if the type $\typ$ can have nested types and its nested types are legal based on [P4's spec type nesting rules][#p4-type-nesting-rules]. We state explicitly what types can be nested in another type when defining the rule for the outer type to be well-formed.
-- $\distinct \fields$ is a predicate that returns $\tru$ if fields in $\fields$ are all distinct.
-- $\noFreeTypVar \typ$ is a predicate that returns $\tru$ if none of the type variables defined for the generic type $\typ$ are not free. 
-- $\isWidthInt \typ$ is a predicate that returns $\tru$ if the type $\typ$ is either $\intWidthTyp \exp$ or $\bitWidthTyp \exp$.
-- $\isHeader \typ$ is a predicate that returns $\tru$ if the type $\typ$ is a header. 
-- $\isNumeric \exp \typ$ { #is-numeric } is a predicate that returns $\tru$ if one of the following holds:
+###### - $\compileTimeEval \exp$ evaluates the well-formed expression $\exp$ with the enviornment $\env$ at compile-time. { -; font-weight: "normal"; id: compileTimeEval; label: "compileTimeEval" }
+###### - $\compTimeKnown \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time. However, if the expression $\exp$ is a specialized type, extern, package, control, or parser but we cannot evaluate it at compile-time, we still consider it known at compile-time. { -; font-weight: "normal"; id: compTimeKnown; label: "compTimeKnown" }
+###### - $\overline {\A}$ is a list of zero or more $\A$. { -; font-weight: "normal"; id: overline; label: "overline" }
+###### - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgement to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgement: $\env \vdash \overline \A : \overline \typ$. Note that in this example the enviornment will not be extended so we do not need to pass it as a list. Applying a predicate to an empty list returns $\tru$ unless stated otherwise. { -; font-weight: "normal"; id: mapping; label: "mapping" }
+###### - $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union. { -; font-weight: "normal"; id: isHeaderOrUnion; label: "isHeaderOrUnion" }
+###### - $\isValidNestedTyp \typ$ is a predicate that returns true if the type $\typ$ can have nested types and its nested types are legal based on [P4's spec type nesting rules][#p4-type-nesting-rules]. We state explicitly what types can be nested in another type when defining the rule for the outer type to be well-formed. { -; font-weight: "normal"; id: isValidNestedTyp; label: "isValidNestedTyp" }
+###### - $\distinct \fields$ is a predicate that returns $\tru$ if fields in $\fields$ are all distinct. { -; font-weight: "normal"; id: distinct; label: "distinct" }
+###### - $\noFreeTypVar \typ$ is a predicate that returns $\tru$ if none of the type variables defined for the generic type $\typ$ are not free. { -; font-weight: "normal"; id: noFreeTypVar; label: "noFreeTypVar" }
+###### - $\isWidthInt \typ$ is a predicate that returns $\tru$ if the type $\typ$ is either $\intWidthTyp \exp$ or $\bitWidthTyp \exp$. { -; font-weight: "normal"; id: isWidthInt; label: "isWidthInt" }
+###### - $\isHeader \typ$ is a predicate that returns $\tru$ if the type $\typ$ is a header. { -; font-weight: "normal"; id: isHeader; label: "isHeader" }
+###### - $\isNumeric \exp \typ$ { #is-numeric } is a predicate that returns $\tru$ if one of the following holds: { -; font-weight: "normal"; id: isNumeric; label: "isNumeric" }
+
    * $\compTimeKnown \exp$ and $\typ = \integerTyp$
    * $\typ = \intWidthTyp \width$
    * $\typ = \bitWidthTyp \width$
-- $\isNumOrEnum \typ$ is a predicate that returns $\tru$ if $\typ$ is one of the following checks if $\typ$ is one of the following:
+
+###### - $\isNumOrEnum \typ$ is a predicate that returns $\tru$ if $\typ$ is one of the following checks if $\typ$ is one of the following: { -; font-weight: "normal"; id: isNumOrEnum; label: "isNumOrEnum" }
+
    * $\integerTyp$
    * $\intWidthTyp \width$ ```does this have to be width? it cannot be an expression? same for the below```
    * $\bitWidthTyp \width$
    * $\enumTypDef$ ```p4 spec only allows the underlying type to be int<w> or bit<w>```
-- $\maskTypeIs {\typ_1} {\typ_2}$ is a function that determines the type of a
-mask expression based on the type of its two operands and it is defined for the following cases:
+
+###### - $\maskTypeIs {\typ_1} {\typ_2}$ is a function that determines the type of a mask expression based on the type of its two operands and it is defined for the following cases: { -; font-weight: "normal"; id: maskTypeIs; label: "maskTypeIs" }
+
   + if $\typ_1 = \typ_2 = \bitWidthTyp \width$,
   then $\maskTypeIs {\typ_1} {\typ_2} = \bitWidthTyp \width$
   + if $\typ_1 = \bitWidthTyp \width, \typ_2 = \integerTyp$,
   then $\maskTypeIs {\typ_1} {\typ_2} = \integerTyp$
   + if $\typ_1 = \integerTyp, \typ_2 =  \bitWidthTyp \width$,
   then $\maskTypeIs {\typ_1} {\typ_2} = \bitWidthTyp \width$
-- $\typHasEq \typ$ is a predicate that returns $\tru$ if $\typ$ is one of the followings (conceptually, the following types are the ones that checking equality of two expressions both with one of these types has been defined. Note that this is different from checking if two types are equal):
+
+###### - $\typHasEq \typ$ is a predicate that returns $\tru$ if $\typ$ is one of the followings (conceptually, the following types are the ones that checking equality of two expressions both with one of these types has been defined. Note that this is different from checking if two types are equal): { -; font-weight: "normal"; id: typHasEq; label: "typHasEq" }
+
    * $\errTyp$
    * $\boolTyp$
    * $\bitWidthTyp \width$ ``todo: why not $\bitWidthTyp \exp$?``
@@ -960,7 +964,9 @@ mask expression based on the type of its two operands and it is defined for the 
    * $\headerTyps \typParam \field {\surfaceTyp}$
    * $\headerUnionTyps \typParam \field {\surfaceTyp}$
    * $\structTyps \typParam \field \typ$
-- $\concatCond {\typ_1} {\typ_2}$ is a function that determines the type of a concatenation expression based on the type of its left operand:
+
+###### - $\concatCond {\typ_1} {\typ_2}$ is a function that determines the type of a concatenation expression based on the type of its left operand: { -; font-weight: "normal"; id: concatCond; label: "concatCond" }
+
   + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
     $\concatCond {\typ_1} {\typ_2} = \bitWidthTyp {\width_1 + \width_2}$
   + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \intWidthTyp {\width_2}$, then
@@ -969,11 +975,15 @@ mask expression based on the type of its two operands and it is defined for the 
     $\concatCond {\typ_1} {\typ_2} = \intWidthTyp {\width_1 + \width_2}$
   + if $\typ_1 = \intWidthTyp {\width_1}, \typ_2 = \intWidthTyp {\width_2}$, then
     $\concatCond {\typ_1} {\typ_2} = \intWidthTyp {\width_1 + \width_2}$
-- $\nonNeg \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time and it is non-negative.
-- $\shiftCond {\typ} {\exp}$ is a predicate that returns $\tru$ if one of the following holds:
+
+###### - $\nonNeg \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time and it is non-negative. { -; font-weight: "normal"; id: nonNeg; label: "nonNeg" }
+
+###### - $\shiftCond {\typ} {\exp}$ is a predicate that returns $\tru$ if one of the following holds: { -; font-weight: "normal"; id: shiftCond; label: "shiftCond" }
+
   + $\typ = \bitWidthTyp \width$
   + $\typ = \integerTyp$, $\compTimeKnown \exp$, and $\nonNeg \exp$ 
-- $\ifIntComp \typ \exp$ is a predicate that returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-known.
+
+###### - $\ifIntComp \typ \exp$ is a predicate that returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-known. { -; font-weight: "normal"; id: ifIntComp; label: "ifIntComp" }
 
 
 - $\isSurface \typ$ is a predicate that returns $\tru$ if type $\typ$ is one of the cases of [surface types][#sec-ast-surface-type].
@@ -982,7 +992,7 @@ mask expression based on the type of its two operands and it is defined for the 
 
 ## Types { #sec-type-type-checker }
 
-The type checker judgement for types has the form $\typWellFormed \typ$ and it reads "the type $\typ$ is well-formed under the enviornment $\env$". 
+The type checker judgement for types has the form $\typWellFormed \typ$ and it reads "the type $\typ$ is well-formed under the enviornment $\env$".
 
 
 ### Boolean Type { #sec-bool-t }
@@ -1066,8 +1076,8 @@ Fixed-width singed integer types can have a literal integer as their width or an
 $\intWidthTyp \exp$
 
 - The expression representing the width must be a [well-formed integer][#sec-exp-type-checker].
-- The width must be known at compile-time.
-- The width must evaluate to a positive number more than one.
+- The width must [evaluate to number $\width$ at compile-time][#compileTimeEval].
+- The number $\width$ must be a positive and more than one.
 
 ~ Begin InfRule
   \inferrule
@@ -1643,8 +1653,8 @@ P4 has around 15 binary operations. For each of them, some constraints must hold
 
 $\binOpExp {\&\&} {\exp_1} {\exp_2}$ or $\binOpExp \logor {\exp_1} {\exp_2}$
 
-- slkd
-- Then,
+- Both operand expressions must be well-formed with $\boolTyp$ type.
+- Then, the logical and/or expression is well-formed with $\boolTyp$ type. 
 
 ~ Begin InfRule
 \mprset {vskip=0.7ex}
@@ -1658,8 +1668,9 @@ $\binOpExp {\&\&} {\exp_1} {\exp_2}$ or $\binOpExp \logor {\exp_1} {\exp_2}$
 
 $\binOpExp {\intoOp +} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp -} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp *} {\exp_1} {\exp_2}$
 
-- sdli
-- Then, 
+- Both operand expressions must be well-formed with a [numeric type][].
+- Operand expressions must have the [same type][].
+- Then, the addition/subtraction/multiplication expression is well-formed with a numeric type the same as its operands.
 
 ~ Begin InfRule
 \mprset  {vskip=0.7ex}
@@ -1675,8 +1686,10 @@ $\binOpExp {\intoOp +} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp -} {\exp_1} {\e
 
 $\binOpExp {\intoOp {==}} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp {!=}} {\exp_1} {\exp_2}$
 
-- slkd
-- Then,
+- Both operand expressions must be well-formed with type ??
+- Operand expressions must have the [same type][].
+- Equality of expressions must be defined for the operand expressions' types[].
+- Then, the equality/inequality expression is well-formed with $\boolTyp$ type. 
 
 ~ Begin InfRule
 \mprset {vskip =0.7ex}
@@ -1709,8 +1722,9 @@ $\binOpExp {\intoOp \plusSat} {\exp_1}  {\exp_2}$ or $\binOpExp {\intoOp \subSat
 
 $\binOpExp {\intoOp \bitAnd} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp \bitOr} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp \bitXor} {\exp_1} {\exp_2}$
 
-- lks
-- Then,
+- Operand expressions must be well-formed with a [fixed-width integer type][].
+- The operand expression must have the [same type][].
+- Then, the bitwise and/or/xor expression is well-formed with the same type as its operands.
 
 ~ Begin InfRule
 \mprset {vskip=0.7ex}
@@ -1725,8 +1739,8 @@ $\binOpExp {\intoOp \bitAnd} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp \bitOr} {
 
 $\binOpExp {\intoOp \concat} {\exp_1}  {\exp_2}$
 
-- slkd
-- Then,
+- The operand expressions must be well-formed.
+- Then, the concatenation expression is well-formed with the type??
 
 ~ Begin InfRule
 \mprset {vskip=0.7ex}
@@ -1739,8 +1753,9 @@ $\binOpExp {\intoOp \concat} {\exp_1}  {\exp_2}$
 
 $\binOpExp { \intoOp <} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \leqOp} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp >} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \geqOp} {\exp_1} {\exp_2}$
 
-- slkd
-- Then,
+- The operand expressions must be well-formed with a [numeric type][].
+- The operand expressions must have the same type.
+- Then, the comparison expression is well-formed with $\boolTyp$ type.
 
 ~ Begin InfRule
 \mprset {vskip=0.7ex}
@@ -1756,8 +1771,9 @@ $\binOpExp { \intoOp <} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \leqOp} {\exp
 
 $\binOpExp { \intoOp \div} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \mod} {\exp_1} {\exp_2}$
 
-- slkd
-- Then,
+- The operand expressions must be well-formed with $\integerTyp$ type.
+- Both operand expressions must evaluate to a non-negative number at compile-time.
+- Then, the division/modulo expression is well-formed with $\integerTyp$ type.
 
 ~ Begin InfRule
 \mprset {vskip=0.7ex}
@@ -1772,8 +1788,10 @@ $\binOpExp { \intoOp \div} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \mod} {\ex
 
 $\binOpExp { \intoOp \shiftL} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \shiftR} {\exp_1} {\exp_2}$
 
-- slk
-- Then,
+- The operand expressions must be well-formed.
+- The left-hand operand expression must have a [numeric type][].
+- The right-hand ???
+- Then, the shifting expression is well-formed with a type the same as its left-hand operand.
 
 ~ Begin InfRule
   \inferrule[\rn{ShiftOps}\rE(\ops=\intoOp \shiftL, \intoOp \shiftR)]

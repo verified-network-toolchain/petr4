@@ -231,6 +231,7 @@
 %typing judgments:
 %checker
 \newcommand{\expCheck}[2]{\env \vdash {#1} : {#2}}
+\newcommand{\expCheckEnv}[3]{{#1} \vdash {#2} : {#3}}
 %inference
 \newcommand{\envOne}[2]{\Delta, T, \Gamma \vdash {#1} : {#2}}
 \newcommand{\expenv}[4]{\constEnv, \varEnv, \typEnv, \ctxt \vdash {#1} \leadsto {#2}, {#3}, {#4}}
@@ -238,13 +239,13 @@
 \newcommand{\expenvvv}[3]{{#1}, \ctxt \vdash {#2} \leadsto {#3}} %%TODO: check where you've used this and correct the envs
 \newcommand{\expenvWithCtxt}[5]{\constEnv, \varEnv, \typEnv, {#1} \vdash {#2} \leadsto {#3}, {#4}, {#5}}
 \newcommand{\coerceBinArgsEnv}[3]{\env, \ctxt \vdash {#1} \twoheadrightarrow ({#2}), ({#3})}
-\newcommand{\binOpEnv}[7]{\env \vdash {#1}, ({#4}, {#5}), ({#6}, {#7}) : {#2}, {#3}}
+%% \newcommand{\binOpEnv}[7]{\env \vdash {#1}, ({#4}, {#5}), ({#6}, {#7}) : {#2}, {#3}}
 \newcommand{\typWellFormed}[1]{\env \vdash {#1}}
 \newcommand{\typWellFormedNoEnv}[1]{\vdash {#1}}
 \newcommand{\typNotWellFormed}[1]{\env \nvdash {#1}}
 \newcommand{\typWellFormedUpdatedEnv}[2]{{#1}\vdash {#2}}
 \newcommand{\typEqEnv}[3]{ {#2} ==_{\env,{#1}} {#3}} %%todo: fix env
-\newcommand{\typeEq}[2]{{#1} ==_\env {#2}}%for p4 workshop
+\newcommand{\typEq}[2]{{#1} ==_\env {#2}}
 %context. type of expression. type of returned name.exp
 \newcommand{\fieldAccessEnv}[4]{\env, {#1} \vdash {#2}, {#3} : {#4}}
 \newcommand{\stmtenv}[3]{\env, \ctxt \vdash {#1} \leadsto {#2}, {#3} \dashv \env}
@@ -296,7 +297,7 @@
 \newcommand{\geqOp}{>=}
 \newcommand{\concat}{+\!+}
 \newcommand{\restOps}{\odot}
-\newcommand{\ops}{\odot}
+\newcommand{\ops}{$\odot$}
 \newcommand{\unaryOp}{\ominus}
 \newcommand{\binOp}{\oplus}
 \newcommand{\cast}[2]{({#1})\,{#2}}
@@ -538,7 +539,7 @@
 \newcommand{\bothInt}[2]{\mathit{both\_int}({#1},{#2})}
 \newcommand{\concatCond}[2]{\mathit{concat\_type}({#1},{#2})}
 \newcommand{\divCond}[2]{\mathit{div\_type}({#1},{#2})}
-\newcommand{\shiftCond}[2]{\mathit{shift\_condition}({#1},{#2})_{\constEnv, \typEnv}}
+\newcommand{\shiftCond}[2]{\mathit{shift\_condition}({#1},{#2})_{\env}}
 \newcommand{\addTypeEnv}[2]{\typEnv[{#1}:{#2}]}
 \newcommand{\addTypEnvv}[1]{\typEnv[{#1}]}
 \newcommand{\unionEnv}[2]{{#1}\cup{#2}}
@@ -618,6 +619,8 @@
 \newcommand{\last}{\mathsf{last}}
 \newcommand{\isHeader}[1]{\mathit{is\_header}({#1})}
 \newcommand{\isHeaderOrUnion}[1]{\mathit{is\_header\_or\_union}({#1})}
+\newcommand{\binOpExp}[3]{{#2}\, {#1}\, {#3}}
+
 
 %kinds
 \newcommand{\builtin}{\mathsf{builtin}}
@@ -660,23 +663,24 @@
 \newcommand{\enumTyp}[3]{\mathsf{enum}\ {#1}\ {#2}\ \{{#3}\}}
 \newcommand{\enumTypNoTypDef}{\mathsf{enum} \ {\typName}\ \{\fields\}}
 \newcommand{\enumTypNoTyp}[2]{\mathsf{enum} \ {#1}\ \{{#2}\}}
-\newcommand{\recordTypDef}{\recordTyp 1 n}
+%% \newcommand{\recordTypDef}{\recordTyp 1 n}
 \newcommand{\recordTypStructureOpen}[2]{\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
 \newcommand{\recordTypStructureClose}[2]{\{\overline {{#1} : {#2}}\}}
-\newcommand{\recordTyp}[2]{\mathsf{record} \{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
-\newcommand{\recordTypp}[2]{\mathsf{record} \{\VVal {\field_{#1}}:\VVal {\typ_{#1}};\ldots;\VVal {\field_{#2}}:\VVal {\typ_{#2}}\}}
+%% \newcommand{\recordTyp}[2]{\mathsf{record} \{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
+%% \newcommand{\recordTypp}[2]{\mathsf{record} \{\VVal {\field_{#1}}:\VVal {\typ_{#1}};\ldots;\VVal {\field_{#2}}:\VVal {\typ_{#2}}\}}
 %% \newcommand{\recordTyps}{\mathsf{record} \recordTypStructureClose \field \typ}
-\newcommand{\recordTyps}[2]{\mathsf{record} \recordTypStructureClose {#1} {#2}}
+%% \newcommand{\recordTyps}[2]{\mathsf{record} \recordTypStructureClose {#1} {#2}}
 \newcommand{\headerUnionTyp}[2]{\mathsf{header\_union} \recordTypStructureOpen {#1} {#2}}
 \newcommand{\headerUnionTyps}[3]{\mathsf{header\_union}\langle{\overline{#1}}\rangle \recordTypStructureClose {#2} {#3}}
 \newcommand{\headerTyp}[3]{\mathsf{header} \langle{\overline{#1}}\rangle\recordTypStructureOpen {#2} {#3}}
 \newcommand{\structTyp}[3]{\mathsf{struct} \langle{\overline{#1}}\rangle \recordTypStructureOpen {#2} {#3}}
 \newcommand{\headerTyps}[3]{\mathsf{header} \langle{\overline{#1}}\rangle\recordTypStructureClose {#2} {#3}}
-\newcommand{\headerTypsNoGen}[2]{\mathsf{header} \recordTypStructureClose {#1} {#2}}
+%% \newcommand{\headerTypsNoGen}[2]{\mathsf{header} \recordTypStructureClose {#1} {#2}}
 %% \newcommand{\headerTypp}[2]{\mathsf{header} \recordTypp {#1} {#2}}
 %% \newcommand{\structTypp}[2]{\mathsf{struct} \recordTypp {#1} {#2}}
 \newcommand{\structTypDef}{\mathsf{struct} \recordTypStructureOpen 1 n}
 \newcommand{\structTyps}[3]{\mathsf{struct} \langle{\overline{#1}}\rangle \recordTypStructureClose {#2} {#3}}
+%% \newcommand{\structTypsNoGen}[2]{\mathsf{struct} \recordTypStructureClose {#1} {#2}}
 %% \newcommand{\headerUnionTyp}{\mathit{header\_union}\{\field_1:\typ_1;\ldots;\field_n:\typ_n \}}
 %% \newcommand{\headerTypDef}{\headerTyp 1 n}
 %% \newcommand{\headerTyp}[2]{\mathit{header}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}

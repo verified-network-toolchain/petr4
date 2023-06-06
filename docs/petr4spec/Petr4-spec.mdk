@@ -492,6 +492,8 @@ The surface IR has a signle syntactic category for types, however, this syntacti
 
 ### Declared Types { #sec-ast-dcl-type }
 
+*todo: note if a list of args such as type parameters or types for tuples is empty, it will appear with a space instead of having $\langle \emp \rangle$*
+
 ~ Begin P4Syntax
 
 |     |      |     |     |
@@ -917,8 +919,10 @@ Since this is a very brief introduction to type systems we refer an interested r
 
 The following notations are used in the definitions of the rules in the rest of this section:
 
-- $\compileTimeEval \exp$ evaluates the expression $\exp$ with the enviornment $\env$ at compile time.
-- $\compTimeKnown \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile time.
+- $\compileTimeEval \exp$ evaluates the well-formed expression $\exp$ with the enviornment $\env$ at compile-time.
+- $\compTimeKnown \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time. However, if the expression $\exp$ is
+a specialized type, extern, package, control, or parser but we cannot evaluate it at
+compile-time, we still consider it known at compile-time.
 - $\overline {\A}$ is a list of zero or more $\A$.
 - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgement to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgement: $\env \vdash \overline \A : \overline \typ$. Note that in this example the enviornment will not be extended so we do not need to pass it as a list. Applying a predicate to an empty list returns $\tru$ unless stated otherwise.
 - $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union.
@@ -927,9 +931,53 @@ The following notations are used in the definitions of the rules in the rest of 
 - $\noFreeTypVar \typ$ is a predicate that returns $\tru$ if none of the type variables defined for the generic type $\typ$ are not free. 
 - $\isWidthInt \typ$ is a predicate that returns $\tru$ if the type $\typ$ is either $\intWidthTyp \exp$ or $\bitWidthTyp \exp$.
 - $\isHeader \typ$ is a predicate that returns $\tru$ if the type $\typ$ is a header. 
+- $\isNumeric \exp \typ$ { #is-numeric } is a predicate that returns $\tru$ if one of the following holds:
+   * $\compTimeKnown \exp$ and $\typ = \integerTyp$
+   * $\typ = \intWidthTyp \width$
+   * $\typ = \bitWidthTyp \width$
+- $\isNumOrEnum \typ$ is a predicate that returns $\tru$ if $\typ$ is one of the following checks if $\typ$ is one of the following:
+   * $\integerTyp$
+   * $\intWidthTyp \width$ ```does this have to be width? it cannot be an expression? same for the below```
+   * $\bitWidthTyp \width$
+   * $\enumTypDef$ ```p4 spec only allows the underlying type to be int<w> or bit<w>```
+- $\maskTypeIs {\typ_1} {\typ_2}$ is a function that determines the type of a
+mask expression based on the type of its two operands and it is defined for the following cases:
+  + if $\typ_1 = \typ_2 = \bitWidthTyp \width$,
+  then $\maskTypeIs {\typ_1} {\typ_2} = \bitWidthTyp \width$
+  + if $\typ_1 = \bitWidthTyp \width, \typ_2 = \integerTyp$,
+  then $\maskTypeIs {\typ_1} {\typ_2} = \integerTyp$
+  + if $\typ_1 = \integerTyp, \typ_2 =  \bitWidthTyp \width$,
+  then $\maskTypeIs {\typ_1} {\typ_2} = \bitWidthTyp \width$
+- $\typHasEq \typ$ is a predicate that returns $\tru$ if $\typ$ is one of the followings (conceptually, the following types are the ones that checking equality of two expressions both with one of these types has been defined. Note that this is different from checking if two types are equal):
+   * $\errTyp$
+   * $\boolTyp$
+   * $\bitWidthTyp \width$ ``todo: why not $\bitWidthTyp \exp$?``
+   * $\intWidthTyp \width$
+   * $\varbitTyp \width$
+   * $\integerTyp$
+   * $\enumTypDef$
+   * $\enumTypNoTypDef$
+   * $\headerTyps \typParam \field {\surfaceTyp}$
+   * $\headerUnionTyps \typParam \field {\surfaceTyp}$
+   * $\structTyps \typParam \field \typ$
+- $\concatCond {\typ_1} {\typ_2}$ is a function that determines the type of a concatenation expression based on the type of its left operand:
+  + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
+    $\concatCond {\typ_1} {\typ_2} = \bitWidthTyp {\width_1 + \width_2}$
+  + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \intWidthTyp {\width_2}$, then
+    $\concatCond {\typ_1} {\typ_2} = \bitWidthTyp {\width_1 + \width_2}$
+  + if $\typ_1 = \intWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
+    $\concatCond {\typ_1} {\typ_2} = \intWidthTyp {\width_1 + \width_2}$
+  + if $\typ_1 = \intWidthTyp {\width_1}, \typ_2 = \intWidthTyp {\width_2}$, then
+    $\concatCond {\typ_1} {\typ_2} = \intWidthTyp {\width_1 + \width_2}$
+- $\nonNeg \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time and it is non-negative.
+- $\shiftCond {\typ} {\exp}$ is a predicate that returns $\tru$ if one of the following holds:
+  + $\typ = \bitWidthTyp \width$
+  + $\typ = \integerTyp$, $\compTimeKnown \exp$, and $\nonNeg \exp$ 
+- $\ifIntComp \typ \exp$ is a predicate that returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-known.
+
+
 - $\isSurface \typ$ is a predicate that returns $\tru$ if type $\typ$ is one of the cases of [surface types][#sec-ast-surface-type].
 - An underscore (that is, $\whatevs$) is used when we do not need to use some specific information returned to us in a rule. For example, $\mathit{getLength}(\A)= \whatevs$ takes the length of $\A$, however, it actually does not care what the length is. Instead it just cares if $\A$ is a structure that has length.
-- $\mathit{is\_something}$ is a helper function that states if an input is a specific kind from a certain syntactic category. For example, $\mathit{is\_bool}(\typ)$ takes type $\typ$ and returns $\tru$ if $\typ$ is a boolean and $\fls$ otherwise. 
 
 
 ## Types { #sec-type-type-checker }
@@ -1013,12 +1061,12 @@ $\stringTyp$
 ~ End InfRule
 
 ### Fixed-Width Signed Integer Types { #sec-signed-int-t }
-Fixed-width singed integer types can have a literal integer as their width or an expression that will be evaluated to an integer at compile time. Such intgeer must be more than one. 
+Fixed-width singed integer types can have a literal integer as their width or an expression that will be evaluated to an integer at compile-time. Such intgeer must be more than one. 
 
 $\intWidthTyp \exp$
 
 - The expression representing the width must be a [well-formed integer][#sec-exp-type-checker].
-- The width must be known at compile time.
+- The width must be known at compile-time.
 - The width must evaluate to a positive number more than one.
 
 ~ Begin InfRule
@@ -1036,7 +1084,7 @@ Fixed-width unsingned integer types are Similar to singed integer types except t
 $\bitWidthTyp \exp$
 
 - The expression representing the width must be a [well-formed integer][#sec-exp-type-checker].
-- The width must be known at compile time.
+- The width must be known at compile-time.
 - The width must evaluate to a non-negative number.
 
 ~ Begin InfRule
@@ -1054,7 +1102,7 @@ Varbit types well-formedness is the same as fixed-width unsigned integer types.
 $\varbitTyp \exp$
 
 - The expression representing the width of the integer must be a [well-formed integer][#sec-exp-type-checker].
-- The width must be known at compile time.
+- The width must be known at compile-time.
 - The width must evaluate to a non-negative number.
 
 
@@ -1081,7 +1129,7 @@ $\headerStackTyp \typName \exp$
 - The type $\typName$ must be defined in the type environment $\typEnv$.
 - The type represented by $\typName$ must either be a header or header union.
 - The expression representing the size of the array must be a [well-formed integer][#sec-exp-type-checker].
-- The size of the array must be known at compile time.
+- The size of the array must be known at compile-time.
 - The size of the array must evaluate to a positive number.
 
 ~ Begin InfRule
@@ -1121,7 +1169,6 @@ $\tupleTyps \typ$
 
 - All the types inside a tuple type, i.e, $\typs$, must be well-formed.
 - Not every type can be wrapped inside a tuple type. Only the following types or a type name representing them can legally be wrapped inside a tuple type: ``what about types defined with typedef or type keywords? open issue on p4 spec``
-
    + $\bitWidthTyp \exp$
    + $\intWidthTyp \exp$
    + $\varbitTyp \exp$ 
@@ -1134,7 +1181,6 @@ $\tupleTyps \typ$
    + $\headerUnionTyps \typParam \field \typ$
    + $\structTyps \typParam \field \typ$
    + $\tupleTyps \typ$
-
 - A tuple type with no component is always well-type because it does not have any types that needs to satisfy the premises.
 
 ~ Begin InfRule
@@ -1149,12 +1195,11 @@ $\tupleTyps \typ$
 ### Header Types { #sec-header-t }
 Header types may be generic. This is expressed in two forms, however, there is no need to express this in two forms. We only do this to highlight that the generic one contains the non-generic one within it even though these two forms might seem differet. P4 has multiple generic types and we do not demonstrate this point for the rest of them although it still holds.
 
-$\headerTypsNoGen \field \typ$
+$\headerTyps { } \field \typ$
 
 - The fields of the header must be distinct.
 - The types of the fields must be well-formed.
 - Not every type can be assigned to the fields. Only the folloing types or a type name representing them can legally be assigned to the fields:
-
    + $\bitWidthTyp \exp$ 
    + $\intWidthTyp \exp$ 
    + $\varbitTyp \exp$ 
@@ -1168,8 +1213,8 @@ $\headerTypsNoGen \field \typ$
     {\inferrule
       {\distinct \fields \\
        \typWellFormed  {\typs} \\\\
-       \isValidNestedTyp {\headerTypsNoGen \field {\typ}}}
-      { \typWellFormed {\headerTypsNoGen \field {\typ}}}}
+       \isValidNestedTyp {\headerTyps { } \field {\typ}}}
+      { \typWellFormed {\headerTyps { } \field {\typ}}}}
     \quad (\headerTypWellT)
 
 ~ End InfRule
@@ -1179,16 +1224,14 @@ $\headerTyps  \typParam \field \typ$
 - The fields of the header must be distinct.
 - The types of the fields must be well-formed under the environment $\env$ extended with the type variables declared for the header. Note that if the header is not generic the type parameter environment $\typParEnv$ will not be extended for checking if $\typs$ are well-formed.
 - Not every type can be assigned to the fields. Note that this is exactly the same for generic headers and non-generic headers. Only the folloing types or a type name representing them can legally be assigned to the fields:
-
    + $\bitWidthTyp \exp$ 
    + $\intWidthTyp \exp$ 
    + $\varbitTyp \exp$ 
    + $\boolTyp$
    + $\enumTypDef$
    + a struct or nested struct type that contains only the above types assigned to its fields
-
 - Type variables must be distinct. Note that if the header is not generic, that is, $\typParams = \emp$, the predicate $\distinct \typParams$ still holds.
-- Type variables cannot be free, that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. Similarly, if the header is not generic the predicate $\noFreeTypVar {\headerTypsNoGen \field {\typ}}$ still holds. ``are phantom types are useful in P4? i.e., do we want to allow free type variables in type decl? open issue on p4 spec. this goes for all generic type declarations such as struct.``
+- Type variables cannot be free, that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. Similarly, if the header is not generic the predicate $\noFreeTypVar {\headerTyps { } \field {\typ}}$ still holds. ``are phantom types are useful in P4? i.e., do we want to allow free type variables in type decl? open issue on p4 spec. this goes for all generic type declarations such as struct.``
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1240,7 +1283,6 @@ $\headerUnionTyps  \typParam \field {\typName}$
 - The fields of the header must be distinct.
 - The types of the fields must be well-formed under the environment $\env$ extended with the type variables declared for the header.
 - Not every type can be assigned to the fields of a struct type. Only the folloing types or a type name representing them can legally be assigned to the fields:
-
    + $\bitWidthTyp \exp$
    + $\intWidthTyp \exp$
    + $\varbitTyp \exp$ 
@@ -1253,7 +1295,6 @@ $\headerUnionTyps  \typParam \field {\typName}$
    + $\headerUnionTyps \typParam \field \typ$
    + $\structTyps \typParam \field \typ$
    + $\tupleTyps \typ$
-
 - Type variables must be distinct.
 - Type variables cannot be free in a struct type.
 
@@ -1343,6 +1384,10 @@ $\enumTypDef$
 
 ### Don't Care Type
 
+## Type Equality { #sec-type-eq-type-checker }
+
+*todo: explain sth like for type checking P4 programs we need to know if two type are equal or not. this judgment does it. for simplicity, and since after inference all type parameters have been substituted, there are no generic types in this section. a later section will introduce type eq for generic types.*
+
 ## Expressions { #sec-exp-type-checker }
 The type checker judgment for expressions has the form $\expCheck \exp \typ$ and it reads "the expression $\exp$ is well-formed with type $\typ$ under the enviornment $\env$". 
 
@@ -1417,59 +1462,329 @@ $\bitWidth \int \width$
 
 ### Array Access { #sec-array-access-type-checker }
 
-```tuple done```
+Array access may take two forms, it can either access a header stack or a tuple. 
 
-$\arrayAccess {\exp_1} {\exp_2}$ denotes accessing the $\exp_2$^th^ element from the array $\exp_1$. 
-The rule $\arrayAccessE$ states that expression $\arrayAccess {\exp_1} {\exp_2}$
-translates to $\arrayAccess {\VVal {\exp_1}} {\VVal {\exp_2}}$
-when $\exp_1$ has the array type $\headerStackTyp \typ \size$ and $\exp_2$ has a numeric type. 
+$\arrayAccess {\exp_1} {\exp_2}$ where $\exp_1 : \headerStackTyp \typ \size$
 
-- $\isNumeric \exp \typ$
-checks that the expression $\exp$ with type $\typ$ fits one of the following:
-   * $\compTimeKnown \exp$ and $\typ = \integerTyp$
-   * $\typ = \intWidthTyp \width$
-   * $\typ = \bitWidthTyp \width$
-- $\compTimeKnown \exp$ checks if the value of expression $\exp$ is known during the
-compilation. It does so by evaluating the expression $\exp$ at compile time, if that is
-possible, then we know the value at compile time. However, if the expression $\exp$ is
-a specialized type, extern, package, control, or parser but we cannot evaluate it at
-compile time, we still consider it known at compile time.
-- $\compileTimeEval \exp$ evaluates the expression $\exp$ at compile time and returns its value if $\exp$ is a well-typed expression.
+*todo: have to check this. the old note only mentioned that the tuple case is done.*
+
+- The structure being accessed, that is, $\exp_1$, is a well-formed header stack type $\headerStackTyp \typ \size$.
+- The access index is a well-formed expression of [numeric type][#is-numeric].
+- Then accessing the header stack $\exp_1$ at the index $\exp_2$ is well-formed with type $\typ$.
+
+
+~ Begin InfRule
+  \inferrule
+     {\expCheck {\exp_1}  {\headerStackTyp \typ \size}  \\\\
+      \expCheck {\exp_2} {\VVal \typ} \\\\
+      % \isArray {\arrayTyp \typ \size} \\
+      \isNumeric {\exp_2} {\VVal \typ}}
+     {\expCheck {\arrayAccess {\exp_1} {\exp_2}} \typ }
+     \quad (\arrayAccessE)
+~ End InfRule
+
+$\arrayAccess {\exp_1} {\exp_2}$ where $\exp_1 : \tupleTyp {\typ_1} {\typ_n}$
+
+- The structure being accessed, that is, $\exp_1$, is a well-formed tuple type with $n$ elements.
+- The access index is a well-formed integer type.
+- The access index evaluates to integer $\int$ at compile-time and is between the bounds of the tuple type.
+- Then accessing the tuple $\exp_1$ at the index $\exp_2$ is well-formed with type $\typ_\int$.
+
+~ Begin InfRule
+  \inferrule
+     {\expCheck {\exp_1}  {\tupleTyp {\typ_1} {\typ_n}} \\\\
+      \expCheck {\exp_2}  {\integerTyp}  \\\\
+      \compileTimeEval {\exp_2} = i\\
+      1 \leq i \leq n}
+     {\expCheck {\arrayAccess {\exp_1} {\exp_2}} {\typ_i} }
+     \quad (\tupleAccessE)
+~ End InfRule
+
+### Bitstring Slicing { #sec-bitstring-slice-type-checker }
+
+Bitstring slicing may occur over a fixed-width signed or unsigned integer. 
+
+*todo: check why the context for exp 2 and 3 has to be constant. and when you encounter a new context explain it in notation section.*
+
+$\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$
+
+- Either:
+  + Bitstring slicing is over a fixed-width unsigned integer, that is, $\exp_1 : \bitWidthTyp \width$.
+- Or:
+  + It is over a fixed-width signed integer, that is, $\exp_1 : \intWidthTyp \width$.
+- Under a $\cte$ context, expressions representing the indices of slicing are well-formed with one the following types:
+   + $\integerTyp$
+   + $\intWidthTyp \width$
+   + $\bitWidthTyp \width$
+   + $\enumTypDef$
+- Expressions representing the lower and upper indices evaluate to numbers $\int_1$ and $\int_2$, respectively, at compile-time.
+- The lower and upper indices of the slicing are in bound of the width of the fixed-width integer and each other.
+- Then, slicing a bitstring from index $\exp_2$ to $\exp_3$ is well-formed with type either:
+   + $\bitWidthTyp {\int_2 - \int_1 + 1}$.
+- Or:
+   + $\intWidthTyp {\int_2 - \int_1 + 1}$.
+
+~ Begin InfRule
+\mprset {vskip=0.7ex}
+  {\inferrule
+     {\expCheck {\exp_1} {\bitWidthTyp \width} \\\\
+      % \widthInt { {\typ_1}} = \width \\\\
+      \expCheckEnv {\updateEnv {\ctxt = \cte}} {\exp_2} {\typ_2} \\\\ 
+      \expCheckEnv {\updateEnv {\ctxt = \cte}} {\exp_3}  {\typ_3} \\\\ 
+      \isNumOrEnum  {\typ_2} \\\\
+      \isNumOrEnum  {\typ_3} \\\\
+      \compileTimeEval { {\exp_2}} = \int_1 \\
+      \compileTimeEval { {\exp_3}} = \int_2 \\\\
+      0 \leq \int_1 < \width \\
+      \int_1 \leq \int_2 < \width
+      }
+     {\expCheck {\bitStringAccess {\exp_1} {\exp_2} {\exp_3}} {\bitWidthTyp {\int_2 - \int_1 + 1}} }
+     \quad (\bitSliceE)}
+
+\and
+
+\mprset {vskip=0.7ex}
+  {\inferrule
+     {\expCheck {\exp_1} {\intWidthTyp \width} \\\\
+      % \widthInt { {\typ_1}} = \width \\\\
+      \expCheckEnv {\updateEnv {\ctxt = \cte}} {\exp_2} {\typ_2}  \\\\
+      \expCheckEnv {\updateEnv {\ctxt = \cte}} {\exp_3}  {\typ_3}  \\\\
+      \isNumOrEnum  {\typ_2} \\\\
+      \isNumOrEnum  {\typ_3} \\\\
+      \compileTimeEval { {\exp_2}} = \int_1 \\
+      \compileTimeEval { {\exp_3}} = \int_2 \\\\
+      0 \leq \int_1 < \width \\
+      \int_1 \leq \int_2 < \width
+      }
+     {\expCheck {\bitStringAccess {\exp_1} {\exp_2} {\exp_3}} {\intWidthTyp {\int_2 - \int_1 + 1}} }
+     \quad (\intSliceE)}
+~ End InfRule
+
+### List Constructor { #sec-list-const-type-checker }
+
+$\list \exps$
+
+- Elements of the list are well-formed with types $\typs$.
+- Then, the list is well-formed with type $\listTyps \typ$.
 
 ~ Begin InfRule
 
   \inferrule
-     {\expenv {\exp_1} {\VVal {\exp_1}} {\headerStackTyp \typ \size} \dir \\\\
-      \expenv {\exp_2} {\VVal {\exp_2}} {\VVal \typ} {\VVal \dir} \\\\
-      % \isArray {\arrayTyp \typ \size} \\
-      \isNumeric {\exp_2} {\VVal \typ}}
-     {\expenv {\arrayAccess {\exp_1} {\exp_2}} {\arrayAccess {\VVal {\exp_1}} {\VVal {\exp_2}}} \typ \dir }
-     \quad (\arrayAccessE)
-
-\and
-
-  \inferrule
-     {\expenv {\exp_1} {\VVal {\exp_1}} {\tupleTyp {\typ_1} {\typ_n}} \dir \\\\
-      \expenv {\exp_2} {\VVal {\exp_2}} {\integerTyp} {\VVal \dir} \\\\
-      % \isArray {\arrayTyp \typ \size} \\
-      % \isNumeric {\exp_2} {\VVal \typ}\\
-      \compileTimeEval {\exp_2} = i\\
-      % \isInt i\\
-      1 \leq i \leq n}
-     {\expenv {\arrayAccess {\exp_1} {\exp_2}} {\arrayAccess {\VVal {\exp_1}} {\VVal {\exp_2}}} {\typ_i} \dir }
-     \quad (\tupleAccessE)
+     {\expCheck {\exps} {\typs}}
+     {\expCheck {\list \exps}{\listTyps \typ} }
+     \quad (\listE)
 
 ~ End InfRule
 
-### Bitstring Slice { #sec-bitstring-slice-type-checker }
-
-### List Constructor { #sec-list-const-type-checker }
-
 ### Record Constructor { #sec-record-const-type-checker }
+
+$\records \exp$
+
+- The fields are distinct.
+- The expressions assigned to the fields are well-formed with types $\typs$.
+- Then, the record is well-formed with type struct type $\structTyps { } \field \typ$.
+
+~ Begin InfRule
+  \inferrule
+     {\distinct \fields \\
+     \expCheck {\exps} {\typs}
+      }
+     {\expCheck {\records \exp}  {\structTyps { } \field \typ}  }
+     \quad (\recordE)
+
+~ End InfRule
 
 ### Unary Operations { #sec-unary-ops-type-checker }
 
+P4 has three unary operations: logical negation, bitwise complement, and minus.
+
+$\intoOp ! \exp$
+
+- The expression $\exp$ must be well-formed with $\boolTyp$ type.
+- Then, expression $\intoOp ! \exp$ is well-formed with $\boolTyp$ type.
+
+~ Begin InfRule
+  \inferrule
+     { \expCheck \exp  \boolTyp }
+     { \expCheck {\intoOp ! \exp}  \boolTyp }
+     \quad (\logicalNegE)
+~ End InfRule
+
+$\intoOp \bitComplement \exp$
+
+- The expression $\exp$ must be well-formed with a [fixed-width integer type][#sec-aux-notation-type-checker].
+- Then, the expression $\intoOp \bitComplement \exp$ is well-formed with the same fixed-width integer type as the expression $\exp$.
+
+~ Begin InfRule
+  \inferrule
+     { \expCheck \exp \typ \\
+       \isWidthInt \typ }
+     { \expCheck {\intoOp \bitComplement \exp} {\typ} }
+     \quad (\bitwiseComplementE)
+~ End InfRule
+
+$\intoOp - \exp$
+
+- The expression $\exp$ must be well-formed with a [numeric type][#sec-aux-notation-type-checker].
+- Then, the expression $\intoOp - \exp$ is well-formed with the same numeric type as the expression $\exp$.
+
+~ Begin InfRule
+  \inferrule
+     { \expCheck \exp  \typ   \\
+       \isNumeric \exp \typ}
+     { \expCheck {\intoOp - \exp} {\typ} }
+     \quad (\unaryMinusE)
+~ End InfRule
+
 ### Binary Operations { #sec-bin-ops-type-checker }
+P4 has around 15 binary operations. For each of them, some constraints must hold.
+
+*todo: investigate the lack of in or less for directions.*
+
+$\binOpExp {\&\&} {\exp_1} {\exp_2}$ or $\binOpExp \logor {\exp_1} {\exp_2}$
+
+- slkd
+- Then,
+
+~ Begin InfRule
+\mprset {vskip=0.7ex}
+  {\inferrule[\rn{LogicalOps}\rAE(\ops=\intoOp {\&\&},\intoOp{\logor})]
+     { \expCheck {\exp_1} {\boolTyp} \\
+       \expCheck {\exp_2} {\boolTyp}
+       }
+     {\expCheck {\binOpExp \restOps {\exp_1} {\exp_2}} \boolTyp }}
+~ End InfRule
+
+
+$\binOpExp {\intoOp +} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp -} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp *} {\exp_1} {\exp_2}$
+
+- sdli
+- Then, 
+
+~ Begin InfRule
+\mprset  {vskip=0.7ex}
+  {\inferrule[\rn{NumericOps}\rE(\ops=\intoOp +, \intoOp -, \intoOp *)]
+     { \expCheck {\exp_1} {\typ_1} \\
+       \expCheck {\exp_2} {\typ_2}\\\\
+       \isNumeric {\exp_1} {\typ_1}\\
+       \isNumeric {\exp_2} {\typ_2}\\\\
+       \typEq {\typ_1} {\typ_2}
+       }
+     {\expCheck {\binOpExp \restOps {\exp_1} {\exp_2}} {\typ_1} }}
+~ End InfRule
+
+$\binOpExp {\intoOp {==}} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp {!=}} {\exp_1} {\exp_2}$
+
+- slkd
+- Then,
+
+~ Begin InfRule
+\mprset {vskip =0.7ex}
+  {\inferrule[\rn{EqualityChecks}\rE(\ops=\ \intoOp{==}, \intoOp{!=})]
+     { \expCheck {\exp_1} {\typ_1} \\
+       \expCheck {\exp_2} {\typ_2}\\\\
+       \ifIntComp {\typ_1} {\exp_1} \\
+       \ifIntComp {\typ_2} {\exp_2}\\\\
+       \typEq {\typ_1} {\typ_2} \\
+       \typHasEq {\typ_1} 
+       }
+     { \expCheck {\binOpExp \restOps {\exp_1} {\exp_2}} \boolTyp  }}
+~ End InfRule
+
+$\binOpExp {\intoOp \plusSat} {\exp_1}  {\exp_2}$ or $\binOpExp {\intoOp \subSat} {\exp_1} {\exp_2}$
+
+- slkd
+- Then,
+
+~ Begin InfRule
+\mprset {vskip=0.7ex}
+  {\inferrule[\rn{OpSat}\rE(\ops = \intoOp \plusSat,\intoOp \subSat)]
+     { \expCheck {\exp_1}  {\typ_1} \\
+       \expCheck {\exp_2}  {\typ_2} \\\\
+       \isWidthInt {\typ_1} \\
+       \typEq {\typ_1} {\typ_2}
+       }
+     {\expCheck {\binOpExp \restOps {\exp_1} {\exp_2}} {\typ_1} }}
+~ End InfRule
+
+$\binOpExp {\intoOp \bitAnd} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp \bitOr} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp \bitXor} {\exp_1} {\exp_2}$
+
+- lks
+- Then,
+
+~ Begin InfRule
+\mprset {vskip=0.7ex}
+  {\inferrule[\rn{BitwiseOps}\rE(\ops=\intoOp \bitAnd, \intoOp \bitOr, \intoOp \bitXor)]
+     { \expCheck {\exp_1}  {\typ_1} \\
+       \expCheck {\exp_2} {\typ_2} \\\\
+       \isWidthInt {\typ_1} \\
+       \typEq {\typ_1} {\typ_2}
+       }
+     {\expCheck {\binOpExp \restOps {\exp_1} {\exp_2}}{\typ_1} }}
+~ End InfRule
+
+$\binOpExp {\intoOp \concat} {\exp_1}  {\exp_2}$
+
+- slkd
+- Then,
+
+~ Begin InfRule
+\mprset {vskip=0.7ex}
+  {\inferrule[\rn{BitstringConcatenation}\rE]
+     { \expCheck {\exp_1}  {\typ_1}\\
+       \expCheck {\exp_2}  {\typ_2} \\\\
+       \concatCond { {\typ_1}} { {\typ_2}} = \typ}
+     {\expCheck {\binOpExp { \intoOp \concat} {\exp_1} {\exp_2}}  \typ }}
+~ End InfRule
+
+$\binOpExp { \intoOp <} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \leqOp} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp >} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \geqOp} {\exp_1} {\exp_2}$
+
+- slkd
+- Then,
+
+~ Begin InfRule
+\mprset {vskip=0.7ex}
+  {\inferrule[\rn{ComparisonOps}\rE(\ops= \intoOp <, \intoOp \leqOp, \intoOp >, \intoOp \geqOp)]
+     { \expCheck {\exp_1} {\typ_1} \\
+       \expCheck {\exp_2} {\typ_2} \\\\
+       \isNumeric {\exp_1} {\typ_1}\\
+       \isNumeric {\exp_2} {\typ_2}\\\\
+       \typEq{\typ_1} {\typ_2}
+      }
+    { \expCheck {\binOpExp \restOps {\exp_1} {\exp_2}}\boolTyp }}
+~ End InfRule
+
+$\binOpExp { \intoOp \div} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \mod} {\exp_1} {\exp_2}$
+
+- slkd
+- Then,
+
+~ Begin InfRule
+\mprset {vskip=0.7ex}
+  {\inferrule[\rn{DivOps}\rE(\ops=\intoOp\div, \intoOp\mod)]
+     { \expCheck {\exp_1} {\integerTyp}  \\
+       \expCheck {\exp_2} {\integerTyp} \\\\
+       \nonNeg {\exp_1} \\
+       \nonNeg {\exp_2}
+       }
+     {\expCheck {\binOpExp \restOps {\exp_1} {\exp_2}} \integerTyp }}
+~ End InfRule
+
+$\binOpExp { \intoOp \shiftL} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \shiftR} {\exp_1} {\exp_2}$
+
+- slk
+- Then,
+
+~ Begin InfRule
+  \inferrule[\rn{ShiftOps}\rE(\ops=\intoOp \shiftL, \intoOp \shiftR)]
+     { \expCheck {\exp_1} {\typ_1} \\
+       \expCheck {\exp_2} {\typ_2} \\\\
+       \isNumeric {\exp_1} {\typ_1}\\
+       \shiftCond {{\typ_2}} {\exp_2}
+       }
+     {\expCheck {\binOpExp \restOps {\exp_1} {\exp_2}} { {\typ_1}} }
+~ End InfRule
+
 
 ### Cast Operation { #sec-cast-type-checker }
 
@@ -1487,7 +1802,46 @@ compile time, we still consider it known at compile time.
 
 ### Bit Mask Operation { #sec-bit-mask-type-checker }
 
+*todo. tuesday: this isn't marked done in inference..make sure it's correct and mark it done. remember to clean up the inference.mdk too.*
+
+*todo:rephrase the ensure below. or figure out where you want to have it or if you want to remove it.*
+
+``**ENSURE**``
+It might seem that petr4 allows mask operation to also operate on arbitrary precision integers while P4 spec doesn't. However, note that int can be implicitly casted to bit<w>. So the mask operation can also operate on int or combination of int and bit<w>. Similarly this applies to the range operation. 
+
+- *todo: premises*
+- *todo: Then, ...*
+
+~ Begin InfRule
+  \inferrule
+     {\expCheck {\exp_1} {\typ_1} \\\\
+      \expCheck {\exp_2} {\typ_2} \\
+      \maskTypeIs {\typ_1} {\typ_2} = \typ}
+     {\expCheck {\mask {\exp_1} {\exp_2}} {\setTyp \typ}  }
+     \quad (\maskE)
+~ End InfRule
+
 ### Range Operation { #sec-range-type-checker }
+
+$\range {\exp_1} {\exp_2}$
+
+- The operand expressions are both well-formed with fixed-width integer types.
+- The types of the operand expressions are [equal][#sec-type-eq-type-checker].
+- Then, ranging from expression $\exp_1$ to $\exp_2$ is well-formed with type $\setTyp {\typ_1}$.
+
+~ Begin InfRule
+\mprset {vskip=0.7ex}
+  {\inferrule
+     { \expCheck {\exp_1} {\typ_1} \\\\
+       \expCheck {\exp_2} {\typ_2} \\\\
+       \typEq {\typ_1} {\typ_2} \\
+       \isWidthInt {\typ_1}}
+       % \bothInt {\typ_1} {\typ_2}}
+       % \typ_1 = \typ_2 = \bitWidthTyp \width \textOr \intWidthTyp \width \textOr \integerTyp}
+     { \expCheck {\range {\exp_1} {\exp_2}} {\setTyp {\typ_1}}  }
+     \quad (\rangeE)}
+~ End InfRule
+
 
 #*the following is from an older version*
 
@@ -1542,6 +1896,7 @@ Petr4 doesn't have the product operation where multiple sets can be combined usi
 Cartesian product and the type of a product of sets is a set of tuples. (refer to
 section 8.12.5. of P4 spec (**DISCUSS**))
 
+
 ## Name Rule { #sec-name-e }
 
 The rule $\nameE$ looks up the name of a variable from the environment and returns its type and direction. Note that if the environment doesn't contain the name the rule will fail.
@@ -1559,464 +1914,6 @@ $\name$ in the environment $\env$ and it has the type $\typ$ and direction $\dir
      {\lookupVarEnv \name = (\typ, \dir)}
      {\expenv \name \name \typ \dir}
      \quad (\nameE)
-
-~ End InfRule
-
-## Bitstring Access (Slice) Rule { #sec-bitstring-slice-e }
-
-```done```
-```under the $\cte$ context```
-
-$\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$ denotes slicing a (un)signed fixed-length integer $\exp_1$ from bit $\exp_2$ to $\exp_3$.
-
-
-- $\isNumOrEnum \typ$ checks if $\typ$ is one of the following:
-   * $\integerTyp$
-   * $\intWidthTyp \width$
-   * $\bitWidthTyp \width$
-   * $\enumTyp {\surfaceTyp} \typName \fields$ ```p4 spec only allows the underlying type to be int<w> or bit<w>```
-- $\widthInt \typ$ checks if the type $\typ$ is a fixed-length integer, that is,
-it returns the width if the type is either $\bitWidthTyp \width$ or $\intWidthTyp \width$. 
-- $\insertImplCast \exp \typ$ inserts potential casts to try to type check an expression. It does so by looking into implicit cast rules for type $\typ$, denoted by $\implCast \typ {\VVal \typ}$. If it finds $\VVal \typ$ such that it facilitates the typing rules it inserts the cast (that is, it returns the expression $\cast {\VVal \typ} \exp$), otherwise, it returns $\exp$.
-
-~ Begin InfRule
-
-\mprset {vskip=0.7ex}
-  {\inferrule
-     {\expenv {\exp_1} {\VVal {\exp_1}} {\bitWidthTyp \width} {\dir_1} \\\\
-      % \widthInt { {\typ_1}} = \width \\\\
-      \expenvWithCtxt \cte {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
-      \expenvWithCtxt \cte {\exp_3} {\VVal {\exp_3}} {\typ_3} {\dir_3} \\\\
-      % = \intWidthTyp \width \textOr \bitWidthTyp \width\\
-      \isNumOrEnum  {\typ_2} \\\\
-      \isNumOrEnum  {\typ_3} \\\\
-      \compileTimeEval {\VVal {\exp_2}} = \int_1 \\
-      \compileTimeEval {\VVal {\exp_3}} = \int_2 \\\\
-      0 \leq \int_1 < \width \\
-      \int_1 \leq \int_2 < \width
-      }
-     {\expenv {\bitStringAccess {\exp_1} {\exp_2} {\exp_3}} {\bitStringAccess {\VVal {\exp_1}} {\VVal {\exp_2}} {\VVal {\exp_3}}} {\bitWidthTyp {\int_2 - \int_1 + 1}} {\dir_1} }
-     \quad (\bitSliceE)}
-
-\and
-
-\mprset {vskip=0.7ex}
-  {\inferrule
-     {\expenv {\exp_1} {\VVal {\exp_1}} {\intWidthTyp \width} {\dir_1} \\\\
-      % \widthInt { {\typ_1}} = \width \\\\
-      \expenvWithCtxt \cte {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
-      \expenvWithCtxt \cte {\exp_3} {\VVal {\exp_3}} {\typ_3} {\dir_3} \\\\
-      % = \intWidthTyp \width \textOr \bitWidthTyp \width\\
-      \isNumOrEnum  {\typ_2} \\\\
-      \isNumOrEnum  {\typ_3} \\\\
-      \compileTimeEval {\VVal {\exp_2}} = \int_1 \\
-      \compileTimeEval {\VVal {\exp_3}} = \int_2 \\\\
-      0 \leq \int_1 < \width \\
-      \int_1 \leq \int_2 < \width
-      }
-     {\expenv {\bitStringAccess {\exp_1} {\exp_2} {\exp_3}} {\bitStringAccess {\VVal {\exp_1}} {\VVal {\exp_2}} {\VVal {\exp_3}}} {\intWidthTyp {\int_2 - \int_1 + 1}} {\dir_1} }
-     \quad (\intSliceE)}
-\and
-
-\mprset {vskip=0.7ex}
-  {\inferrule
-     {
-     % \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\\\
-     %  \widthInt { {\typ_1}} = \width \\\\
-      \expenvWithCtxt \cte {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
-      \expenvWithCtxt \cte {\exp_3} {\VVal {\exp_3}} {\typ_3} {\dir_3} \\\\
-      % = \intWidthTyp \width \textOr \bitWidthTyp \width\\
-      \insertImplCast {\VVal {\exp_2}} {\typ_2} = \exp_4\\\\
-      \insertImplCast {\VVal {\exp_3}} {\typ_3} = \exp_5\\\\
-      \expenv {\bitStringAccess {\exp_1} {\exp_4} {\exp_5}} {\exp} \typ \dir
-      % \implicitCast {\typ_1} {\typ_2} = \typ \\
-       % \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
-       % \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
-      % \isNumOrEnum  {\typ_2} \\\\
-      % \isNumOrEnum  {\typ_3} \\\\
-      % \compileTimeEval {\VVal {\exp_2}} = \int_1 \\
-      % \compileTimeEval {\VVal {\exp_3}} = \int_2 \\\\
-      % 0 \leq \int_1 < \width \\
-      % \int_1 \leq \int_2 < \width
-      }
-     {\expenv {\bitStringAccess {\exp_1} {\exp_2} {\exp_3}} \exp \typ \dir }
-     \quad (\sliceWithCastE)}
-
-
-~ End InfRule
-
-## List Constructor Rule { #sec-list-e }
-
-```done..might change the lang of translation to IR```
-
-$\list {\exps}$ constructs a list of expressions.
-The rule $\listE$ states that under environment $\env$ and context $\ctxt$,
-the list $\list {\exps}$ translates to
-$\list {\overline {\VVal \exp}}$ in the IR and has the tuple type
-$\listTyps \typ$ with direction $\less$ if its expressions translate to
-$\overline {\VVal \exp}$ with types $\typs$ and directions $\dirs$ under the
-same environment and context.
-
-~ Begin InfRule
-
-  % \inferrule
-  %    {1 \leq i \leq n. \expenv {\exp_i} {\VVal {\exp_i}} {\typ_i} {\dir_i}}
-  %    {\expenv {\list {\exp_1, \ldots, \exp_n}} {\list {\VVal {\exp_1}, \ldots, \VVal {\exp_n}}} {\listTyp {\typ_1} {\typ_n}} \less }
-  %    \quad (\listE)
-
-  \inferrule
-     {\expenv {\exps} {\overline {\VVal \exp}} {\typs} {\dirs}}
-     {\expenv {\list \exps} {\list {\overline {\VVal \exp} }} {\listTyps \typ} \less }
-     \quad (\listE)
-
-~ End InfRule
-
-## Record Constructor Rule { #sec-record-e }
-
-```done```
-
-$\records \exp$ denotes a record where an expression is assigned to each field of the record.
-The rule $\recordE$ is similar to $\listE$ rule. 
-
-- $\distinct \fields$ checks that fields in $\fields$ are all distinct. 
-
-~ Begin InfRule
-
-  % \inferrule[\recordE]
-  %    {1 \leq i \leq n. \expenv {\exp_i} {\VVal {\exp_i}} {\typ_i} {\dir_i}  }
-  %    {\expenv {\record 1 n} {\recordd 1 n {\VVal \exp}} {\recordTypDef} \less  }
-
-  \inferrule
-     {\expenv {\exps} {\overline {\VVal \exp}} {\typs} {\dirs}\\
-      \distinct \fields}
-     {\expenv {\records \exp} {\records {\VVal \exp}} {\recordTyps \field \typ} \less  }
-     \quad (\recordE)
-
-~ End InfRule
-
-## Unary Operations Rules { #sec-unary-ops-e }
-
-```done```
-
-The rule $\logicalNegE$ states that under the environment $\env$ and context $\ctxt$
-the expression $!\exp$ translates to the expression $!\VVal\exp$ with the type $\boolTyp$ and direction $\dir$ if expression $\exp$ translates to $\VVal\exp$ with type $\boolTyp$ and direction $\dir$ under the same environment and context.
-
-Rules $\bitwiseComplementE$ and $\unaryMinusE$ are similar to the rule $\logicalNegE$.
-Additionally, they restrict the type of the $\exp$. 
-
-~ Begin InfRule
-
-  \inferrule
-     { \expenv \exp {\VVal \exp} \boolTyp \dir }
-     { \expenv {\intoOp ! \exp} {\intoOp ! \VVal \exp} \boolTyp \dir }
-     \quad (\logicalNegE)
-
-  \inferrule
-     { \expenv \exp {\VVal \exp} \typ  \dir \\
-       \widthInt \typ = \_}
-       % \typ = {\bitWidthTyp \width} \textOr \intWidthTyp \width}
-     { \expenv {\intoOp \bitComplement \exp} {\intoOp \bitComplement\VVal \exp} {\typ} \dir }
-     \quad (\bitwiseComplementE)
-
-  \inferrule
-     { \expenv \exp {\VVal \exp} \typ  \dir \\
-       \isNumeric \exp \typ}
-       % \typ = {\bitWidthTyp \width} \textOr \intWidthTyp \width \textOr \integerTyp}
-     { \expenv {\intoOp - \exp} {\intoOp - \VVal \exp} {\typ} \dir }
-     \quad (\unaryMinusE)
-
-~ End InfRule
-
-
-## Binary Operation Rules { #sec-bin-ops-e }
-
-```done```
-
-A binary operation is applied to two operands and it is written as $\exp_1 \restOps \exp_2$ where $\restOps$ indicates one or more operators. The name of a rule is located on top of it and it contains the operators
-that it covers. For example, the rule
-$\rn{LogicalOps}\rAE(\ops=\intoOp {\&\&}, \intoOp \logor)$
-applies to both **logical and** and **logical or**, that is, while reading the rule,
-one can substitute $\ops$ for either $\intoOp {\&\&}$ or $\intoOp \logor$.
-
-The type system first looks into binary operation rules without inserting any implicit cast. If it cannot derive a tree for a given expression, then it looks into the rules that insert implicit casts. Note that some binary operations such as bitstring concatenation only allow for the implicit cast of a serializable enum to its underlying type. 
-
-The following helpers are used in the binary operation rules:
-
-- ```do we really need this?```
-$\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions $\dir_1$ and $\dir_2$ are $\inDir$, otherwise, it returns the $\less$ direction.
-- $\typHasEq \typ$ checks if equality of two expressions from the type $\typ$ has been defined. Note that this is different from checking if two types are equal. The following are the types that can be checked for equality:
-   * $\errTyp$
-   * $\boolTyp$
-   * $\bitWidthTyp \width$
-   * $\intWidthTyp \width$
-   * $\varbitTyp \width$
-   * $\integerTyp$
-   * $\enumTypDef$
-   * $\enumTypNoTypDef$
-   * $\headerTyps \typParam \field {\surfaceTyp}$
-   * $\headerUnionTyps \typParam \field {\surfaceTyp}$
-   * $\structTyps \typParam \field \typ$
-- $\concatCond {\typ_1} {\typ_2}$ is a helper function that determines the type of a concatenation expression based on type of its left operand:
-  + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
-    $\concatCond {\typ_1} {\typ_2} = \bitWidthTyp {\width_1 + \width_2}$
-  + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \intWidthTyp {\width_2}$, then
-    $\concatCond {\typ_1} {\typ_2} = \bitWidthTyp {\width_1 + \width_2}$
-  + if $\typ_1 = \intWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
-    $\concatCond {\typ_1} {\typ_2} = \intWidthTyp {\width_1 + \width_2}$
-  + if $\typ_1 = \intWidthTyp {\width_1}, \typ_2 = \intWidthTyp {\width_2}$, then
-    $\concatCond {\typ_1} {\typ_2} = \intWidthTyp {\width_1 + \width_2}$
-- $\nonNeg \exp$ evaluates an expression at compile time and checks if it is non-negative.
-- $\shiftCond {\typ} {\exp}$ checks whether one of the following hold:
-  + $\typ = \bitWidthTyp \width$
-  + $\typ = \integerTyp$, $\compTimeKnown \exp$, and $\nonNeg \exp$ 
-- $\ifIntComp \typ \exp$ returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-known.
-- $\insertEnumImplCast {\exp} {\typ}$ inserts an implicit cast only when $\typ$ is a serializable enum.
-
-~ Begin InfRule
-
-\mprset {vskip=0.7ex}
-  {\inferrule[\rn{LogicalOps}\rAE($\ops=\intoOp {\&\&},\intoOp{\logor}$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\boolTyp} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\boolTyp} {\dir_2}\\\\
-       % \implicitCast {\typ_1} {\typ_2} = \typ \\
-       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       % \reduceEnums {\typ_1} =
-       % \reduceEnums {\typ_2} = \boolTyp \\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir
-       }
-     {\expenv {\exp_1 \restOps \exp_2} {\VVal {\exp_1} \restOps \VVal {\exp_2}} \boolTyp \dir }}
-     % { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2} }
-
-\and
-
-\mprset  {vskip=0.7ex}
-  {\inferrule[\rn{NumericOps}\rE($\ops=\intoOp +, \intoOp -, \intoOp *$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       % \implicitCast {\typ_1} {\typ_2} = \typ \\
-       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       % \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ \\\\
-       % \isInt \typ\\\\
-       \isNumeric {\exp_1} {\typ_1}\\
-       \isNumeric {\exp_2} {\typ_2}\\\\
-       \typEqEnv \emp {\typ_1} {\typ_2}\\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir 
-       }
-     {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} {\typ_1} \dir }}
-     % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
-
-\and
-
-% \mprset  {vskip=0.7ex}
-%   {\inferrule[\rn{NumericOps}\rSep\rn{InsertImplicitCast}\rE($\ops=\intoOp +, \intoOp -, \intoOp *$)]
-%      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-%        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-%        \implicitCast {\typ_1} {\typ_2} = \typ \\
-%        \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
-%        \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
-%        % \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ \\\\
-%        % \isInt \typ\\\\
-%        % \isNumeric {\exp_1} {\typ_1}\\
-%        % \isNumeric {\exp_2} {\typ_2}\\\\
-%        % \typ_1 == \typ_2\\\\
-%        \inOrLess {\dir_1} {\dir_2} = \dir 
-%        }
-%      {\expenv {\exp_1 \ops \exp_2} {\VVVal {\exp_1} \ops \VVVal {\exp_2}} {\typ} \dir }}
-%      % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
-
-\mprset {vskip =0.7ex}
-  {\inferrule[\rn{EqualityChecks}\rE($\ops=\ \intoOp{==}, \intoOp{!=}$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       % \implicitCast {\typ_1} {\typ_2} = \typ \\
-       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       % \typEqEnv {\emp} {\reduceEnums {\typ_1}} {\reduceEnums {\typ_2}} \\\\
-       \ifIntComp {\typ_1} {\exp_1} \\
-       \ifIntComp {\typ_2} {\exp_2}\\\\
-       % \typ_1 == \typ_2\\
-       \typEqEnv {\emp} {\typ_1} {\typ_2} \\
-       \typHasEq {\typ_1} \\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir
-       }
-     { \expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} \boolTyp \dir }}
-     % { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2} }
-
-% \mprset {vskip =0.7ex}
-%   {\inferrule[\rn{EqualityChecks}\rSep\rn{InsertImplicitCast}\rE($\ops=\ \intoOp{==}, \intoOp{!=}$)]
-%      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-%        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-%        \implicitCast {\typ_1} {\typ_2} = \typ \\
-%        \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
-%        \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
-%        % \typEqEnv {\emp} {\reduceEnums {\typ_1}} {\reduceEnums {\typ_2}} \\\\
-%        % \typEq {\emp} {\typ_1} {\typ_2} \\
-%        \ifIntComp {\typ_1} {\exp_1} \\
-%        \ifIntComp {\typ_2} {\exp_2}\\\\
-%        % \typ_1 == \typ_2\\
-%        \typHasEq {\typ_1} \\\\
-%        \inOrLess {\dir_1} {\dir_2} = \dir
-%        }
-%      { \expenv {\exp_1 \ops \exp_2} {\VVVal {\exp_1} \ops \VVVal {\exp_2}} \boolTyp \dir }}
-
-\mprset {vskip=0.7ex}
-  {\inferrule[\rn{OpSat}\rE($\ops = \intoOp \plusSat,\intoOp \subSat$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       % \implicitCast {\typ_1} {\typ_2} = \typ \\
-       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       % \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ \\\\
-       \widthInt {\typ_1} = \whatevs \\
-       % \typ_1 == \typ_2\\\\
-       \typEqEnv {\emp} {\typ_1} {\typ_2} \\\\
-       % \typ_2 = \bitWidthTyp \width \textOr \intWidthTyp \width \\
-       \inOrLess {\dir_1} {\dir_2} = \dir
-       }
-     {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} {\typ_1} \dir }}
-       % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
-
-\and
-
-\mprset {vskip=0.7ex}
-  {\inferrule[\rn{BitwiseOps}\rE($\ops=\intoOp \bitAnd, \intoOp \bitOr, \intoOp \bitXor$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       % \implicitCast {\typ_1} {\typ_2} = \typ \\
-       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       % \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ\\\\
-       \widthInt {\typ_1} = \whatevs \\
-       % \typ = \typ_2 = \bitWidthTyp \width \textOr \intWidthTyp \width \\
-       % \typ_1 == \typ_2\\\\
-       \typEqEnv {\emp} {\typ_1} {\typ_2} \\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir
-       }
-     {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} {\typ_1} \dir }}
-       % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
-
-\and
-
-\mprset {vskip=0.7ex}
-  {\inferrule[\rn{BitstringConcatenation}\rE]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
-       % \reduceEnums {\typ_1} = \VVal {\typ_1} \\
-       % \reduceEnums {\typ_2} = \VVal {\typ_2} \\\\
-       \concatCond { {\typ_1}} { {\typ_2}} = \typ\\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir}
-     {\expenv {\exp_1 \intoOp \concat \exp_2} {\VVal {\exp_1} \intoOp \concat \VVal {\exp_2}} \typ \dir }}
-     % { \binOpEnv {\exp_1  \concat \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
-
-% \mprset {vskip=0.7ex}
-%   {\inferrule[\rn{BitstringConcatenation}\rSep\rn{InsertImplicitCast}\rE]
-%      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-%        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
-%        % \reduceEnums {\typ_1} = \VVal {\typ_1} \\
-%        % \reduceEnums {\typ_2} = \VVal {\typ_2} \\\\
-%        \implicitCast {\typ_1} {\typ_2} = \typ \\
-%        \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
-%        \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
-%        \concatCond { {\typ}} { {\typ}} = \VVal \typ\\\\
-%        \inOrLess {\dir_1} {\dir_2} = \dir}
-%      {\expenv {\exp_1 \intoOp \concat \exp_2} {\VVVal {\exp_1} \intoOp \concat \VVVal {\exp_2}} {\VVal \typ} \dir }}
-
-\and
-
-\mprset {vskip=0.7ex}
-  {\inferrule[\rn{ComparisonOps}\rE($\ops= \intoOp <, \intoOp \leqOp, \intoOp >, \intoOp \geqOp$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       % \implicitCast {\typ_1} {\typ_2} = \typ \\
-       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       % \reduceEnums {\typ_1} = \VVal {\typ_1} \\
-       % \reduceEnums {\typ_2} = \VVal {\typ_2} \\\\
-       % \bothInt {\VVal {\typ_1}} {\VVal {\typ_2}}\\\\
-       \isNumeric {\exp_1} {\typ_1}\\
-       \isNumeric {\exp_2} {\typ_2}\\\\
-       % \typ_1 == \typ_2\\\\
-       \typEqEnv {\emp} {\typ_1} {\typ_2} \\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir
-      }
-    { \expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} \boolTyp \dir }}
-     % { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
-
-% \mprset {vskip=0.7ex}
-%   {\inferrule[\rn{ComparisonOps}\rSep\rn{InsertImplicitCast}\rE($\ops= \intoOp <, \intoOp \leqOp, \intoOp >, \intoOp \geqOp$)]
-%      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-%        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-%        \implicitCast {\typ_1} {\typ_2} = \typ \\
-%        \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
-%        \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
-%        % \reduceEnums {\typ_1} = \VVal {\typ_1} \\
-%        % \reduceEnums {\typ_2} = \VVal {\typ_2} \\\\
-%        % \bothInt {\VVal {\typ_1}} {\VVal {\typ_2}}\\\\
-%        \isNumeric {\exp_1} {\typ_1}\\
-%        \isNumeric {\exp_2} {\typ_2}\\\\
-%        % \typ_1 == \typ_2\\\\
-%        \inOrLess {\dir_1} {\dir_2} = \dir
-%       }
-%     { \expenv {\exp_1 \ops \exp_2} {\VVVal {\exp_1} \ops \VVVal {\exp_2}} \boolTyp \dir }}
-
-\and
-
-\mprset {vskip=0.7ex}
-  {\inferrule[\rn{DivOps}\rE($\ops=\intoOp\div, \intoOp\mod$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\integerTyp} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\integerTyp} {\dir_2}\\\\
-       % \implicitCast {\typ_1} {\typ_2} = \typ \\
-       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       % \reduceEnums {\typ_1} = \VVal {\typ_1}\\
-       % \reduceEnums {\typ_2} = \VVal {\typ_2}\\\\
-       % \divCond {\VVal {\typ_1}} {\VVal {\typ_2}} = \typ \\
-       \nonNeg {\exp_1} \\
-       \nonNeg {\exp_2}\\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir
-       }
-     {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} \integerTyp \dir }}
-     % { \binOpEnv {\exp_1 \restOps \exp_2} \typ \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
-
-\and
-
-  \inferrule[\rn{ShiftOps}\rE($\ops=\intoOp \shiftL, \intoOp \shiftR$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
-       % \reduceEnums {\typ_1} = \VVal {\typ_1}\\\\
-       % \typ_2 = \reduceEnums {\typ_2} \\
-       \isNumeric {\exp_1} {\typ_1}\\
-       % \nonNeg {\exp_2} \\
-       \shiftCond {{\typ_2}} {\exp_2}\\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir}
-     {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} { {\typ_1}} \dir }
-     % { \binOpEnv {\exp_1 \restOps \exp_2} {\VVal {\typ_1}} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
-
-\and
-
-\mprset {vskip=0.7ex}
-  {\inferrule[\rn{BinOps}\rSep\rn{InsertImplicitCast}\rE($\ops= \intoOp +, \intoOp -, \intoOp *, \intoOp{==}, \intoOp{!=}, \intoOp \concat, \intoOp <, \intoOp \leqOp, \intoOp >, \intoOp \geqOp$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
-       \insertImplCast {\exp_1} {\typ_1} = \VVVal {\exp_1}\\
-       \insertImplCast {\exp_2} {\typ_2} = \VVVal {\exp_2}\\\\
-       \expenv {\VVVal {\exp_1} \ops \VVVal {\exp_2}} \exp \typ \dir}
-     {\expenv {\exp_1 \ops \exp_2} \exp \typ \dir }
-  }
-
-\and
-
-\mprset {vskip=0.7ex}
-  {\inferrule[\rn{BinOps}\rSep\rn{Insert}\rSep\rn{Enum}\rSep\rn{ImplicitCast}\rE($\ops= \intoOp \concat, \intoOp \shiftL, \intoOp \shiftR$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
-       \insertEnumImplCast {\exp_1} {\typ_1} = \VVVal {\exp_1}\\
-       \insertEnumImplCast {\exp_2} {\typ_2} = \VVVal {\exp_2}\\\\
-       \expenv {\VVVal {\exp_1} \ops \VVVal {\exp_2}} \exp \typ \dir}
-     {\expenv {\exp_1 \ops \exp_2} \exp \typ \dir }
-  }
 
 ~ End InfRule
 
@@ -2357,69 +2254,69 @@ meaning that it applies for both explicit and implicit casts. However, note that
 
   \inferrule
      {\castenv \ {\typs} {\overline {\VVal \typ}}}
-     {\castenv \ {\recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+     {\castenv \ {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
      \quad (\rn{RecordToHeader}\rAE\rSep\rn{1})
 
 \and
 
 \inferrule
-     {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
-     {\castenv \ {\recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+     {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
+     {\castenv \ {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
      \quad (\rn{RecordToHeader}\rAE\rSep\rn{2})
 
 
   % \inferrule
   %    {\explCast {\typs} {\overline {\VVal \typ}}}
-  %    {\explCast {\recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+  %    {\explCast {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{1})
 
   % \inferrule
-  %    {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
-  %    {\explCast {\recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+  %    {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
+  %    {\explCast {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\implCast {\typs} {\overline {\VVal \typ}}}
-  %    {\implCast {\recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+  %    {\implCast {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{1})
 
   % \inferrule
-  %    {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
-  %    {\implCast {\recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+  %    {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
+  %    {\implCast {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{2})
 
 \and
 
   \inferrule
      {\castenv \ {\typs} {\overline {\VVal \typ}}}
-     {\castenv \ {\recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
+     {\castenv \ {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
      \quad (\rn{RecordToStruct}\rAE\rSep\rn{1})
 
 \and
 
   \inferrule
-     {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
-     {\castenv \ {\recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
+     {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
+     {\castenv \ {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
      \quad (\rn{RecordToStruct}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\explCast {\typs} {\overline {\VVal \typ}}}
-  %    {\explCast {\recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
+  %    {\explCast {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{1})
 
   % \inferrule
-  %    {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
-  %    {\explCast {\recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
+  %    {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
+  %    {\explCast {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{2})
 
   % \inferrule
   %    {\implCast {\typs} {\overline {\VVal \typ}}}
-  %    {\implCast {\recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
+  %    {\implCast {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{1})
 
   % \inferrule
-  %    {\typEqEnv \emp {\recordTyps \field \typ} {\recordTyps \field {\VVal \typ}}}
-  %    {\implCast {\recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
+  %    {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
+  %    {\implCast {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
   %    \quad (\rn{RecordToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{2})
 
   % \inferrule
@@ -2662,7 +2559,7 @@ and $\exp_3$ must have the same type but they cannot have the $\integerTyp$ type
 that case it translates the conditional expression by translating all its subexpressions. 
 
 ``new todo:`` sub expressions 1 and 2 must have the same type. type equivalence or ...?
-``new todo:`` check where compile time known is explained.
+``new todo:`` check where compile-time known is explained.
 
 ~ Begin InfRule
 
@@ -2950,7 +2847,7 @@ For detailed rules of this judgment refer to Section [#sec-type-unify].
 
 ## Anonymous Instantiation Rule { #sec-inst-e }
 
-- validate par arg checks if optional is some and it passes if expression is compile time known or if it is none and parameter is none.
+- validate par arg checks if optional is some and it passes if expression is compile-time known or if it is none and parameter is none.
 
 ~ Begin InfRule
 
@@ -2997,61 +2894,6 @@ For detailed rules of this judgment refer to Section [#sec-type-unify].
   }
 
 ~ End InfRuleHelper
-
-## Mask Rule { #sec-mask-e }
-
-The expression $\mask {\exp_1} {\exp_2}$ denotes a masking expression where every 0 bit in $\exp_2$ is turned into don't care and the rest of the bits of expressions $\exp_1$ and $\exp_2$ are conjuncted. Thus, it returns a set of expressions:
-$\mask {\exp_1} {\exp_2} = \{\exp_3 | \exp_1\ \&\ \exp_2 = \exp_3\ \&\ \exp_2 \}$. Thus, as
-stated by the rule $\maskE$ both expressions $\exp_1$ and $\exp_2$ must have the same type of $\bitWidthTyp \width$, $\intWidthTyp \width$, or $\integerTyp$. 
-
-- $\maskTypeIs {\typ_1} {\typ_2}$ is a helper function that determines the type of a
-mask expression based on the type of its two operands and it is defined for the following cases:
-  + if $\typ_1 = \typ_2 = \bitWidthTyp \width$,
-  then $\maskTypeIs {\typ_1} {\typ_2} = \bitWidthTyp \width$
-  + if $\typ_1 = \bitWidthTyp \width, \typ_2 = \integerTyp$,
-  then $\maskTypeIs {\typ_1} {\typ_2} = \integerTyp$
-  + if $\typ_1 = \integerTyp, \typ_2 =  \bitWidthTyp \width$,
-  then $\maskTypeIs {\typ_1} {\typ_2} = \bitWidthTyp \width$
-
-``**ENSURE**``
-It might seem that petr4 allows mask operation to also operate on arbitrary precision integers while P4 spec doesn't. However, note that int can be implicitly casted to bit<w>. So the mask operation can also operate on int or combination of int and bit<w>. Similarly this applies to the range operation. 
-
-~ Begin InfRule
-
-  \inferrule
-     {\expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\\\
-      \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\
-      \maskTypeIs {\typ_1} {\typ_2} = \typ}
-     {\expenv {\mask {\exp_1} {\exp_2}} {\mask {\VVal \exp_1} {\VVal \exp_2}} {\setTyp \typ} \less  }
-     \quad (\maskE)
-
-~ End InfRule
-
-## Range Rule { #sec-range-e }
-
-```done```
-
-The expression $\range {\exp_1} {\exp_2}$ is a range expression and it returns the values between $\exp_1$ and $\exp_2$, inclusively. The rule $\rangeE$ states that the type of expression $\exp_1$ and $\exp_2$ must be the same and it must either be $\bitWidthTyp \width$ or $\intWidthTyp \width$ (and by extension of implicit cast of types it can also be $\integerTyp$). 
-
-- As a reminder, $\widthInt \typ$ checks if the type $\typ$ is a fixed-length integer, that is,
-if it is either $\bitWidthTyp \width$ or $\intWidthTyp \width$ and returns its width. 
-
-
-~ Begin InfRule
-
-\mprset {vskip=0.7ex}
-  {\inferrule
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\\\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
-       \typEqEnv \emp {\typ_1} {\typ_2} \\
-       \widthInt {\typ_1} = \whatevs}
-       % \bothInt {\typ_1} {\typ_2}}
-       % \typ_1 = \typ_2 = \bitWidthTyp \width \textOr \intWidthTyp \width \textOr \integerTyp}
-     { \expenv {\range {\exp_1} {\exp_2}} {\range {\VVal {\exp_1}} {\VVal {\exp_2}}} {\setTyp {\typ_1}} \dir }
-     \quad (\rangeE)}
-
-~ End InfRule
-
 
 # Statement's Typing Rules { #sec-stmt-typing }
 

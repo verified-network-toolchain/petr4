@@ -853,13 +853,13 @@ To be concrete, environements are all accumulated in one place and they are defi
 
 ~ End P4Syntax
 
-- Accessing each enviornment can be done through field access of $\env$. For example, $\env.\typEnv$ gives access to the contents of type enviornment. However, for simpilicity and since the enviorment is global, we omit the $\env.$ part. So for example, $\typEnv$ is a shorthand for $\env.\typEnv$.
-- The notation $\lookupTypEnv \name$ looks up $\name$ in type enviornment $\typEnv$. Such notation is used for looking up in any of the enviornments. Note that $\typEnv$ stands for $\env . \typEnv$ in a lookup as well. Consequently, the notation $\env(\name)$ is meaningless since it does not state which enviornment field of $\env$ is being used for the lookup.
-- The notation $\insertToTypEnv \typName \typ $ extends the type environment with the new assignment of $\typ$ to $\typName$. This notation is used for extending any of the environments.
-- The notation $\insertToTypParEnv \typParam$ is a shorthand for $\insertToTypParEnv {\typParam = \notInstantiatedTyp}$ which extends the type parameter environment with the new parameter $\typParam$ that is not instantiated. 
-- The notation $\updateEnv {\typEnv = \VVal \typEnv}$ denotes the same environment as $\env$, except that the type environement $\typEnv$ has been replaced with type environment $\VVal \typEnv$.
-- The notation $\updateEnv {\insertToTypEnv \typName \typ}$ denotes the same environment as $\env$, except that the type environement $\typEnv$ has been extended with the assignment of $\typ$ to $\typName$.
-- The notation $\emp$ denotes an empty environment.
+###### - Accessing each enviornment can be done through field access of $\env$. For example, $\env.\typEnv$ gives access to the contents of type enviornment. However, for simpilicity and since the enviorment is global, we omit the $\env.$ part. So for example, $\typEnv$ is a shorthand for $\env.\typEnv$. { -; font-weight: "normal"; id: access-env; label: "access-env" }
+###### - The notation $\lookupTypEnv \name$ looks up $\name$ in type enviornment $\typEnv$. Such notation is used for looking up in any of the enviornments. Note that $\typEnv$ stands for $\env . \typEnv$ in a lookup as well. Consequently, the notation $\env(\name)$ is meaningless since it does not state which enviornment field of $\env$ is being used for the lookup. { -; font-weight: "normal"; id: lookup-env; label: "lookup-env" }
+###### - The notation $\insertToTypEnv \typName \typ $ extends the type environment with the new assignment of $\typ$ to $\typName$. This notation is used for extending any of the environments. { -; font-weight: "normal"; id: extend-env; label: "extend-env" }
+###### - The notation $\insertToTypParEnv \typParam$ is a shorthand for $\insertToTypParEnv {\typParam = \notInstantiatedTyp}$ which extends the type parameter environment with the new parameter $\typParam$ that is not instantiated.  { -; font-weight: "normal"; id: extend-typ-par-env; label: "extend-typ-par-env" }
+###### - The notation $\updateEnv {\typEnv = \VVal \typEnv}$ denotes the same environment as $\env$, except that the type environement $\typEnv$ has been replaced with type environment $\VVal \typEnv$. { -; font-weight: "normal"; id: ; label: "update-env" }
+###### - The notation $\updateEnv {\insertToTypEnv \typName \typ}$ denotes the same environment as $\env$, except that the type environement $\typEnv$ has been extended with the assignment of $\typ$ to $\typName$. { -; font-weight: "normal"; id: update-env-extension; label: "update-env-extension" }
+###### - The notation $\emp$ denotes an empty environment. { -; font-weight: "normal"; id: emp-env; label: "emp-env" }
 
 ### Informal Notation { #sec-informal-notation }
 The type checker is specified by rules for each syntactic category of the [surface IR's abstract syntax][#sec-syntax]. The rules states the constraint that have to hold for a phrase to type check. For [types abstract syntax][#sec-ast-type], the rules only state what such constraints are. However, for the rest of the abstract syntax, the rules additionally output the type of the phrase. The following conventions are adopted in stating these rules.
@@ -929,7 +929,7 @@ The following notations are used in the definitions of the rules in the rest of 
 ###### - $\noFreeTypVar \typ$ is a predicate that returns $\tru$ if none of the type variables defined for the generic type $\typ$ are not free. { -; font-weight: "normal"; id: noFreeTypVar; label: "noFreeTypVar" }
 ###### - $\isWidthInt \typ$ is a predicate that returns $\tru$ if the type $\typ$ is either $\intWidthTyp \exp$ or $\bitWidthTyp \exp$. { -; font-weight: "normal"; id: isWidthInt; label: "isWidthInt" }
 ###### - $\isHeader \typ$ is a predicate that returns $\tru$ if the type $\typ$ is a header. { -; font-weight: "normal"; id: isHeader; label: "isHeader" }
-###### - $\isNumeric \exp \typ$ { #is-numeric } is a predicate that returns $\tru$ if one of the following holds: { -; font-weight: "normal"; id: isNumeric; label: "isNumeric" }
+###### - $\isNumeric \exp \typ$ is a predicate that returns $\tru$ if one of the following holds: { -; font-weight: "normal"; id: isNumeric; label: "isNumeric" }
 
    * $\compTimeKnown \exp$ and $\typ = \integerTyp$
    * $\typ = \intWidthTyp \width$
@@ -1076,8 +1076,8 @@ Fixed-width singed integer types can have a literal integer as their width or an
 $\intWidthTyp \exp$
 
 - The expression representing the width must be a [well-formed integer][#sec-exp-type-checker].
-- The width must [evaluate to number $\width$ at compile-time][#compileTimeEval].
-- The number $\width$ must be a positive and more than one.
+- This expression must [evaluate to number at compile-time][#compileTimeEval], $\width$ denotes this number.
+- $\width$ must be positive and more than one.
 
 ~ Begin InfRule
   \inferrule
@@ -1089,13 +1089,13 @@ $\intWidthTyp \exp$
 ~ End InfRule
 
 ### Fixed-Width Unsigned Integer Types { #sec-unsigned-int-t }
-Fixed-width unsingned integer types are Similar to singed integer types except that they require a non-negative width
+Fixed-width unsingned integer types are similar to singed integer types except that they require a non-negative width
 
 $\bitWidthTyp \exp$
 
 - The expression representing the width must be a [well-formed integer][#sec-exp-type-checker].
-- The width must be known at compile-time.
-- The width must evaluate to a non-negative number.
+- This expression must [evaluate to a number at compile-time][#compileTimeEval], $\width$ denotes this number.
+- $\width$ must be non-negative.
 
 ~ Begin InfRule
   \inferrule
@@ -1112,8 +1112,8 @@ Varbit types well-formedness is the same as fixed-width unsigned integer types.
 $\varbitTyp \exp$
 
 - The expression representing the width of the integer must be a [well-formed integer][#sec-exp-type-checker].
-- The width must be known at compile-time.
-- The width must evaluate to a non-negative number.
+- This expression must [evaluate to a number at compile-time][#compileTimeEval], $\width$ denotes this number.
+- $\width$ must be non-negative.
 
 
 ~ Begin InfRule
@@ -1136,11 +1136,11 @@ Header stack (array) types are represented by a type and a size. Their type may 
 
 $\headerStackTyp \typName \exp$
 
-- The type $\typName$ must be defined in the type environment $\typEnv$.
-- The type represented by $\typName$ must either be a header or header union.
-- The expression representing the size of the array must be a [well-formed integer][#sec-exp-type-checker].
-- The size of the array must be known at compile-time.
-- The size of the array must evaluate to a positive number.
+- The name $\typName$ must be defined in the type environment $\typEnv$ and it is associated to the type $\typ$.
+- The type $\typ$ must either be a [header or header union][#isHeaderOrUnion].
+- The expression $\exp$ representing the size of the array must be a [well-formed integer][#sec-exp-type-checker].
+- This expression must [evaluate to a number at compile-time][#compileTimeEval], denoted by $\int$.
+- $\int$ must be positive.
 
 ~ Begin InfRule
 
@@ -1160,7 +1160,7 @@ $\headerStackTyp \typName \exp$
 $\headerStackTyp {\spcTyp \typName {\typArg}} \exp$
 
 - The type specilization must be well-formed.
-- The header stack type of the generic type must be well-formed. 
+- The header stack type of the generic type without specialization must be well-formed. 
 
 
 ~ Begin InfRule
@@ -1178,7 +1178,7 @@ $\headerStackTyp {\spcTyp \typName {\typArg}} \exp$
 $\tupleTyps \typ$
 
 - All the types inside a tuple type, i.e, $\typs$, must be well-formed.
-- Not every type can be wrapped inside a tuple type. Only the following types or a type name representing them can legally be wrapped inside a tuple type: ``what about types defined with typedef or type keywords? open issue on p4 spec``
+- [Not every type can be wrapped inside a tuple type][#isValidNestedTyp]. Only the following types or a type name representing them can legally be wrapped inside a tuple type: ``what about types defined with typedef or type keywords? open issue on p4 spec``
    + $\bitWidthTyp \exp$
    + $\intWidthTyp \exp$
    + $\varbitTyp \exp$ 
@@ -1191,7 +1191,7 @@ $\tupleTyps \typ$
    + $\headerUnionTyps \typParam \field \typ$
    + $\structTyps \typParam \field \typ$
    + $\tupleTyps \typ$
-- A tuple type with no component is always well-type because it does not have any types that needs to satisfy the premises.
+- A tuple type with no component, that is, $\tupleTyps {}$, is always well-type because it does not have any types that needs to satisfy the premises.
 
 ~ Begin InfRule
   \mprset {vskip=0.7ex}
@@ -1207,9 +1207,9 @@ Header types may be generic. This is expressed in two forms, however, there is n
 
 $\headerTyps { } \field \typ$
 
-- The fields of the header must be distinct.
+- The fields must be [distinct][#distinct].
 - The types of the fields must be well-formed.
-- Not every type can be assigned to the fields. Only the folloing types or a type name representing them can legally be assigned to the fields:
+- [Not every type can be assigned to the fields][#isValidNestedTyp]. One of the folloing types or a type name representing them must be assigned to the fields:
    + $\bitWidthTyp \exp$ 
    + $\intWidthTyp \exp$ 
    + $\varbitTyp \exp$ 
@@ -1231,17 +1231,17 @@ $\headerTyps { } \field \typ$
 
 $\headerTyps  \typParam \field \typ$
 
-- The fields of the header must be distinct.
-- The types of the fields must be well-formed under the environment $\env$ extended with the type variables declared for the header. Note that if the header is not generic the type parameter environment $\typParEnv$ will not be extended for checking if $\typs$ are well-formed.
-- Not every type can be assigned to the fields. Note that this is exactly the same for generic headers and non-generic headers. Only the folloing types or a type name representing them can legally be assigned to the fields:
+- The fields must be [distinct][#distinct].
+- The types of the fields must be well-formed under the environment $\env$ that [its type parameter environment $\typParEnv$ has been extended with the type variables declared][#update-env-extension] for the header. Note that if the header is not generic the type parameter environment $\typParEnv$ will not be extended for checking if $\typs$ are well-formed.
+- [Not every type can be assigned to the fields][#isValidNestedTyp]. Note that this is exactly the same for generic headers and non-generic headers. One of the following types or a type name representing them must be assigned to the fields:
    + $\bitWidthTyp \exp$ 
    + $\intWidthTyp \exp$ 
    + $\varbitTyp \exp$ 
    + $\boolTyp$
    + $\enumTypDef$
    + a struct or nested struct type that contains only the above types assigned to its fields
-- Type variables must be distinct. Note that if the header is not generic, that is, $\typParams = \emp$, the predicate $\distinct \typParams$ still holds.
-- Type variables cannot be free, that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. Similarly, if the header is not generic the predicate $\noFreeTypVar {\headerTyps { } \field {\typ}}$ still holds. ``are phantom types are useful in P4? i.e., do we want to allow free type variables in type decl? open issue on p4 spec. this goes for all generic type declarations such as struct.``
+- Type variables must be [distinct][#distinct]. Note that if the header is not generic, that is, $\typParams = \emp$, the predicate $\distinct \typParams$ still holds.
+- Type variables [must not be free][#noFreeTypVar], that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. Similarly, if the header is not generic the predicate $\noFreeTypVar {\headerTyps { } \field {\typ}}$ still holds. ``are phantom types are useful in P4? i.e., do we want to allow free type variables in type decl? open issue on p4 spec. this goes for all generic type declarations such as struct.``
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1265,11 +1265,11 @@ Similar to headers, header unions may also be generic.
 
 $\headerUnionTyps  \typParam \field {\typName}$
 
-- The fields must be distinct.
-- The only type that can be assigned to the fields is a header type and this is done by refering to the header with its name.
-- The header names assigned to the fields must exists in the type environment $\typEnv$. Note that these header types are well-formed since they have already been stored in the enviornment. 
-- The type parameters of the header union must be distinct.
-- Type variables in the header union cannot be free.
+- The fields must be [distinct][#distinct].
+- The type names assigned to the fields must [exist in the type environment][#lookup-env] $\typEnv$ and are corresponding to types $\typs$. Note that these header types are well-formed since they have already been stored in the enviornment.
+- The types $\typs$ must be a [header type][#isHeader].
+- The type parameters of the header union must be [distinct][#distinct].
+- Type variables in the header union must [not be free][#noFreeTypVar].
 
 ~ Begin InfRule
 
@@ -1290,9 +1290,9 @@ $\headerUnionTyps  \typParam \field {\typName}$
 
 ### Struct Types { #sec-struct-t }
 
-- The fields of the header must be distinct.
-- The types of the fields must be well-formed under the environment $\env$ extended with the type variables declared for the header.
-- Not every type can be assigned to the fields of a struct type. Only the folloing types or a type name representing them can legally be assigned to the fields:
+- The fields of the header must be [distinct][#distinct].
+- The types of the fields must be well-formed under the environment $\env$ that [its type parameter evnironment $\typParEnv$ has been extended with the type variables declared][#update-env-extension] for the header.
+- [Not every type can be assigned to the fields of a struct type][#isValidNestedTyp]. One of the following types or a type name representing them must be assigned to the fields:
    + $\bitWidthTyp \exp$
    + $\intWidthTyp \exp$
    + $\varbitTyp \exp$ 
@@ -1305,8 +1305,8 @@ $\headerUnionTyps  \typParam \field {\typName}$
    + $\headerUnionTyps \typParam \field \typ$
    + $\structTyps \typParam \field \typ$
    + $\tupleTyps \typ$
-- Type variables must be distinct.
-- Type variables cannot be free in a struct type.
+- Type variables must be [distinct][#distinct].
+- Type variables must [not be free][#noFreeTypVar] in a struct type.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1325,7 +1325,7 @@ $\headerUnionTyps  \typParam \field {\typName}$
 
 $\enumTypNoTypDef$
 
-- An enum type is well-formed if its fields are distinct.
+- An enum type is well-formed if its fields are [distinct][#distinct].
 
 ~ Begin InfRule
   % \mprset {vskip = 0.7ex}
@@ -1341,8 +1341,8 @@ Serializable enum types have an underlying type. This type may be expressed eith
 
 $\enumTyp {\VVal \typName} \typName \fields$
 
-- The type name exists in the type environment $\typSynEnv$.
-- The substituation of the type represented by the type name as the underlying type of the enum results in a well-formed enum.
+- The type name $\VVal \typName$ must [exist in the type synonym environment][#lookup-env] $\typSynEnv$ and is corresponding to the type $\typ$.
+- The substituation of $\typ$ with $\typName$ as the underlying type of the enum must result in a well-formed enum.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1356,15 +1356,15 @@ $\enumTyp {\VVal \typName} \typName \fields$
 
 $\enumTypDef$
 
-- The underlying type is either a fixed-width signed or unsigned integer.
-- The underlying type is well-formed.
-- The fields are distinct. 
+- The underlying type is [well-formed][#sec-type-type-checker].
+- The underlying type is [either a fixed-width signed or unsigned integer][#isWidthInt].
+- The fields are [distinct][#distinct]. 
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
     {\inferrule
-      {\isWidthInt {\typ} \\
-       \typWellFormed \typ \\\\
+      {\typWellFormed \typ \\
+       \isWidthInt {\typ} \\\\
        \distinct \fields}
       {\typWellFormed \enumTypDef}
     \quad (\serenumWellT)}

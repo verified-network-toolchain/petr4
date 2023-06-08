@@ -255,8 +255,9 @@
 %% \newcommand{\dclenvv}[4]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3} \dashv \env_{#4}}
 %% \newcommand{\dclenvvv}[4]{\constEnv, \typEnv \vdash {#1} \leadsto {#2} \dashv {#3}, {#4}}
 \newcommand{\explCast}[2]{\castenv {e} {#1} {#2}}
-\newcommand{\castenv}[3]{\typEnv, \typSynEnv \vdash {#2} \rightarrow_{#1} {#3}}
+\newcommand{\castenv}[3]{\env \vdash {#2} \rightarrow_{#1} {#3}}
 \newcommand{\implCast}[2]{\castenv {i} {#1} {#2}}
+\newcommand{\allcastenv}[2]{\env \vdash {#1} \rightarrow {#2}}
 %exp, args. exp', type pars, pars, kind, return type.
 %check if you need the dir to be returned as well. 
 \newcommand{\resolveFuncOver}[7]{\env, \ctxt \vdash \mathit{dispatch}({#1}, {#2}, {#3}, \funcType {#6} {#4} {#5} {#7})}

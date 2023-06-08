@@ -888,7 +888,7 @@ Conventionally, a typing rule is formally written as an inference rules. A rule 
 
 Such a rule reads as an implication: if all the premises hold, the the conclusion holds. Some rules do not have any premises, such rules are _axioms_ that hold unconditionally. The premises can either be:
 
-- predicates that return true or false, for example, $ n > 1$ or $\isInt \exp$.
+- predicates that return true or false, for example, $ n > 1$ or $\isInt \exp$. 
 - assignments where the result of a function application is assigned to a variable that will be used in either other premises or the conclusion, for example, $\compileTimeEval \exp = \int$ evaluates the expression $\exp$ and assigns its value to $\int$.
 
 The conclusion is a judgment which can take one of the following *form*s. All the rules for a syntactic category have the same judgment form and there is one respective rule for each constructor case of the syntactic category.
@@ -899,7 +899,7 @@ The conclusion is a judgment which can take one of the following *form*s. All th
 
 If a rule does not use $\env$ in its constraints, we omit the enviornment from the conclusion, that is, it takes the form $\vdash \A$. Still, the enviornment is implicitly assumed by the rule.
 
-
+The conclusion judgment itself is aslo a predicate that my hold or not. Such a judgment applied to a smaller phrase than the conclusion can also appear as a premise in a rule. *todo: have an example.*
 
 *todo: add that rules are pattern matched so more specific cases are presented first and then more general. an algorithm/impl should follow this order if pattern matching or add a predicate to the more general case that removes the more specific one. think if you need to say this in informal notation somehow. example: ser enum well-formed. also state that if you limit the syn category to a specific case and others don't exist it will fails.*
 
@@ -912,6 +912,13 @@ In the rest of this section:
 [#pierce]: https://www.cis.upenn.edu/~bcpierce/tapl/
 
 Since this is a very brief introduction to type systems we refer an interested reader to [TPL by Benjamin C. Pierce][#pierce] for a detailed explanation of type systems with examples.
+
+#### Auxiliary Formal Notation { #sec-aux-formal-notation }
+
+The typing rule introduced in the [formal notation section][#sec-formal-notation] is a logical form used to describe any iduction. We provide the conclusion forms for type checking phrases of a P4 program, that is, declarations, statements, expressions, and types. However, the conclusion form can take lots of forms depending on its syntactic category and induction. For type checking a P4 program, we need some auxiliary conclusion forms:
+
+- [Type equality][#sec-type-eq-type-checker]: has the form $\typEq {\typ_1} {\typ_2}$ and states that under the environment $\env$ types $\typ_1$ and $\typ_2$ are equal.
+- [Casting types][#sec-casting-type-checker]: has the form $\allcastenv {\typ_1} {\typ_2} $ and states that under the environment $\env$ the type $\typ_1$ can be casted to the type $\typ_2$.
 
 ### Auxiliary Notation { #sec-aux-notation-type-checker }
 
@@ -1398,6 +1405,448 @@ $\enumTypDef$
 
 *todo: explain sth like for type checking P4 programs we need to know if two type are equal or not. this judgment does it. for simplicity, and since after inference all type parameters have been substituted, there are no generic types in this section. a later section will introduce type eq for generic types.*
 
+## Casting Types { #sec-casting-type-checker }
+
+*todo: think/open issue on p4 spec: relationship between explicit and implicit cast. one subset of other or distinct or...?*
+*todo: optimization opportunity: remove type well-formed check for implicit cast. on the other hand, having it double checks the work of type inference pass.*
+
+*Casting $ {\bitWidthTyp 1}$ to $\boolTyp$*
+
+- A bitstring type of width one can always be casted to $\boolTyp$ type.
+
+~ Begin InfRuleHelper
+  \inferrule
+     { }
+     { \allcastenv {\bitWidthTyp 1} \boolTyp }
+     \quad (\rn{BitToBool}\rAE)
+~ End InfRuleHelper
+
+*Casting $\boolTyp$ to ${\bitWidthTyp 1}$*
+
+- $\boolTyp$ type can always be casted to a bitstring type of width one.
+
+~ Begin InfRuleHelper
+  \inferrule
+     { }
+     { \allcastenv \boolTyp {\bitWidthTyp 1} }
+     \quad (\rn{BoolToBit}\rAE)
+~ End InfRuleHelper
+
+*Casting $\integerTyp$ to $\boolTyp$*
+
+- $\integerTyp$ type can always be casted to $\boolTyp$ type.
+
+~ Begin InfRuleHelper
+  \inferrule
+     { }
+     { \allcastenv {\integerTyp} \boolTyp }
+     \quad (\rn{IntToBool}\rAE)
+~ End InfRuleHelper
+
+*Casting $\bitWidthTyp {\exp_1}$ to $\intWidthTyp {\exp_2}$*
+
+- expl ??
+- A bitstring type can be casted to a fixed-width signed integer only if they have the same width.
+
+~ Begin InfRuleHelper
+  \inferrule
+     { \typWellFormedNoEnv {\bitWidthTyp {\exp_1}}\\
+       \typWellFormedNoEnv {\intWidthTyp {\exp_2}}\\\\
+       \compileTimeEval {\exp_1} = \width_1 \\
+       \compileTimeEval {\exp_2} = \width_2 \\\\
+       \width_1 == \width_2 
+       }
+     { \allcastenv {\bitWidthTyp {\exp_1}} {\intWidthTyp {\exp_2}}}
+     \quad (\rn{UnsignedIntToSigned}\rAE)
+~ End InfRuleHelper
+
+*Casting $\intWidthTyp {\exp_1}$ to $\bitWidthTyp {\exp_2}$*
+
+- A fixed-width signed integer type can be casted to a fixed-width unsinged integer only if they have the same width. 
+
+~ Begin InfRuleHelper
+  \inferrule
+     { \typWellFormedNoEnv {\intWidthTyp {\exp_1}}\\
+       \typWellFormedNoEnv {\bitWidthTyp {\exp_2}}\\\\
+       \compileTimeEval {\exp_1} = \width_1 \\
+       \compileTimeEval {\exp_2} = \width_2 \\\\
+       \width_1 == \width_2 
+     }
+     { \allcastenv {\intWidthTyp {\exp_1}} {\bitWidthTyp {\exp_2}}}
+     \quad (\rn{SignedIntToUnsigned}\rAE)
+~ End InfRuleHelper
+
+*Casting $\bitWidthTyp {\exp_1}$ to $\bitWidthTyp {\exp_2}$*
+
+- A bitstring type can always be casted to another bitstring type.
+
+~ Begin InfRuleHelper
+  \inferrule
+     { \typWellFormedNoEnv {\bitWidthTyp {\exp_1}}\\
+       \typWellFormedNoEnv {\bitWidthTyp {\exp_2}}}
+     { \allcastenv {\bitWidthTyp {\exp_1}} {\bitWidthTyp {\exp_2}}}
+     \quad (\rn{UnsignedIntToUnsignedInt}\rAE)
+~ End InfRuleHelper
+
+*Casting $\intWidthTyp {\exp_1}$ to $\intWidthTyp {\exp_2}$*
+
+- A fixed-width signed integer type can always be casted to another fixed-width signed integer type.
+
+~ Begin InfRuleHelper
+  \inferrule
+     { \typWellFormedNoEnv {\intWidthTyp {\exp_1}}\\
+       \typWellFormedNoEnv {\intWidthTyp {\exp_2}}}
+     { \allcastenv {\intWidthTyp {\exp_1}} {\intWidthTyp {\exp_2}}}
+     \quad (\rn{SignedIntToSignedInt}\rAE)
+~ End InfRuleHelper
+
+*Casting $\bitWidthTyp {\exp}$ to $\integerTyp$*
+
+- A bitstring type can always be casted to an integer type.
+
+~ Begin InfRuleHelper
+  \inferrule
+     { \typWellFormedNoEnv {\bitWidthTyp {\exp}}}
+     { \allcastenv  {\bitWidthTyp \exp} \integerTyp}
+     \quad (\rn{UnsignedIntToArbitraryPrecisionInt}\rAE)
+~ End InfRuleHelper
+
+*Casting $\intWidthTyp \exp$ to $\integerTyp$*
+
+- A fixed-width signed integer type can always be casted to an arbitrary-length integer type.
+
+~ Begin InfRuleHelper
+  \inferrule
+     { \typWellFormedNoEnv {\intWidthTyp {\exp}}}
+     { \allcastenv   {\intWidthTyp \exp} \integerTyp}
+     \quad (\rn{SignedIntToArbitraryPrecisionInt}\rAE)
+~ End InfRuleHelper
+
+*Casting $\integerTyp$ to $\bitWidthTyp \exp$*
+
+- An arbitrary-length integer type can always be casted to a bitstring type.
+
+~ Begin InfRuleHelper
+  \inferrule
+     { \typWellFormedNoEnv {\bitWidthTyp {\exp}}}
+     { \allcastenv \integerTyp {\bitWidthTyp \exp}}
+     \quad (\rn{ArbitraryPrecisionIntToUnsignedInt}\rAE)
+~ End InfRuleHelper
+
+*Casting $\integerTyp$ to $\intWidthTyp \exp$*
+
+- An arbitrary-length integer type can always be casted to a fixed-width signed integer type.
+
+~ Begin InfRuleHelper
+  \inferrule
+     { \typWellFormedNoEnv {\intWidthTyp {\exp}}}
+     { \allcastenv  \integerTyp {\intWidthTyp \exp}}
+     \quad (\rn{ArbitraryPrecisionIntToSignedInt}\rAE)
+~ End InfRuleHelper
+
+*Casting type synonym $\typName$ to type $\typ$*
+
+- The type synonym $\typName$ must [exist in the type synony environment][#lookup-env] $\typSynEnv$ and corresponds to type $\typ$.
+- Then, the type synonym $\typName$ can be casted to the type $\typ$.
+
+~ Begin InfRuleHelper
+  \inferrule
+  { \lookupTypSynEnv \typName = \typ}
+  { \allcastenv \typName \typ }
+  \quad (\rn{TypedefToOriginal}\rAE)
+~ End InfRuleHelper
+
+*Casting type synonym $\typName_1$ to type synonym $\typName_2$*
+
+- The type synonym $\typName_1$ must [exist in the type synonym environment][#lookup-env] $\typSynEnv$ and corresponds to type $\typ_1$.
+- The type synonym $\typName_2$ must [exist in the type synonym environment][#lookup-env] $\typSynEnv$ and corresponds to type $\typ_2$.
+- Type $\typ_1$ must be castable to type $\typ_2$.
+- Then, type synony $\typName_1$ can be casted to type synonym $\typName_2$.
+
+~ Begin InfRuleHelper
+  \inferrule
+  { \lookupTypSynEnv {\typName_1} = \typ_1 \\
+    \lookupTypSynEnv {\typName_2} = \typ_2 \\
+    \allcastenv {\typ_1} {\typ_2}}
+    % \typEqEnv \emp {\typ_1} {\typ_2} }
+  { \allcastenv {\typName_1} {\typName_2} }
+  \quad (\rn{TypeSynonyms}\rAE)
+~ End InfRuleHelper
+
+*Casting type name $\typName$ to type $\typ$*
+
+- The type name $\typName$ must [exist in the type environment][#lookup-env] $\typEnv$ and corresponds to type $\typ$.
+- Then, the type name $\typName$ can be casted to type $\typ$.
+
+
+~ Begin InfRuleHelper
+  \inferrule
+  { \lookupTypEnv \typName = \typ}
+  { \allcastenv \typName \typ }
+  \quad (\rn{TypeToOriginal}\rAE)
+~ End InfRuleHelper
+
+*Casting $\enumTypDef$ to $\typ$*
+
+- sdl
+
+~ Begin InfRuleHelper
+  \inferrule
+     { \typWellFormed \typ}
+     { \allcastenv {\enumTypDef} { {\typ}}}
+     \quad (\rn{EnumToUnderlyingType}\rAE)
+~ End InfRuleHelper
+
+
+~ Begin InfRuleHelper
+  \inferrule
+     { \typWellFormed {\enumTyp {\typ_1} {\typName_1} {\overline {\field_1}}}\\
+     \typWellFormed {\enumTyp {\typ_2} {\typName_2} {\overline {\field_2}}}\\
+     \typEq {\typ_1} { {\typ_2}}}
+     { \allcastenv {\enumTyp {\typ_1} {\typName_1} {\overline {\field_1}}} {\enumTyp { {\typ_2 }} { \typName_2} {\overline { \field_2}}}}
+     \quad (\rn{Enums}\rAE)
+~ End InfRuleHelper
+
+~ Begin InfRuleHelper
+  \inferrule
+     { }
+     % \typEqEnv \emp {\surfaceTyp} {\VVal {\surfaceTyp}}}
+     { \explCast {\surfaceTyp} {\enumTyp { {\surfaceTyp}} {\typName} {\fields}}}
+     \quad (\rn{TypeToEnumWithUndrlyingType}\rAE)
+
+  % \inferrule
+  %    { (\typEqEnv \emp {\VVal \typ} {\newTypeTyp \typVar { \typ}})}
+  %    { \castenv \  {\newTypeTyp \typVar {\typ}} {\newTypeTyp \typVar {\VVal \typ}}}
+  %    \quad (\rn{TypeDefs}\rAE\rSep\rn{1})
+
+  % \inferrule
+  %    { (\typEqEnv \emp {\typ} {\newTypeTyp \typVar {\VVal \typ}})}
+  %    { \castenv \  {\newTypeTyp \typVar {\typ}} {\newTypeTyp \typVar {\VVal \typ}}}
+  %    \quad (\rn{TypeDefs}\rAE\rSep\rn{2})
+
+  % \inferrule
+  %    { \explCast {\typ} {\VVal \typ}}
+  %    { \explCast {\newTypeTyp \typVar {\typ}} {\VVal \typ}}
+  %    \quad (\rn{TypeDefToType}\rSep\rn{Explicit}\rAE)
+
+  % \inferrule
+  %    { \implCast {\typ} {\VVal \typ}}
+  %    { \implCast {\newTypeTyp \typVar {\typ}} {\VVal \typ}}
+  %    \quad (\rn{TypeDefToType}\rSep\rn{Implicit}\rAE)
+
+  % \inferrule
+  %    { \explCast {\typ} {\VVal \typ}}
+  %    { \explCast {\typ} {\newTypeTyp \typVar {\VVal \typ}}}
+  %    \quad (\rn{TypeToTypeDef}\rSep\rn{Explicit}\rAE)
+
+  % \inferrule
+  %    { \implCast {\typ} {\VVal \typ}}
+  %    { \implCast {\typ} {\newTypeTyp \typVar {\VVal \typ}}}
+  %    \quad (\rn{TypeToTypeDef}\rSep\rn{Implicit}\rAE)
+
+
+% old version. compare with petr4 impl.
+  % \inferrule
+  %    { \typEqEnv \emp {\typ} {\VVal \typ}}
+  %    { \castenv \ {\setTyp {\typ}} {\setTyp {\VVal \typ}} }
+  %    \quad (\rn{Sets}\rAE)
+
+  % \inferrule
+  %    { \typEqEnv \emp {\typ} {\VVal \typ}}
+  %    { \implCast {\typ} {\setTyp {\VVal \typ}}}
+  %    \quad (\rn{TypeToSet}\rSep\rn{Implicit}\rAE)
+
+  % \inferrule
+  %    { \typEqEnv \emp {\tupleTyps {\typs}} {\tupleTyps { {\VVal \typ}}}}
+  %    { \castenv \  {\listTyps {\typs} } {\tupleTyps {\overline {\VVal \typ}}}}
+  %    \quad (\rn{ListToTuple}\rAE)
+~ End InfRuleHelper
+
+~ Begin InfRuleHelper
+  \inferrule
+     {\castenv \ {\typs} {\overline {\VVal \typ}} }
+     {\castenv \  {\listTyps {\typ}} {\headerTyps \typParam \field {\VVal \typ}}}
+     \quad (\rn{TupleToHeader}\rAE\rSep\rn{1})
+~ End InfRuleHelper
+
+~ Begin InfRuleHelper
+  \inferrule
+     {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
+     {\castenv \ {\listTyps \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+     \quad (\rn{TupleToHeader}\rAE\rSep\rn{2})
+
+
+  % \inferrule
+  %    {\explCast {\typs} {\overline {\VVal \typ}} }
+  %    {\explCast {\listTyps {\typ}} {\headerTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{ListToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{1})
+
+  % \inferrule
+  %    {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
+  %    {\explCast {\listTyps \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{ListToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{2})
+
+  % \inferrule
+  %    {\implCast {\typ} {\overline {\VVal \typ}}}
+  %    {\implCast {\listTyps \typ} {\headerTyps \typParam \field {\VVal \typ} }}
+  %    \quad (\rn{ListToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{1})
+
+  % \inferrule
+  %    {\typEqEnv \emp {\tupleTyps {\typ}} {\tupleTyps { {\VVal \typ}}}}
+  %    {\implCast {\listTyps \typ} {\headerTyps \typParam \field {\VVal \typ} }}
+  %    \quad (\rn{ListToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{2})
+~ End InfRuleHelper
+
+~ Begin InfRuleHelper
+  \inferrule
+     {\castenv \ {\typs} {\overline {\VVal \typ}}}
+     {\castenv \ {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
+     \quad (\rn{TupleToStruct}\rAE\rSep\rn{1})
+~ End InfRuleHelper
+
+~ Begin InfRuleHelper
+  \inferrule
+     {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
+     {\castenv \ {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
+     \quad (\rn{TupleToStruct}\rAE\rSep\rn{2})
+
+  % \inferrule
+  %    {\explCast {\typs} {\overline {\VVal \typ}}}
+  %    {\explCast {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{ListToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{1})
+
+  % \inferrule
+  %    {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
+  %    {\explCast {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{ListToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{2})
+
+  % \inferrule
+  %    {\implCast {\typs} {\overline {\VVal \typ}}}
+  %    {\implCast {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{ListToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{1})
+
+  % \inferrule
+  %    {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
+  %    {\implCast {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{ListToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{2})
+~ End InfRuleHelper
+
+~ Begin InfRuleHelper
+  \inferrule
+     {\castenv \ {\typs} {\overline {\VVal \typ}}}
+     {\castenv \ {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+     \quad (\rn{RecordToHeader}\rAE\rSep\rn{1})
+~ End InfRuleHelper
+
+~ Begin InfRuleHelper
+\inferrule
+     {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
+     {\castenv \ {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+     \quad (\rn{RecordToHeader}\rAE\rSep\rn{2})
+
+
+  % \inferrule
+  %    {\explCast {\typs} {\overline {\VVal \typ}}}
+  %    {\explCast {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{RecordToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{1})
+
+  % \inferrule
+  %    {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
+  %    {\explCast {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{RecordToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{2})
+
+  % \inferrule
+  %    {\implCast {\typs} {\overline {\VVal \typ}}}
+  %    {\implCast {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{RecordToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{1})
+
+  % \inferrule
+  %    {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
+  %    {\implCast {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{RecordToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{2})
+~ End InfRuleHelper
+
+~ Begin InfRuleHelper
+  \inferrule
+     {\castenv \ {\typs} {\overline {\VVal \typ}}}
+     {\castenv \ {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
+     \quad (\rn{RecordToStruct}\rAE\rSep\rn{1})
+~ End InfRuleHelper
+
+~ Begin InfRuleHelper
+  \inferrule
+     {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
+     {\castenv \ {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
+     \quad (\rn{RecordToStruct}\rAE\rSep\rn{2})
+
+  % \inferrule
+  %    {\explCast {\typs} {\overline {\VVal \typ}}}
+  %    {\explCast {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{RecordToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{1})
+
+  % \inferrule
+  %    {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
+  %    {\explCast {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{RecordToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{2})
+
+  % \inferrule
+  %    {\implCast {\typs} {\overline {\VVal \typ}}}
+  %    {\implCast {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{RecordToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{1})
+
+  % \inferrule
+  %    {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
+  %    {\implCast {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{RecordToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{2})
+
+  % \inferrule
+  %    {\explCast {\typs} {\overline {\VVal \typ}}}
+  %    {\explCast {\headerTyps \typParam \field \typ } {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
+  %    \quad (\rn{HeaderToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{1})
+
+  % \inferrule
+  %    {\typEqEnv \emp {\headerTyps \typParam \field \typ} {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
+  %    {\explCast {\headerTyps \typParam \field \typ } {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
+  %    \quad (\rn{HeaderToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{2})
+
+  % \inferrule
+  %    {\implCast \typs {\overline {\VVal \typ}}}
+  %    {\implCast {\headerTyps \typParam \field \typ} {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
+  %    \quad (\rn{HeaderToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{1})
+
+  % \inferrule
+  %    {\typEqEnv \emp {\headerTyps \typParam \field \typ} {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
+  %    {\implCast {\headerTyps \typParam \field \typ} {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
+  %    \quad (\rn{HeaderToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{2})
+
+  % \inferrule
+  %    {\explCast {\typs} {\overline {\VVal {\typ}}}}
+  %    {\explCast {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{StructToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{1})
+
+  % \inferrule
+  %    {\typEqEnv \emp {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
+  %    {\explCast {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{StructToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{2})
+
+  % \inferrule
+  %    {\implCast {\typs} {\overline {\VVal \typ}}}
+  %    {\implCast {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{StructToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{1})
+
+  % \inferrule
+  %    {\typEqEnv \emp {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
+  %    {\implCast {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
+  %    \quad (\rn{StructToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{2})
+
+  % \inferrule
+  %   { \typ = \VVal \typ}
+  %   {\implCast {\typ} {\VVal \typ}}
+  %   \quad (\rn{ID}\rSep\rn{Implicit}\rAE)
+~ End InfRuleHelper
+
+
+
 ## Expressions { #sec-exp-type-checker }
 The type checker judgment for expressions has the form $\expCheck \exp \typ$ and it reads "the expression $\exp$ is well-formed with type $\typ$ under the enviornment $\env$". 
 
@@ -1829,10 +2278,6 @@ $\binOpExp { \intoOp \shiftL} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \shiftR
 
 ### Bit Mask Operation { #sec-bit-mask-type-checker }
 
-## Statements { #sec-stmt-type-checker }
-
-## Declarations { #sec-dcl-type-checker }
-
 *todo. tuesday: this isn't marked done in inference..make sure it's correct and mark it done. remember to clean up the inference.mdk too.*
 
 *todo:rephrase the ensure below. or figure out where you want to have it or if you want to remove it.*
@@ -1875,838 +2320,9 @@ $\range {\exp_1} {\exp_2}$
 ~ End InfRule
 
 
-#*the following is from an older version*
+## Statements { #sec-stmt-type-checker }
 
-#### Specialized Type well-formed { #sec-specialized-t }
+## Declarations { #sec-dcl-type-checker }
 
-``todo: make sure it covers both \surfacetyp \exp and \typ``
-
-A specialized type specifies the types of parameters in a generic type, the underlying generic type in a specialized type is called the base type. A specialized type is necessary when the compiler cannot infer type arguments.
-
-The rule $\specializedExternT$ states that the specialization of an extern type is well-formed if the extern $\name$ exists in the environment $\env$ and the specialization specifies the type of all its type parameters. Similarly, the rule $\specializedRestT$ states that the specialization of a package/control/parser/function is well-formed if it specifies the type of all its type parameters.
-
-- $\lookupExternEnv \name$ looks up a variable $\name$ in extern environment $\externEnv$ and it returns the type parameters and methods of the extern. Since the rule $\specializedExternT$ only cares about the parameters we do not care about the methods, thus, we don't assign a variable name to it and use an underscore instead of it. 
-- $\getTypeParams \typ$ returns the type parameters from types that have type parameters including package, control, parser, and function.
-
-~ Begin InfRule
-
-  \mprset {vskip=0.7ex}
-  {\inferrule
-     { \lookupExternEnv \name = ([\params], \_ ) \\
-        % 1 \leq i \leq n. \typWellFormed {\typ_i} \\
-        \typWellFormed \typs\\
-        |\typs| = |\params|}
-     { \typWellFormed {\spcTyp {\externTyp \name} \typ} }
-     \quad (\specializedExternT)}
-
-\and
-
-  \mprset {vskip=0.7ex}
-  {\inferrule
-     { \getTypeParams \typ = \{\params\}\\
-        \typWellFormed {\typs} \\
-        |\params| = |\typs|}
-     { \typWellFormed {\spcTyp \typName {\typ}} }
-     \quad (\specializedRestT)}
-
-~ End InfRule
-
-# expression
-## Cast Rule { #sec-cast-e }
-
-```done```
-
-The expression $\cast {\surfaceTyp} \exp$ casts expression $\exp$ to type $\surfaceTyp$. However, it is
-not possible to cast an expression from every type to another type. This is done by the auxiliary judgment
-$\explCast {\surfaceTyp} {\VVal {\surfaceTyp}}$ which states that the explicit casting of
-$\surfaceTyp$ to $\VVal {\surfaceTyp}$ is legal.
-The $\castTypNameE$ rule type checks a cast expression to a type identifier and the $\castE$ rule
-type checks any other cast expression. 
-Specifically, it states that the cast expression
-$\cast {\surfaceTyp} \exp$ translates to the expression $\cast {\surfaceTyp} {\VVal \exp}$ with
-the type $\surfaceTyp$ if expression $\exp$ is translated to $\VVal \exp$ and the explicit cast
-of $\typ$ to $\surfaceTyp$ is legal. 
-
-- $\explCast {\typ_1} {\typ_2}$ is an auxiliary judgment for valid explicit cast
-of types.
-The [casting auxiliary judgment][#sec-cast-helper] defines rules for implicitly
-and explicitly casting one type to another. Specifically, the judgment
-$\castenv \ {\typ_1} {\typ_2}$ states that under the type environment $\typEnv$ and type sysnonym store $\typSynEnv$,
-the type $\typ_1$ can be casted to type $\typ_2$, either explicitly or implicitly.
-However, if the arrow is subscripted with $i$ or $e$, it states that the cast is only
-done implicitly or explicitly, respectively.
-- Note that there is no need to check the well-formedness of the type $\typ$ generated while type checking expression $\exp$, since it has been generated by the type system, and we therefore know it is well-formed.
--  Note that you can cast to a non-surface type by just using its name, so you may need to look up the type identifier before going into the cast auxiliary. For example, $E$ is an enum in $b = (E) x$. So we need to look up $E$ and then go from there. That is exactly what the $\castTypNameE$ rule does. 
-
-
-~ Begin InfRule
-
-  \inferrule
-     { \expenv \exp {\VVal\exp} {\typ} \dir \\
-       \lookupTypEnv \typName = \VVal\typ\\
-       \explCast {\typ} {\VVal \typ}}
-       % \explicitCastOK {\typ_2} {\pprim \typ}}
-     { \expenv {\cast {\typName} \exp} {\cast {\typName} {\VVal\exp}} {\VVal \typ} \less  }
-     \quad (\castTypNameE)
- 
-\and
-
-  \inferrule
-     { \expenv \exp {\VVal\exp} {\typ} \dir \\
-       % \typ_2 = \sat {\typ_1} \\
-       % \VVal \typ = \trans {\typ} {\emp} \\
-       % \pprim \typ = \sat {\VVal \typ} \\
-       % \typWellFormed {\VVal \typ} \\ %we don't even need to do this because the type has been generated.
-       \explCast {\typ} {\surfaceTyp}}
-       % \explicitCastOK {\typ_2} {\pprim \typ}}
-     { \expenv {\cast {\surfaceTyp} \exp} {\cast {\surfaceTyp} {\VVal\exp}} {\surfaceTyp} \less  }
-     \quad (\castE)
-
-~ End InfRule
-
-### Cast Auxiliary Judgment { #sec-cast-helper }
-
-This auxiliary judgment states if casting of a type to another, either explicitly or implicitly or both, is valid. 
-The arrow subscription with $e$ or $i$ indicates that a rule only applies for explicit or implicit cast only, respectively. Otherwise, the arrow does not have a subscription,
-meaning that it applies for both explicit and implicit casts. However, note that when a rule uses recursive casts, the recursion must use the same kind of cast even when the arrow does not indicate if the cast is explicit or implicit.
-
-- Reminder: a list has a tuple type.
-
-~ Begin InfRuleHelper
-
-  \inferrule
-     { }
-     { \explCast {\bitWidthTyp 1} \boolTyp }
-     \quad (\rn{BitToBool}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     { \explCast \boolTyp {\bitWidthTyp 1} }
-     \quad (\rn{BoolToBit}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     { \explCast {\integerTyp} \boolTyp }
-     \quad (\rn{IntToBool}\rAE)
-
-\and
-
-  \inferrule
-     { \width = \VVal \width }
-     { \explCast {\bitWidthTyp {\width}} {\intWidthTyp {\VVal \width}}}
-     \quad (\rn{UnsignedIntToSigned}\rAE)
-
-\and
-
-  \inferrule
-     { \width = \VVal \width }
-     { \explCast {\intWidthTyp {\width}} {\bitWidthTyp {\VVal \width}}}
-     \quad (\rn{SignedIntToUnsigned}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     { \explCast {\bitWidthTyp {\width}} {\bitWidthTyp {\VVal \width}}}
-     \quad (\rn{UnsignedIntToUnsignedInt}\rAE)
-
-\and
-
-  % \inferrule%%todo: check this in petr4.
-  %    % { \width = \VVal \width} 
-  %    { \implCast {\bitWidthTyp {\width}} {\bitWidthTyp {\VVal \width}}}
-  %    \quad (\rn{UnsignedIntToUnsignedInt}\rSep\rn{Implicit}\rAE)
-
-  \inferrule
-     { }
-     { \explCast {\intWidthTyp {\width}} {\intWidthTyp {\VVal \width}}}
-     \quad (\rn{SignedIntToSignedInt}\rAE)
-
-\and
-
-  % \inferrule
-  %    { \width = \VVal \width}
-  %    { \implCast {\intWidthTyp {\width}} {\intWidthTyp {\VVal \width}}}
-  %    \quad (\rn{SignedIntToSignedInt}\rSep\rn{Implicit}\rAE)
-
-  \inferrule
-     { }
-     { \explCast  {\bitWidthTyp \width} \integerTyp}
-     \quad (\rn{UnsignedIntToArbitraryPrecisionInt}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     { \explCast   {\intWidthTyp \width} \integerTyp}
-     \quad (\rn{SignedIntToArbitraryPrecisionInt}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     { \explCast \integerTyp {\bitWidthTyp \width}}
-     \quad (\rn{ArbitraryPrecisionIntToUnsignedInt}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     { \explCast  \integerTyp {\intWidthTyp \width}}
-     \quad (\rn{ArbitraryPrecisionIntToSignedInt}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     { \implCast \integerTyp {\bitWidthTyp \width}}
-     \quad (\rn{ArbitraryPrecisionIntToUnsignedInt}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     { \implCast  \integerTyp {\intWidthTyp \width}}
-     \quad (\rn{ArbitraryPrecisionIntToSignedInt}\rAE)
-
-\and
-
-  \inferrule
-  { \lookupTypSynEnv \typName = \typ}
-  { \explCast \typName \typ }
-  \quad (\rn{TypedefToOriginal}\rAE)
-
-\and
-
-  \inferrule
-  { \lookupTypSynEnv {\typName_1} = \typ_1 \\
-    \lookupTypSynEnv {\typName_2} = \typ_2 \\
-    \explCast {\typ_1} {\typ_2}}
-    % \typEqEnv \emp {\typ_1} {\typ_2} }
-  { \explCast {\typName_1} {\typName_2} }
-  \quad (\rn{TypeSynonyms}\rAE)
-
-\and
-
-  \inferrule
-  { \lookupTypEnv \typName = \typ}
-  { \explCast \typName \typ }
-  \quad (\rn{TypeToOriginal}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     % \typEqEnv \emp {\surfaceTyp} {\VVal {\surfaceTyp}}}
-     { \explCast {\enumTypDef} { {\surfaceTyp}}}
-     \quad (\rn{EnumToUnderlyingType}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     % \typEqEnv \emp {\surfaceTyp} {\VVal {\surfaceTyp }}}
-     { \implCast {\enumTypDef} {\VVal {\surfaceTyp}}}
-     \quad (\rn{EnumToUnderlyingType}\rAE)
-
-\and
-
-  \inferrule
-     { \typEqEnv \emp {\surfaceTyp} {\VVal {\surfaceTyp}}}
-     { \explCast {\enumTypDef} {\enumTyp {\VVal {\surfaceTyp }} {\VVal \typName} {\overline {\VVal \field}}}}
-     \quad (\rn{Enums}\rAE)
-
-\and
-
-  \inferrule
-     { }
-     % \typEqEnv \emp {\surfaceTyp} {\VVal {\surfaceTyp}}}
-     { \explCast {\surfaceTyp} {\enumTyp { {\surfaceTyp}} {\typName} {\fields}}}
-     \quad (\rn{TypeToEnumWithUndrlyingType}\rAE)
-
-  % \inferrule
-  %    { (\typEqEnv \emp {\VVal \typ} {\newTypeTyp \typVar { \typ}})}
-  %    { \castenv \  {\newTypeTyp \typVar {\typ}} {\newTypeTyp \typVar {\VVal \typ}}}
-  %    \quad (\rn{TypeDefs}\rAE\rSep\rn{1})
-
-  % \inferrule
-  %    { (\typEqEnv \emp {\typ} {\newTypeTyp \typVar {\VVal \typ}})}
-  %    { \castenv \  {\newTypeTyp \typVar {\typ}} {\newTypeTyp \typVar {\VVal \typ}}}
-  %    \quad (\rn{TypeDefs}\rAE\rSep\rn{2})
-
-  % \inferrule
-  %    { \explCast {\typ} {\VVal \typ}}
-  %    { \explCast {\newTypeTyp \typVar {\typ}} {\VVal \typ}}
-  %    \quad (\rn{TypeDefToType}\rSep\rn{Explicit}\rAE)
-
-  % \inferrule
-  %    { \implCast {\typ} {\VVal \typ}}
-  %    { \implCast {\newTypeTyp \typVar {\typ}} {\VVal \typ}}
-  %    \quad (\rn{TypeDefToType}\rSep\rn{Implicit}\rAE)
-
-  % \inferrule
-  %    { \explCast {\typ} {\VVal \typ}}
-  %    { \explCast {\typ} {\newTypeTyp \typVar {\VVal \typ}}}
-  %    \quad (\rn{TypeToTypeDef}\rSep\rn{Explicit}\rAE)
-
-  % \inferrule
-  %    { \implCast {\typ} {\VVal \typ}}
-  %    { \implCast {\typ} {\newTypeTyp \typVar {\VVal \typ}}}
-  %    \quad (\rn{TypeToTypeDef}\rSep\rn{Implicit}\rAE)
-
-
-% old version. compare with petr4 impl.
-  % \inferrule
-  %    { \typEqEnv \emp {\typ} {\VVal \typ}}
-  %    { \castenv \ {\setTyp {\typ}} {\setTyp {\VVal \typ}} }
-  %    \quad (\rn{Sets}\rAE)
-
-  % \inferrule
-  %    { \typEqEnv \emp {\typ} {\VVal \typ}}
-  %    { \implCast {\typ} {\setTyp {\VVal \typ}}}
-  %    \quad (\rn{TypeToSet}\rSep\rn{Implicit}\rAE)
-
-  % \inferrule
-  %    { \typEqEnv \emp {\tupleTyps {\typs}} {\tupleTyps { {\VVal \typ}}}}
-  %    { \castenv \  {\listTyps {\typs} } {\tupleTyps {\overline {\VVal \typ}}}}
-  %    \quad (\rn{ListToTuple}\rAE)
-
-\and
-
-  \inferrule
-     {\castenv \ {\typs} {\overline {\VVal \typ}} }
-     {\castenv \  {\listTyps {\typ}} {\headerTyps \typParam \field {\VVal \typ}}}
-     \quad (\rn{TupleToHeader}\rAE\rSep\rn{1})
-
-\and
-
-  \inferrule
-     {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
-     {\castenv \ {\listTyps \typ} {\headerTyps \typParam \field {\VVal \typ}}}
-     \quad (\rn{TupleToHeader}\rAE\rSep\rn{2})
-
-
-  % \inferrule
-  %    {\explCast {\typs} {\overline {\VVal \typ}} }
-  %    {\explCast {\listTyps {\typ}} {\headerTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{ListToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{1})
-
-  % \inferrule
-  %    {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
-  %    {\explCast {\listTyps \typ} {\headerTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{ListToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{2})
-
-  % \inferrule
-  %    {\implCast {\typ} {\overline {\VVal \typ}}}
-  %    {\implCast {\listTyps \typ} {\headerTyps \typParam \field {\VVal \typ} }}
-  %    \quad (\rn{ListToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{1})
-
-  % \inferrule
-  %    {\typEqEnv \emp {\tupleTyps {\typ}} {\tupleTyps { {\VVal \typ}}}}
-  %    {\implCast {\listTyps \typ} {\headerTyps \typParam \field {\VVal \typ} }}
-  %    \quad (\rn{ListToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{2})
-
-\and
-
-  \inferrule
-     {\castenv \ {\typs} {\overline {\VVal \typ}}}
-     {\castenv \ {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
-     \quad (\rn{TupleToStruct}\rAE\rSep\rn{1})
-
-\and
-
-  \inferrule
-     {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
-     {\castenv \ {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
-     \quad (\rn{TupleToStruct}\rAE\rSep\rn{2})
-
-  % \inferrule
-  %    {\explCast {\typs} {\overline {\VVal \typ}}}
-  %    {\explCast {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{ListToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{1})
-
-  % \inferrule
-  %    {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
-  %    {\explCast {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{ListToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{2})
-
-  % \inferrule
-  %    {\implCast {\typs} {\overline {\VVal \typ}}}
-  %    {\implCast {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{ListToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{1})
-
-  % \inferrule
-  %    {\typEqEnv \emp {\tupleTyps \typ} {\tupleTyps { {\VVal \typ}}}}
-  %    {\implCast {\listTyps \typ} {\structTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{ListToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{2})
-
-\and
-
-  \inferrule
-     {\castenv \ {\typs} {\overline {\VVal \typ}}}
-     {\castenv \ {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
-     \quad (\rn{RecordToHeader}\rAE\rSep\rn{1})
-
-\and
-
-\inferrule
-     {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
-     {\castenv \ {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
-     \quad (\rn{RecordToHeader}\rAE\rSep\rn{2})
-
-
-  % \inferrule
-  %    {\explCast {\typs} {\overline {\VVal \typ}}}
-  %    {\explCast {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{RecordToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{1})
-
-  % \inferrule
-  %    {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
-  %    {\explCast {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{RecordToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{2})
-
-  % \inferrule
-  %    {\implCast {\typs} {\overline {\VVal \typ}}}
-  %    {\implCast {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{RecordToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{1})
-
-  % \inferrule
-  %    {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
-  %    {\implCast {recordTyps \field \typ} {\headerTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{RecordToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{2})
-
-\and
-
-  \inferrule
-     {\castenv \ {\typs} {\overline {\VVal \typ}}}
-     {\castenv \ {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
-     \quad (\rn{RecordToStruct}\rAE\rSep\rn{1})
-
-\and
-
-  \inferrule
-     {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
-     {\castenv \ {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
-     \quad (\rn{RecordToStruct}\rAE\rSep\rn{2})
-
-  % \inferrule
-  %    {\explCast {\typs} {\overline {\VVal \typ}}}
-  %    {\explCast {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{RecordToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{1})
-
-  % \inferrule
-  %    {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
-  %    {\explCast {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{RecordToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{2})
-
-  % \inferrule
-  %    {\implCast {\typs} {\overline {\VVal \typ}}}
-  %    {\implCast {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{RecordToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{1})
-
-  % \inferrule
-  %    {\typEqEnv \emp {recordTyps \field \typ} {recordTyps \field {\VVal \typ}}}
-  %    {\implCast {recordTyps \field \typ } {\structTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{RecordToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{2})
-
-  % \inferrule
-  %    {\explCast {\typs} {\overline {\VVal \typ}}}
-  %    {\explCast {\headerTyps \typParam \field \typ } {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
-  %    \quad (\rn{HeaderToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{1})
-
-  % \inferrule
-  %    {\typEqEnv \emp {\headerTyps \typParam \field \typ} {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
-  %    {\explCast {\headerTyps \typParam \field \typ } {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
-  %    \quad (\rn{HeaderToHeader}\rSep\rn{Explicit}\rAE\rSep\rn{2})
-
-  % \inferrule
-  %    {\implCast \typs {\overline {\VVal \typ}}}
-  %    {\implCast {\headerTyps \typParam \field \typ} {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
-  %    \quad (\rn{HeaderToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{1})
-
-  % \inferrule
-  %    {\typEqEnv \emp {\headerTyps \typParam \field \typ} {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
-  %    {\implCast {\headerTyps \typParam \field \typ} {\headerTyps {\VVal \typParam} \field {\VVal \typ}}}
-  %    \quad (\rn{HeaderToHeader}\rSep\rn{Implicit}\rAE\rSep\rn{2})
-
-  % \inferrule
-  %    {\explCast {\typs} {\overline {\VVal {\typ}}}}
-  %    {\explCast {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{StructToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{1})
-
-  % \inferrule
-  %    {\typEqEnv \emp {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
-  %    {\explCast {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{StructToStruct}\rSep\rn{Explicit}\rAE\rSep\rn{2})
-
-  % \inferrule
-  %    {\implCast {\typs} {\overline {\VVal \typ}}}
-  %    {\implCast {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{StructToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{1})
-
-  % \inferrule
-  %    {\typEqEnv \emp {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
-  %    {\implCast {\structTyps \typParam \field \typ} {\structTyps \typParam \field {\VVal \typ}}}
-  %    \quad (\rn{StructToStruct}\rSep\rn{Implicit}\rAE\rSep\rn{2})
-
-  % \inferrule
-  %   { \typ = \VVal \typ}
-  %   {\implCast {\typ} {\VVal \typ}}
-  %   \quad (\rn{ID}\rSep\rn{Implicit}\rAE)
-
-~ End InfRuleHelper
-
-## Membership Rules { #sec-mem-e }
-
-``type member (typeMember rule is correct for enums and done.) error member rule done.``
-
-``type member can be error, enum, probably can be extern object, package, instantiation, parser, control, extern function, value set, action, table(?), match kind. basically anywhere that we have an insert to var env (which is insert_type_of in checker.ml)``
-
-A membership expression denoted by a dot, that is, $a.\name$ looks if $\name$ exists in $a$ where $a$ can be a type or an expression.
-An expression member looks up a _member_ in an expression.
-The member could be a field in
-a record type, such as struct and header, or it could be a method in an extern or specialized type, or a special look up of an element of an array such as next, last, size, and last index.  
-
-
-The rules $\typeMemE$ and $\errMemE$ are rather simple.
-They just look up $\name$ extended with the type or error, respectively, in the environment. For example, the $\typeMemE$ states that under the environment $\env$ and context $\ctxt$, the expression $\typMem \typ \name$ is the same in the IR and has the type $\typ$ and direction $\less$ if $\typMem \typ \name$ exists in $\env$.
-
-- $\sizingMem$ stands for methods: $\minSizeBits$, $\minSizeBytes$, $\maxSizeBits$, and $\maxSizeBytes$.
-- $\getFieldTyp \typ$ returns the fields and their types for a type that has some sort of fields in its declaration which includes the following types:
-  + struct
-  + header
-  + header union
-  + header stack
-  + serializable enums
-- $\isSerializableTyp \typ$ recursively checks if a type is serializable, that is, if it is one of the following types:
-  + bool
-  + bit-strings (unsigned integers)
-  + signed integers
-  + dynamically-sized bit-strings
-  + tuple of serializable types and types that have fields (explained above for the helper $\getFieldTyp \typ$)
-  + struct ```FIX```
-  + header
-  + header union
-  + header stack
-  + serializable enums
-- $\setValidity$ stands for both $\setValid$ and $\setInvalid$. ``todo: we dont have void type in tau rn. fix it in doc.``
-- $\nextOrLast$ stands for either $\next$ or $\last$.
-
-``reminder for parisa: you worked up to here. expression membership. ``
-
-~ Begin InfRule
-
-  \inferrule
-     {\lookupVarEnv {\typMem \typName \name} = (\typ, \dir)  }
-     {\expenv {\typMem \typName \name} {\typMem \typName \name} \typ \less  }
-     \quad (\typeMemE)
-
-\and
-
-  \inferrule
-     {\lookupVarEnv {\errMem \name} = (\errTyp, \dir)  }
-     {\expenv {\errMem \name} {\errMem \name} \errTyp \less  }
-     \quad (\errMemE)
-
-\and
-
-  \mprset {vskip = 0.7 ex}
-    {\inferrule
-       { %\constEnv, \varEnv, \typEnv, \ctxt \vdash \\
-         \lookupTypEnv \typName = { \structTyps  \typParam {\VVal \field} {\VVal {\surfaceTyp}}} \\
-         (\field : {\surfaceTyp} ) \in \recordTypStructureClose {\VVal \field} {\VVal {\surfaceTyp}}
-       }
-     { \expenv {\expMem \typName \field} {\expMem \typName \field} {\surfaceTyp} {\dir} }}
-     \quad (\structMemE)
-
-\and
-
-  \mprset {vskip = 0.7 ex}
-    {\inferrule
-       {\lookupTypEnv \typName = \typ \\
-        \getFieldTyp \typ = \recordTypStructureClose \field {\VVal \typ}\\
-        \isSerializableTyp {\overline {\VVal \typ}}}
-       {\expenv {\expMem \typName \sizingMem} {\expMem \typName \sizingMem} \integerTyp \less}
-    }
-    \quad (\sizesMemStructLikeE)
-
-\and
-
-  \mprset {vskip = 0.7 ex}
-    {\inferrule
-       {\lookupTypSynEnv \typName = \typ \\
-        \getFieldTyp \typ = \recordTypStructureClose \field {\VVal \typ}\\
-        \isSerializableTyp {\overline {\VVal \typ}}}
-       {\expenv {\expMem \typName \sizingMem} {\expMem \typName \sizingMem} \integerTyp \less}
-    }
-    \quad (\sizesMemStructLikeE)
-
-\and
-
-  \mprset {vskip = 0.7 ex}
-    {\inferrule
-       {\expenv \exp {\VVal \exp} \typ \dir \\
-        \isSerializableTyp \typ}
-       {\expenv {\expMem \exp \sizingMem} {\expMem {\VVal \exp} \sizingMem} {\integerTyp} \less}
-    }
-    \quad (\sizesMemSerTypesE)
-
-\and
-
-  \mprset {vskip = 0.7 ex}
-    {\inferrule
-       {\expenv \exp {\VVal \exp} \typ \dir\\
-         \isHeaderOrUnion \typ}
-       {\expenv {\expMem \exp \isValid} {\expMem {\VVal \exp} \isValid} \boolTyp \less }
-    }
-  \quad (\isValidMemE)
-
-\and
-
-  \mprset {vskip = 0.7 ex}
-    {\inferrule
-       {\expenv \exp {\VVal \exp} \typ \dir\\
-         \isHeader \typ}
-       {\expenv {\expMem \exp \setValidity} {\expMem {\VVal \exp} \setValidity} \voidTyp \less }
-    }
-  \quad (\setValidMemE)
-
-\and
-
-  \mprset {vskip = 0.7 ex}
-  {\inferrule
-     {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir}
-     {\expenv {\expMem \exp \sizeMem} {\expMem {\VVal \exp} \sizeMem} {\bitWidthTyp {32}} \less}
-  }
-  \quad (\sizeMemHeaderStackE)
-
-\and
-
-  \mprset {vskip = 0.7 ex}
-  {\inferrule
-     {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir}
-     {\expenv {\expMem \exp \nextIndex} {\expMem {\VVal \exp} \sizeMem} {\bitWidthTyp {32}} \less}
-  }
-  \quad (\lastIndexMemHeaderStackE)
-
-\and
-
-  \mprset {vskip = 0.7 ex}
-  {\inferrule
-     {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir}
-     {\expenvWithCtxt \parserCtxt {\expMem \exp \nextOrLast} {\expMem {\VVal \exp} \nextOrLast} {\typ} \less}
-  }
-  \quad (\pushPopMemHeaderStackE)
-
-\and
-
-  \mprset {vskip = 0.7 ex}
-  {\inferrule
-     {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir}
-     {\expenvWithCtxt \parserCtxt {\expMem \exp \lastIndex} {\expMem {\VVal \exp} \nextOrLast} {\bitWidthTyp {32}} \less}
-  }
-  \quad (\lastIndexMemHeaderStackE)
-
-\and
-
-  \mprset {vskip = 0.7 ex}
-  {\inferrule
-     {\expenv \exp {\VVal \exp} {\headerStackTyp \typ \size} \dir \\
-      \int > 0}
-     {\expenv {\expMem \exp {\pushOrPop \int }} {\expMem {\VVal \exp} {\pushOrPop \int }} {\voidTyp} \less}
-  }
-  \quad (\pushPopMemHeaderStackE)
-
-% \and
-
-  % todo: membership of specialized type and extern are left to do. 
-  % \inferrule
-  %    {
-  %      % names in the following are actually methods. have to see what they contain.
-  %      \lookupEnv {\VVal \name} = (\typParams,\overline {\name:\simpFuncTyp {\typ_{\mathit{in}}} {\typ_{\mathit{out}}}}) \\\\
-  %      % \VVal \env = \insertToEnv  \typParams \typs \\
-  %      \suchThat {\exists \name_i: \VVal {\typ_i} \in \overline {\name:\simpFuncTyp {\typ_{\mathit{in}}} {\typ_{\mathit{out}}}}} {\name_i = \name} \\\\
-  %      %%TODO: fix the insert in the following. it might have to be inserted to typ env.
-  %       \reduceWithEnv {\insertsToVarEnv  \typParam \typ \less} {\VVal {\typ_i}} = \pprim {\typ_i}}
-  %       %% TODO: change var env here. it's 90% wrong. 
-  %    { \fieldAccessEnv \ctxt \name {\spcTyp {\externTyp {\VVal \name}} {\typs}} {\pprim {\typ_i}}}
-  %    \quad (\rn{Type:Specialized}\rAE)
-
-% \and
-
-  % \inferrule
-  %    { \fieldAccessEnv \ctxt \name {\spcTyp {\externTyp {\VVal \name}} \ } {\pprim \typ} }
-  %    { \fieldAccessEnv \ctxt  \name {\externTyp {\VVal \name}}  {\pprim \typ}}
-  %    \quad (\rn{Type:Extern}\rAE)
-
-~ End InfRule
-
-## Ternary Rule { #sec-ternary-e }
-
-The expression $\ternary {\exp_1} {\exp_2} {\exp_3}$ is a conditional expression.
-The rule $\ternaryE$ states that $\exp_1$ must be a boolean and expressions $\exp_2$
-and $\exp_3$ must have the same type but they cannot have the $\integerTyp$ type. In
-that case it translates the conditional expression by translating all its subexpressions. 
-
-``new todo:`` sub expressions 1 and 2 must have the same type. type equivalence or ...?
-``new todo:`` check where compile-time known is explained.
-
-~ Begin InfRule
-
-\mprset {vskip=0.7ex}
-  {\inferrule
-     {\expenv {\exp_1} {\VVal {\exp_1}} \boolTyp {\dir_1} \\\\
-      \expenv {\exp_2} {\VVal {\exp_2}} {\typ_1} {\dir_2} \\\\
-      \expenv {\exp_3} {\VVal {\exp_3}} {\typ_2} {\dir_3}\\\\
-      \typ_1 = \typ_2 \\
-      \typ_1 \neq \integerTyp}
-     {\expenv {\ternary {\exp_1} {\exp_2} {\exp_3}} {\ternary {\VVal {\exp_1}} {\VVal {\exp_2}} {\VVal {\exp_3}}} {\typ_1} \less }
-     \quad (\ternaryE)}
-
-\and
-
-\mprset {vskip=0.7ex}
-  {\inferrule
-     {\expenv {\exp_1} {\VVal {\exp_1}} \boolTyp {\dir_1} \\\\
-      \expenv {\exp_2} {\VVal {\exp_2}} {\integerTyp} {\dir_2} \\\\
-      \expenv {\exp_3} {\VVal {\exp_3}} {\integerTyp} {\dir_3}\\\\
-      % \typ_1 = \typ_2 \\
-      % \typ_1 \eq \integerTyp \\
-      \compTimeKnown {\exp_1}}
-     {\expenv {\ternary {\exp_1} {\exp_2} {\exp_3}} {\ternary {\VVal {\exp_1}} {\VVal {\exp_2}} {\VVal {\exp_3}}} {\integerTyp} \less }
-     \quad (\ternaryIntE)}
-
-~ End InfRule
-# Declaration's Typing Rules { #sec-decl-typing }
-
-## Enum Type declaration { #sec-enum-typ-decl }
-```done```
-
-- Note that $\typMem \typName \field $ in the rules below is a name and not an expression. We are overloading the syntax of type membership since from the context it is clear whether it represents an expression or a string.
-- $\valMatchTyp {\surfaceTyp, \exp}$ checks if one of the followings holds:
-  + $\exp$ has the type $\surfaceTyp$
-  + an implicit cast can be inserted for $\exp$ so that it has the type $\surfaceTyp$
-
-~ Begin InfRule
-
-  \mprset{vskip=0.7ex}
-  {\inferrule
-     { \VVal \typEnv = \insertToTypEnv \typName {\enumTypNoTypDef}\\\\
-       \VVal \varEnv = \insertsToVarEnv {\typMem \typName \field} \enumTypNoTypDef \less\\\\
-       \VVal \constEnv = \insertsToConstEnv {\typMem \typName \field} {\enumVal \typName \field}}
-     { \dclenv {\enumDcl \typName \fields} {\enumDcl \typName \fields} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv }}
-     \quad (\enumD)
-
-\and
-
-  \mprset{vskip=0.7ex}
-  {\inferrule
-     { \typWellFormed \enumTypDef \\
-       % \widthInt {\surfaceTyp} = \width \\
-       % \isConstant \exp \\\\
-       \compTimeKnown {\exps}\\\\
-       \valMatchTyp {\overline {\surfaceTyp, \exp}}\\\\
-       \VVal \typEnv = \insertToTypEnv \typName {\enumTypDef}\\\\
-       \VVal \varEnv = \insertsToVarEnv {\typMem \typName \field} \enumTypDef \less\\\\
-       \VVal \constEnv = \insertsToConstEnv {\typMem \typName \field} {\enumVal \typName \field}
-       }
-     { \dclenv {\serEnumDcl {\surfaceTyp} \typName \field \exp} {\serEnumDcl {\surfaceTyp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv }}
-     \quad (\serEnumD)
-
-\and
-
-  \mprset{vskip=0.7ex}
-  {\inferrule
-     { \lookupTypSynEnv {\VVal \typName} = \surfaceTyp \\
-       \dclenv {\serEnumDcl {\surfaceTyp} \typName \field \exp} {\serEnumDcl {\surfaceTyp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv
-       }
-     { \dclenv {\serEnumDcl {\VVal \typName} \typName \field \exp} {\serEnumDcl {\surfaceTyp} \typName \field \exp} {\VVal \varEnv} {\VVal \constEnv} {\VVal \typEnv} \typSynEnv}}
-     \quad (\serEnumTypdefD)
-
-~ End InfRule
-
-## Header Type Declaration { #sec-header-typ-decl }
-
-```done```
-
-~ Begin InfRule
-
-  \mprset {vskip = 0.7ex}
-  {\inferrule
-    {\typWellFormed {\headerTyps  \typParam \field {\surfaceTyp}}\\\\
-     \VVal \typEnv = \insertToTypEnv \typName {\headerTyps  \typParam \field {\surfaceTyp}}
-    }
-    {\dclenv {\headerDcl \typName \typParam \field {\surfaceTyp}} {\headerDcl \typName \typParam \field {\surfaceTyp}} {\varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
-  \quad (\headerD)
-
-~ End InfRule 
-
-
-## Struct Type Declaration { #sec-struct-typ-decl }
-
-```done```
-
-~ Begin InfRule
-
-  \mprset {vskip = 0.7ex}
-  {\inferrule
-    {\typWellFormed {\structTyps  \typParam \field {\surfaceTyp}}\\\\
-    \VVal \typEnv = \insertToTypEnv \typName {\structTyps \typParam \field {\surfaceTyp }}}
-    {\dclenv {\structDcl \typName \typParam \field {\surfaceTyp}} {\structDcl \typName \typParam \field {\surfaceTyp}} { \varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
-  \quad (\structD)
-
-~ End InfRule 
-
-## Header Union Type Declaration { #sec-header-union-typ-decl }
-
-```done```
-
-~ Begin InfRule
-
-  \mprset {vskip = 0.7ex}
-  {\inferrule
-    {\typWellFormed {\headerUnionTyps  \typParam \field {\surfaceTyp}}\\\\
-     \VVal \typEnv = \insertToTypEnv \typName {\headerUnionTyps  \typParam \field {\surfaceTyp}}}
-    {\dclenv {\headerUnionDcl \typName \typParam \field {\surfaceTyp}} {\headerUnionDcl \typName \typParam \field {\surfaceTyp}} { \varEnv} { \constEnv} {\VVal \typEnv} \typSynEnv}}
-  \quad (\headerUnionD)
-
-~ End InfRule 
-
-## Error Declaration { #sec-error-decl }
-
-```done```
-
-The newly declared error fields must not already exists in the type environment.
-
-~ Begin InfRule
-% \errDcl \fields
-
-  \mprset {vskip = 0.7ex}
-  {\inferrule
-    {\lookupTypEnv {\overline {\errMem \field}} = \emp \\\\
-       \VVal \varEnv = \insertsToVarEnv {\errMem  \field} \errTyp \less\\\\
-       \VVal \constEnv = \insertsToConstEnv {\errMem \field} {\errVal  \field}}
-    {\dclenv {\errDcl \fields} {\errDcl \fields} {\VVal \varEnv} {\VVal \constEnv} {\typEnv} \typSynEnv}}
-  \quad (\errD)
-
-~ End InfRule 
-
-# References    { #sec-references }
-
-~ Bibliography { caption:"00" }
-~~Bibitem {#harper-types-PL}
-Robert Harper.
-Types and Programming Languages.
-<http://www.cs.cmu.edu/~rwh/courses/typesys/>
-~~
-~~Bibitem {#wiki-type-sys}
-Type System.
-<https://en.wikipedia.org/wiki/Type_system>
-~~
-~
 
 

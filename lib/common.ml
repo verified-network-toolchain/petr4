@@ -229,6 +229,7 @@ module MakeDriver (IO: DriverIO) = struct
   
   let print_clight (out: Pass.output) prog = 
     let (clight,_),_ = prog in
+    Poulet4_Ccomp.PrintClight.change_destination out.out_file;
     Poulet4_Ccomp.PrintClight.print_if clight;    
     Ok prog
 

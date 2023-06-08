@@ -981,7 +981,7 @@ The following notations are used in the definitions of the rules in the rest of 
 ###### - $\shiftCond {\typ} {\exp}$ is a predicate that returns $\tru$ if one of the following holds: { -; font-weight: "normal"; id: shiftCond; label: "shiftCond" }
 
   + $\typ = \bitWidthTyp \width$
-  + $\typ = \integerTyp$, $\compTimeKnown \exp$, and $\nonNeg \exp$ 
+  + $\typ = \integerTyp$ and $\nonNeg \exp$ 
 
 ###### - $\ifIntComp \typ \exp$ is a predicate that returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-known. { -; font-weight: "normal"; id: ifIntComp; label: "ifIntComp" }
 
@@ -1445,7 +1445,7 @@ $\int$
 
 $\intWidth \int \width$
 
-- A fixed-width signed integer literal is well-formed if its width is positive.
+- A fixed-width signed integer literal is well-formed only if its width is positive.
 
 ~ Begin InfRule
   \inferrule
@@ -1458,7 +1458,7 @@ $\intWidth \int \width$
 
 $\bitWidth \int \width$
 
-- A fixed-width unsigned integer literal is well-formed if its width is non-negative.
+- A fixed-width unsigned integer literal is well-formed only if its width is non-negative.
 
 ~ Begin InfRule
   \inferrule
@@ -1478,9 +1478,9 @@ $\arrayAccess {\exp_1} {\exp_2}$ where $\exp_1 : \headerStackTyp \typ \size$
 
 *todo: have to check this. the old note only mentioned that the tuple case is done.*
 
-- The structure being accessed, that is, $\exp_1$, is a well-formed header stack type $\headerStackTyp \typ \size$.
-- The access index is a well-formed expression of [numeric type][#is-numeric].
-- Then accessing the header stack $\exp_1$ at the index $\exp_2$ is well-formed with type $\typ$.
+- The structure being accessed, that is, $\exp_1$, must be a well-formed header stack type, denoted by $\headerStackTyp \typ \size$.
+- The access index must be a well-formed expression of a [numeric type][#isNumeric].
+- Then, accessing the header stack $\exp_1$ at the index $\exp_2$ is well-formed with type $\typ$.
 
 
 ~ Begin InfRule
@@ -1495,10 +1495,11 @@ $\arrayAccess {\exp_1} {\exp_2}$ where $\exp_1 : \headerStackTyp \typ \size$
 
 $\arrayAccess {\exp_1} {\exp_2}$ where $\exp_1 : \tupleTyp {\typ_1} {\typ_n}$
 
-- The structure being accessed, that is, $\exp_1$, is a well-formed tuple type with $n$ elements.
-- The access index is a well-formed integer type.
-- The access index evaluates to integer $\int$ at compile-time and is between the bounds of the tuple type.
-- Then accessing the tuple $\exp_1$ at the index $\exp_2$ is well-formed with type $\typ_\int$.
+- The structure being accessed, that is, $\exp_1$, must be a well-formed tuple type with $n$ elements.
+- The access index must be a well-formed integer type.
+- The access index must [be evaluated to integer $\int$ at compile-time][#compileTimeEval].
+- $\int$ must be between the bounds of the tuple type.
+- Then, accessing the tuple $\exp_1$ at the index $\exp_2$ is well-formed with type $\typ_\int$.
 
 ~ Begin InfRule
   \inferrule
@@ -1518,17 +1519,17 @@ Bitstring slicing may occur over a fixed-width signed or unsigned integer.
 
 $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$
 
-- Either:
-  + Bitstring slicing is over a fixed-width unsigned integer, that is, $\exp_1 : \bitWidthTyp \width$.
+- The bitstring slicing must be over a well-formed expression $\exp_1$. Either:
+  + The type of $\exp_1$ must be a fixed-width unsigned integer $\bitWidthTyp \width$.
 - Or:
-  + It is over a fixed-width signed integer, that is, $\exp_1 : \intWidthTyp \width$.
-- Under a $\cte$ context, expressions representing the indices of slicing are well-formed with one the following types:
+  + The type of $\exp_1$ must be a fixed-width signed integer $\intWidthTyp \width$.
+- Under a $\cte$ context, expressions representing the indices of slicing must be well-formed with one the following types, denoted by the [function *is\_num\_or\_enum*][#isNumOrEnum]:
    + $\integerTyp$
    + $\intWidthTyp \width$
    + $\bitWidthTyp \width$
    + $\enumTypDef$
-- Expressions representing the lower and upper indices evaluate to numbers $\int_1$ and $\int_2$, respectively, at compile-time.
-- The lower and upper indices of the slicing are in bound of the width of the fixed-width integer and each other.
+- Expressions representing the lower and upper indices must [be evaluated to numbers $\int_1$ and $\int_2$, respectively, at compile-time][#compileTimeEval].
+- The lower and upper indices of the slicing must be in bound of the width of the fixed-width integer and each other.
 - Then, slicing a bitstring from index $\exp_2$ to $\exp_3$ is well-formed with type either:
    + $\bitWidthTyp {\int_2 - \int_1 + 1}$.
 - Or:
@@ -1574,7 +1575,7 @@ $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$
 
 $\list \exps$
 
-- Elements of the list are well-formed with types $\typs$.
+- Elements of the list must be well-formed with types $\typs$.
 - Then, the list is well-formed with type $\listTyps \typ$.
 
 ~ Begin InfRule
@@ -1590,7 +1591,7 @@ $\list \exps$
 
 $\records \exp$
 
-- The fields are distinct.
+- The fields are [distinct][#distinct].
 - The expressions assigned to the fields are well-formed with types $\typs$.
 - Then, the record is well-formed with type struct type $\structTyps { } \field \typ$.
 
@@ -1622,8 +1623,8 @@ $\intoOp ! \exp$
 
 $\intoOp \bitComplement \exp$
 
-- The expression $\exp$ must be well-formed with a [fixed-width integer type][#sec-aux-notation-type-checker].
-- Then, the expression $\intoOp \bitComplement \exp$ is well-formed with the same fixed-width integer type as the expression $\exp$.
+- The expression $\exp$ must be well-formed with a [fixed-width integer type][#isWidthInt] $\typ$.
+- Then, the expression $\intoOp \bitComplement \exp$ is well-formed with type $\typ$.
 
 ~ Begin InfRule
   \inferrule
@@ -1635,8 +1636,8 @@ $\intoOp \bitComplement \exp$
 
 $\intoOp - \exp$
 
-- The expression $\exp$ must be well-formed with a [numeric type][#sec-aux-notation-type-checker].
-- Then, the expression $\intoOp - \exp$ is well-formed with the same numeric type as the expression $\exp$.
+- The expression $\exp$ must be well-formed with a [numeric type][#isNumeric] $\typ$.
+- Then, the expression $\intoOp - \exp$ is well-formed with type $\typ$.
 
 ~ Begin InfRule
   \inferrule
@@ -1668,8 +1669,8 @@ $\binOpExp {\&\&} {\exp_1} {\exp_2}$ or $\binOpExp \logor {\exp_1} {\exp_2}$
 
 $\binOpExp {\intoOp +} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp -} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp *} {\exp_1} {\exp_2}$
 
-- Both operand expressions must be well-formed with a [numeric type][].
-- Operand expressions must have the [same type][].
+- Both operand expressions must be well-formed with a [numeric type][#isNumeric].
+- Operand expressions must have the [same type][#sec-type-eq-type-checker].
 - Then, the addition/subtraction/multiplication expression is well-formed with a numeric type the same as its operands.
 
 ~ Begin InfRule
@@ -1686,9 +1687,10 @@ $\binOpExp {\intoOp +} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp -} {\exp_1} {\e
 
 $\binOpExp {\intoOp {==}} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp {!=}} {\exp_1} {\exp_2}$
 
-- Both operand expressions must be well-formed with type ??
-- Operand expressions must have the [same type][].
-- Equality of expressions must be defined for the operand expressions' types[].
+- Both operand expressions must be well-formed.
+- The operand expressions must have the [same type][#sec-type-eq-type-checker].
+- Their types must have defined [equality checking for expressions of this type][#typHasEq].
+- The types of operand expression can be any type, however, [if they are $\integerTyp$ the expressions must be compile-time-known][#ifIntComp].
 - Then, the equality/inequality expression is well-formed with $\boolTyp$ type. 
 
 ~ Begin InfRule
@@ -1696,34 +1698,37 @@ $\binOpExp {\intoOp {==}} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp {!=}} {\exp_
   {\inferrule[\rn{EqualityChecks}\rE(\ops=\ \intoOp{==}, \intoOp{!=})]
      { \expCheck {\exp_1} {\typ_1} \\
        \expCheck {\exp_2} {\typ_2}\\\\
-       \ifIntComp {\typ_1} {\exp_1} \\
-       \ifIntComp {\typ_2} {\exp_2}\\\\
        \typEq {\typ_1} {\typ_2} \\
-       \typHasEq {\typ_1} 
+       \typHasEq {\typ_1} \\\\
+       \ifIntComp {\typ_1} {\exp_1} \\
+       \ifIntComp {\typ_2} {\exp_2}
        }
      { \expCheck {\binOpExp \restOps {\exp_1} {\exp_2}} \boolTyp  }}
 ~ End InfRule
 
 $\binOpExp {\intoOp \plusSat} {\exp_1}  {\exp_2}$ or $\binOpExp {\intoOp \subSat} {\exp_1} {\exp_2}$
 
-- slkd
-- Then,
+- Both operand expressions must be well-formed.
+- The operand expressions must have the [same type][#sec-type-eq-type-checker].
+- The operand expressions' types must be a [fixed-width integer type][#isWidthInt].
+- Then, the saturating expression is well-formed with its operand's type.
 
 ~ Begin InfRule
 \mprset {vskip=0.7ex}
   {\inferrule[\rn{OpSat}\rE(\ops = \intoOp \plusSat,\intoOp \subSat)]
      { \expCheck {\exp_1}  {\typ_1} \\
        \expCheck {\exp_2}  {\typ_2} \\\\
-       \isWidthInt {\typ_1} \\
-       \typEq {\typ_1} {\typ_2}
+       \typEq {\typ_1} {\typ_2}\\
+       \isWidthInt {\typ_1} 
        }
      {\expCheck {\binOpExp \restOps {\exp_1} {\exp_2}} {\typ_1} }}
 ~ End InfRule
 
 $\binOpExp {\intoOp \bitAnd} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp \bitOr} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp \bitXor} {\exp_1} {\exp_2}$
 
-- Operand expressions must be well-formed with a [fixed-width integer type][].
-- The operand expression must have the [same type][].
+- Operand expressions must be well-formed. 
+- The operand expression must have the [same type][#sec-type-eq-type-checker].
+- The operand expressions' types must be a [fixed-width integer type][#isWidthInt].
 - Then, the bitwise and/or/xor expression is well-formed with the same type as its operands.
 
 ~ Begin InfRule
@@ -1731,8 +1736,8 @@ $\binOpExp {\intoOp \bitAnd} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp \bitOr} {
   {\inferrule[\rn{BitwiseOps}\rE(\ops=\intoOp \bitAnd, \intoOp \bitOr, \intoOp \bitXor)]
      { \expCheck {\exp_1}  {\typ_1} \\
        \expCheck {\exp_2} {\typ_2} \\\\
-       \isWidthInt {\typ_1} \\
-       \typEq {\typ_1} {\typ_2}
+       \typEq {\typ_1} {\typ_2}\\
+       \isWidthInt {\typ_1}
        }
      {\expCheck {\binOpExp \restOps {\exp_1} {\exp_2}}{\typ_1} }}
 ~ End InfRule
@@ -1740,7 +1745,8 @@ $\binOpExp {\intoOp \bitAnd} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp \bitOr} {
 $\binOpExp {\intoOp \concat} {\exp_1}  {\exp_2}$
 
 - The operand expressions must be well-formed.
-- Then, the concatenation expression is well-formed with the type??
+- The operand expressions must have a fixed-width integer types $\typ_1$ and $\typ_2$.
+- Then, the concatenation expression is well-formed with the [type $\concatCond {\typ_1} {\typ_2}$][#concatCond].
 
 ~ Begin InfRule
 \mprset {vskip=0.7ex}
@@ -1753,8 +1759,9 @@ $\binOpExp {\intoOp \concat} {\exp_1}  {\exp_2}$
 
 $\binOpExp { \intoOp <} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \leqOp} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp >} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \geqOp} {\exp_1} {\exp_2}$
 
-- The operand expressions must be well-formed with a [numeric type][].
-- The operand expressions must have the same type.
+- The operand expressions must be well-formed.
+- The operand expression must have a [numeric type][#isNumeric].
+- The operand expressions must have the [same type][#sec-type-eq-type-checker].
 - Then, the comparison expression is well-formed with $\boolTyp$ type.
 
 ~ Begin InfRule
@@ -1772,7 +1779,7 @@ $\binOpExp { \intoOp <} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \leqOp} {\exp
 $\binOpExp { \intoOp \div} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \mod} {\exp_1} {\exp_2}$
 
 - The operand expressions must be well-formed with $\integerTyp$ type.
-- Both operand expressions must evaluate to a non-negative number at compile-time.
+- Both operand expressions must be [evaluated to a non-negative number at compile-time][#nonNeg].
 - Then, the division/modulo expression is well-formed with $\integerTyp$ type.
 
 ~ Begin InfRule
@@ -1789,9 +1796,11 @@ $\binOpExp { \intoOp \div} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \mod} {\ex
 $\binOpExp { \intoOp \shiftL} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \shiftR} {\exp_1} {\exp_2}$
 
 - The operand expressions must be well-formed.
-- The left-hand operand expression must have a [numeric type][].
-- The right-hand ???
-- Then, the shifting expression is well-formed with a type the same as its left-hand operand.
+- The left-hand operand expression must have a [numeric type][#isNumeric], denoted by $\typ_1$.
+- The right-hand expression $\exp_2$ must [satisfy one of the following][#shiftCond]:
+   + its type is $\bitWidthTyp \width$
+   + its type is $\integerTyp$ and $\nonNeg {\exp_2}$.
+- Then, the shifting expression is well-formed with a type the same as its left-hand operand, that is, $\typ_1$.
 
 ~ Begin InfRule
   \inferrule[\rn{ShiftOps}\rE(\ops=\intoOp \shiftL, \intoOp \shiftR)]
@@ -1843,8 +1852,8 @@ It might seem that petr4 allows mask operation to also operate on arbitrary prec
 
 $\range {\exp_1} {\exp_2}$
 
-- The operand expressions are both well-formed with fixed-width integer types.
-- The types of the operand expressions are [equal][#sec-type-eq-type-checker].
+- The operand expressions both must be well-formed with [fixed-width integer types][#isWidthInt].
+- The types of the operand expressions must be [the same][#sec-type-eq-type-checker].
 - Then, ranging from expression $\exp_1$ to $\exp_2$ is well-formed with type $\setTyp {\typ_1}$.
 
 ~ Begin InfRule

@@ -227,8 +227,10 @@ module MakeDriver (IO: DriverIO) = struct
        | _ ->
           Error (ToCLightError ("Unknown failure in Ccomp"))
   
-  let print_clight (out: Pass.output) prog =
-    Format.eprintf "TODO: implement Clight pretty printing.\n";
+  let print_clight (out: Pass.output) prog = 
+    let (clight,_),_ = prog in
+    Poulet4_Ccomp.PrintClight.change_destination out.out_file;
+    Poulet4_Ccomp.PrintClight.print_if clight;    
     Ok prog
 
   let run_parser (cfg: Pass.parser_cfg) =

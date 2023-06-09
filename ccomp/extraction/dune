@@ -82,7 +82,7 @@
    Zbool
    Zpower
    )
- (libraries zarith bignum))
+ (plugins zarith bignum))
 
 (library 
   (name poulet4_Ccomp)

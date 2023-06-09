@@ -1,6 +1,6 @@
-(lang dune 2.8)
+(lang dune 3.8)
 (using menhir 2.0)
-(using coq 0.2)
+(using coq 0.8)
 (name petr4)
 
 (generate_opam_files true)

@@ -100,7 +100,7 @@
   Shift
   RecordSet
   Pure)
- (libraries zarith bignum)
+ (plugins zarith bignum)
  (theories Poulet4))
 
 (library

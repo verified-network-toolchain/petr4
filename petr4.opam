@@ -23,11 +23,10 @@ depends: [
   "conf-m4"
   "poulet4"
   "poulet4_Ccomp"
-  "coq-compcert"
   "alcotest"
   "bignum"
   "ocaml" {>= "4.09.1"}
-  "dune" {>= "2.8" & >= "1.2"}
+  "dune" {>= "3.8" & >= "1.2"}
   "cstruct"
   "cstruct-sexp"
   "menhir"

@@ -1922,7 +1922,9 @@ Fixpoint parser_cases_cast_2_if (expr: @Expression tags_t)
   | [] => empty_statement (* TODO should trigger a runtime error *)
   | (MkParserCase tags matches next) :: rest =>
       match matches with
-      | [MkMatch tagm (MatchCast mtyp mexpr) atyp] =>
+      | [MkMatch tagm (MatchCast (TypSet mtyp) mexpr) atyp] =>
+          (** NOTE that the following lines transform type casting (TypSet mtyp) to mtype directly.
+              It is not generally valid. It is just a walk around solution for particular programs.*)
           let val_expr := MkExpression tagm (ExpCast mtyp mexpr) atyp Directionless in
           let cond := MkExpression tagm (ExpBinaryOp Eq expr val_expr) TypBool Directionless in
           let method := MkExpression dummy_tags (ExpName (BareName next) (LInstance [str next])) empty_func_type Directionless in

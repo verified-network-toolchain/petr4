@@ -857,8 +857,9 @@ To be concrete, environements are all accumulated in one place and they are defi
 ###### - The notation $\lookupTypEnv \name$ looks up $\name$ in type enviornment $\typEnv$. Such notation is used for looking up in any of the enviornments. Note that $\typEnv$ stands for $\env . \typEnv$ in a lookup as well. Consequently, the notation $\env(\name)$ is meaningless since it does not state which enviornment field of $\env$ is being used for the lookup. { -; font-weight: "normal"; id: lookup-env; label: "lookup-env" }
 ###### - The notation $\insertToTypEnv \typName \typ $ extends the type environment with the new assignment of $\typ$ to $\typName$. This notation is used for extending any of the environments. { -; font-weight: "normal"; id: extend-env; label: "extend-env" }
 ###### - The notation $\insertToTypParEnv \typParam$ is a shorthand for $\insertToTypParEnv {\typParam = \notInstantiatedTyp}$ which extends the type parameter environment with the new parameter $\typParam$ that is not instantiated.  { -; font-weight: "normal"; id: extend-typ-par-env; label: "extend-typ-par-env" }
-###### - The notation $\updateEnv {\typEnv = \VVal \typEnv}$ denotes the same environment as $\env$, except that the type environement $\typEnv$ has been replaced with type environment $\VVal \typEnv$. { -; font-weight: "normal"; id: ; label: "update-env" }
+###### - The notation $\updateEnv {\VVal \typEnv}$ is short for $\updateEnv {\typEnv = \VVal \typEnv}$ which denotes the same environment as $\env$, except that the type environement $\typEnv$ has been replaced with type environment $\VVal \typEnv$. { -; font-weight: "normal"; id: update-env; label: "update-env" }
 ###### - The notation $\updateEnv {\insertToTypEnv \typName \typ}$ denotes the same environment as $\env$, except that the type environement $\typEnv$ has been extended with the assignment of $\typ$ to $\typName$. { -; font-weight: "normal"; id: update-env-extension; label: "update-env-extension" }
+###### - The notation $\updateEnv {\VVal \typEnv, \VVal \varEnv, \cdots}$ denotes the same environment as $\env$, except that the environment $\typEnv, \varEnv, \cdots$ have been replaced with environments $\VVal \typEnv, \VVal \varEnv, \cdots$. { -; font-weight: "normal"; id: update-envs; label: "update-envs" }
 ###### - The notation $\emp$ denotes an empty environment. { -; font-weight: "normal"; id: emp-env; label: "emp-env" }
 
 ### Informal Notation { #sec-informal-notation }
@@ -2251,5 +2252,78 @@ $\range {\exp_1} {\exp_2}$
 
 ## Declarations { #sec-dcl-type-checker }
 
+The type checker judgment for declarations has the form $\dclCheck \dcl {\VVal \env}$ and it reads "under environment $\env$, the declaration $\dcl$ is well-formed and it updates the environment $\env$ to $\VVal \env$".
+
+### Header Type Declaration { #sec-header-typ-decl-type-checker }
+
+### Header Union Type Declaration { #sec-header-union-typ-decl-type-checker }
+
+### Struct Type Declaration { #sec-struct-typ-decl-type-checker }
+
+### Error Type Declaration { #sec-error-typ-decl-type-checker }
+
+### Match Kind Type Declaration { #sec-matchkind-typ-decl-type-checker }
+
+### Enum Type Declaration { #sec-enum-typ-decl-type-checker }
+
+- The type of the declared enum type must be [well-formed][#sec-enum-t].
+- Then, the declared enum type is well-formed and it extends the environment $\env$ with:
+   + The type environment $\typEnv$ is extended with the assignment of type $\enumTypNoTypDef$ to $\typName$.
+   + The variable environment $\varEnv$ is extended with the assignments of the the enum type $\enumTypNoTypDef$ and $\less$ direction to enum fields, that is, $\overline {\typMem \typName \field}$.
+   + The constant environment $\constEnv$ is extended with the assignments of the enum fields $\overline {\typMem \typName \field}$ to themselves, that is, $\overline {\typMem \typName \field}$.
+
+~ Begin InfRule
+  \mprset{vskip=0.9ex}
+  {\inferrule
+     {\typWellFormed \enumTypNoTypDef\\\\
+      \VVal \typEnv = \insertToTypEnv \typName {\enumTypNoTypDef}\\\\
+       \VVal \varEnv = \insertsToVarEnv {\typMem \typName \field} \enumTypNoTypDef \less\\\\
+       \VVal \constEnv = \insertsToConstEnv {\typMem \typName \field} {\enumVal \typName \field}}
+     { \dclCheck {\enumDcl \typName \field} {\updateEnv {\VVal \varEnv, \VVal \constEnv, \VVal \typEnv}} }}
+     \quad (\enumD)
+~ End InfRule
+
+
+### Serializable Enum Type Declaration { #sec-ser-enum-typ-decl-type-checker }
+
+- $\valMatchTyp {\surfaceTyp, \exp}$ checks if one of the followings holds:
+  + $\exp$ has the type $\surfaceTyp$
+  + an implicit cast can be inserted for $\exp$ so that it has the type $\surfaceTyp$
+
+~ Begin InfRule
+  \mprset{vskip=0.7ex}
+  {\inferrule
+     { \lookupTypSynEnv {\VVal \typName} = \typ \\\\
+       \dclCheck {\serEnumDcl {\typ} \typName \field \exp} {\updateEnv {\VVal \varEnv, \VVal \constEnv, \VVal \typEnv}}
+       }
+     { \dclCheck {\serEnumDcl {\VVal \typName} \typName \field \exp} {\updateEnv {\VVal \varEnv, \VVal \constEnv, \VVal \typEnv}}}}
+     \quad (\serEnumTypdefD)
+~ End InfRule
+
+~ Begin InfRule
+  \mprset{vskip=0.9ex}
+  {\inferrule
+     { \typWellFormed \enumTypDef \\
+       % \widthInt {\surfaceTyp} = \width \\
+       % \isConstant \exp \\\\
+       \compTimeKnown {\exps}\\\\
+       \valMatchTyp {\overline {\typ, \exp}}\\\\
+       \VVal \typEnv = \insertToTypEnv \typName {\enumTypDef}\\\\
+       \VVal \varEnv = \insertsToVarEnv {\typMem \typName \field} \enumTypDef \less\\\\
+       \VVal \constEnv = \insertsToConstEnv {\typMem \typName \field} {\enumVal \typName \field}
+       }
+     { \dclCheck {\serEnumDcl {\typ} \typName \field \exp} {\updateEnv {\VVal \varEnv, \VVal \constEnv, \VVal \typEnv}}}}
+     \quad (\serEnumD)
+~ End InfRule
+
+### Type Definition { #sec-typdef-typ-decl-type-checker }
+
+### Generative Type Definition { #sec-type-typ-decl-type-checker }
+
+### Control Type Declaration { #sec-control-typ-decl-type-checker }
+
+### Parser Type Declaration { #sec-parser-typ-decl-type-checker }
+
+### Package Type Declaration { #sec-package-typ-decl-type-checker }
 
 

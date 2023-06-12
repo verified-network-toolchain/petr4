@@ -252,6 +252,7 @@
 \newcommand{\stmtenvv}[5]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3}, {#4} \dashv \env_{#5}}
 %% \newcommand{\dclenv}[2]{\env, \ctxt \vdash {#1} \leadsto {#2} \dashv \env}
 \newcommand{\dclenv}[6]{\varEnv, \constEnv, \typEnv, \typSynEnv \vdash {#1} \leadsto {#2} \dashv {#3}, {#4}, {#5}, {#6}}
+\newcommand{\dclCheck}[2]{\env \vdash {#1} \dashv {#2}}
 %% \newcommand{\dclenvv}[4]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3} \dashv \env_{#4}}
 %% \newcommand{\dclenvvv}[4]{\constEnv, \typEnv \vdash {#1} \leadsto {#2} \dashv {#3}, {#4}}
 \newcommand{\explCast}[2]{\castenv {e} {#1} {#2}}
@@ -341,7 +342,7 @@
 \newcommand{\varEnv}{\Gamma}
 \newcommand{\constEnv}{\Sigma}
 \newcommand{\externEnv}{\Xi}
-\newcommand{\env}{\Gamma}
+\newcommand{\env}{\Omega}
 %% \newcommand{\typEnv}{\Gamma}
 %% \newcommand{\constEnv}{\Sigma}
 \newcommand{\typ}{\tau}

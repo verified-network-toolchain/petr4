@@ -2195,7 +2195,28 @@ $\cast {\typ} \exp$
 
 ### Expression Member Operation { #sec-exp-mem-type-checker }
 
-### Conditional { #sec-cond-type-checker }
+### Conditional Operation { #sec-cond-type-checker }
+
+$\ternary {\exp_1} {\exp_2} {\exp_3}$
+
+- The condition expression $\exp_1$ must be well-formed with $\boolTyp$ type.
+- The branch expressions $\exp_2$ and $\exp_3$ must be well-formed with types $\typ_1$ and $\typ_2$, respectively.
+- The types of the branch expression, that is, $\typ_1$ and $\typ_2$, must be [the same][#sec-type-eq-type-checker].
+- The types of the branch expression can be any type, however, [if they are $\integerTyp$ the condition expression must be compile-time-known][#ifIntComp].
+- Then, the expression $\ternary {\exp_1} {\exp_2} {\exp_3}$ is well-formed with the same type as its branches, that is, $\typ_1$.
+
+~ Begin InfRule
+\mprset {vskip=0.7ex}
+  {\inferrule
+     {\expCheck {\exp_1} \boolTyp  \\\\
+      \expCheck {\exp_2} {\typ_1} \\\\
+      \expCheck {\exp_3} {\typ_2}\\\\
+      \typEq {\typ_1} {\typ_2} \\
+      \ifIntComp {\typ_1} {\exp_1}}
+     {\expCheck {\ternary {\exp_1} {\exp_2} {\exp_3}} {\typ_1} }
+     \quad (\ternaryE)}
+~ End InfRule
+
 
 ### Function Call { #sec-func-call-type-checker }
 

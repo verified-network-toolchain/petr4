@@ -2147,6 +2147,48 @@ $\binOpExp { \intoOp \shiftL} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \shiftR
 
 ### Cast Operation { #sec-cast-type-checker }
 
+Casting the type of an expression to another type may occur by representing the type by a name or directly referring to the type.
+
+$\cast {\typName} \exp$
+
+- The expression $\exp$ must be well-formed with type $\typ$.
+- The type name $\typName$ must [exist in the type environment][#lookup-env] $\typEnv$ and it corresponds to the type $\VVal \typ$.
+- The type $\typ$ must [be castable][#sec-casting-type-checker] to the type $\VVal \typ$.
+- Then, the expression $\cast \typName \exp$ is well-formed.
+
+~ Begin InfRule
+\mprset {vskip = 0.7 ex}
+  {\inferrule
+     { \expCheck \exp {\typ}  \\
+       \lookupTypEnv \typName = \VVal\typ\\\\
+       \allcastenv {\typ} {\VVal \typ}}
+       % \explicitCastOK {\typ_2} {\pprim \typ}}
+     { \expCheck {\cast {\typName} \exp}  {\VVal \typ}  }}
+     \quad (\castTypNameE)
+
+~ End InfRule
+
+$\cast {\typ} \exp$
+
+- The expression $\exp$ must be well-formed with type $\VVal \typ$.
+- The type $\VVal \typ$ must [be castable][#sec-casting-type-checker] to the type $ \typ$.
+- Then, the expression $\cast \typ \exp$ is well-formed.
+
+~ Begin InfRule
+\mprset {vskip = 0.7 ex}
+  {\inferrule
+     { \expCheck \exp {\VVal \typ}  \\
+       % \typ_2 = \sat {\typ_1} \\
+       % \VVal \typ = \trans {\typ} {\emp} \\
+       % \pprim \typ = \sat {\VVal \typ} \\
+       % \typWellFormed {\VVal \typ} \\ %we don't even need to do this because the type has been generated.
+       \allcastenv {\VVal \typ} {\typ}}
+       % \explicitCastOK {\typ_2} {\pprim \typ}}
+     { \expCheck {\cast {\typ} \exp} {\typ}  }}
+     \quad (\castE)
+~ End InfRule
+
+
 ### Type Member Operation { #sec-type-mem-type-checker }
 
 ### Error Member Operation { #sec-err-mem-type-checker }

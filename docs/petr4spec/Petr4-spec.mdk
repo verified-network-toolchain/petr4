@@ -887,7 +887,7 @@ Conventionally, a typing rule is formally written as an inference rules. A rule 
 
 ~ End InfRule
 
-Such a rule reads as an implication: if all the premises hold, the the conclusion holds. Some rules do not have any premises, such rules are _axioms_ that hold unconditionally. The premises can either be:
+Such a rule reads as an implication: if all the premises hold, the conclusion holds. Some rules do not have any premises, such rules are _axioms_ that hold unconditionally. The premises can either be:
 
 - predicates that return true or false, for example, $ n > 1$ or $\isInt \exp$. 
 - assignments where the result of a function application is assigned to a variable that will be used in either other premises or the conclusion, for example, $\compileTimeEval \exp = \int$ evaluates the expression $\exp$ and assigns its value to $\int$.
@@ -2259,11 +2259,97 @@ The type checker judgment for declarations has the form $\dclCheck \dcl {\VVal \
 
 ### Header Type Declaration { #sec-header-typ-decl-type-checker }
 
+$\headerDcl \typName \typParam \field \typ$
+
+- The type of the declared header type must be [well-formed][#sec-header-t].
+- Let $\VVal \env$ be the same environment as $\env$, but with
+   + The type environment $ \typEnv$ extended with with the assignment of type $\headerDcl \typName \typParam \field {\typ}$ to $\typName$.
+   + The type parameter environment $ \typParEnv$ extended with the assignments of $\notInstantiatedTyp$ to each of the type parameters of $\typParams$.
+- Then, the declared header type is well-formed and it [updates the environment][#update-envs] to $\VVal \env$.
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.9ex}
+  {\inferrule
+    {\typWellFormed {\headerTyps  \typParam \field {\typ}}\\\\
+     \VVal \typEnv = \insertToTypEnv \typName {\headerTyps  \typParam \field {\typ}}\\\\
+     \VVal \typParEnv = \insertToTypParEnv {\overline {\typParam = \notInstantiatedTyp}}
+    }
+    {\dclCheck {\headerDcl \typName \typParam \field {\typ}} {\updateEnv {\VVal \typEnv, \VVal \typParEnv}}}}
+  \quad (\headerD)
+
+~ End InfRule 
+
+
 ### Header Union Type Declaration { #sec-header-union-typ-decl-type-checker }
+
+$\headerUnionDcl \typName \typParam \field  \typ$
+
+- The type of the declared header union type must be [well-formed][#sec-header-union-t].
+- Let $\VVal \env$ be the same environment as $\env$, but with
+   + The type environment $ \typEnv$ extended with with the assignment of type $\headerUnionDcl \typName \typParam \field {\typ}$ to $\typName$.
+   + The type parameter environment $ \typParEnv$ extended with the assignments of $\notInstantiatedTyp$ to each of the type parameters of $\typParams$.
+- Then, the declared header union type is well-formed and it [updates the environment][#update-envs] to $\VVal \env$.
+
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.9ex}
+  {\inferrule
+    {\typWellFormed {\headerUnionTyps  \typParam \field {\typ}}\\\\
+     \VVal \typEnv = \insertToTypEnv \typName {\headerUnionTyps  \typParam \field {\typ}}\\\\
+     \VVal \typParEnv = \insertToTypParEnv {\overline {\typParam = \notInstantiatedTyp}}}
+    {\dclCheck {\headerUnionDcl \typName \typParam \field {\typ}} {\updateEnv {\VVal \typEnv, \VVal \typParEnv}}}}
+  \quad (\headerUnionD)
+
+~ End InfRule 
+
+
 
 ### Struct Type Declaration { #sec-struct-typ-decl-type-checker }
 
+$\structDcl \typName \typParam \field \typ$
+
+- The type of the declared struct type must be [well-formed][#sec-struct-t].
+- Let $\VVal \env$ be the same environment as $\env$, but with
+   + The type environment $ \typEnv$ extended with with the assignment of type $\structTyps \typParam \field {\typ }$ to $\typName$.
+   + The type parameter environment $ \typParEnv$ extended with the assignments of $\notInstantiatedTyp$ to each of the type parameters of $\typParams$.
+- Then, the declared struct type is well-formed and it [updates the environment][#update-envs] to $\VVal \env$.
+
+~ Begin InfRule
+
+  \mprset {vskip = 0.9ex}
+  {\inferrule
+    {\typWellFormed {\structTyps  \typParam \field {\typ}}\\\\
+    \VVal \typEnv = \insertToTypEnv \typName {\structTyps \typParam \field {\typ }}\\\\
+    \VVal \typParEnv = \insertToTypParEnv {\overline {\typParam = \notInstantiatedTyp}}}
+    {\dclCheck {\structDcl \typName \typParam \field {\typ}} {\updateEnv {\VVal \typEnv, \VVal \typParEnv}}}}
+  \quad (\structD)
+
+~ End InfRule 
+
 ### Error Type Declaration { #sec-error-typ-decl-type-checker }
+
+$\errDcl \field$
+
+- The declared error fields must not already [exists in the type environment][#lookup-env] $\typEnv$.
+- Let $\VVal \env$ be the same environment as $\env$, but with
+   + The variable environment $ \varEnv$ extended with the assignments of the error type $\errTyp$ and $\less$ direction to error field names prefixed with the error, that is, $\overline {\errMem \field}$.
+   + The constant environment $ \constEnv$ extended with the assignments of the error field names prefixed with the error type $\overline {\errMem \field}$ to themselves, that is, $\overline {\errMem \field}$.
+- Then, the declared error type is well-formed and it [updates the environment][#update-envs] to $\VVal \env$.
+
+~ Begin InfRule
+% \errDcl \field
+
+  \mprset {vskip = 0.9ex}
+  {\inferrule
+    {\lookupTypEnv {\overline {\errMem \field}} = \emp \\\\
+       \VVal \varEnv = \insertsToVarEnv {\errMem  \field} \errTyp \less\\\\
+       \VVal \constEnv = \insertsToConstEnv {\errMem \field} {\errVal  \field}}
+    {\dclCheck {\errDcl \field} {\updateEnv {\VVal \varEnv, \VVal \constEnv}}}}
+  \quad (\errD)
+
+~ End InfRule 
 
 ### Match Kind Type Declaration { #sec-matchkind-typ-decl-type-checker }
 
@@ -2274,7 +2360,7 @@ $\enumDcl \typName \field$
 - The type of the declared enum type must be [well-formed][#sec-enum-t].
 - Let $\VVal \env$ be the same environment as $\env$, but with
    + The type environment $ \typEnv$ extended with with the assignment of type $\enumTypNoTypDef$ to $\typName$.
-   + The variable environment $ \varEnv$ extended with the assignments of the the enum type $\enumTypNoTypDef$ and $\less$ direction to enum field names prefixed with the enum name, that is, $\overline {\typMem \typName \field}$.
+   + The variable environment $ \varEnv$ extended with the assignments of the enum type $\enumTypNoTypDef$ and $\less$ direction to enum field names prefixed with the enum name, that is, $\overline {\typMem \typName \field}$.
    + The constant environment $ \constEnv$ extended with the assignments of the enum field names prefixed with the enum type $\overline {\typMem \typName \field}$ to themselves, that is, $\overline {\typMem \typName \field}$.
 - Then, the declared enum type is well-formed and it [updates the environment][#update-envs] to $\VVal \env$.
 
@@ -2318,7 +2404,7 @@ $\serEnumDcl {\typ} \typName \field \exp$
 - All the expressions assigned to the enum fields must be well-formed with type $\typ$. [refer to _[#valMatchTyp]_]
 - Let $\VVal \env$ be the same environment as $\env$, but with
    + The type environment $\typEnv$ extended with the assignment of type $\enumTypDef$ to $\typName$.
-   + The variable environment $\varEnv$ extended with the assignments of the the enum type $\enumTypDef$ and $\less$ direction to enum field names prefixed with the enum name, that is, $\overline {\typMem \typName \field}$.
+   + The variable environment $\varEnv$ extended with the assignments of the enum type $\enumTypDef$ and $\less$ direction to enum field names prefixed with the enum name, that is, $\overline {\typMem \typName \field}$.
    + The constant environment $ \constEnv$ extended with the assignments of the enum field names prefixed with the enum type $\overline {\typMem \typName \field}$ to themselves, that is, $\overline {\typMem \typName \field}$.
 - Then, the declared enum type is well-formed and it [updates the environment][#update-envs] to $\VVal \env$.
 

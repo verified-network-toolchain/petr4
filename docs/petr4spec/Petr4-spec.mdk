@@ -931,26 +931,27 @@ The following notations are used in the definitions of the rules in the rest of 
 ###### - $\compTimeKnown \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time. However, if the expression $\exp$ is a specialized type, extern, package, control, or parser but we cannot evaluate it at compile-time, we still consider it known at compile-time. { -; font-weight: "normal"; id: compTimeKnown; label: "compTimeKnown" }
 ###### - $\overline {\A}$ is a list of zero or more $\A$. { -; font-weight: "normal"; id: overline; label: "overline" }
 ###### - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgement to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgement: $\env \vdash \overline \A : \overline \typ$. Note that in this example the enviornment will not be extended so we do not need to pass it as a list. Applying a predicate to an empty list returns $\tru$ unless stated otherwise. { -; font-weight: "normal"; id: mapping; label: "mapping" }
-###### - $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union. { -; font-weight: "normal"; id: isHeaderOrUnion; label: "isHeaderOrUnion" }
-###### - $\isValidNestedTyp \typ$ is a predicate that returns true if the type $\typ$ can have nested types and its nested types are legal based on [P4's spec type nesting rules][#p4-type-nesting-rules]. We state explicitly what types can be nested in another type when defining the rule for the outer type to be well-formed. { -; font-weight: "normal"; id: isValidNestedTyp; label: "isValidNestedTyp" }
-###### - $\distinct \fields$ is a predicate that returns $\tru$ if fields in $\fields$ are all distinct. { -; font-weight: "normal"; id: distinct; label: "distinct" }
-###### - $\noFreeTypVar \typ$ is a predicate that returns $\tru$ if none of the type variables defined for the generic type $\typ$ are not free. { -; font-weight: "normal"; id: noFreeTypVar; label: "noFreeTypVar" }
-###### - $\isWidthInt \typ$ is a predicate that returns $\tru$ if the type $\typ$ is either $\intWidthTyp \exp$ or $\bitWidthTyp \exp$. { -; font-weight: "normal"; id: isWidthInt; label: "isWidthInt" }
-###### - $\isHeader \typ$ is a predicate that returns $\tru$ if the type $\typ$ is a header. { -; font-weight: "normal"; id: isHeader; label: "isHeader" }
-###### - $\isNumeric \exp \typ$ is a predicate that returns $\tru$ if one of the following holds: { -; font-weight: "normal"; id: isNumeric; label: "isNumeric" }
+*todo: add the distinction between map over = and not*
+###### - $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union. { -; font-weight: "normal"; id: isHeaderOrUnion; label: "is_header_or_union" }
+###### - $\isValidNestedTyp \typ$ is a predicate that returns true if the type $\typ$ can have nested types and its nested types are legal based on [P4's spec type nesting rules][#p4-type-nesting-rules]. We state explicitly what types can be nested in another type when defining the rule for the outer type to be well-formed. { -; font-weight: "normal"; id: isValidNestedTyp; label: "is_valid_nestted" }
+###### - $\distinct \fields$ is a predicate that returns $\tru$ if fields in $\fields$ are all distinct. { -; font-weight: "normal"; id: distinct; label: "are_distinct" }
+###### - $\noFreeTypVar \typ$ is a predicate that returns $\tru$ if none of the type variables defined for the generic type $\typ$ are not free. { -; font-weight: "normal"; id: noFreeTypVar; label: "no_free_type_var" }
+###### - $\isWidthInt \typ$ is a predicate that returns $\tru$ if the type $\typ$ is either $\intWidthTyp \exp$ or $\bitWidthTyp \exp$. { -; font-weight: "normal"; id: isWidthInt; label: "is_width_int" }
+###### - $\isHeader \typ$ is a predicate that returns $\tru$ if the type $\typ$ is a header. { -; font-weight: "normal"; id: isHeader; label: "is_header" }
+###### - $\isNumeric \exp \typ$ is a predicate that returns $\tru$ if one of the following holds: { -; font-weight: "normal"; id: isNumeric; label: "is_numeric" }
 
    * $\compTimeKnown \exp$ and $\typ = \integerTyp$
    * $\typ = \intWidthTyp \width$
    * $\typ = \bitWidthTyp \width$
 
-###### - $\isNumOrEnum \typ$ is a predicate that returns $\tru$ if $\typ$ is one of the following checks if $\typ$ is one of the following: { -; font-weight: "normal"; id: isNumOrEnum; label: "isNumOrEnum" }
+###### - $\isNumOrEnum \typ$ is a predicate that returns $\tru$ if $\typ$ is one of the following checks if $\typ$ is one of the following: { -; font-weight: "normal"; id: isNumOrEnum; label: "is_num_or_enum" }
 
    * $\integerTyp$
    * $\intWidthTyp \width$ ```does this have to be width? it cannot be an expression? same for the below```
    * $\bitWidthTyp \width$
    * $\enumTypDef$ ```p4 spec only allows the underlying type to be int<w> or bit<w>```
 
-###### - $\maskTypeIs {\typ_1} {\typ_2}$ is a function that determines the type of a mask expression based on the type of its two operands and it is defined for the following cases: { -; font-weight: "normal"; id: maskTypeIs; label: "maskTypeIs" }
+###### - $\maskTypeIs {\typ_1} {\typ_2}$ is a function that determines the type of a mask expression based on the type of its two operands and it is defined for the following cases: { -; font-weight: "normal"; id: maskTypeIs; label: "mask_type" }
 
   + if $\typ_1 = \typ_2 = \bitWidthTyp \width$,
   then $\maskTypeIs {\typ_1} {\typ_2} = \bitWidthTyp \width$
@@ -959,7 +960,7 @@ The following notations are used in the definitions of the rules in the rest of 
   + if $\typ_1 = \integerTyp, \typ_2 =  \bitWidthTyp \width$,
   then $\maskTypeIs {\typ_1} {\typ_2} = \bitWidthTyp \width$
 
-###### - $\typHasEq \typ$ is a predicate that returns $\tru$ if $\typ$ is one of the followings (conceptually, the following types are the ones that checking equality of two expressions both with one of these types has been defined. Note that this is different from checking if two types are equal): { -; font-weight: "normal"; id: typHasEq; label: "typHasEq" }
+###### - $\typHasEq \typ$ is a predicate that returns $\tru$ if $\typ$ is one of the followings (conceptually, the following types are the ones that checking equality of two expressions both with one of these types has been defined. Note that this is different from checking if two types are equal): { -; font-weight: "normal"; id: typHasEq; label: "has_equality" }
 
    * $\errTyp$
    * $\boolTyp$
@@ -973,7 +974,7 @@ The following notations are used in the definitions of the rules in the rest of 
    * $\headerUnionTyps \typParam \field {\surfaceTyp}$
    * $\structTyps \typParam \field \typ$
 
-###### - $\concatCond {\typ_1} {\typ_2}$ is a function that determines the type of a concatenation expression based on the type of its left operand: { -; font-weight: "normal"; id: concatCond; label: "concatCond" }
+###### - $\concatCond {\typ_1} {\typ_2}$ is a function that determines the type of a concatenation expression based on the type of its left operand: { -; font-weight: "normal"; id: concatCond; label: "concat_type" }
 
   + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
     $\concatCond {\typ_1} {\typ_2} = \bitWidthTyp {\width_1 + \width_2}$
@@ -984,14 +985,16 @@ The following notations are used in the definitions of the rules in the rest of 
   + if $\typ_1 = \intWidthTyp {\width_1}, \typ_2 = \intWidthTyp {\width_2}$, then
     $\concatCond {\typ_1} {\typ_2} = \intWidthTyp {\width_1 + \width_2}$
 
-###### - $\nonNeg \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time and it is non-negative. { -; font-weight: "normal"; id: nonNeg; label: "nonNeg" }
+###### - $\nonNeg \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time and it is non-negative. { -; font-weight: "normal"; id: nonNeg; label: "is_nonneg_numeric" }
 
-###### - $\shiftCond {\typ} {\exp}$ is a predicate that returns $\tru$ if one of the following holds: { -; font-weight: "normal"; id: shiftCond; label: "shiftCond" }
+###### - $\shiftCond {\typ} {\exp}$ is a predicate that returns $\tru$ if one of the following holds: { -; font-weight: "normal"; id: shiftCond; label: "shift_condition" }
 
   + $\typ = \bitWidthTyp \width$
   + $\typ = \integerTyp$ and $\nonNeg \exp$ 
 
-###### - $\ifIntComp \typ \exp$ is a predicate that returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-known. { -; font-weight: "normal"; id: ifIntComp; label: "ifIntComp" }
+###### - $\ifIntComp \typ \exp$ is a predicate that returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-known. { -; font-weight: "normal"; id: ifIntComp; label: "if_int_is_compile_time_known" }
+
+###### - $\valMatchTyp \exp \typ$ is a predicate that returns true if every single expression in $\exps$ is well-formed with type $\typ$. { -; font-weight: "normal"; id: valMatchTyp; label: "value_match_type" }
 
 
 - $\isSurface \typ$ is a predicate that returns $\tru$ if type $\typ$ is one of the cases of [surface types][#sec-ast-surface-type].
@@ -2266,11 +2269,14 @@ The type checker judgment for declarations has the form $\dclCheck \dcl {\VVal \
 
 ### Enum Type Declaration { #sec-enum-typ-decl-type-checker }
 
+$\enumDcl \typName \field$
+
 - The type of the declared enum type must be [well-formed][#sec-enum-t].
-- Then, the declared enum type is well-formed and it extends the environment $\env$ with:
-   + The type environment $\typEnv$ is extended with the assignment of type $\enumTypNoTypDef$ to $\typName$.
-   + The variable environment $\varEnv$ is extended with the assignments of the the enum type $\enumTypNoTypDef$ and $\less$ direction to enum fields, that is, $\overline {\typMem \typName \field}$.
-   + The constant environment $\constEnv$ is extended with the assignments of the enum fields $\overline {\typMem \typName \field}$ to themselves, that is, $\overline {\typMem \typName \field}$.
+- Let $\VVal \env$ be the same environment as $\env$, but with
+   + The type environment $ \typEnv$ extended with with the assignment of type $\enumTypNoTypDef$ to $\typName$.
+   + The variable environment $ \varEnv$ extended with the assignments of the the enum type $\enumTypNoTypDef$ and $\less$ direction to enum field names prefixed with the enum name, that is, $\overline {\typMem \typName \field}$.
+   + The constant environment $ \constEnv$ extended with the assignments of the enum field names prefixed with the enum type $\overline {\typMem \typName \field}$ to themselves, that is, $\overline {\typMem \typName \field}$.
+- Then, the declared enum type is well-formed and it [updates the environment][#update-envs] to $\VVal \env$.
 
 ~ Begin InfRule
   \mprset{vskip=0.9ex}
@@ -2286,19 +2292,35 @@ The type checker judgment for declarations has the form $\dclCheck \dcl {\VVal \
 
 ### Serializable Enum Type Declaration { #sec-ser-enum-typ-decl-type-checker }
 
-- $\valMatchTyp {\surfaceTyp, \exp}$ checks if one of the followings holds:
-  + $\exp$ has the type $\surfaceTyp$
-  + an implicit cast can be inserted for $\exp$ so that it has the type $\surfaceTyp$
+The underlying type of a serializable enum type may be a name that represents a type or the type itself. 
+
+$\serEnumDcl {\VVal \typName} \typName \field \exp$
+
+- The name $\VVal \typName$ representing the underlying type must [exist in the type synonym environment][#lookup-env] $\typSynEnv$.
+- Let $\typ$ be the type corresponding to $\VVal \typName$ in the type synonym environment. 
+- Substituting $\typ$ for $\typName$ in the serializable enum type declaration, that is, $\serEnumDcl {\typ} \typName \field \exp$, must be well-formed and it updates the environment to $\VVal \env$.
+- Then, the serializable enum type declaration $\serEnumDcl {\VVal \typName} \typName \field \exp$ is well-formed and it updates the environment to $\VVal \env$.
 
 ~ Begin InfRule
   \mprset{vskip=0.7ex}
   {\inferrule
      { \lookupTypSynEnv {\VVal \typName} = \typ \\\\
-       \dclCheck {\serEnumDcl {\typ} \typName \field \exp} {\updateEnv {\VVal \varEnv, \VVal \constEnv, \VVal \typEnv}}
+       \dclCheck {\serEnumDcl {\typ} \typName \field \exp} {\VVal \env}
        }
-     { \dclCheck {\serEnumDcl {\VVal \typName} \typName \field \exp} {\updateEnv {\VVal \varEnv, \VVal \constEnv, \VVal \typEnv}}}}
+     { \dclCheck {\serEnumDcl {\VVal \typName} \typName \field \exp} {\VVal \env}}}
      \quad (\serEnumTypdefD)
 ~ End InfRule
+
+$\serEnumDcl {\typ} \typName \field \exp$
+
+- The type of the declaration $\enumTypDef$ must be [well-formed][#sec-ser-enum-t].
+- The expressions assigned to the enum fields must be [known at compile-time][#compTimeKnown].
+- All the expressions assigned to the enum fields must be well-formed with type $\typ$. [refer to _[#valMatchTyp]_]
+- Let $\VVal \env$ be the same environment as $\env$, but with
+   + The type environment $\typEnv$ extended with the assignment of type $\enumTypDef$ to $\typName$.
+   + The variable environment $\varEnv$ extended with the assignments of the the enum type $\enumTypDef$ and $\less$ direction to enum field names prefixed with the enum name, that is, $\overline {\typMem \typName \field}$.
+   + The constant environment $ \constEnv$ extended with the assignments of the enum field names prefixed with the enum type $\overline {\typMem \typName \field}$ to themselves, that is, $\overline {\typMem \typName \field}$.
+- Then, the declared enum type is well-formed and it [updates the environment][#update-envs] to $\VVal \env$.
 
 ~ Begin InfRule
   \mprset{vskip=0.9ex}
@@ -2307,7 +2329,7 @@ The type checker judgment for declarations has the form $\dclCheck \dcl {\VVal \
        % \widthInt {\surfaceTyp} = \width \\
        % \isConstant \exp \\\\
        \compTimeKnown {\exps}\\\\
-       \valMatchTyp {\overline {\typ, \exp}}\\\\
+       \valMatchTyp \exp \typ\\\\
        \VVal \typEnv = \insertToTypEnv \typName {\enumTypDef}\\\\
        \VVal \varEnv = \insertsToVarEnv {\typMem \typName \field} \enumTypDef \less\\\\
        \VVal \constEnv = \insertsToConstEnv {\typMem \typName \field} {\enumVal \typName \field}

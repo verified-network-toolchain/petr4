@@ -1928,8 +1928,11 @@ Fixpoint parser_cases_cast_2_if (expr: @Expression tags_t)
           let val_expr := MkExpression tagm (ExpCast mtyp mexpr) atyp Directionless in
           let cond := MkExpression tagm (ExpBinaryOp Eq expr val_expr) TypBool Directionless in
           let method := MkExpression dummy_tags (ExpName (BareName next) (LInstance [str next])) empty_func_type Directionless in
-      let stmt := MkStatement tags (StatMethodCall method nil nil) StmUnit in
-      MkStatement tags (StatConditional cond stmt (Some (parser_cases_cast_2_if expr rest))) StmUnit
+          let stmt := MkStatement tags (StatMethodCall method nil nil) StmUnit in
+          MkStatement tags (StatConditional cond stmt (Some (parser_cases_cast_2_if expr rest))) StmUnit
+      | [MkMatch tagm MatchDontCare _] =>
+          let method := MkExpression dummy_tags (ExpName (BareName next) (LInstance [str next])) empty_func_type Directionless in
+          MkStatement tags (StatMethodCall method nil nil) StmUnit
       | _ => empty_statement (* TODO *)
       end
   end.

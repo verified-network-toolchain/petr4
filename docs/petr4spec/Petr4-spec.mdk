@@ -367,7 +367,7 @@ The following conventions are adopted in defining the grammar rules for surface 
 - Terminal symbols are writeen in sans-serif font or in symbolic form: $\boolTyp$, $\accept$, $\langle$, $\oplus$.
 - Nonterminal symbols are written in italic font: $\exp$, $\stmt$.
 - Each nonterminal symbol defines a new _syntactic category_.
-- Production rules in grammar are written as $\synCat ::= \A_1 | \cdots | \A_n$. Each rule describes a syntactic category and has multiple _constructor case_s. For example, the rule here describes the syntactic category $\synCat$ and has $n$ cases.
+- Production rules in grammar are written as $\synCat ::= \A_1 | \cdots | \A_n$. Each rule describes a syntactic category and has multiple _constructor cases_. For example, the rule here describes the syntactic category $\synCat$ and has $n$ cases.
 - Each case of a syntactic category is accompanied with a pharse that describes the role of that case, as shown below. Such phrase is not part of the grammar and is solely used as a comment to clarify the grammar more.
 
 ~ Begin P4Syntax
@@ -382,6 +382,8 @@ The following conventions are adopted in defining the grammar rules for surface 
 ~ End P4Syntax
 
 - Large production rules may be split into multiple production rules. This is explicitly indicated by having ellipses at the beginning or/and end of a rule. For example, $\synCat ::= \cdots | \A_i | \cdots$.
+- The notation $\overline {\A}$ denotes a list of zero or more $\A$. Passing arguments as list is wrapped in symbols such as paranthesis. For example, $(\overline A)$ or $\langle\overline A \rangle$ denote passing the list of $A$s. When the list is empty there is nothing inside the symbols. For example, $\mathit{foo}( )$ calls the function $\mathit{foo}$ on no input.
+
 
 ### Auxiliary Notation { #sec-aux-notation-ast }
 
@@ -389,9 +391,10 @@ Additionally, the following notation is used to keep definitions concise:
 
 - The notation $(a,b)$ is a pair where the first element is $a$ and the second element is $b$. For examaple, $(\tru, 3)$ is a pair of $\tru$ and $3$.
 - The notation $a \rightarrow b$ denotes a function that has domain $a$ and co-domain $b$. Note that both $a$ and $b$ reperenst a (possibly different) type.
-- For simplicity, a function also denotes a mapping.
+- For simplicity, a function denotes a mapping in an environment.
 - The notation $\A : \typ$ states that $\A$ has type $\typ$. For example, $\fls : \boolTyp$.
 - The following production rule is a record that its $\field_i$ has type $\typ_i$.
+
 
 ~ Begin P4Syntax
 
@@ -492,7 +495,6 @@ The surface IR has a signle syntactic category for types, however, this syntacti
 
 ### Declared Types { #sec-ast-dcl-type }
 
-*todo: note if a list of args such as type parameters or types for tuples is empty, it will appear with a space instead of having $\langle \emp \rangle$*
 
 ~ Begin P4Syntax
 
@@ -796,13 +798,13 @@ Declarations can be divided into three groups:
 
 # Type Checker { #sec-type-checker }
 
-The type checker takes a program written in the surface IR and simply states if the program is syntactically _well-formed_, that is, if the program is structurally valid. In which case it returns the type of the program. Note that the type checker does not change the given program at all. It assumes all type inference and cast insertion has already been taken care of. 
+The type checker takes phrases of a program written in the surface IR and simply states if they are syntactically _well-formed_, that is, if the program is structurally valid. In which case it returns the type of the phrase. Consequently, it determines if the program is well-formed or not. Note that the type checker does not change the given phrase at all. It assumes all type inference and cast insertion has already been taken care of. 
 
 ## Conventions { #sec-conventions-type-checker }
 
 [#web-assembly-link]: https://webassembly.github.io/spec/core/index.html
 
-The type checker is defined by a type system over the abstract syntax of a program and all its parts. Thus, for each syntactic category of the surface IR, there is a typing judgement and a set of typing rules. For each syntactic category, the judgement form specifies the form that all typing rules for that syntactic category follow and the typing rules specify the constraints that apply to each case of the syntactic category. We adopt the approach used in [web assembly specification][#web-assembly-link] and describe all rules in two formats:
+The type checker is defined by a _type system_ over the abstract syntax of a program and its phrases. Thus, for each syntactic category of the surface IR, there is a typing judgement and a set of typing rules. For each syntactic category, the judgement form specifies the form that all typing rules for that syntactic category follow and the typing rules specify the constraints that apply to each case of the syntactic category. We adopt the approach used in [web assembly specification][#web-assembly-link] and describe all rules in two formats:
 
 - In _informal notation_, describing the meaning in intuitive English format.
 - In _formal notation_, describing the rule in mathematical form.
@@ -900,9 +902,16 @@ The conclusion is a judgment which can take one of the following *form*s. All th
 
 If a rule does not use $\env$ in its constraints, we omit the enviornment from the conclusion, that is, it takes the form $\vdash \A$. Still, the enviornment is implicitly assumed by the rule.
 
-The conclusion judgment itself is aslo a predicate that my hold or not. Such a judgment applied to a smaller phrase than the conclusion can also appear as a premise in a rule. *todo: have an example.*
+The conclusion judgment itself is aslo a predicate that my hold or not. Such a judgment applied to a smaller phrase than the conclusion can also appear as a premise in a rule. For example, consider the following rule for type checking the logical negation operation:
 
-*todo: add that rules are pattern matched so more specific cases are presented first and then more general. an algorithm/impl should follow this order if pattern matching or add a predicate to the more general case that removes the more specific one. think if you need to say this in informal notation somehow. example: ser enum well-formed. also state that if you limit the syn category to a specific case and others don't exist it will fails.*
+~ Begin InfRule
+  \inferrule
+     { \expCheck \exp  \boolTyp }
+     { \expCheck {\intoOp ! \exp}  \boolTyp }
+     \quad (\logicalNegE)
+~ End InfRule
+
+It states that expression $\intoOp ! \exp$ is well-formed with $\boolTyp$ type if and only if the smaller expression $\exp$ is well-formed with $\boolTyp$. In this rule, the judgment itself is used as a predicate on a smaller phrase than the one in the conclusion.
 
 In the rest of this section:
 
@@ -921,6 +930,91 @@ The typing rule introduced in the [formal notation section][#sec-formal-notation
 - [Type equality][#sec-type-eq-type-checker]: has the form $\typEq {\typ_1} {\typ_2}$ and states that under the environment $\env$ types $\typ_1$ and $\typ_2$ are equal.
 - [Casting types][#sec-casting-type-checker]: has the form $\allcastenv {\typ_1} {\typ_2} $ and states that under the environment $\env$ the type $\typ_1$ can be casted to the type $\typ_2$.
 
+### Implementing a Type System { #sec-impl-type-sys }
+
+This document provides the type system defined in a declarative manner. That is, it only defines the constraints and not an algorithm. However, to implement an algorith of such a type system one needs to understand how to stich the rules of the type system together. 
+
+To illustrate this consider type checking the type $\enumTyp {\mathit{EtherType}} {\bitWidthTyp {16}} {\mathit{VLAN}, \mathit{MPLS}}$. In order for an algorithm to check if this type is well-formed or not it must implement the following steps:
+
+1. Search the space of the judgments to find the one for the abstract syntax of the phrase. In our example, that is the judgment defined for the [types][#sec-ast-type] syntactic category.
+2. Next, search the rules to find the one that matches the constructor case of the phrase. In our example, the constructor case is a serializable enumeration type. Thus, the search is narrowed down to the rules defined for the [serilizable enumeration types][#sec-ser-enum-t].
+3. Next, find the rule that matches the pattern of the phrase. This is necessary when there are more than one rule for a constructor case. In our example, there are two rules defined for a serializable enumeration type: $\serenumTypedefWellT$ and $\serenumWellT$. We repeat these rules below for accessability:
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\lookupTypSynEnv {\VVal \typName} = \typ \\
+       \typWellFormed \enumTypDef
+      }
+      {\typWellFormed {\enumTyp {\VVal \typName} \typName \fields}}
+    \quad (\serenumTypedefWellT)}
+
+\and
+
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\typWellFormed \typ \\
+       \isWidthInt {\typ} \\\\
+       \distinct \fields}
+      {\typWellFormed \enumTypDef}
+    \quad (\serenumWellT)}
+~ End InfRule
+
+The $\serenumTypedefWellT$ excludes some of the phrases that $\serenumWellT$ would accept. This exclusion is done by limiting the pattern of the conclusion to the case when the underlying type of a serializable enumeration type is represented by a name, denoted by $\VVal \name$. Alternatively, one could rewrite this rule by adding a predicate that checks if the underlying type is a name or not. $\serenumTypedefWellAltT$ illustrates this alternative:
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\mathit{type\_is\_name} (\typ) \\
+       \lookupTypSynEnv {\VVal \typName} = \VVal \typ \\
+       \typWellFormed {\enumTyp {\VVal \typ} \typName \fields}
+      }
+      {\typWellFormed {\enumTyp {\typ} \typName \fields}}
+    \quad (\serenumTypedefWellAltT)}
+
+\and
+
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\mathit{type\_is\_not\_name} (\typ)\\
+      \typWellFormed \typ \\
+       \isWidthInt {\typ} \\\\
+       \distinct \fields}
+      {\typWellFormed \enumTypDef}
+    \quad (\serenumWellAltT)}
+
+~ End InfRule
+
+In this document, we use the first approach, that is, using pattern matching in the conclusion to exclude some phrases for a constructor case. In this approach the order of the rules matters and the more specific rules (rules that eliminate some phrases, e.g., the $\serenumTypedefWellT$ rule) must be searched before the more general ones (e.g., the $\serenumWellT$ rule). We follow this order when presenting the rules for a constructor case. Note that in order to strip away from any ordering of the rules we need to add another predicate to the $\serenumWellT$ rule, as demonstrated by the $\serenumWellAltT$ rule. 
+
+Back to our example, first, the $\serenumTypedefWellT$ rule is checked against our phrase but it does not match since our phrase's underlying type is $\bitWidthTyp {16}$ and not a name. Then, the $\serenumWellT$ rule is checked against our phrase and it matches. So this rule is picked and the algorithm continues.
+
+4. Now that a rule has been picked, the premises of it must be checked. If all the premises hold then the phrase is well-formed, otherwise it is not. In our example, the predicates $\isWidthInt {\bitWidthTyp {16}}$ and $\distinct {\mathit{VLAN}, \mathit{MPLS}}$ hold. In order to check if the premise $\typWellFormed {\bitWidthTyp {16}}$ holds or not, we need to do all the previous steps for the phrase $\bitWidthTyp {16}$. It is easy to see that the [$\bitWidthT$ rule][#sec-unsigned-int-t] matches this phrase and that all the premises hold: $\expCheck {16} {\integerTyp}$, $\compileTimeEval {16} = 16$, and $0 \leq 16$. Thus, the predicate $\typWellFormed {\bitWidthTyp {16}}$ also holds. Hence, the phrase $\enumTyp {\mathit{EtherType}} {\bitWidthTyp {16}} {\mathit{VLAN}, \mathit{MPLS}}$ is well-formed. The successful process of this step can be demonstrated in a _derivation tree_. The derviation tree of our example phrase is shown below:
+
+~ Begin InfRule
+\mprset {vskip = 0.9ex}
+\inferrule
+   {\inferrule {\expCheck {16} {\integerTyp}
+   \\ \compileTimeEval {16} = 16
+   \\ 0 \leq 16}
+   {\typWellFormed {\bitWidthTyp {16}}}  (\bitWidthT)
+    \\\\ \isWidthInt {\bitWidthTyp {16}}
+    \\\\ \distinct {\mathit{VLAN}, \mathit{MPLS}}
+    }
+   {\typWellFormed {\enumTyp {\mathit{EtherType}} {\bitWidthTyp {16}} {\mathit{VLAN}, \mathit{MPLS}}}} (\serenumWellAltT)
+~ End InfRule
+
+5. At any point, if no match is found or if a premise does not hold then the search fails which concludes that the phrase is not well-formed.
+
+
+### Connecting Informal and Formal Notation { #sec-connect }
+
+*todo: write the following*
+
+- each stands on its own.
+- symbols used might be a bit different
+- [ref] for auxiliary notations
+
 ### Auxiliary Notation { #sec-aux-notation-type-checker }
 
 [#p4-type-nesting-rules]: https://p4.org/p4-spec/docs/P4-16-v-1.2.3.html#sec-type-nesting
@@ -929,7 +1023,6 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ###### - $\compileTimeEval \exp$ evaluates the well-formed expression $\exp$ with the enviornment $\env$ at compile-time. { -; font-weight: "normal"; id: compileTimeEval; label: "compileTimeEval" }
 ###### - $\compTimeKnown \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time. However, if the expression $\exp$ is a specialized type, extern, package, control, or parser but we cannot evaluate it at compile-time, we still consider it known at compile-time. { -; font-weight: "normal"; id: compTimeKnown; label: "compTimeKnown" }
-###### - $\overline {\A}$ is a list of zero or more $\A$. { -; font-weight: "normal"; id: overline; label: "overline" }
 ###### - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgement to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgement: $\env \vdash \overline \A : \overline \typ$. Note that in this example the enviornment will not be extended so we do not need to pass it as a list. Applying a predicate to an empty list returns $\tru$ unless stated otherwise. { -; font-weight: "normal"; id: mapping; label: "mapping" }
 *todo: add the distinction between map over = and not*
 ###### - $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union. { -; font-weight: "normal"; id: isHeaderOrUnion; label: "is_header_or_union" }
@@ -1332,11 +1425,11 @@ $\headerUnionTyps  \typParam \field {\typName}$
     \quad (\structTypWellT)
 ~ End InfRule
 
-### Enum Types { #sec-enum-t }
+### Enumeration Types { #sec-enum-t }
 
 $\enumTypNoTypDef$
 
-- An enum type is well-formed if its fields are [distinct][#distinct].
+- An enumeration type is well-formed if its fields are [distinct][#distinct].
 
 ~ Begin InfRule
   % \mprset {vskip = 0.7ex}
@@ -1346,9 +1439,9 @@ $\enumTypNoTypDef$
     \quad (\enumWellT)}
 ~ End InfRule
 
-### Serializable Enum Types { #sec-ser-enum-t }
+### Serializable Enumeration Types { #sec-ser-enum-t }
 
-Serializable enum types have an underlying type. This type may be expressed either as a type name that represents a type or a type. 
+Serializable enumeration types have an underlying type. This type may be expressed either as a type name that represents a type or a type. 
 
 $\enumTyp {\VVal \typName} \typName \fields$
 
@@ -1604,7 +1697,7 @@ $\enumTypDef$
 
 *Casting $\enumTypDef$ to $\typ$*
 
-- A [well-formed serializable enum type][#sec-ser-enum-t] can be casted to its underlying type. 
+- A [well-formed serializable enumeration type][#sec-ser-enum-t] can be casted to its underlying type. 
 
 ~ Begin InfRuleHelper
   \inferrule
@@ -1615,9 +1708,9 @@ $\enumTypDef$
 
 *Casting $\enumTyp {\typ_1} {\typName_1} {\overline {\field_1}}$ to $\enumTyp {\typ_2} {\typName_2} {\overline {\field_2}}$*
 
-- Both serializable enum types $\enumTyp {\typ_1} {\typName_1} {\overline {\field_1}}$ and $\enumTyp {\typ_2} {\typName_2} {\overline {\field_2}}$ must be [well-formed][#sec-ser-enum-t].
-- The underlying types of the serializable enum types, that is, $\typ_1$ and $\typ_2$, must be [the same][#sec-type-eq-type-checker].
-- Then, the serializable enum type $\enumTyp {\typ_1} {\typName_1} {\overline {\field_1}}$ can be casted to the serializable enum type $\enumTyp {\typ_2} {\typName_2} {\overline {\field_2}}$.
+- Both serializable enumeration types $\enumTyp {\typ_1} {\typName_1} {\overline {\field_1}}$ and $\enumTyp {\typ_2} {\typName_2} {\overline {\field_2}}$ must be [well-formed][#sec-ser-enum-t].
+- The underlying types of the serializable enumeration types, that is, $\typ_1$ and $\typ_2$, must be [the same][#sec-type-eq-type-checker].
+- Then, the serializable enumeration type $\enumTyp {\typ_1} {\typName_1} {\overline {\field_1}}$ can be casted to the serializable enumeration type $\enumTyp {\typ_2} {\typName_2} {\overline {\field_2}}$.
 
 ~ Begin InfRuleHelper
   \mprset {vskip=0.7ex}
@@ -1631,7 +1724,7 @@ $\enumTypDef$
 
 *Casting $\typ$ to $\enumTypDef$*
 
-- The type $\typ$ can be casted to the [well-formed serializable enum type][#sec-ser-enum-t] $\enumTypDef$. Note that the well-formedness of the serializable enum type requires the underlying type $\typ$ to also be well-formed. Thus, we do not need to double-check that it is well-formed.
+- The type $\typ$ can be casted to the [well-formed serializable enumeration type][#sec-ser-enum-t] $\enumTypDef$. Note that the well-formedness of the serializable enumeration type requires the underlying type $\typ$ to also be well-formed. Thus, we do not need to double-check that it is well-formed.
 
 ~ Begin InfRuleHelper
 % expl
@@ -2353,16 +2446,16 @@ $\errDcl \field$
 
 ### Match Kind Type Declaration { #sec-matchkind-typ-decl-type-checker }
 
-### Enum Type Declaration { #sec-enum-typ-decl-type-checker }
+### Enumeration Type Declaration { #sec-enum-typ-decl-type-checker }
 
 $\enumDcl \typName \field$
 
-- The type of the declared enum type must be [well-formed][#sec-enum-t].
+- The type of the declared enumeration type must be [well-formed][#sec-enum-t].
 - Let $\VVal \env$ be the same environment as $\env$, but with
    + The type environment $ \typEnv$ extended with with the assignment of type $\enumTypNoTypDef$ to $\typName$.
-   + The variable environment $ \varEnv$ extended with the assignments of the enum type $\enumTypNoTypDef$ and $\less$ direction to enum field names prefixed with the enum name, that is, $\overline {\typMem \typName \field}$.
-   + The constant environment $ \constEnv$ extended with the assignments of the enum field names prefixed with the enum type $\overline {\typMem \typName \field}$ to themselves, that is, $\overline {\typMem \typName \field}$.
-- Then, the declared enum type is well-formed and it [updates the environment][#update-envs] to $\VVal \env$.
+   + The variable environment $ \varEnv$ extended with the assignments of the enumeration type $\enumTypNoTypDef$ and $\less$ direction to enum field names prefixed with the enum name, that is, $\overline {\typMem \typName \field}$.
+   + The constant environment $ \constEnv$ extended with the assignments of the enum field names prefixed with the enumeration type $\overline {\typMem \typName \field}$ to themselves, that is, $\overline {\typMem \typName \field}$.
+- Then, the declared enumeration type is well-formed and it [updates the environment][#update-envs] to $\VVal \env$.
 
 ~ Begin InfRule
   \mprset{vskip=0.9ex}
@@ -2376,16 +2469,16 @@ $\enumDcl \typName \field$
 ~ End InfRule
 
 
-### Serializable Enum Type Declaration { #sec-ser-enum-typ-decl-type-checker }
+### Serializable Enumeration Type Declaration { #sec-ser-enum-typ-decl-type-checker }
 
-The underlying type of a serializable enum type may be a name that represents a type or the type itself. 
+The underlying type of a serializable enumeration type may be a name that represents a type or the type itself. 
 
 $\serEnumDcl {\VVal \typName} \typName \field \exp$
 
 - The name $\VVal \typName$ representing the underlying type must [exist in the type synonym environment][#lookup-env] $\typSynEnv$.
 - Let $\typ$ be the type corresponding to $\VVal \typName$ in the type synonym environment. 
-- Substituting $\typ$ for $\typName$ in the serializable enum type declaration, that is, $\serEnumDcl {\typ} \typName \field \exp$, must be well-formed and it updates the environment to $\VVal \env$.
-- Then, the serializable enum type declaration $\serEnumDcl {\VVal \typName} \typName \field \exp$ is well-formed and it updates the environment to $\VVal \env$.
+- Substituting $\typ$ for $\typName$ in the serializable enumeration type declaration, that is, $\serEnumDcl {\typ} \typName \field \exp$, must be well-formed and it updates the environment to $\VVal \env$.
+- Then, the serializable enumeration type declaration $\serEnumDcl {\VVal \typName} \typName \field \exp$ is well-formed and it updates the environment to $\VVal \env$.
 
 ~ Begin InfRule
   \mprset{vskip=0.7ex}
@@ -2404,9 +2497,9 @@ $\serEnumDcl {\typ} \typName \field \exp$
 - All the expressions assigned to the enum fields must be well-formed with type $\typ$. [refer to _[#valMatchTyp]_]
 - Let $\VVal \env$ be the same environment as $\env$, but with
    + The type environment $\typEnv$ extended with the assignment of type $\enumTypDef$ to $\typName$.
-   + The variable environment $\varEnv$ extended with the assignments of the enum type $\enumTypDef$ and $\less$ direction to enum field names prefixed with the enum name, that is, $\overline {\typMem \typName \field}$.
-   + The constant environment $ \constEnv$ extended with the assignments of the enum field names prefixed with the enum type $\overline {\typMem \typName \field}$ to themselves, that is, $\overline {\typMem \typName \field}$.
-- Then, the declared enum type is well-formed and it [updates the environment][#update-envs] to $\VVal \env$.
+   + The variable environment $\varEnv$ extended with the assignments of the enumeration type $\enumTypDef$ and $\less$ direction to enum field names prefixed with the enum name, that is, $\overline {\typMem \typName \field}$.
+   + The constant environment $ \constEnv$ extended with the assignments of the enum field names prefixed with the enumeration type $\overline {\typMem \typName \field}$ to themselves, that is, $\overline {\typMem \typName \field}$.
+- Then, the declared enumeration type is well-formed and it [updates the environment][#update-envs] to $\VVal \env$.
 
 ~ Begin InfRule
   \mprset{vskip=0.9ex}

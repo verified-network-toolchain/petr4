@@ -24,6 +24,54 @@ Section Value.
   | ValBaseEnumField (typ_name: string) (enum_name: string)
   | ValBaseSenumField (typ_name: string) (value: (@ValueBase bit)).
 
+  Fixpoint list_bit_eqb {bit: Type} (bit_eqb: bit -> bit -> bool)
+                        (l1 l2: list bit): bool :=
+    match l1, l2 with
+    | [], []           => true
+    | t1 :: ts1, t2 :: ts2 => (bit_eqb t1 t2 && list_bit_eqb bit_eqb ts1 ts2)%bool
+    | _, _             => false
+    end.
+
+  Fixpoint val_eqb {bit: Type} (bit_eqb: bit -> bit -> bool)
+    (v1 v2: @ValueBase bit): bool :=
+    let fix list_val_eqb (l1 l2 : list (@ValueBase bit)) : bool :=
+    match l1, l2 with
+    | [], []           => true
+    | t1 :: ts1, t2 :: ts2 => (val_eqb bit_eqb t1 t2 && list_val_eqb ts1 ts2)%bool
+    | _, _             => false
+    end in
+    let fix list_field_eqb (l1 l2 : StringAList (@ValueBase bit)) : bool :=
+    match l1, l2 with
+    | [], []           => true
+    | (k1, t1) :: ts1, (k2, t2) :: ts2 =>
+        (String.eqb k1 k2 && val_eqb bit_eqb t1 t2 && list_field_eqb ts1 ts2)%bool
+    | _, _             => false
+    end in
+    match v1, v2 with
+    | ValBaseNull, ValBaseNull => true
+    | ValBaseBool b1, ValBaseBool b2 => bit_eqb b1 b2
+    | ValBaseInteger z1, ValBaseInteger z2 => Z.eqb z1 z2
+    | ValBaseBit l1, ValBaseBit l2 => list_bit_eqb bit_eqb l1 l2
+    | ValBaseInt l1, ValBaseInt l2 => list_bit_eqb bit_eqb l1 l2
+    | ValBaseVarbit m1 l1, ValBaseVarbit m2 l2 =>
+        (BinNat.N.eqb m1 m2 && list_bit_eqb bit_eqb l1 l2)%bool
+    | ValBaseString s1, ValBaseString s2 => String.eqb s1 s2
+    | ValBaseTuple l1, ValBaseTuple l2 => list_val_eqb l1 l2
+    | ValBaseError s1, ValBaseError s2 => String.eqb s1 s2
+    | ValBaseMatchKind s1, ValBaseMatchKind s2 => String.eqb s1 s2
+    | ValBaseStruct f1, ValBaseStruct f2 => list_field_eqb f1 f2
+    | ValBaseHeader f1 b1, ValBaseHeader f2 b2 =>
+        list_field_eqb f1 f2 && bit_eqb b1 b2
+    | ValBaseUnion f1, ValBaseUnion f2 => list_field_eqb f1 f2
+    | ValBaseStack s1 n1, ValBaseStack s2 n2 =>
+        list_val_eqb s1 s2 && BinNat.N.eqb n1 n2
+    | ValBaseEnumField t1 e1, ValBaseEnumField t2 e2 =>
+        String.eqb t1 t2 && String.eqb e1 e2
+    | ValBaseSenumField t1 l1, ValBaseSenumField t2 l2 =>
+        String.eqb t1 t2 && val_eqb bit_eqb l1 l2
+    | _, _ => false
+    end.
+
   Inductive ValueLvalue :=
   | ValLeftName (loc: Syntax.Locator)
   | ValLeftMember (expr: ValueLvalue) (name: string)
@@ -42,7 +90,7 @@ Section Value.
   Definition ValueLoc := string.
 
   Context {tags_t : Type}.
-  
+
   Inductive ValueTable :=
   | MkValTable (name: string) (keys: list (@Syntax.TableKey tags_t))
                (actions: list (@Syntax.TableActionRef tags_t))
@@ -194,7 +242,7 @@ Section Value.
       | ValSetRange lo hi => HRange lo hi
       | ValSetProd l => HProd _ (list_ind l)
       | ValSetLpm nbits value => HLpm nbits value
-      | ValSetValueSet _ members sets => 
+      | ValSetValueSet _ members sets =>
         HValueSet _ _ _ (nested_list_ind members) (list_ind sets)
       end.
 
@@ -300,3 +348,82 @@ Section Value.
   Definition SReturnNull := SReturn ValBaseNull.
 
 End Value.
+
+Lemma list_bit_eqb_refl:
+  forall {bit} (bit_eqb: bit -> bit -> bool),
+    (forall b, bit_eqb b b = true) ->
+    forall v: list bit, list_bit_eqb bit_eqb v v = true.
+Proof.
+  intros bit bit_eqb H v. induction v as [| v l]; simpl; auto.
+  rewrite H, IHl. reflexivity.
+Qed.
+
+Lemma val_eqb_refl:
+  forall {bit} (bit_eqb: bit -> bit -> bool),
+    (forall b, bit_eqb b b = true) ->
+    forall v: ValueBase, val_eqb bit_eqb v v = true.
+Proof.
+  intros bit bit_eqb Hbrefl.
+  induction v using custom_ValueBase_ind; simpl;
+    rewrite ?Z.eqb_refl, ?list_bit_eqb_refl, ?String.eqb_refl,
+    ?BinNat.N.eqb_refl; auto.
+  - induction vs; auto. rewrite Forall_cons_iff in H. destruct H as [Hs Hr].
+    rewrite Hs, IHvs; easy.
+  - induction vs; auto. rewrite Forall_cons_iff in H. destruct H as [Hs Hr].
+    destruct a as [k v]. rewrite String.eqb_refl, Hs, IHvs; easy.
+  - rewrite Hbrefl, Bool.andb_true_r.
+    induction vs; auto. rewrite Forall_cons_iff in H. destruct H as [Hs Hr].
+    destruct a as [k v]. rewrite String.eqb_refl, Hs, IHvs; auto.
+  - induction vs; auto. rewrite Forall_cons_iff in H. destruct H as [Hs Hr].
+    destruct a as [k v]. rewrite String.eqb_refl, Hs, IHvs; easy.
+  - rewrite Bool.andb_true_r.
+    induction vs; auto. rewrite Forall_cons_iff in H. destruct H as [Hs Hr].
+    rewrite Hs, IHvs; easy.
+Qed.
+
+Lemma list_bit_eqb_eq:
+  forall {bit} (bit_eqb: bit -> bit -> bool),
+    (forall b1 b2, bit_eqb b1 b2 = true -> b1 = b2) ->
+    forall v1 v2: list bit, list_bit_eqb bit_eqb v1 v2 = true -> v1 = v2.
+Proof.
+  intros bit bit_eqb Hbrefl v1.
+  induction v1 as [|v l]; intros []; intros; simpl in *; try discriminate.
+  - reflexivity.
+  - rewrite Bool.andb_true_iff in H. destruct H.
+    apply Hbrefl in H. apply IHl in H0. subst. reflexivity.
+Qed.
+
+Lemma val_eqb_eq:
+  forall {bit} (bit_eqb: bit -> bit -> bool),
+    (forall b1 b2, bit_eqb b1 b2 = true -> b1 = b2) ->
+    forall v1 v2: ValueBase, val_eqb bit_eqb v1 v2 = true -> v1 = v2.
+Proof.
+  intros bit bit_eqb Hbrefl v1.
+  induction v1 using custom_ValueBase_ind;
+    intros []; intros; simpl in *; try discriminate;
+  repeat match goal with
+    | H: String.eqb _ _ = true |- _ => rewrite String.eqb_eq in H; subst
+    | H: bit_eqb _ _ = true |- _ => apply Hbrefl in H
+    | H: Z.eqb _ _ = true |- _ => rewrite Z.eqb_eq in H
+    | H: andb _ _ = true |- _ => rewrite Bool.andb_true_iff in H; destruct H
+    | H: BinNat.N.eqb _ _ = true |- _ => rewrite BinNat.N.eqb_eq in H
+    | H: list_bit_eqb bit_eqb _ _ = true |- _ => apply list_bit_eqb_eq in H; auto
+    | IH: Forall _ ?ts1, H: _ ?ts1 ?ts2 = true
+      |- _ ?ts1 = _ ?ts2 =>
+        generalize dependent ts2; induction ts1; intros []; intros; try discriminate
+    | IH: Forall _ ?ts1, H: _ ?ts1 ?ts2 = true
+      |- _ ?ts1 _ = _ ?ts2 _ =>
+        generalize dependent ts2; induction ts1; intros []; intros; try discriminate
+    | H: (let (_, _) := ?a in false) = true |- _ => destruct a; discriminate
+    | H: (let (_, _) := ?a in _) = true |- _ => destruct a
+    | H: Forall _ (_ :: _) |- _ => rewrite Forall_cons_iff in H; destruct H
+    | H1: Forall ?P ?v, H2: Forall ?P ?v -> _ |- _ => specialize (H2 H1)
+    | [H1 : forall v2 : ValueBase, val_eqb bit_eqb ?v v2 = true -> ?v = v2,
+         H2: val_eqb bit_eqb ?v _ = true |- _ ] => apply H1 in H2; subst
+  end; try (subst; reflexivity).
+  - apply IHvs in H1. inversion H1. reflexivity.
+  - apply IHvs in H1. inversion H1. reflexivity.
+  - apply IHvs in H2. inversion H2. reflexivity.
+  - apply IHvs in H1. inversion H1. reflexivity.
+  - apply IHvs in H2. inversion H2. reflexivity.
+Qed.

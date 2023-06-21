@@ -400,7 +400,7 @@ Section Lemmas.
       induction Hbs as [| v1 v2 b v1s v2s bs Hvb Hvbs [b' IHvbs]]; cbn; eauto.
       rewrite Hvb,IHvbs; clear Hvb IHvbs; eauto.
     - assert (Hlen : length vs = length vs0) by lia.
-      clear Heqb H2 H4 Hv1 Hv2 n0 n Ht H0.
+      clear Heqb H2 H4 Hv1 Hv2 Ht H0.
       generalize dependent vs0.
       induction vs as [| v1 vs1 IHvs1]; inv H3;
         intros [| v2 vs2] Hvs2 Hlen; inv Hvs2;
@@ -408,8 +408,11 @@ Section Lemmas.
       assert (Hb: exists b, Ops.eval_binary_op_eq v1 v2 = Some b) by eauto.
       destruct Hb as [b Hb]; rewrite Hb; clear Hb.
       assert (Hlen' : length vs1 = length vs2) by lia.
-      pose proof IHvs1 H2 _ H4 Hlen' as [b' Hb'];
-        rewrite Hb'; clear IHvs1 H2 H4 Hlen' Hb'; eauto.
+      specialize (IHvs1 H2 _ H4 Hlen').
+      remember (fix eval_binary_op_eq_tuple (l1 l2 : list ValueBase)
+                  {struct l1} := _) as f.
+      clear -IHvs1. destruct IHvs1 as [b' Hb]. destruct (f vs1 vs2) eqn:?H.
+      2: discriminate. eauto.
   Qed.
 
   Local Hint Resolve eval_binary_op_eq_ex : core.
@@ -1063,7 +1066,7 @@ Section Lemmas.
   Qed.
 
   Local Hint Constructors lval_typ : core.
-  
+
   Create HintDb ind_def.
 
   Definition
@@ -1602,7 +1605,7 @@ Section Lemmas.
     specialize hdom with ((normᵗ ∘ try_get_real_type gt) t).
     unfold option_map in hdom. rewrite hltv in hdom. eauto.
   Qed.
-  
+
   Lemma gamma_var_val_type_impl_real_norm : forall `{T:Target _ expr} gt st Γ,
       gamma_var_val_typ Γ st gt ->
       gamma_var_val_typ_real_norm
@@ -1648,11 +1651,11 @@ Section Lemmas.
     pose proof ok_get_real_type_ex _ _ h _ hD as hr.
     destruct hr as [r hr].
     unfold try_get_real_type,"∘" in hvr.
-    rewrite hr in hvr. eauto.  
+    rewrite hr in hvr. eauto.
   Qed.
-  
+
   Local Hint Constructors exec_read : core.
-  
+
   Lemma exec_read_preserves_typ :
     forall (T: @Target _ expr) ge st Γ lv sv (τ : typ),
       gamma_var_val_typ_real_norm Γ st ge ->
@@ -1684,7 +1687,7 @@ Section Lemmas.
         destruct headers; cbn in *; try discriminate.
         some_ok_inv. inv H7; auto.
   Qed.
-  
+
   Lemma exec_read_ex :
     forall (T: @Target _ expr) (ge : @genv_typ tags_t) st Γ lv (t : typ),
       gamma_var_domain Γ st ->
@@ -1716,7 +1719,7 @@ Section Lemmas.
       destruct hhd as [dflt hdflt].
       exists (@Znth _ dflt z vs). econstructor; eauto.
   Qed.
-  
+
   Lemma havoc_header_val_typ : forall f (τ : typ) v v',
       havoc_header f v = Some v' ->
       ⊢ᵥ v \: τ -> ⊢ᵥ v' \: τ.
@@ -1753,7 +1756,7 @@ Section Lemmas.
     destruct H2 as (hdr & bits & hhdr); subst. cbn in *.
     some_ok_inv. constructor; eauto.
   Qed.
-  
+
   Lemma havoc_headers_all_values_val_typ : forall f (ts : list (string * typ)) vs vs',
       lift_option_kv (kv_map (havoc_header f) vs) = Some vs' ->
       AList.all_values val_typ vs ts ->
@@ -1778,7 +1781,7 @@ Section Lemmas.
     pose proof ih H2 as [vs' IH]; clear ih H2. cbn in *.
     rewrite IH. eauto.
   Qed.
-  
+
   Local Hint Constructors update_member : core.
 
   Ltac solve_update_member_preserves_typ :=
@@ -1832,7 +1835,7 @@ Section Lemmas.
   Qed.
 
   Local Hint Constructors write_header_field : core.
-  
+
   Lemma update_member_ex : forall sv₁ fv x (τ τ' : typ) τs,
       AList.get (P4String.clear_AList_tags τs) x = Some τ' ->
       member_type τs τ ->
@@ -1880,7 +1883,7 @@ Section Lemmas.
       destruct hsv as [sv hsv]; eauto.
     - pose proof AListUtil.get_some_pair_in _ _ _ hget as hin.
       unfold "===" in hin.
-      destruct hin as (kx & hkx & hin); subst kx.      
+      destruct hin as (kx & hkx & hin); subst kx.
       assert (ht': exists ts', t' = TypHeader ts').
       { rewrite Forall_forall in H1.
         apply in_map with (f:=snd) in hin.
@@ -1948,9 +1951,9 @@ Section Lemmas.
     - reflexivity.
     - f_equal. rewrite ih by lia. reflexivity.
   Qed.
-  
+
   Local Hint Constructors exec_write : core.
-  
+
   Lemma exec_write_ex :
     forall (T: @Target _ expr) (ge : @genv_typ tags_t) st (Γ : gamma_var) lv v (t : @P4Type tags_t),
       gamma_var_domain Γ st ->

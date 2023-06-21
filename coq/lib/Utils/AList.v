@@ -335,6 +335,12 @@ Section AList.
     - eapply IHl1; eauto. now apply sublist_cons in H0.
   Qed.
 
+  Lemma key_unique_cons: forall a l, key_unique (a :: l) = true -> key_unique l = true.
+  Proof.
+    intros. eapply key_unique_sublist_true; eauto. exists [a].
+    symmetry. apply Permutation_cons_append.
+  Qed.
+
   Lemma key_unique_true_filter: forall l f,
       key_unique l = true -> key_unique (filter l f) = true.
   Proof. intros. apply key_unique_sublist_true with l; auto. apply filter_sublist. Qed.

@@ -335,6 +335,33 @@ Module BitArith.
     apply le_from_lbool_bound.
   Qed.
 
+  Lemma le_lbool_to_val_eq: forall l1 l2,
+      Zlength l1 = Zlength l2 ->
+      le_lbool_to_val l1 1 0 = le_lbool_to_val l2 1 0 -> l1 = l2.
+  Proof.
+    induction l1, l2; simpl in *; intros; auto.
+    - rewrite Zlength_nil, Zlength_cons in H; pose proof (Zlength_nonneg l2); lia.
+    - rewrite Zlength_nil, Zlength_cons in H; pose proof (Zlength_nonneg l1); lia.
+    - assert (Zlength l1 = Zlength l2) by list_solve. specialize (IHl1 _ H1).
+      clear H1 H. destruct a, b;
+        rewrite (le_lbool_to_val_1_0 l1), (le_lbool_to_val_1_0 l2)in H0.
+      + rewrite IHl1; auto. lia.
+      + exfalso. lia.
+      + exfalso. lia.
+      + rewrite IHl1; auto. lia.
+  Qed.
+
+  Lemma lbool_to_val_eq: forall l1 l2,
+      Zlength l1 = Zlength l2 ->
+      lbool_to_val l1 1 0 = lbool_to_val l2 1 0 -> l1 = l2.
+  Proof.
+    unfold lbool_to_val. intros. apply le_lbool_to_val_eq in H0.
+    - assert (forall l1 l2: list bool, l1 = l2 -> rev l1 = rev l2) by
+        (intros; subst; reflexivity). specialize (H1 _ _ H0).
+      rewrite !rev_involutive in H1. assumption.
+    - rewrite !Zlength_rev. assumption.
+  Qed.
+
 End BitArith.
 
 (** * Signed Integers *)
@@ -623,6 +650,42 @@ Module IntArith.
       rewrite (IHl 2 1). lia.
     - rewrite (IHl (2 * o) _ ). rewrite shiftl_1_l, pow_1_r.
       rewrite (IHl 2 0). lia.
+  Qed.
+
+  Lemma le_lbool_to_val_eq: forall l1 l2,
+      Zlength l1 = Zlength l2 ->
+      le_lbool_to_val l1 1 0 = le_lbool_to_val l2 1 0 -> l1 = l2.
+  Proof.
+    induction l1, l2; simpl in *; intros; auto.
+    - rewrite Zlength_nil, Zlength_cons in H; pose proof (Zlength_nonneg l2); lia.
+    - rewrite Zlength_nil, Zlength_cons in H; pose proof (Zlength_nonneg l1); lia.
+    - assert (Zlength l1 = Zlength l2) by list_solve. specialize (IHl1 _ H1).
+      clear H. destruct a, b, l1, l2; auto;
+      repeat match goal with
+        | H: Zlength [] = Zlength (_ :: ?l) |- _ =>
+            rewrite Zlength_nil, Zlength_cons in H;
+            pose proof (Zlength_nonneg l); lia
+        | H: Zlength (_ :: ?l) = Zlength [] |- _ => symmetry in H
+        | _: -1 = 0 |- _ => discriminate
+        | _: 0 = -1 |- _ => discriminate
+        | H: context [le_lbool_to_val ?l 2 _] |- _ =>
+            rewrite (le_lbool_to_val_1_0 l) in H
+        end.
+      + rewrite IHl1; auto. lia.
+      + exfalso. lia.
+      + exfalso. lia.
+      + rewrite IHl1; auto. lia.
+  Qed.
+
+  Lemma lbool_to_val_eq: forall l1 l2,
+      Zlength l1 = Zlength l2 ->
+      lbool_to_val l1 1 0 = lbool_to_val l2 1 0 -> l1 = l2.
+  Proof.
+    unfold lbool_to_val. intros. apply le_lbool_to_val_eq in H0.
+    - assert (forall l1 l2: list bool, l1 = l2 -> rev l1 = rev l2) by
+        (intros; subst; reflexivity). specialize (H1 _ _ H0).
+      rewrite !rev_involutive in H1. assumption.
+    - rewrite !Zlength_rev. assumption.
   Qed.
 
   (* Convert from little-endian (list bool) to (width:nat, value:Z) *)

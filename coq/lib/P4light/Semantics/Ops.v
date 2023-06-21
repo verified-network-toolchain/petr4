@@ -297,11 +297,59 @@ Section Ops.
         end
     | ValBaseStack vs1 n1, ValBaseStack vs2 n2 =>
         if negb (Zlength vs1 =? Zlength vs2)%Z then None
-        else eval_binary_op_eq_tuple vs1 vs2
+        else match eval_binary_op_eq_tuple vs1 vs2 with
+             | None => None
+             | Some b => Some (N.eqb n1 n2 && b)
+             end
     | ValBaseTuple vs1, ValBaseTuple vs2 =>
         eval_binary_op_eq_tuple vs1 vs2
     | _, _ => None
     end.
+
+  Lemma eval_binary_op_eq_eq: forall v1 v2,
+      eval_binary_op_eq v1 v2 = Some true -> v1 = v2.
+  Proof.
+    induction v1 using custom_ValueBase_ind;
+      intros []; intros; simpl in *; try discriminate;
+    repeat match goal with
+      | H: Some _ = Some _ |- _ => inversion H; clear H
+      | H: eqb _ _ = true |- _ => apply eqb_prop in H; subst
+      | H: Z.eqb _ _ = true |- _ => rewrite Z.eqb_eq in H; subst
+      | H: N.eqb _ _ = true |- _ => rewrite N.eqb_eq in H
+      | H: String.eqb _ _ = true |- _ => rewrite String.eqb_eq in H; subst
+      | H: andb _ _ = true |- _ => rewrite Bool.andb_true_iff in H; destruct H
+      | H: match ?P with _ => _ end = _ |- _ => destruct P eqn:?H
+      | _: None = Some _ |- _ => discriminate
+      | H : Z.to_N (Zlength _) = Z.to_N (Zlength _) |- _ =>
+          rewrite Z2N.inj_iff in H; [|apply Zlength_nonneg..]
+      | H1 : Zlength ?l1 = Zlength ?l2,
+          H2 : BitArith.lbool_to_val ?l1 1 0 = BitArith.lbool_to_val ?l2 1 0 |- _ =>
+          apply BitArith.lbool_to_val_eq in H2; [subst | assumption]
+      | H1 : Zlength ?l1 = Zlength ?l2,
+          H2 : IntArith.lbool_to_val ?l1 1 0 = IntArith.lbool_to_val ?l2 1 0 |- _ =>
+          apply IntArith.lbool_to_val_eq in H2; [subst | assumption]
+      | IH: Forall _ ?ts1, H: _ ?ts1 ?ts2 = Some true
+        |- _ ?ts1 = _ ?ts2 =>
+          generalize dependent ts2; induction ts1; intros []; intros;
+          try discriminate
+      | IH: Forall _ ?ts1, H: _ ?ts1 ?ts2 = Some true
+        |- _ ?ts1 _ = _ ?ts2 _ =>
+          generalize dependent ts2; induction ts1; intros []; intros;
+          try discriminate
+      | H: Forall _ (_ :: _) |- _ => rewrite Forall_cons_iff in H; destruct H
+      | H1: Forall ?P ?v, H2: Forall ?P ?v -> _ |- _ => specialize (H2 H1)
+      | H1: _ = Some ?v, H2: ?v = true |- _ => subst v
+      | [H1 : forall v2 : Val, eval_binary_op_eq ?v v2 = Some true -> ?v = v2,
+           H2: eval_binary_op_eq ?v _ = Some true |- _ ] => apply H1 in H2; subst
+      | H: negb _ = false |- _ => rewrite negb_false_iff in H
+      | H: key_unique (_ :: _) = true |- _ => apply key_unique_cons in H
+      end; try (subst; reflexivity).
+    2-4: apply IHvs in H6; [inversion H6 | rewrite H0, H1]; reflexivity.
+    - apply IHvs in H2. inversion H2. reflexivity.
+    - apply IHvs in H4.
+      + inversion H4. reflexivity.
+      + rewrite negb_false_iff, Z.eqb_eq. list_solve.
+  Qed.
 
   (* Definition eval_binary_op_eq (v1 : Val) (v2 : Val) : option bool :=
     eval_binary_op_eq' (sort_by_key_val v1) (sort_by_key_val v2). *)

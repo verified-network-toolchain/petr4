@@ -351,6 +351,53 @@ Section Ops.
       + rewrite negb_false_iff, Z.eqb_eq. list_solve.
   Qed.
 
+  Lemma eval_binary_op_neq_neq: forall v1 v2,
+      eval_binary_op_eq v1 v2 = Some false -> v1 <> v2.
+  Proof.
+    repeat intro. subst. revert v2 H. intro v.
+    induction v using custom_ValueBase_ind; simpl; intros; try discriminate;
+    repeat match goal with
+      | H: Some _ = Some _ |- _ => inversion H; clear H
+      | H: eqb _ _ = false |- _ => rewrite eqb_false_iff in H
+      | H: ?b <> ?b |- False => apply H; reflexivity
+      | H: Z.eqb _ _ = false |- _ => rewrite Z.eqb_neq in H
+      | H: match ?P with _ => _ end = _ |- _ => destruct P eqn:?H
+      | H: None = Some _ |- _ => discriminate
+      | H: andb _ _ = false |- _ => rewrite Bool.andb_false_iff in H; destruct H
+      | H: N.eqb _ _ = false |- _ => rewrite N.eqb_neq in H
+      | IH: Forall _ ?ts1, H: _ ?ts1 ?ts2 = Some false |- _  => induction ts1
+      | H1: _ = Some ?v, H2: ?v = false |- _ => subst v
+      | H: String.eqb _ _ = false |- _ => rewrite String.eqb_neq in H
+      | H: negb _ = false |- _ => rewrite negb_false_iff in H
+      | H: key_unique (_ :: _) = true |- _ => apply key_unique_cons in H
+      | H: andb _ _ = true |- _ => rewrite Bool.andb_true_iff in H; destruct H
+      | H1: Forall (fun v : Val => ?f v v = Some false -> False) (?a :: _),
+          H2: ?f ?a ?a = Some false |- False =>
+          rewrite Forall_cons_iff in H1; destruct H1 as [H1 _];
+          apply H1 in H2; assumption
+      | H1: Forall (fun v : Val => ?f v v = Some false -> False) (_ :: ?vs),
+          H2: Forall (fun v : Val => ?f v v = Some false -> False) ?vs ->
+                Some false = Some false -> False |- False =>
+          rewrite Forall_cons_iff in H1; destruct H1 as [_ H1];
+          apply H2 in H1; [assumption | reflexivity]
+      | H1: Forall (fun '(_, v) => ?f v v = Some false -> False) ((_, ?x) :: _),
+          H2 : ?f ?x ?x = Some false |- False =>
+          rewrite Forall_cons_iff in H1; destruct H1 as [H1 _];
+          apply H1 in H2; assumption
+      | H1: Forall (fun '(_, v) => ?f v v = Some false -> False) (_ :: ?vs),
+          H2: key_unique ?vs = true,
+            H3 : Forall (fun '(_, v) => ?f v v = Some false -> False) ?vs ->
+                   (negb (key_unique ?vs && key_unique ?vs) = false) ->
+                   Some false = Some false -> False |- False =>
+          rewrite Forall_cons_iff in H1; destruct H1 as [_ H1];
+          apply H3 in H1; [assumption | rewrite H2 |]; reflexivity
+      | H1 : ?P -> False, H2 : ?P |- False => apply H1 in H2; assumption
+      | H: Z.eqb _ _ = true |- _ => rewrite Z.eqb_eq in H
+      end.
+    rewrite Forall_cons_iff in H. destruct H as [_ H].
+    apply IHvs in H; auto. rewrite negb_false_iff, Z.eqb_eq. list_solve.
+ Qed.
+
   (* Definition eval_binary_op_eq (v1 : Val) (v2 : Val) : option bool :=
     eval_binary_op_eq' (sort_by_key_val v1) (sort_by_key_val v2). *)
 

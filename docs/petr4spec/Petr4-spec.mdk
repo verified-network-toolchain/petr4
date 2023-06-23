@@ -1235,7 +1235,7 @@ Header stack (array) types are represented by a type and a size. Their type may 
 
 $\headerStackTyp \typName \exp$
 
-- The name $\typName$ must be defined in the type environment $\typEnv$ and let it be associated to the type $\typ$. [($\lookupTypEnv \name$)][#lookup-env]
+- The name $\typName$ must be defined in the type environment $\typEnv$ and let it correspond to the type $\typ$. [($\lookupTypEnv \name$)][#lookup-env]
 - The type $\typ$ must either be a header or header union. [(*is_header_or_union*)][#isHeaderOrUnion]
 - The expression $\exp$ representing the size of the array must be a [well-formed integer][#sec-exp-type-checker].
 - $\exp$ must evaluate to a number at compile-time. Let $\int$ reperesent this number. [($\compileTimeEval \exp$)][#compileTimeEval]
@@ -1363,7 +1363,7 @@ Similar to headers, header unions may also be generic.
 $\headerUnionTyps  \typParam \field {\typName}$
 
 - The fields must be distinct. [(*distinct*)][#distinct]
-- The type names assigned to the fields must exist in the type environment $\typEnv$ and let them be associated to types $\typs$. [($\lookupTypEnv \typNames$)][#lookup-env]
+- The type names assigned to the fields must exist in the type environment $\typEnv$ and let them correspond to types $\typs$. [($\lookupTypEnv \typNames$)][#lookup-env]
    + Note that these header types are well-formed since they have already been stored in the environment.
 - The types $\typs$ must be a header type. [(*is_header*)][#isHeader]
 - The type parameters of the header union must be distinct. [(*distinct*)][#distinct]
@@ -1439,7 +1439,7 @@ Serializable enumeration types have an underlying type. This type may be express
 
 $\enumTyp {\VVal \typName} \typName \fields$
 
-- The type name $\VVal \typName$ must exist in the type synonym environment $\typSynEnv$ and let it be associated to the type $\typ$. [($\lookupTypSynEnv {\typName}$)][#lookup-env]
+- The type name $\VVal \typName$ must exist in the type synonym environment $\typSynEnv$ and let it correspond to the type $\typ$. [($\lookupTypSynEnv {\typName}$)][#lookup-env]
 - The substitution of $\typ$ with $\typName$ as the underlying type of the enum must result in a [well-formed enum][#sec-ser-enum-t].
 
 ~ Begin InfRule
@@ -1540,8 +1540,8 @@ It is important to note that the type casting judgment stands on its own, that i
 
 - The bitstring type $\bitWidthTyp {\exp_1}$ must be [well-formed][#sec-unsigned-int-t].
 - The fixed-width signed integer type $\intWidthTyp {\exp_2}$ must be [well-formed][#sec-signed-int-t].
-- Expressions $\exp_1$ and $\exp_2$ must be [evaluated at compile-time to integers][#compileTimeEval] $\width_1$ and $\width_2$, respectively.
-- The integers $\width_1$ and $\width_2$ must be the same.
+- Expressions $\exp_1$ and $\exp_2$ must evaluate to numbers at compile-time. Let $\width_1$ and $\width_2$ represent such numbers, respectively. [($\compileTimeEval \exp$)][#compileTimeEval]
+- $\width_1$ and $\width_2$ must be equal.
 - Then, the bitstring type $\bitWidthTyp {\exp_1}$ can be casted to the fixed-width signed integer type $\intWidthTyp {\exp_2}$.
 
 ~ Begin InfRuleHelper
@@ -1561,8 +1561,8 @@ It is important to note that the type casting judgment stands on its own, that i
 
 - The fixed-width signed integer type $\intWidthTyp {\exp_1}$ must be [well-formed][#sec-signed-int-t].
 - The bitstring type $\bitWidthTyp {\exp_2}$ must be [well-formed][#sec-unsigned-int-t].
-- Expressions $\exp_1$ and $\exp_2$ must be [evaluated at compile-time to integers][#compileTimeEval] $\width_1$ and $\width_2$, respectively.
-- The integers $\width_1$ and $\width_2$ must be the same.
+- Expressions $\exp_1$ and $\exp_2$ must evaluate to numbers at compile-time. Let $\width_1$ and $\width_2$ represent such numbers, respectively. [($\compileTimeEval \exp$)][#compileTimeEval]
+- $\width_1$ and $\width_2$ must be equal.
 - Then, the fixed-width signed integer type $\intWidthTyp {\exp_1}$ can be casted to bitstring type $\bitWidthTyp {\exp_2}$.
 
 ~ Begin InfRuleHelper
@@ -1648,7 +1648,7 @@ It is important to note that the type casting judgment stands on its own, that i
 
 *Casting type synonym $\typName$ to type $\typ$*
 
-- The type synonym $\typName$ must [exist in the type synonym environment][#lookup-env] $\typSynEnv$ and it corresponds to type $\typ$.
+- The type synonym $\typName$ must exist in the type synonym environment $\typSynEnv$ and let it correspond to type $\typ$. [($\lookupTypSynEnv \typName$)][#lookup-env]
 - Then, the type synonym $\typName$ can be casted to the type $\typ$.
 
 ~ Begin InfRuleHelper
@@ -1660,10 +1660,10 @@ It is important to note that the type casting judgment stands on its own, that i
 
 *Casting type synonym $\typName_1$ to type synonym $\typName_2$*
 
-- The type synonym $\typName_1$ must [exist in the type synonym environment][#lookup-env] $\typSynEnv$ and it corresponds to type $\typ_1$.
-- The type synonym $\typName_2$ must [exist in the type synonym environment][#lookup-env] $\typSynEnv$ and it corresponds to type $\typ_2$.
-- Type $\typ_1$ must be castable to type $\typ_2$.
-- Then, type synony $\typName_1$ can be casted to type synonym $\typName_2$.
+- The type synonym $\typName_1$ must exist in the type synonym environment $\typSynEnv$ and let it correspond to type $\typ_1$. [($\lookupTypSynEnv \typName$)][#lookup-env]
+- The type synonym $\typName_2$ must exist in the type synonym environment $\typSynEnv$ and let it correspond to type $\typ_2$. [($\lookupTypSynEnv \typName$)][#lookup-env]
+- Type $\typ_1$ must be [cast-able][#sec-casting-type-checker] to type $\typ_2$.
+- Then, type synonym $\typName_1$ can be casted to type synonym $\typName_2$.
 
 ~ Begin InfRuleHelper
 \mprset {vskip=0.7ex}
@@ -1678,7 +1678,7 @@ It is important to note that the type casting judgment stands on its own, that i
 
 *Casting type name $\typName$ to type $\typ$*
 
-- The type name $\typName$ must [exist in the type environment][#lookup-env] $\typEnv$ and it corresponds to type $\typ$.
+- The type name $\typName$ must exist in the type environment $\typEnv$ and let it correspond to type $\typ$. [($\lookupTypEnv \typName$)][#lookup-env]
 - Then, the type name $\typName$ can be casted to type $\typ$.
 
 
@@ -1718,7 +1718,8 @@ It is important to note that the type casting judgment stands on its own, that i
 
 *Casting $\typ$ to $\enumTypDef$*
 
-- The type $\typ$ can be casted to the [well-formed serializable enumeration type][#sec-ser-enum-t] $\enumTypDef$. Note that the well-formedness of the serializable enumeration type requires the underlying type $\typ$ to also be well-formed. Thus, we do not need to double-check that it is well-formed.
+- The type $\typ$ can be casted to the [well-formed serializable enumeration type][#sec-ser-enum-t] $\enumTypDef$.
+  + Note that the well-formedness of the serializable enumeration type requires the underlying type $\typ$ to also be well-formed. Thus, we do not need to double-check that it is well-formed.
 
 ~ Begin InfRuleHelper
 % expl
@@ -1734,7 +1735,7 @@ It is important to note that the type casting judgment stands on its own, that i
 - The tuple type $\tupleTyps \typ$ must be [well-formed][#sec-tuple-t].
 - The non-generic header type $\headerTyps {} \field {\VVal \typ}$ must be [well-formed][#sec-header-t].
 - Either:
-   + Types $\typs$ must be castable to types $\overline {\VVal \typ}$.
+   + Types $\typs$ must be cast-able to types $\overline {\VVal \typ}$.
 - Or:
    + The tuple types $\tupleTyps \typ$ and $\tupleTyps {\VVal \typ}$ must be [the same][#sec-type-eq-type-checker].
 - Then, the tuple type $\tupleTyps \typ$ can be casted to the header type $\headerTyps {} \field {\VVal \typ}$.
@@ -1795,7 +1796,7 @@ It is important to note that the type casting judgment stands on its own, that i
 - The non-generic struct type $\structTyps {} {\field_1} {\typ_1}$ must be [well-formed][#sec-struct-t].
 - The non-generic header type $\headerTyps {}  {\field_2} { \typ_2}$ must be [well-formed][#sec-header-t].
 - Either:
-   + Types $\overline {\typ_1}$ must be castable to types $\overline { \typ_2}$.
+   + Types $\overline {\typ_1}$ must be cast-able to types $\overline { \typ_2}$.
 - Or:
    + The struct types $\structTyps {} {\field_1} {\typ_1}$ and $\structTyps {} {\field_2} {\typ_2}$ must be [the same][#sec-type-eq-type-checker].
 - Then, the struct type $\structTyps {} {\field_1} {\typ_1}$ can be casted to the header type $\headerTyps {}  {\field_2} { \typ_2}$.
@@ -1900,8 +1901,8 @@ Array access may take two forms, it can either access a header stack or a tuple.
 $\arrayAccess {\exp_1} {\exp_2}$ where $\exp_1 : \headerStackTyp \typ \size$
 
 
-- The structure being accessed, that is, $\exp_1$, must be a well-formed header stack type, denoted by $\headerStackTyp \typ \size$.
-- The access index must be a well-formed expression of a [numeric type][#isNumeric].
+- $\exp_1$, the structure being accessed, must be [well-formed][#sec-exp-type-checker] with type header stack  $\headerStackTyp \typ \size$.
+- The access index must be a [well-formed expression][#sec-exp-type-checker] of a numeric type. [(*is_numeric*)][#isNumeric]
 - Then, accessing the header stack $\exp_1$ at the index $\exp_2$ is well-formed with type $\typ$.
 
 
@@ -1917,9 +1918,9 @@ $\arrayAccess {\exp_1} {\exp_2}$ where $\exp_1 : \headerStackTyp \typ \size$
 
 $\arrayAccess {\exp_1} {\exp_2}$ where $\exp_1 : \tupleTyp {\typ_1} {\typ_n}$
 
-- The structure being accessed, that is, $\exp_1$, must be a well-formed tuple type with $n$ elements.
-- The access index must be a well-formed integer type.
-- The access index must [be evaluated to integer $\int$ at compile-time][#compileTimeEval].
+- $\exp_1$, the structure being accessed, must be [well-formed][#sec-exp-type-checker] with type tuple $\tupleTyp {\typ_1} {\typ_n}$.
+- The access index must be a [well-formed expression][#sec-exp-type-checker] with type integer.
+- The access index must evaluate to an integer at compile-time. Let $\int$ represent such integer. [($\compileTimeEval \exp$)][#compileTimeEval]
 - $\int$ must be between the bounds of the tuple type.
 - Then, accessing the tuple $\exp_1$ at the index $\exp_2$ is well-formed with type $\typ_\int$.
 
@@ -1940,16 +1941,16 @@ Bitstring slicing may occur over a fixed-width signed or unsigned integer.
 
 $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$
 
-- The bitstring slicing must be over a well-formed expression $\exp_1$. Either:
+- The bitstring slicing must be over a [well-formed expression][#sec-exp-type-checker] $\exp_1$. Either:
   + The type of $\exp_1$ must be a fixed-width unsigned integer $\bitWidthTyp \width$.
 - Or:
   + The type of $\exp_1$ must be a fixed-width signed integer $\intWidthTyp \width$.
-- Under a $\cte$ context, expressions representing the indices of slicing must be well-formed with one the following types, denoted by the [function *is\_num\_or\_enum*][#isNumOrEnum]:
+- Under a $\cte$ context, expressions representing the indices of slicing must be [well-formed][#sec-exp-type-checker] with one the following types: [(*is_num_or_enum*)][#isNumOrEnum]:
    + $\integerTyp$
    + $\intWidthTyp \width$
    + $\bitWidthTyp \width$
    + $\enumTypDef$
-- Expressions representing the lower and upper indices must [be evaluated to numbers $\int_1$ and $\int_2$, respectively, at compile-time][#compileTimeEval].
+- Expressions representing the lower and upper indices must evaluate to numbers at compile time. Let $\int_1$ and $\int_2$ represent such numbers, respectively. [($\compileTimeEval \exp$)][#compileTimeEval]
 - The lower and upper indices of the slicing must be in bound of the width of the fixed-width integer and each other.
 - Then, slicing a bitstring from index $\exp_2$ to $\exp_3$ is well-formed with type either:
    + $\bitWidthTyp {\int_2 - \int_1 + 1}$.
@@ -1996,7 +1997,7 @@ $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$
 
 $\list \exps$
 
-- Elements of the list must be well-formed with types $\typs$.
+- Elements of the list must be [well-formed] and let them have types $\typs$.
 - Then, the list is well-formed with type $\listTyps \typ$.
 
 ~ Begin InfRule
@@ -2012,8 +2013,8 @@ $\list \exps$
 
 $\records \exp$
 
-- The fields are [distinct][#distinct].
-- The expressions assigned to the fields are well-formed with types $\typs$.
+- The fields are distinct. [(*distinct*)][#distinct]
+- The expressions assigned to the fields are [well-formed][#sec-exp-type-checker] and let them have types $\typs$.
 - Then, the record is well-formed with type struct type $\structTyps { } \field \typ$.
 
 ~ Begin InfRule
@@ -2032,7 +2033,7 @@ P4 has three unary operations: logical negation, bitwise complement, and minus.
 
 $\intoOp ! \exp$
 
-- The expression $\exp$ must be well-formed with $\boolTyp$ type.
+- The expression $\exp$ must be [well-formed][#sec-exp-type-checker] with $\boolTyp$ type.
 - Then, expression $\intoOp ! \exp$ is well-formed with $\boolTyp$ type.
 
 ~ Begin InfRule
@@ -2044,7 +2045,7 @@ $\intoOp ! \exp$
 
 $\intoOp \bitComplement \exp$
 
-- The expression $\exp$ must be well-formed with a [fixed-width integer type][#isWidthInt] $\typ$.
+- The expression $\exp$ must be [well-formed][#sec-exp-type-checker] with a fixed-width integer type $\typ$. [(*is_width_int*)][#isWidthInt] 
 - Then, the expression $\intoOp \bitComplement \exp$ is well-formed with type $\typ$.
 
 ~ Begin InfRule
@@ -2057,7 +2058,7 @@ $\intoOp \bitComplement \exp$
 
 $\intoOp - \exp$
 
-- The expression $\exp$ must be well-formed with a [numeric type][#isNumeric] $\typ$.
+- The expression $\exp$ must be [well-formed][#sec-exp-type-checker] with a numeric type$\typ$. [(*is_numeric*)][#isNumeric] 
 - Then, the expression $\intoOp - \exp$ is well-formed with type $\typ$.
 
 ~ Begin InfRule
@@ -2074,7 +2075,7 @@ P4 has around 15 binary operations. For each of them, some constraints must hold
 
 $\binOpExp {\&\&} {\exp_1} {\exp_2}$ or $\binOpExp \logor {\exp_1} {\exp_2}$
 
-- Both operand expressions must be well-formed with $\boolTyp$ type.
+- Both operand expressions must be [well-formed][#sec-exp-type-checker] with $\boolTyp$ type.
 - Then, the logical and/or expression is well-formed with $\boolTyp$ type. 
 
 ~ Begin InfRule
@@ -2089,7 +2090,7 @@ $\binOpExp {\&\&} {\exp_1} {\exp_2}$ or $\binOpExp \logor {\exp_1} {\exp_2}$
 
 $\binOpExp {\intoOp +} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp -} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp *} {\exp_1} {\exp_2}$
 
-- Both operand expressions must be well-formed with a [numeric type][#isNumeric].
+- Both operand expressions must be [well-formed][#sec-exp-type-checker] with a numeric type. [(*is_numeric*)][#isNumeric]
 - Operand expressions must have the [same type][#sec-type-eq-type-checker].
 - Then, the addition/subtraction/multiplication expression is well-formed with a numeric type the same as its operands.
 
@@ -2107,10 +2108,10 @@ $\binOpExp {\intoOp +} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp -} {\exp_1} {\e
 
 $\binOpExp {\intoOp {==}} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp {!=}} {\exp_1} {\exp_2}$
 
-- Both operand expressions must be well-formed.
+- Both operand expressions must be [well-formed][#sec-exp-type-checker].
 - The operand expressions must have the [same type][#sec-type-eq-type-checker].
-- Their types must have defined [equality checking for expressions of this type][#typHasEq].
-- The types of operand expression can be any type, however, [if they are $\integerTyp$ the expressions must be compile-time-known][#ifIntComp].
+- Their types must have defined equality checking for expressions of this type. [(*has_equality*)][#typHasEq]
+- The types of operand expression can be any type, however, if they are $\integerTyp$ the expressions must be compile-time-known. [(*if_int_is_compile_time_known*)][#ifIntComp]
 - Then, the equality/inequality expression is well-formed with $\boolTyp$ type. 
 
 ~ Begin InfRule
@@ -2128,9 +2129,9 @@ $\binOpExp {\intoOp {==}} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp {!=}} {\exp_
 
 $\binOpExp {\intoOp \plusSat} {\exp_1}  {\exp_2}$ or $\binOpExp {\intoOp \subSat} {\exp_1} {\exp_2}$
 
-- Both operand expressions must be well-formed.
+- Both operand expressions must be [well-formed][#sec-exp-type-checker].
 - The operand expressions must have the [same type][#sec-type-eq-type-checker].
-- The operand expressions' types must be a [fixed-width integer type][#isWidthInt].
+- The operand expressions' types must be a fixed-width integer type. [(*is_width_int*)][#isWidthInt]
 - Then, the saturating expression is well-formed with its operand's type.
 
 ~ Begin InfRule
@@ -2146,9 +2147,9 @@ $\binOpExp {\intoOp \plusSat} {\exp_1}  {\exp_2}$ or $\binOpExp {\intoOp \subSat
 
 $\binOpExp {\intoOp \bitAnd} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp \bitOr} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp \bitXor} {\exp_1} {\exp_2}$
 
-- Operand expressions must be well-formed. 
+- Operand expressions must be [well-formed][#sec-exp-type-checker]. 
 - The operand expression must have the [same type][#sec-type-eq-type-checker].
-- The operand expressions' types must be a [fixed-width integer type][#isWidthInt].
+- The operand expressions' types must be a fixed-width integer type. [(*is_width_int*)][#isWidthInt]
 - Then, the bitwise and/or/xor expression is well-formed with the same type as its operands.
 
 ~ Begin InfRule
@@ -2164,9 +2165,9 @@ $\binOpExp {\intoOp \bitAnd} {\exp_1} {\exp_2}$ or $\binOpExp {\intoOp \bitOr} {
 
 $\binOpExp {\intoOp \concat} {\exp_1}  {\exp_2}$
 
-- The operand expressions must be well-formed.
+- The operand expressions must be [well-formed][#sec-exp-type-checker].
 - The operand expressions must have a fixed-width integer types $\typ_1$ and $\typ_2$.
-- Then, the concatenation expression is well-formed with the [type $\concatCond {\typ_1} {\typ_2}$][#concatCond].
+- Then, the concatenation expression is well-formed with the type $\concatCond {\typ_1} {\typ_2}$. [(*concat_type*)]][#concatCond]
 
 ~ Begin InfRule
 \mprset {vskip=0.7ex}
@@ -2179,8 +2180,8 @@ $\binOpExp {\intoOp \concat} {\exp_1}  {\exp_2}$
 
 $\binOpExp { \intoOp <} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \leqOp} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp >} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \geqOp} {\exp_1} {\exp_2}$
 
-- The operand expressions must be well-formed.
-- The operand expression must have a [numeric type][#isNumeric].
+- The operand expressions must be [well-formed][#sec-exp-type-checker].
+- The operand expression must have a numeric type. [(*is_numeric*)][#isNumeric]
 - The operand expressions must have the [same type][#sec-type-eq-type-checker].
 - Then, the comparison expression is well-formed with $\boolTyp$ type.
 
@@ -2198,8 +2199,8 @@ $\binOpExp { \intoOp <} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \leqOp} {\exp
 
 $\binOpExp { \intoOp \div} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \mod} {\exp_1} {\exp_2}$
 
-- The operand expressions must be well-formed with $\integerTyp$ type.
-- Both operand expressions must be [evaluated to a non-negative number at compile-time][#nonNeg].
+- The operand expressions must be [well-formed][#sec-exp-type-checker] with $\integerTyp$ type.
+- Both operand expressions must be evaluate to a non-negative number at compile-time. [(*is_nonneg_numeric*)][#nonNeg].
 - Then, the division/modulo expression is well-formed with $\integerTyp$ type.
 
 ~ Begin InfRule
@@ -2215,9 +2216,9 @@ $\binOpExp { \intoOp \div} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \mod} {\ex
 
 $\binOpExp { \intoOp \shiftL} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \shiftR} {\exp_1} {\exp_2}$
 
-- The operand expressions must be well-formed.
-- The left-hand operand expression must have a [numeric type][#isNumeric], denoted by $\typ_1$.
-- The right-hand expression $\exp_2$ must [satisfy one of the following][#shiftCond]:
+- The operand expressions must be [well-formed][#sec-exp-type-checker].
+- The left-hand operand expression must have a numeric type. Let $\typ_1$ represent such type. [(*is_numeric*)][#isNumeric]
+- The right-hand expression $\exp_2$ must satisfy one of the following: [(*shift_condition*)][#shiftCond]:
    + its type is $\bitWidthTyp \width$
    + its type is $\integerTyp$ and $\nonNeg {\exp_2}$.
 - Then, the shifting expression is well-formed with a type the same as its left-hand operand, that is, $\typ_1$.

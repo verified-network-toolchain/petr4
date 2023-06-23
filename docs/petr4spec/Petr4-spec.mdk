@@ -1735,7 +1735,7 @@ It is important to note that the type casting judgment stands on its own, that i
 - The tuple type $\tupleTyps \typ$ must be [well-formed][#sec-tuple-t].
 - The non-generic header type $\headerTyps {} \field {\VVal \typ}$ must be [well-formed][#sec-header-t].
 - Either:
-   + Types $\typs$ must be cast-able to types $\overline {\VVal \typ}$.
+   + Types $\typs$ must be [cast-able][#sec-casting-type-checker] to types $\overline {\VVal \typ}$.
 - Or:
    + The tuple types $\tupleTyps \typ$ and $\tupleTyps {\VVal \typ}$ must be [the same][#sec-type-eq-type-checker].
 - Then, the tuple type $\tupleTyps \typ$ can be casted to the header type $\headerTyps {} \field {\VVal \typ}$.
@@ -1765,7 +1765,7 @@ It is important to note that the type casting judgment stands on its own, that i
 - The tuple type $\tupleTyps \typ$ must be [well-formed][#sec-tuple-t].
 - The non-generic struct type $\structTyps {} \field {\VVal \typ}$ must be [well-formed][#sec-struct-t].
 - Either:
-   + Types $\typs$ must be cast-able to types $\overline {\VVal \typ}$.
+   + Types $\typs$ must be [cast-able][#sec-casting-type-checker] to types $\overline {\VVal \typ}$.
 - Or:
    + The tuple types $\tupleTyps \typ$ and $\tupleTyps {\VVal \typ}$ must be [the same][#sec-type-eq-type-checker].
 - Then, the tuple type $\tupleTyps \typ$ can be casted to the struct type $\structTyps {} \field {\VVal \typ}$.
@@ -1796,7 +1796,7 @@ It is important to note that the type casting judgment stands on its own, that i
 - The non-generic struct type $\structTyps {} {\field_1} {\typ_1}$ must be [well-formed][#sec-struct-t].
 - The non-generic header type $\headerTyps {}  {\field_2} { \typ_2}$ must be [well-formed][#sec-header-t].
 - Either:
-   + Types $\overline {\typ_1}$ must be cast-able to types $\overline { \typ_2}$.
+   + Types $\overline {\typ_1}$ must be [cast-able][#sec-casting-type-checker] to types $\overline { \typ_2}$.
 - Or:
    + The struct types $\structTyps {} {\field_1} {\typ_1}$ and $\structTyps {} {\field_2} {\typ_2}$ must be [the same][#sec-type-eq-type-checker].
 - Then, the struct type $\structTyps {} {\field_1} {\typ_1}$ can be casted to the header type $\headerTyps {}  {\field_2} { \typ_2}$.
@@ -1997,7 +1997,7 @@ $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$
 
 $\list \exps$
 
-- Elements of the list must be [well-formed] and let them have types $\typs$.
+- Elements of the list must be [well-formed][#sec-exp-type-checker] and let them have types $\typs$.
 - Then, the list is well-formed with type $\listTyps \typ$.
 
 ~ Begin InfRule
@@ -2167,7 +2167,7 @@ $\binOpExp {\intoOp \concat} {\exp_1}  {\exp_2}$
 
 - The operand expressions must be [well-formed][#sec-exp-type-checker].
 - The operand expressions must have a fixed-width integer types $\typ_1$ and $\typ_2$.
-- Then, the concatenation expression is well-formed with the type $\concatCond {\typ_1} {\typ_2}$. [(*concat_type*)]][#concatCond]
+- Then, the concatenation expression is well-formed with the type $\concatCond {\typ_1} {\typ_2}$. [(*concat_type*)][#concatCond]
 
 ~ Begin InfRule
 \mprset {vskip=0.7ex}
@@ -2200,7 +2200,7 @@ $\binOpExp { \intoOp <} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \leqOp} {\exp
 $\binOpExp { \intoOp \div} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \mod} {\exp_1} {\exp_2}$
 
 - The operand expressions must be [well-formed][#sec-exp-type-checker] with $\integerTyp$ type.
-- Both operand expressions must be evaluate to a non-negative number at compile-time. [(*is_nonneg_numeric*)][#nonNeg].
+- Both operand expressions must be evaluate to a non-negative number at compile-time. [(*is_nonneg_numeric*)][#nonNeg]
 - Then, the division/modulo expression is well-formed with $\integerTyp$ type.
 
 ~ Begin InfRule
@@ -2218,7 +2218,7 @@ $\binOpExp { \intoOp \shiftL} {\exp_1} {\exp_2}$ or $\binOpExp { \intoOp \shiftR
 
 - The operand expressions must be [well-formed][#sec-exp-type-checker].
 - The left-hand operand expression must have a numeric type. Let $\typ_1$ represent such type. [(*is_numeric*)][#isNumeric]
-- The right-hand expression $\exp_2$ must satisfy one of the following: [(*shift_condition*)][#shiftCond]:
+- The right-hand expression $\exp_2$ must satisfy one of the following: [(*shift_condition*)][#shiftCond]
    + its type is $\bitWidthTyp \width$
    + its type is $\integerTyp$ and $\nonNeg {\exp_2}$.
 - Then, the shifting expression is well-formed with a type the same as its left-hand operand, that is, $\typ_1$.
@@ -2240,10 +2240,10 @@ Casting the type of an expression to another type may occur by representing the 
 
 $\cast {\typName} \exp$
 
-- The expression $\exp$ must be well-formed with type $\typ$.
-- The type name $\typName$ must [exist in the type environment][#lookup-env] $\typEnv$ and it corresponds to the type $\VVal \typ$.
-- The type $\typ$ must [be cast-able][#sec-casting-type-checker] to the type $\VVal \typ$.
-- Then, the expression $\cast \typName \exp$ is well-formed.
+- The expression $\exp$ must be [well-formed][#sec-exp-type-checker] and let it have type $\typ$.
+- The type name $\typName$ must exist in the type environment $\typEnv$ and let it correspond to the type $\VVal \typ$. [($\lookupTypEnv \typName$)][#lookup-env]
+- The type $\typ$ must be [cast-able][#sec-casting-type-checker] to the type $\VVal \typ$.
+- Then, the expression $\cast \typName \exp$ is well-formed with type $\VVal \typ$.
 
 ~ Begin InfRule
 \mprset {vskip = 0.7 ex}
@@ -2259,9 +2259,9 @@ $\cast {\typName} \exp$
 
 $\cast {\typ} \exp$
 
-- The expression $\exp$ must be well-formed with type $\VVal \typ$.
-- The type $\VVal \typ$ must [be cast-able][#sec-casting-type-checker] to the type $ \typ$.
-- Then, the expression $\cast \typ \exp$ is well-formed.
+- The expression $\exp$ must be [well-formed][#sec-exp-type-checker] and let it have type $\VVal \typ$.
+- The type $\VVal \typ$ must be [cast-able][#sec-casting-type-checker] to the type $ \typ$.
+- Then, the expression $\cast \typ \exp$ is well-formed with type $\VVal \typ$.
 
 ~ Begin InfRule
 \mprset {vskip = 0.7 ex}
@@ -2288,10 +2288,10 @@ $\cast {\typ} \exp$
 
 $\ternary {\exp_1} {\exp_2} {\exp_3}$
 
-- The condition expression $\exp_1$ must be well-formed with $\boolTyp$ type.
-- The branch expressions $\exp_2$ and $\exp_3$ must be well-formed with types $\typ_1$ and $\typ_2$, respectively.
-- The types of the branch expression, that is, $\typ_1$ and $\typ_2$, must be [the same][#sec-type-eq-type-checker].
-- The types of the branch expression can be any type, however, [if they are $\integerTyp$ the condition expression must be compile-time-known][#ifIntComp].
+- The condition expression $\exp_1$ must be [well-formed][#sec-exp-type-checker] with $\boolTyp$ type.
+- The branch expressions $\exp_2$ and $\exp_3$ must be [well-formed][#sec-exp-type-checker] and let types $\typ_1$ and $\typ_2$ represent their types, respectively.
+- $\typ_1$ and $\typ_2$ must be [the same][#sec-type-eq-type-checker].
+- The types of the branch expression can be any type, however, if they are $\integerTyp$ condition expression $\exp_1$ must be compile-time-known. [(*if_int_is_compile_time_known*)][#ifIntComp]
 - Then, the expression $\ternary {\exp_1} {\exp_2} {\exp_3}$ is well-formed with the same type as its branches, that is, $\typ_1$.
 
 ~ Begin InfRule
@@ -2317,9 +2317,9 @@ $\ternary {\exp_1} {\exp_2} {\exp_3}$
 
 $\range {\exp_1} {\exp_2}$
 
-- The operand expressions both must be well-formed. 
-- The types of the operand expressions must be [the same][#sec-type-eq-type-checker].
-- The operand expressions' types $\typ_1$ and $\typ_2$ must be a [fixed-width integer types][#isWidthInt].
+- The operand expressions both must be [well-formed][#sec-exp-type-checker] and let types $\typ_1$ and $\typ_2$ represent their types. 
+- $\typ_1$ and $\typ_2$ must be [the same][#sec-type-eq-type-checker].
+- $\typ_1$ and $\typ_2$ must be a fixed-width integer types. [(*is_width_int*)][#isWidthInt]
 - Then, ranging from expression $\exp_1$ to $\exp_2$ is well-formed with the type $\setTyp {\typ_1}$.
 
 ~ Begin InfRule

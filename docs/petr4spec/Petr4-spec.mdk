@@ -271,8 +271,8 @@ infrulehelper {
 
 
 ~ Begin Abstract
-P4's type system as describe in P4 spec cannot answer some questions precisely, such as when is an implict cast being inserted, what types are equal, what type inference algorithm is used, etc.
-On the other hand, the type system as implemented in p4c is not easy to understand since it is distributed among more than half a dozen passes and interspered with non-typing passes.
+P4's type system as describe in P4 spec cannot answer some questions precisely, such as when is an implicit cast being inserted, what types are equal, what type inference algorithm is used, etc.
+On the other hand, the type system as implemented in p4c is not easy to understand since it is distributed among more than half a dozen passes and interspersed with non-typing passes.
 In this document, we present the formalization of the type system. More specifically, we break it down into a simple type checker and a type inference algorithm. The goal is to spell out all the details of P4's type system precisely. 
 The target audience of this document is mainly language designers and compiler experts who work on P4. Additionally, it can be a good resource for practitioners who require a deep understanding of P4.
 ~ End Abstract
@@ -294,7 +294,7 @@ The target audience of this document is mainly language designers and compiler e
 [issue-1101]: https://github.com/p4lang/p4-spec/issues/1101
 
 P4's type system as describe in P4 spec cannot answer some questions, such as when is
-an implict cast being inserted, what types are equal, what type inference algorithm is
+an implicit cast being inserted, what types are equal, what type inference algorithm is
 used, etc. Even worse it sometimes fails to answer the basic question of when does a
 program type check. This is evident by the filed issues on P4 spec's GitHub repository
 such as [issue #875][issue-875], [issue #1241][issue-1241], [issue #1242][issue-1242],
@@ -311,7 +311,7 @@ sections.
 
 On the other hand, p4c implements a type system for P4 so it can answer some of the
 questions that the spec cannot. Unfortunately, there are more than half a dozen typing
-passes in p4c which are interspered with non-typing passes, as shown in the simplified
+passes in p4c which are interspersed with non-typing passes, as shown in the simplified
 p4c's pipeline shown in Figure [#fig-p4c-pipeline].
 
 ~ Figure { #fig-p4c-pipeline; caption: "P4c compiler pipeline." }
@@ -320,7 +320,7 @@ p4c's pipeline shown in Figure [#fig-p4c-pipeline].
 [p4cpipeline]: figs/p4c/p4c-pipeline.png { width: 100%; page-align: forcehere }
 
 This document defines P4's type system precisely. The type system is broken down to
-multiple passes and is conducted over the  _surface itermediate representation (IR)_.
+multiple passes and is conducted over the  _surface intermediate representation (IR)_.
 Figure [#fig-petr4-pipeline] illustrates the passes.
 
 ~ Figure { #fig-petr4-pipeline; caption: "P4 front-end pipeline." }
@@ -328,10 +328,10 @@ Figure [#fig-petr4-pipeline] illustrates the passes.
 ~
 [petr4pipeline]: figs/petr4/petr4-pipeline.png { width: 20%; page-align: forcehere }
 
-_Ellaboration_ is a pre-processing pass that generates fresh variable names for un-named
+_Elaboration_ is a pre-processing pass that generates fresh variable names for un-named
 variables along with other pre-processing required for typing. 
 _Inference_ conducts type inference, i.e., it infers the type for parts of the program
-that miss typing annotations, and insertion of casts, i.e., to conver a program from one
+that miss typing annotations, and insertion of casts, i.e., to convert a program from one
 type to another. Consequently, it generates
 another program written in the surface IR. 
 _Type checking_ is a simple type checking pass that states if a program is well-typed or
@@ -351,7 +351,7 @@ each pass simpler and easier to understand.
 # Syntax { #sec-syntax }
 
 A P4 program is parsed to the surface IR and can be represented in the surface IR. The
-structure of this IR is deescribed in the form of an abstract syntax tree (AST). All
+structure of this IR is described in the form of an abstract syntax tree (AST). All
 definitions of this specification use this abstract syntax.
 For simplicity, the surface IR does not contain annotations and meta-information.
 
@@ -364,11 +364,11 @@ We describe the various conventions that have been adopted in writing this docum
 The following conventions are adopted in defining the grammar rules for surface IR's abstract syntax:
 
 - A _phrase_ is a part of the program. 
-- Terminal symbols are writeen in sans-serif font or in symbolic form: $\boolTyp$, $\accept$, $\langle$, $\oplus$.
+- Terminal symbols are written in sans-serif font or in symbolic form: $\boolTyp$, $\accept$, $\langle$, $\oplus$.
 - Nonterminal symbols are written in italic font: $\exp$, $\stmt$.
 - Each nonterminal symbol defines a new _syntactic category_.
 - Production rules in grammar are written as $\synCat ::= \A_1 | \cdots | \A_n$. Each rule describes a syntactic category and has multiple _constructor cases_. For example, the rule here describes the syntactic category $\synCat$ and has $n$ cases.
-- Each case of a syntactic category is accompanied with a pharse that describes the role of that case, as shown below. Such phrase is not part of the grammar and is solely used as a comment to clarify the grammar more.
+- Each case of a syntactic category is accompanied with a phrase that describes the role of that case, as shown below. Such phrase is not part of the grammar and is solely used as a comment to clarify the grammar more.
 
 ~ Begin P4Syntax
 
@@ -382,15 +382,15 @@ The following conventions are adopted in defining the grammar rules for surface 
 ~ End P4Syntax
 
 - Large production rules may be split into multiple production rules. This is explicitly indicated by having ellipses at the beginning or/and end of a rule. For example, $\synCat ::= \cdots | \A_i | \cdots$.
-- The notation $\overline {\A}$ denotes a list of zero or more $\A$. Passing arguments as list is wrapped in symbols such as paranthesis. For example, $(\overline A)$ or $\langle\overline A \rangle$ denote passing the list of $A$s. When the list is empty there is nothing inside the symbols. For example, $\mathit{foo}( )$ calls the function $\mathit{foo}$ on no input.
+- The notation $\overline {\A}$ denotes a list of zero or more $\A$. Passing arguments as list is wrapped in symbols such as parenthesis. For example, $(\overline A)$ or $\langle\overline A \rangle$ denote passing the list of $A$s. When the list is empty there is nothing inside the symbols. For example, $\mathit{foo}( )$ calls the function $\mathit{foo}$ on no input.
 
 
 ### Auxiliary Notation { #sec-aux-notation-ast }
 
 Additionally, the following notation is used to keep definitions concise:
 
-- The notation $(a,b)$ is a pair where the first element is $a$ and the second element is $b$. For examaple, $(\tru, 3)$ is a pair of $\tru$ and $3$.
-- The notation $a \rightarrow b$ denotes a function that has domain $a$ and co-domain $b$. Note that both $a$ and $b$ reperenst a (possibly different) type.
+- The notation $(a,b)$ is a pair where the first element is $a$ and the second element is $b$. For example, $(\tru, 3)$ is a pair of $\tru$ and $3$.
+- The notation $a \rightarrow b$ denotes a function that has domain $a$ and co-domain $b$. Note that both $a$ and $b$ represent a (possibly different) type.
 - For simplicity, a function denotes a mapping in an environment.
 - The notation $\A : \typ$ states that $\A$ has type $\typ$. For example, $\fls : \boolTyp$.
 - The following production rule is a record that its $\field_i$ has type $\typ_i$.
@@ -408,7 +408,7 @@ Additionally, the following notation is used to keep definitions concise:
 ~ End P4Syntax
 
 - The notation $r.\field$ denotes the contents of the $\field$ component of $r$.
-- The notation $\with r {\VVal {\field_i}}$ is the same as record $r$ excpet that it updates the field $\field_i$ to $\VVal {\field_i}$.
+- The notation $\with r {\VVal {\field_i}}$ is the same as record $r$ except that it updates the field $\field_i$ to $\VVal {\field_i}$.
 
 ### Metavariables { #sec-metavars }
 
@@ -464,7 +464,7 @@ Directions are used for parameters and they determine whether the parameter is u
 ## Types { #sec-ast-type }
 
 
-The surface IR has a signle syntactic category for types, however, this syntactic category represents three kinds of types:
+The surface IR has a single syntactic category for types, however, this syntactic category represents three kinds of types:
 
 - **Surface types**: types that are directly written by a programmer in a P4 program.
 - **Declared types**: types that are declared by a P4 program.
@@ -804,14 +804,14 @@ The type checker takes phrases of a program written in the surface IR and simply
 
 [#web-assembly-link]: https://webassembly.github.io/spec/core/index.html
 
-The type checker is defined by a _type system_ over the abstract syntax of a program and its phrases. Thus, for each syntactic category of the surface IR, there is a typing judgement and a set of typing rules. For each syntactic category, the judgement form specifies the form that all typing rules for that syntactic category follow and the typing rules specify the constraints that apply to each case of the syntactic category. We adopt the approach used in [web assembly specification][#web-assembly-link] and describe all rules in two formats:
+The type checker is defined by a _type system_ over the abstract syntax of a program and its phrases. Thus, for each syntactic category of the surface IR, there is a typing judgment and a set of typing rules. For each syntactic category, the judgment form specifies the form that all typing rules for that syntactic category follow and the typing rules specify the constraints that apply to each case of the syntactic category. We adopt the approach used in [web assembly specification][#web-assembly-link] and describe all rules in two formats:
 
 - In _informal notation_, describing the meaning in intuitive English format.
 - In _formal notation_, describing the rule in mathematical form.
 
-### Enviornments { #sec-env }
+### Environments { #sec-env }
 
-The type checker is defined over an _enviornment_, which collects relevant information about the (sub-)program and carries in-scope definitions. In particular, it carries the following definitions:
+The type checker is defined over an _environment_, which collects relevant information about the (sub-)program and carries in-scope definitions. In particular, it carries the following definitions:
 
 - Types (denoted by $\typEnv$): the list of mapping a type name to its type
 - Type synonyms ($\typSynEnv$): the list of mapping a type name to another type name
@@ -822,7 +822,7 @@ The type checker is defined over an _enviornment_, which collects relevant infor
 - Context ($\ctxt$): states the lexical context and scope of the sub-program such as _top-level_, _parser_, etc, denoted 
 
 
-To be concrete, environements are all accumulated in one place and they are defined as the [record][#sec-aux-notation-ast] $\env$. 
+To be concrete, environments are all accumulated in one place and they are defined as the [record][#sec-aux-notation-ast] $\env$. 
 
 ~ Begin P4Syntax
 
@@ -840,7 +840,7 @@ To be concrete, environements are all accumulated in one place and they are defi
 |  | $\vert$ | $\declLocalCtxt$ |
 { .booktable }
 
-**Enviornment:**
+**Environment:**
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
@@ -855,8 +855,8 @@ To be concrete, environements are all accumulated in one place and they are defi
 
 ~ End P4Syntax
 
-###### - Accessing each enviornment can be done through field access of $\env$. For example, $\env.\typEnv$ gives access to the contents of type enviornment. However, for simpilicity and since the enviorment is global, we omit the $\env.$ part. So for example, $\typEnv$ is a shorthand for $\env.\typEnv$. { -; font-weight: "normal"; id: access-env; label: "access-env" }
-###### - The notation $\lookupTypEnv \name$ looks up $\name$ in type enviornment $\typEnv$. Such notation is used for looking up in any of the enviornments. Note that $\typEnv$ stands for $\env . \typEnv$ in a lookup as well. Consequently, the notation $\env(\name)$ is meaningless since it does not state which enviornment field of $\env$ is being used for the lookup. { -; font-weight: "normal"; id: lookup-env; label: "lookup-env" }
+###### - Accessing each enviornment can be done through field access of $\env$. For example, $\env.\typEnv$ gives access to the contents of type enviornment. However, for simplicity and since the  is global, we omit the $\env.$ part. So for example, $\typEnv$ is a shorthand for $\env.\typEnv$. { -; font-weight: "normal"; id: access-env; label: "access-env" }
+###### - The notation $\lookupTypEnv \name$ looks up $\name$ in type environment $\typEnv$. Such notation is used for looking up in any of the environments. Note that $\typEnv$ stands for $\env . \typEnv$ in a lookup as well. Consequently, the notation $\env(\name)$ is meaningless since it does not state which environment field of $\env$ is being used for the lookup. { -; font-weight: "normal"; id: lookup-env; label: "lookup-env" }
 ###### - The notation $\insertToTypEnv \typName \typ $ extends the type environment with the new assignment of $\typ$ to $\typName$. This notation is used for extending any of the environments. { -; font-weight: "normal"; id: extend-env; label: "extend-env" }
 ###### - The notation $\insertToTypParEnv \typParam$ is a shorthand for $\insertToTypParEnv {\typParam = \notInstantiatedTyp}$ which extends the type parameter environment with the new parameter $\typParam$ that is not instantiated.  { -; font-weight: "normal"; id: extend-typ-par-env; label: "extend-typ-par-env" }
 ###### - The notation $\updateEnv {\VVal \typEnv}$ is short for $\updateEnv {\typEnv = \VVal \typEnv}$ which denotes the same environment as $\env$, except that the type environement $\typEnv$ has been replaced with type environment $\VVal \typEnv$. { -; font-weight: "normal"; id: update-env; label: "update-env" }
@@ -869,9 +869,9 @@ The type checker is specified by rules for each syntactic category of the [surfa
 
 - A type phrase $\A$ "is well-formed"  if and only if all constraints expressed by the respective rules hold.
 - A phrase $\A$ "type checks with type $\typ$" if and only if all constraints expressed by the respective rules hold. The type $\typ$ depends on what $\A$ is.
-- The rules implicitly assume a given [enviornment][#sec-env] $\env$.
-- In some cases, this environment is locally extended to enviornment $\VVal \env$ with extensions in one or more of the $\env$'s fields (enviornments). The formulation "under enviornment $\VVal \env$, ... statement ..." is adopted to express that the statement only holds under the extended enviornment $\VVal \env$.
-- In some cases, this environment is globally extended to environment $\VVal \env$ with extensions in one or more of the $\env$'s fields. In these cases, the extended enviornment is an output of the rule. The formulation "under enviornment $\env$, ... statment ... updates the environment to $\VVal \env$" is adopted to express this global extension of the enviornment. 
+- The rules implicitly assume a given [environment][#sec-env] $\env$.
+- In some cases, this environment is locally extended to environment $\VVal \env$ with extensions in one or more of the $\env$'s fields (environments). The formulation "under environment $\VVal \env$, ... statement ..." is adopted to express that the statement only holds under the extended environment $\VVal \env$.
+- In some cases, this environment is globally extended to environment $\VVal \env$ with extensions in one or more of the $\env$'s fields. In these cases, the extended environment is an output of the rule. The formulation "under environment $\env$, ... statement ... updates the environment to $\VVal \env$" is adopted to express this global extension of the environment. 
 
 ### Formal Notation { #sec-formal-notation }
 
@@ -896,13 +896,13 @@ Such a rule reads as an implication: if all the premises hold, the conclusion ho
 
 The conclusion is a judgment which can take one of the following *form*s. All the rules for a syntactic category have the same judgment form and there is one respective rule for each constructor case of the syntactic category.
 
-- $\env \vdash \A$ states that $\A$ is well-formed under the enviornment $\env$.
+- $\env \vdash \A$ states that $\A$ is well-formed under the environment $\env$.
 - $\env \vdash \A : \typ$ states that $\A$ type checks and it has the type $\typ$ under the enviornment $\env$.
-- $\env \vdash \A : \typ \dashv \VVal \env$ states that $\A$ type checks, it has the type $\typ$ under the enviornment $\env$, and it outputs the extended enviornment $\VVal \env$.
+- $\env \vdash \A : \typ \dashv \VVal \env$ states that $\A$ type checks, it has the type $\typ$ under the environment $\env$, and it outputs the extended environment $\VVal \env$.
 
-If a rule does not use $\env$ in its constraints, we omit the enviornment from the conclusion, that is, it takes the form $\vdash \A$. Still, the enviornment is implicitly assumed by the rule.
+If a rule does not use $\env$ in its constraints, we omit the environment from the conclusion, that is, it takes the form $\vdash \A$. Still, the environment is implicitly assumed by the rule.
 
-The conclusion judgment itself is aslo a predicate that my hold or not. Such a judgment applied to a smaller phrase than the conclusion can also appear as a premise in a rule. For example, consider the following rule for type checking the logical negation operation:
+The conclusion judgment itself is also a predicate that my hold or not. Such a judgment applied to a smaller phrase than the conclusion can also appear as a premise in a rule. For example, consider the following rule for type checking the logical negation operation:
 
 ~ Begin InfRule
   \inferrule
@@ -925,20 +925,20 @@ Since this is a very brief introduction to type systems we refer an interested r
 
 #### Auxiliary Formal Notation { #sec-aux-formal-notation }
 
-The typing rule introduced in the [formal notation section][#sec-formal-notation] is a logical form used to describe any iduction. We provide the conclusion forms for type checking phrases of a P4 program, that is, declarations, statements, expressions, and types. However, the conclusion form can take lots of forms depending on its syntactic category and induction. For type checking a P4 program, we need some auxiliary conclusion forms:
+The typing rule introduced in the [formal notation section][#sec-formal-notation] is a logical form used to describe any induction. We provide the conclusion forms for type checking phrases of a P4 program, that is, declarations, statements, expressions, and types. However, the conclusion form can take lots of forms depending on its syntactic category and induction. For type checking a P4 program, we need some auxiliary conclusion forms:
 
 - [Type equality][#sec-type-eq-type-checker]: has the form $\typEq {\typ_1} {\typ_2}$ and states that under the environment $\env$ types $\typ_1$ and $\typ_2$ are equal.
 - [Casting types][#sec-casting-type-checker]: has the form $\allcastenv {\typ_1} {\typ_2} $ and states that under the environment $\env$ the type $\typ_1$ can be casted to the type $\typ_2$.
 
 ### Implementing a Type System { #sec-impl-type-sys }
 
-This document provides the type system defined in a declarative manner. That is, it only defines the constraints and not an algorithm. However, to implement an algorith of such a type system one needs to understand how to stich the rules of the type system together. 
+This document provides the type system defined in a declarative manner. That is, it only defines the constraints and not an algorithm. However, to implement an algorithm of such a type system one needs to understand how to stitch the rules of the type system together. 
 
 To illustrate this consider type checking the type $\enumTyp {\mathit{EtherType}} {\bitWidthTyp {16}} {\mathit{VLAN}, \mathit{MPLS}}$. In order for an algorithm to check if this type is well-formed or not it must implement the following steps:
 
 1. Search the space of the judgments to find the one for the abstract syntax of the phrase. In our example, that is the judgment defined for the [types][#sec-ast-type] syntactic category.
-2. Next, search the rules to find the one that matches the constructor case of the phrase. In our example, the constructor case is a serializable enumeration type. Thus, the search is narrowed down to the rules defined for the [serilizable enumeration types][#sec-ser-enum-t].
-3. Next, find the rule that matches the pattern of the phrase. This is necessary when there are more than one rule for a constructor case. In our example, there are two rules defined for a serializable enumeration type: $\serenumTypedefWellT$ and $\serenumWellT$. We repeat these rules below for accessability:
+2. Next, search the rules to find the one that matches the constructor case of the phrase. In our example, the constructor case is a serializable enumeration type. Thus, the search is narrowed down to the rules defined for the [serializable enumeration types][#sec-ser-enum-t].
+3. Next, find the rule that matches the pattern of the phrase. This is necessary when there are more than one rule for a constructor case. In our example, there are two rules defined for a serializable enumeration type: $\serenumTypedefWellT$ and $\serenumWellT$. We repeat these rules below for accessibility:
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -989,7 +989,7 @@ In this document, we use the first approach, that is, using pattern matching in 
 
 Back to our example, first, the $\serenumTypedefWellT$ rule is checked against our phrase but it does not match since our phrase's underlying type is $\bitWidthTyp {16}$ and not a name. Then, the $\serenumWellT$ rule is checked against our phrase and it matches. So this rule is picked and the algorithm continues.
 
-4. Now that a rule has been picked, the premises of it must be checked. If all the premises hold then the phrase is well-formed, otherwise it is not. In our example, the predicates $\isWidthInt {\bitWidthTyp {16}}$ and $\distinct {\mathit{VLAN}, \mathit{MPLS}}$ hold. In order to check if the premise $\typWellFormed {\bitWidthTyp {16}}$ holds or not, we need to do all the previous steps for the phrase $\bitWidthTyp {16}$. It is easy to see that the [$\bitWidthT$ rule][#sec-unsigned-int-t] matches this phrase and that all the premises hold: $\expCheck {16} {\integerTyp}$, $\compileTimeEval {16} = 16$, and $0 \leq 16$. Thus, the predicate $\typWellFormed {\bitWidthTyp {16}}$ also holds. Hence, the phrase $\enumTyp {\mathit{EtherType}} {\bitWidthTyp {16}} {\mathit{VLAN}, \mathit{MPLS}}$ is well-formed. The successful process of this step can be demonstrated in a _derivation tree_. The derviation tree of our example phrase is shown below:
+4. Now that a rule has been picked, the premises of it must be checked. If all the premises hold then the phrase is well-formed, otherwise it is not. In our example, the predicates $\isWidthInt {\bitWidthTyp {16}}$ and $\distinct {\mathit{VLAN}, \mathit{MPLS}}$ hold. In order to check if the premise $\typWellFormed {\bitWidthTyp {16}}$ holds or not, we need to do all the previous steps for the phrase $\bitWidthTyp {16}$. It is easy to see that the [$\bitWidthT$ rule][#sec-unsigned-int-t] matches this phrase and that all the premises hold: $\expCheck {16} {\integerTyp}$, $\compileTimeEval {16} = 16$, and $0 \leq 16$. Thus, the predicate $\typWellFormed {\bitWidthTyp {16}}$ also holds. Hence, the phrase $\enumTyp {\mathit{EtherType}} {\bitWidthTyp {16}} {\mathit{VLAN}, \mathit{MPLS}}$ is well-formed. The successful process of this step can be demonstrated in a _derivation tree_. The derivation tree of our example phrase is shown below:
 
 ~ Begin InfRule
 \mprset {vskip = 0.9ex}
@@ -1019,9 +1019,9 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ###### - $\compileTimeEval \exp$ evaluates the well-formed expression $\exp$ with the enviornment $\env$ at compile-time. { -; font-weight: "normal"; id: compileTimeEval; label: "compileTimeEval" }
 ###### - $\compTimeKnown \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time. However, if the expression $\exp$ is a specialized type, extern, package, control, or parser but we cannot evaluate it at compile-time, we still consider it known at compile-time. { -; font-weight: "normal"; id: compTimeKnown; label: "compTimeKnown" }
-###### - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgement to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgement: $\env \vdash \overline \A : \overline \typ$. Note that in this example the enviornment will not be extended so we do not need to pass it as a list. Applying a predicate to an empty list returns $\tru$ unless stated otherwise. Note that the notation $\overline {\field = \exp}$ denotes a list of assignment of expressions to fields, which is different from mapping a function or judgment to a list of input and getting a list of output. { -; font-weight: "normal"; id: mapping; label: "mapping" }
+###### - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgment to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgment: $\env \vdash \overline \A : \overline \typ$. Note that in this example the environment will not be extended so we do not need to pass it as a list. We adopt the same notation for mapping a predicate over a list, that is, $f (\overline x)$ returns true if for all elements of $\overline x$ the predicate $f$ holds. Applying a predicate to an empty list returns $\tru$ unless stated otherwise. Note that the notation $\overline {\field = \exp}$ denotes a list of assignment of expressions to fields, which is different from mapping a function or judgment to a list of input and getting a list of output. { -; font-weight: "normal"; id: mapping; label: "mapping" }
 ###### - $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union. { -; font-weight: "normal"; id: isHeaderOrUnion; label: "is_header_or_union" }
-###### - $\isValidNestedTyp \typ$ is a predicate that returns true if the type $\typ$ can have nested types and its nested types are legal based on [P4's spec type nesting rules][#p4-type-nesting-rules]. We state explicitly what types can be nested in another type when defining the rule for the outer type to be well-formed. { -; font-weight: "normal"; id: isValidNestedTyp; label: "is_valid_nestted" }
+###### - $\isValidNestedTyp \typ$ is a predicate that returns true if the type $\typ$ can have nested types and its nested types are legal based on [P4's spec type nesting rules][#p4-type-nesting-rules]. We state explicitly what types can be nested in another type when defining the rule for the outer type to be well-formed. { -; font-weight: "normal"; id: isValidNestedTyp; label: "is_valid_nested" }
 ###### - $\distinct \fields$ is a predicate that returns $\tru$ if fields in $\fields$ are all distinct. { -; font-weight: "normal"; id: distinct; label: "are_distinct" }
 ###### - $\noFreeTypVar \typ$ is a predicate that returns $\tru$ if none of the type variables defined for the generic type $\typ$ are not free. { -; font-weight: "normal"; id: noFreeTypVar; label: "no_free_type_var" }
 ###### - $\isWidthInt \typ$ is a predicate that returns $\tru$ if the type $\typ$ is either $\intWidthTyp \exp$ or $\bitWidthTyp \exp$. { -; font-weight: "normal"; id: isWidthInt; label: "is_width_int" }
@@ -1091,7 +1091,7 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ## Types { #sec-type-type-checker }
 
-The type checker judgement for types has the form $\typWellFormed \typ$ and it reads "the type $\typ$ is well-formed under the enviornment $\env$".
+The type checker judgment for types has the form $\typWellFormed \typ$ and it reads "the type $\typ$ is well-formed under the environment $\env$".
 
 
 ### Boolean Type { #sec-bool-t }
@@ -1156,7 +1156,7 @@ $\integerTyp$
 ~ End InfRule
 
 ### String Type { #sec-string-t }
-String types are alway well-formed.
+String types are always well-formed.
 
 $\stringTyp$
 
@@ -1170,7 +1170,7 @@ $\stringTyp$
 ~ End InfRule
 
 ### Fixed-Width Signed Integer Types { #sec-signed-int-t }
-Fixed-width singed integer types can have a literal integer as their width or an expression that will be evaluated to an integer at compile-time. Such intgeer must be more than one. 
+Fixed-width singed integer types can have a literal integer as their width or an expression that will be evaluated to an integer at compile-time. Such integer must be more than one. 
 
 $\intWidthTyp \exp$
 
@@ -1188,7 +1188,7 @@ $\intWidthTyp \exp$
 ~ End InfRule
 
 ### Fixed-Width Unsigned Integer Types { #sec-unsigned-int-t }
-Fixed-width unsingned integer types are similar to singed integer types except that they require a non-negative width
+Fixed-width unsigned integer types are similar to singed integer types except that they require a non-negative width
 
 $\bitWidthTyp \exp$
 
@@ -1258,7 +1258,7 @@ $\headerStackTyp \typName \exp$
 
 $\headerStackTyp {\spcTyp \typName {\typArg}} \exp$
 
-- The type specilization must be [well-formed][#sec-specialized-t].
+- The type specialization must be [well-formed][#sec-specialized-t].
 - The header stack type of the generic type without specialization must be [well-formed][#sec-stack-t]. 
 
 
@@ -1302,13 +1302,13 @@ $\tupleTyps \typ$
 ~ End InfRule
 
 ### Header Types { #sec-header-t }
-Header types may be generic. This is expressed in two forms, however, there is no need to express this in two forms. We only do this to highlight that the generic one contains the non-generic one within it even though these two forms might seem differet. P4 has multiple generic types and we do not demonstrate this point for the rest of them although it still holds.
+Header types may be generic. This is expressed in two forms, however, there is no need to express this in two forms. We only do this to highlight that the generic one contains the non-generic one within it even though these two forms might seem different. P4 has multiple generic types and we do not demonstrate this point for the rest of them although it still holds.
 
 $\headerTyps { } \field \typ$
 
 - The fields must be distinct. [(*distinct*)][#distinct]
 - The types of the fields must be [well-formed][#sec-type-type-checker].
-- Not every type can be assigned to the fields. One of the folloing types or a type name representing them must be assigned to the fields: [(*is_valid_nested*)][#isValidNestedTyp]
+- Not every type can be assigned to the fields. One of the following types or a type name representing them must be assigned to the fields: [(*is_valid_nested*)][#isValidNestedTyp]
    + $\bitWidthTyp \exp$ 
    + $\intWidthTyp \exp$ 
    + $\varbitTyp \exp$ 
@@ -1364,7 +1364,7 @@ $\headerUnionTyps  \typParam \field {\typName}$
 
 - The fields must be distinct. [(*distinct*)][#distinct]
 - The type names assigned to the fields must exist in the type environment $\typEnv$ and let them be associated to types $\typs$. [($\lookupTypEnv \typNames$)][#lookup-env]
-   + Note that these header types are well-formed since they have already been stored in the enviornment.
+   + Note that these header types are well-formed since they have already been stored in the environment.
 - The types $\typs$ must be a header type. [(*is_header*)][#isHeader]
 - The type parameters of the header union must be distinct. [(*distinct*)][#distinct]
 - Type variables in the header union must not be free. [(*no_free_type_var*)][#noFreeTypVar]
@@ -1389,7 +1389,7 @@ $\headerUnionTyps  \typParam \field {\typName}$
 ### Struct Types { #sec-struct-t }
 
 - The fields of the header must be distinct. [(*distinct*)][#distinct]
-- The types of the fields must be well-formed under the environment $\env$ with its type parameter evnironment $\typParEnv$  extended with the type variables declared for the header. [($\updateEnv {\insertToTypParEnv \typParams}$)][#update-env-extension]
+- The types of the fields must be well-formed under the environment $\env$ with its type parameter environment $\typParEnv$  extended with the type variables declared for the header. [($\updateEnv {\insertToTypParEnv \typParams}$)][#update-env-extension]
 - Not every type can be assigned to the fields of a struct type. One of the following types or a type name representing them must be assigned to the fields: [(*is_valid_nested*)][#isValidNestedTyp]
    + $\bitWidthTyp \exp$
    + $\intWidthTyp \exp$
@@ -1440,7 +1440,7 @@ Serializable enumeration types have an underlying type. This type may be express
 $\enumTyp {\VVal \typName} \typName \fields$
 
 - The type name $\VVal \typName$ must exist in the type synonym environment $\typSynEnv$ and let it be associated to the type $\typ$. [($\lookupTypSynEnv {\typName}$)][#lookup-env]
-- The substituation of $\typ$ with $\typName$ as the underlying type of the enum must result in a [well-formed enum][#sec-ser-enum-t].
+- The substitution of $\typ$ with $\typName$ as the underlying type of the enum must result in a [well-formed enum][#sec-ser-enum-t].
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1499,7 +1499,7 @@ The type checker requires to check if two **well-formed and non-generic** types 
 
 ## Casting Types { #sec-casting-type-checker }
 
-P4 allows for casting of the types but not every type can be casted to another type. The casting type judgment determines which casting of the types are legal. It has the form $\allcastenv {\typ_1} {\typ_2}$ and it reads "under environment $\env$ the type $\typ_1$ can be casted to type $\typ_2$". Alternatively, it can read as "under environment $\env$ the type $\typ_1$ is castable to type $\typ_2$".
+P4 allows for casting of the types but not every type can be casted to another type. The casting type judgment determines which casting of the types are legal. It has the form $\allcastenv {\typ_1} {\typ_2}$ and it reads "under environment $\env$ the type $\typ_1$ can be casted to type $\typ_2$". Alternatively, it can read as "under environment $\env$ the type $\typ_1$ is cast-able to type $\typ_2$".
 
 It is important to note that the type casting judgment stands on its own, that is, it does not assume that types are well-formed. Rather it checks if a type is well-formed or not. To optimize the implementation of this type system, given that the type casting judgment for the type checker is done after the inference pass, it would be safe to assume that types that are passed to this judgment are well-formed, thus, one can eliminate the check for well-formed types from the casting rules.
 
@@ -1764,7 +1764,7 @@ It is important to note that the type casting judgment stands on its own, that i
 - The tuple type $\tupleTyps \typ$ must be [well-formed][#sec-tuple-t].
 - The non-generic struct type $\structTyps {} \field {\VVal \typ}$ must be [well-formed][#sec-struct-t].
 - Either:
-   + Types $\typs$ must be castable to types $\overline {\VVal \typ}$.
+   + Types $\typs$ must be cast-able to types $\overline {\VVal \typ}$.
 - Or:
    + The tuple types $\tupleTyps \typ$ and $\tupleTyps {\VVal \typ}$ must be [the same][#sec-type-eq-type-checker].
 - Then, the tuple type $\tupleTyps \typ$ can be casted to the struct type $\structTyps {} \field {\VVal \typ}$.
@@ -2241,7 +2241,7 @@ $\cast {\typName} \exp$
 
 - The expression $\exp$ must be well-formed with type $\typ$.
 - The type name $\typName$ must [exist in the type environment][#lookup-env] $\typEnv$ and it corresponds to the type $\VVal \typ$.
-- The type $\typ$ must [be castable][#sec-casting-type-checker] to the type $\VVal \typ$.
+- The type $\typ$ must [be cast-able][#sec-casting-type-checker] to the type $\VVal \typ$.
 - Then, the expression $\cast \typName \exp$ is well-formed.
 
 ~ Begin InfRule
@@ -2259,7 +2259,7 @@ $\cast {\typName} \exp$
 $\cast {\typ} \exp$
 
 - The expression $\exp$ must be well-formed with type $\VVal \typ$.
-- The type $\VVal \typ$ must [be castable][#sec-casting-type-checker] to the type $ \typ$.
+- The type $\VVal \typ$ must [be cast-able][#sec-casting-type-checker] to the type $ \typ$.
 - Then, the expression $\cast \typ \exp$ is well-formed.
 
 ~ Begin InfRule
@@ -2396,7 +2396,7 @@ $\structDcl \typName \typParam \field \typ$
 
 - The type of the declared struct type must be [well-formed][#sec-struct-t].
 - Let $\VVal \env$ be the same environment as $\env$, but with
-   + The type environment $ \typEnv$ extended with with the assignment of type $\structTyps \typParam \field {\typ }$ to $\typName$.
+   + The type environment $ \typEnv$ extended with the assignment of type $\structTyps \typParam \field {\typ }$ to $\typName$.
    + The type parameter environment $ \typParEnv$ extended with the assignments of $\notInstantiatedTyp$ to each of the type parameters of $\typParams$.
 - Then, the declared struct type is well-formed and it [updates the environment][#update-envs] to $\VVal \env$.
 

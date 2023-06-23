@@ -994,7 +994,7 @@ Back to our example, first, the $\serenumTypedefWellT$ rule is checked against o
 ~ Begin InfRule
 \mprset {vskip = 0.9ex}
 \inferrule
-   {\inferrule {\expCheck {16} {\integerTyp}
+   {\inferrule {\inferrule { } {\expCheck {16} {\integerTyp}} (\integerE)
    \\ \compileTimeEval {16} = 16
    \\ 0 \leq 16}
    {\typWellFormed {\bitWidthTyp {16}}}  (\bitWidthT)
@@ -1009,11 +1009,7 @@ Back to our example, first, the $\serenumTypedefWellT$ rule is checked against o
 
 ### Connecting Informal and Formal Notation { #sec-connect }
 
-*todo: write the following*
-
-- each stands on its own.
-- symbols used might be a bit different
-- [ref] for auxiliary notations
+It is important to note that the formal and informal notation each stand on their own. However, the reader can easily map them to each other. We will draw attention to how to connect the two even when they seem to have some subtle differences in [todo.example][]. Furthermore, the formal notation uses auxiliary notation that is put in plain English in informal notation. Thus, in order to connect the informal notation to the formal notation we refer and link to the auxiliary notation used in the formal notation. 
 
 ### Auxiliary Notation { #sec-aux-notation-type-checker }
 
@@ -1023,8 +1019,7 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ###### - $\compileTimeEval \exp$ evaluates the well-formed expression $\exp$ with the enviornment $\env$ at compile-time. { -; font-weight: "normal"; id: compileTimeEval; label: "compileTimeEval" }
 ###### - $\compTimeKnown \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time. However, if the expression $\exp$ is a specialized type, extern, package, control, or parser but we cannot evaluate it at compile-time, we still consider it known at compile-time. { -; font-weight: "normal"; id: compTimeKnown; label: "compTimeKnown" }
-###### - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgement to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgement: $\env \vdash \overline \A : \overline \typ$. Note that in this example the enviornment will not be extended so we do not need to pass it as a list. Applying a predicate to an empty list returns $\tru$ unless stated otherwise. { -; font-weight: "normal"; id: mapping; label: "mapping" }
-*todo: add the distinction between map over = and not*
+###### - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgement to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgement: $\env \vdash \overline \A : \overline \typ$. Note that in this example the enviornment will not be extended so we do not need to pass it as a list. Applying a predicate to an empty list returns $\tru$ unless stated otherwise. Note that the notation $\overline {\field = \exp}$ denotes a list of assignment of expressions to fields, which is different from mapping a function or judgment to a list of input and getting a list of output. { -; font-weight: "normal"; id: mapping; label: "mapping" }
 ###### - $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union. { -; font-weight: "normal"; id: isHeaderOrUnion; label: "is_header_or_union" }
 ###### - $\isValidNestedTyp \typ$ is a predicate that returns true if the type $\typ$ can have nested types and its nested types are legal based on [P4's spec type nesting rules][#p4-type-nesting-rules]. We state explicitly what types can be nested in another type when defining the rule for the outer type to be well-formed. { -; font-weight: "normal"; id: isValidNestedTyp; label: "is_valid_nestted" }
 ###### - $\distinct \fields$ is a predicate that returns $\tru$ if fields in $\fields$ are all distinct. { -; font-weight: "normal"; id: distinct; label: "are_distinct" }
@@ -1040,9 +1035,9 @@ The following notations are used in the definitions of the rules in the rest of 
 ###### - $\isNumOrEnum \typ$ is a predicate that returns $\tru$ if $\typ$ is one of the following checks if $\typ$ is one of the following: { -; font-weight: "normal"; id: isNumOrEnum; label: "is_num_or_enum" }
 
    * $\integerTyp$
-   * $\intWidthTyp \width$ ```does this have to be width? it cannot be an expression? same for the below```
+   * $\intWidthTyp \width$
    * $\bitWidthTyp \width$
-   * $\enumTypDef$ ```p4 spec only allows the underlying type to be int<w> or bit<w>```
+   * $\enumTypDef$ 
 
 ###### - $\maskTypeIs {\typ_1} {\typ_2}$ is a function that determines the type of a mask expression based on the type of its two operands and it is defined for the following cases: { -; font-weight: "normal"; id: maskTypeIs; label: "mask_type" }
 
@@ -1057,7 +1052,7 @@ The following notations are used in the definitions of the rules in the rest of 
 
    * $\errTyp$
    * $\boolTyp$
-   * $\bitWidthTyp \width$ ``todo: why not $\bitWidthTyp \exp$?``
+   * $\bitWidthTyp \width$ 
    * $\intWidthTyp \width$
    * $\varbitTyp \width$
    * $\integerTyp$
@@ -1179,8 +1174,8 @@ Fixed-width singed integer types can have a literal integer as their width or an
 
 $\intWidthTyp \exp$
 
-- The expression representing the width must be a [well-formed integer][#sec-exp-type-checker].
-- This expression must [evaluate to number at compile-time][#compileTimeEval], $\width$ denotes this number.
+- The expression $\exp$ representing the width must be a [well-formed integer][#sec-exp-type-checker].
+- $\exp$ must evaluate to a number at compile-time. Let $\width$ represent this number. [($\compileTimeEval \exp$)][#compileTimeEval]
 - $\width$ must be positive and more than one.
 
 ~ Begin InfRule
@@ -1197,8 +1192,8 @@ Fixed-width unsingned integer types are similar to singed integer types except t
 
 $\bitWidthTyp \exp$
 
-- The expression representing the width must be a [well-formed integer][#sec-exp-type-checker].
-- This expression must [evaluate to a number at compile-time][#compileTimeEval], $\width$ denotes this number.
+- The expression $\exp$ representing the width must be a [well-formed integer][#sec-exp-type-checker].
+- $\exp$ must evaluate to a number at compile-time. Let $\width$ represent this number. [($\compileTimeEval \exp$)][#compileTimeEval]
 - $\width$ must be non-negative.
 
 ~ Begin InfRule
@@ -1215,8 +1210,8 @@ Varbit types well-formedness is the same as fixed-width unsigned integer types.
 
 $\varbitTyp \exp$
 
-- The expression representing the width of the integer must be a [well-formed integer][#sec-exp-type-checker].
-- This expression must [evaluate to a number at compile-time][#compileTimeEval], $\width$ denotes this number.
+- The expression $\exp$ representing the width of the integer must be a [well-formed integer][#sec-exp-type-checker].
+- $\exp$ must evaluate to a number at compile-time. Let $\width$ represent this number. [($\compileTimeEval \exp$)][#compileTimeEval]
 - $\width$ must be non-negative.
 
 
@@ -1240,10 +1235,10 @@ Header stack (array) types are represented by a type and a size. Their type may 
 
 $\headerStackTyp \typName \exp$
 
-- The name $\typName$ must be defined in the type environment $\typEnv$ and it is associated to the type $\typ$.
-- The type $\typ$ must either be a [header or header union][#isHeaderOrUnion].
+- The name $\typName$ must be defined in the type environment $\typEnv$ and let it be associated to the type $\typ$. [($\lookupTypEnv \name$)][#lookup-env]
+- The type $\typ$ must either be a header or header union. [(*is_header_or_union*)][#isHeaderOrUnion]
 - The expression $\exp$ representing the size of the array must be a [well-formed integer][#sec-exp-type-checker].
-- This expression must [evaluate to a number at compile-time][#compileTimeEval], denoted by $\int$.
+- $\exp$ must evaluate to a number at compile-time. Let $\int$ reperesent this number. [($\compileTimeEval \exp$)][#compileTimeEval]
 - $\int$ must be positive.
 
 ~ Begin InfRule
@@ -1263,8 +1258,8 @@ $\headerStackTyp \typName \exp$
 
 $\headerStackTyp {\spcTyp \typName {\typArg}} \exp$
 
-- The type specilization must be well-formed.
-- The header stack type of the generic type without specialization must be well-formed. 
+- The type specilization must be [well-formed][#sec-specialized-t].
+- The header stack type of the generic type without specialization must be [well-formed][#sec-stack-t]. 
 
 
 ~ Begin InfRule
@@ -1281,21 +1276,21 @@ $\headerStackTyp {\spcTyp \typName {\typArg}} \exp$
 
 $\tupleTyps \typ$
 
-- All the types inside a tuple type, i.e, $\typs$, must be well-formed.
-- [Not every type can be wrapped inside a tuple type][#isValidNestedTyp]. Only the following types or a type name representing them can legally be wrapped inside a tuple type: ``what about types defined with typedef or type keywords? open issue on p4 spec``
+- The types $\typs$ nested inside a tuple type must be [well-formed][#sec-type-type-checker].
+- Not every type can be wrapped inside a tuple type. Only the following types or a type name representing them can legally be wrapped inside a tuple type: [(*is_valid_nested*)][#isValidNestedTyp] 
    + $\bitWidthTyp \exp$
    + $\intWidthTyp \exp$
    + $\varbitTyp \exp$ 
    + $\errTyp$
    + $\boolTyp$
-   + $\enumTypDef$ ``what about enums? since it doesn't have footnote i assumed it is allowed. open issue on p4 spec. same for struct.``
+   + $\enumTypDef$ 
    + $\enumTypNoTypDef$
    + $\headerTyps \typParam \field \typ$
    + $\headerStackTyp \typName \exp$
    + $\headerUnionTyps \typParam \field \typ$
    + $\structTyps \typParam \field \typ$
    + $\tupleTyps \typ$
-- A tuple type with no component, that is, $\tupleTyps {}$, is always well-type because it does not have any types that needs to satisfy the premises.
+- A tuple type with no component, that is, $\tupleTyps {}$, is always well-formed because it does not have any types that needs to satisfy the premises.
 
 ~ Begin InfRule
   \mprset {vskip=0.7ex}
@@ -1311,15 +1306,15 @@ Header types may be generic. This is expressed in two forms, however, there is n
 
 $\headerTyps { } \field \typ$
 
-- The fields must be [distinct][#distinct].
-- The types of the fields must be well-formed.
-- [Not every type can be assigned to the fields][#isValidNestedTyp]. One of the folloing types or a type name representing them must be assigned to the fields:
+- The fields must be distinct. [(*distinct*)][#distinct]
+- The types of the fields must be [well-formed][#sec-type-type-checker].
+- Not every type can be assigned to the fields. One of the folloing types or a type name representing them must be assigned to the fields: [(*is_valid_nested*)][#isValidNestedTyp]
    + $\bitWidthTyp \exp$ 
    + $\intWidthTyp \exp$ 
    + $\varbitTyp \exp$ 
    + $\boolTyp$
    + $\enumTypDef$
-   + a struct or nested struct type that contains only the above types assigned to its fields ``why does it not allow varbit? open issue on p4 spec. also does the footnote 1 and 2 in the table of type nesting rules apply for all enums and sturcts or only when they're subtypes of headers?``
+   + a struct or nested struct type that contains only the above types assigned to its fields 
 
 ~ Begin InfRule
 
@@ -1335,17 +1330,15 @@ $\headerTyps { } \field \typ$
 
 $\headerTyps  \typParam \field \typ$
 
-- The fields must be [distinct][#distinct].
-- The types of the fields must be well-formed under the environment $\env$ that [its type parameter environment $\typParEnv$ has been extended with the type variables declared][#update-env-extension] for the header. Note that if the header is not generic the type parameter environment $\typParEnv$ will not be extended for checking if $\typs$ are well-formed.
-- [Not every type can be assigned to the fields][#isValidNestedTyp]. Note that this is exactly the same for generic headers and non-generic headers. One of the following types or a type name representing them must be assigned to the fields:
-   + $\bitWidthTyp \exp$ 
-   + $\intWidthTyp \exp$ 
-   + $\varbitTyp \exp$ 
-   + $\boolTyp$
-   + $\enumTypDef$
-   + a struct or nested struct type that contains only the above types assigned to its fields
-- Type variables must be [distinct][#distinct]. Note that if the header is not generic, that is, $\typParams = \emp$, the predicate $\distinct \typParams$ still holds.
-- Type variables [must not be free][#noFreeTypVar], that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. Similarly, if the header is not generic the predicate $\noFreeTypVar {\headerTyps { } \field {\typ}}$ still holds. ``are phantom types are useful in P4? i.e., do we want to allow free type variables in type decl? open issue on p4 spec. this goes for all generic type declarations such as struct.``
+- The fields must be distinct. [(*distinct*)][#distinct].
+- The types of the fields must be well-formed under the environment $\env$ with its type parameter environment $\typParEnv$ extended with the type variables declared for the header. [($\updateEnv {\insertToTypParEnv \typParams}$)][#update-env-extension]
+  + Note that if the header is not generic the type parameter environment $\typParEnv$ will not be extended for checking if $\typs$ are well-formed. 
+- Not every type can be assigned to the fields.Only the types listed above for a non-generic header or a name representing them must be assigned to the fields. [(*is_valid_nested*)][#isValidNestedTyp]
+   + Note that this is exactly the same for generic headers and non-generic headers. 
+- Type variables must be distinct. [(*distinct*)][#distinct]
+   + Note that if the header is not generic, that is, $\typParams = \emp$, the predicate $\distinct \typParams$ still holds.
+- Type variables must not be free, that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. [(*no_free_type_var*)][#noFreeTypVar]
+   + Similarly, if the header is not generic the predicate $\noFreeTypVar {\headerTyps { } \field {\typ}}$ still holds.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1369,11 +1362,12 @@ Similar to headers, header unions may also be generic.
 
 $\headerUnionTyps  \typParam \field {\typName}$
 
-- The fields must be [distinct][#distinct].
-- The type names assigned to the fields must [exist in the type environment][#lookup-env] $\typEnv$ and are corresponding to types $\typs$. Note that these header types are well-formed since they have already been stored in the enviornment.
-- The types $\typs$ must be a [header type][#isHeader].
-- The type parameters of the header union must be [distinct][#distinct].
-- Type variables in the header union must [not be free][#noFreeTypVar].
+- The fields must be distinct. [(*distinct*)][#distinct]
+- The type names assigned to the fields must exist in the type environment $\typEnv$ and let them be associated to types $\typs$. [($\lookupTypEnv \typNames$)][#lookup-env]
+   + Note that these header types are well-formed since they have already been stored in the enviornment.
+- The types $\typs$ must be a header type. [(*is_header*)][#isHeader]
+- The type parameters of the header union must be distinct. [(*distinct*)][#distinct]
+- Type variables in the header union must not be free. [(*no_free_type_var*)][#noFreeTypVar]
 
 ~ Begin InfRule
 
@@ -1394,9 +1388,9 @@ $\headerUnionTyps  \typParam \field {\typName}$
 
 ### Struct Types { #sec-struct-t }
 
-- The fields of the header must be [distinct][#distinct].
-- The types of the fields must be well-formed under the environment $\env$ that [its type parameter evnironment $\typParEnv$ has been extended with the type variables declared][#update-env-extension] for the header.
-- [Not every type can be assigned to the fields of a struct type][#isValidNestedTyp]. One of the following types or a type name representing them must be assigned to the fields:
+- The fields of the header must be distinct. [(*distinct*)][#distinct]
+- The types of the fields must be well-formed under the environment $\env$ with its type parameter evnironment $\typParEnv$  extended with the type variables declared for the header. [($\updateEnv {\insertToTypParEnv \typParams}$)][#update-env-extension]
+- Not every type can be assigned to the fields of a struct type. One of the following types or a type name representing them must be assigned to the fields: [(*is_valid_nested*)][#isValidNestedTyp]
    + $\bitWidthTyp \exp$
    + $\intWidthTyp \exp$
    + $\varbitTyp \exp$ 
@@ -1409,8 +1403,8 @@ $\headerUnionTyps  \typParam \field {\typName}$
    + $\headerUnionTyps \typParam \field \typ$
    + $\structTyps \typParam \field \typ$
    + $\tupleTyps \typ$
-- Type variables must be [distinct][#distinct].
-- Type variables must [not be free][#noFreeTypVar] in a struct type.
+- Type variables must be distinct. [(*distinct*)][#distinct]
+- Type variables must not be free in a struct type. [(*no_free_type_var*)][#noFreeTypVar]
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1429,7 +1423,7 @@ $\headerUnionTyps  \typParam \field {\typName}$
 
 $\enumTypNoTypDef$
 
-- An enumeration type is well-formed if its fields are [distinct][#distinct].
+- An enumeration type is well-formed if its fields are distinct. [(*distinct*)][#distinct]
 
 ~ Begin InfRule
   % \mprset {vskip = 0.7ex}
@@ -1445,8 +1439,8 @@ Serializable enumeration types have an underlying type. This type may be express
 
 $\enumTyp {\VVal \typName} \typName \fields$
 
-- The type name $\VVal \typName$ must [exist in the type synonym environment][#lookup-env] $\typSynEnv$ and is corresponding to the type $\typ$.
-- The substituation of $\typ$ with $\typName$ as the underlying type of the enum must result in a well-formed enum.
+- The type name $\VVal \typName$ must exist in the type synonym environment $\typSynEnv$ and let it be associated to the type $\typ$. [($\lookupTypSynEnv {\typName}$)][#lookup-env]
+- The substituation of $\typ$ with $\typName$ as the underlying type of the enum must result in a [well-formed enum][#sec-ser-enum-t].
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1461,8 +1455,8 @@ $\enumTyp {\VVal \typName} \typName \fields$
 $\enumTypDef$
 
 - The underlying type is [well-formed][#sec-type-type-checker].
-- The underlying type is [either a fixed-width signed or unsigned integer][#isWidthInt].
-- The fields are [distinct][#distinct]. 
+- The underlying type is either a fixed-width signed or unsigned integer. [(*is_width_int*)][#isWidthInt]
+- The fields are distinct. [(*distinct*)][#distinct]
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1500,14 +1494,14 @@ $\enumTypDef$
 
 ## Type Equality { #sec-type-eq-type-checker }
 
-*todo: mention type equality is only done on well-formed types.*
-*todo: explain sth like for type checking P4 programs we need to know if two type are equal or not. this judgment does it. for simplicity, and since after inference all type parameters have been substituted, there are no generic types in this section. a later section will introduce type eq for generic types.*
+The type checker requires to check if two **well-formed and non-generic** types are equal or not. The type equality judgment has the form $\typEq {\typ_1} {\typ_2}$ and it reads "under environment $\env$ the types $\typ_1$ and $\typ_2$ are the same".
+
 
 ## Casting Types { #sec-casting-type-checker }
 
-*todo: think/open issue on p4 spec: relationship between explicit and implicit cast. one subset of other or distinct or...?*
+P4 allows for casting of the types but not every type can be casted to another type. The casting type judgment determines which casting of the types are legal. It has the form $\allcastenv {\typ_1} {\typ_2}$ and it reads "under environment $\env$ the type $\typ_1$ can be casted to type $\typ_2$". Alternatively, it can read as "under environment $\env$ the type $\typ_1$ is castable to type $\typ_2$".
 
-*todo: optimization opportunity: remove type well-formed check for implicit cast. on the other hand, having it double checks the work of type inference pass.*
+It is important to note that the type casting judgment stands on its own, that is, it does not assume that types are well-formed. Rather it checks if a type is well-formed or not. To optimize the implementation of this type system, given that the type casting judgment for the type checker is done after the inference pass, it would be safe to assume that types that are passed to this judgment are well-formed, thus, one can eliminate the check for well-formed types from the casting rules.
 
 *Casting $ {\bitWidthTyp 1}$ to $\boolTyp$*
 
@@ -1905,7 +1899,6 @@ Array access may take two forms, it can either access a header stack or a tuple.
 
 $\arrayAccess {\exp_1} {\exp_2}$ where $\exp_1 : \headerStackTyp \typ \size$
 
-*todo: have to check this. the old note only mentioned that the tuple case is done.*
 
 - The structure being accessed, that is, $\exp_1$, must be a well-formed header stack type, denoted by $\headerStackTyp \typ \size$.
 - The access index must be a well-formed expression of a [numeric type][#isNumeric].
@@ -1944,7 +1937,6 @@ $\arrayAccess {\exp_1} {\exp_2}$ where $\exp_1 : \tupleTyp {\typ_1} {\typ_n}$
 
 Bitstring slicing may occur over a fixed-width signed or unsigned integer. 
 
-*todo: check why the context for exp 2 and 3 has to be constant. and when you encounter a new context explain it in notation section.*
 
 $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$
 
@@ -2079,7 +2071,6 @@ $\intoOp - \exp$
 ### Binary Operations { #sec-bin-ops-type-checker }
 P4 has around 15 binary operations. For each of them, some constraints must hold.
 
-*todo: investigate the lack of in or less for directions.*
 
 $\binOpExp {\&\&} {\exp_1} {\exp_2}$ or $\binOpExp \logor {\exp_1} {\exp_2}$
 

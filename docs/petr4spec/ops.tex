@@ -205,6 +205,7 @@
 \newcommand{\insertToTypParEnv}[1]{\typParEnv[{#1}]}
 \newcommand{\insertsToTypEnv}[2]{\typEnv[\overline{{#1} = {#2}}]}
 \newcommand{\insertsToConstEnv}[2]{\constEnv[\overline{{#1} = {#2}}]}
+\newcommand{\insertToConstEnv}[2]{\constEnv[{{#1} = {#2}}]}
 %% \newcommand{\insertToTypEnv}[1]{\typEnv[{#1} \ \mathsf{var}]}
 %% \newcommand{\insertToTypsEnv}[1]{\typEnv[\overline{{#1} \ \mathsf{var}}]}
 \newcommand{\suchThat}[2]{{#1}\ . \ {#2}}
@@ -314,7 +315,7 @@
 \newcommand{\bitComplement}{\string~}
 \renewcommand{\div}{/}
 \renewcommand{\mod}{\%}
-\newcommand{\funcCall}[3]{{#1}\,\langle{#2}\rangle\,({#3})}
+\newcommand{\funcCall}[3]{{#1}\, \langle{#2}\rangle\,({#3})}
 \newcommand{\funcCallNoTypArgs}[2]{{#1}({#2})}
 \newcommand{\expMem}[2]{{#1}.{#2}}
 \newcommand{\instantiation}[2]{{#1}\, ({#2})} %%anonymous instantiation
@@ -430,7 +431,7 @@
 \newcommand{\block}[1]{\{\overline {#1} \}}
 \newcommand{\ifthen}[2]{\mathsf{if}\ {#1}\ \mathsf{then}\ {#2}}
 \newcommand{\ifthenelse}[3]{\mathsf{if}\ {#1}\ \mathsf{then}\ {#2}\ \mathsf{else}\ {#3}}
-\newcommand{\methodCall}[3]{{#1}\,\langle\overline {#2}\rangle\, \left(\overline {#3}\right)}
+\newcommand{\methodCall}[3]{{#1}\, \langle\overline {#2}\rangle\, \left(\overline {#3}\right)}
 \newcommand{\assign}[2]{{#1}:={#2}}
 \newcommand{\noop}{;}
 \newcommand{\return}[1]{\mathsf{return}\ {#1}}
@@ -675,15 +676,15 @@
 %% \newcommand{\recordTyps}{\mathsf{record} \recordTypStructureClose \field \typ}
 %% \newcommand{\recordTyps}[2]{\mathsf{record} \recordTypStructureClose {#1} {#2}}
 \newcommand{\headerUnionTyp}[2]{\mathsf{header\_union} \recordTypStructureOpen {#1} {#2}}
-\newcommand{\headerUnionTyps}[3]{\mathsf{header\_union}\langle{\overline{#1}}\rangle \recordTypStructureClose {#2} {#3}}
-\newcommand{\headerTyp}[3]{\mathsf{header} \langle{\overline{#1}}\rangle\recordTypStructureOpen {#2} {#3}}
-\newcommand{\structTyp}[3]{\mathsf{struct} \langle{\overline{#1}}\rangle \recordTypStructureOpen {#2} {#3}}
-\newcommand{\headerTyps}[3]{\mathsf{header} \langle{\overline{#1}}\rangle\recordTypStructureClose {#2} {#3}}
+\newcommand{\headerUnionTyps}[3]{\mathsf{header\_union} \, \langle{\overline{#1}}\rangle \recordTypStructureClose {#2} {#3}}
+\newcommand{\headerTyp}[3]{\mathsf{header}\, \langle{\overline{#1}}\rangle\recordTypStructureOpen {#2} {#3}}
+\newcommand{\structTyp}[3]{\mathsf{struct}\, \langle{\overline{#1}}\rangle \recordTypStructureOpen {#2} {#3}}
+\newcommand{\headerTyps}[3]{\mathsf{header}\, \langle{\overline{#1}}\rangle\recordTypStructureClose {#2} {#3}}
 %% \newcommand{\headerTypsNoGen}[2]{\mathsf{header} \recordTypStructureClose {#1} {#2}}
 %% \newcommand{\headerTypp}[2]{\mathsf{header} \recordTypp {#1} {#2}}
 %% \newcommand{\structTypp}[2]{\mathsf{struct} \recordTypp {#1} {#2}}
 \newcommand{\structTypDef}{\mathsf{struct} \recordTypStructureOpen 1 n}
-\newcommand{\structTyps}[3]{\mathsf{struct} \langle{\overline{#1}}\rangle \recordTypStructureClose {#2} {#3}}
+\newcommand{\structTyps}[3]{\mathsf{struct}\, \langle{\overline{#1}}\rangle \recordTypStructureClose {#2} {#3}}
 %% \newcommand{\structTypsNoGen}[2]{\mathsf{struct} \recordTypStructureClose {#1} {#2}}
 %% \newcommand{\headerUnionTyp}{\mathit{header\_union}\{\field_1:\typ_1;\ldots;\field_n:\typ_n \}}
 %% \newcommand{\headerTypDef}{\headerTyp 1 n}
@@ -700,12 +701,12 @@
 % type params: list of name. wildcard param: list of name. params: list of type dir name. return: typed.
 %% second arg is wildcard which is omitted for now. 
 %% \newcommand{\constructorTyp}[4]{\mathsf{constructor}\langle{#1},{#2}\rangle\ ({#3}) \rightarrow {#4}}
-\newcommand{\constructorTyp}[3]{\mathsf{constructor}\langle\overline{#1}\rangle (\overline{#2}) \rightarrow {#3}}
+\newcommand{\constructorTyp}[3]{\mathsf{constructor}\, \langle\overline{#1}\rangle (\overline{#2}) \rightarrow {#3}}
 \newcommand{\externTyp}[1]{\mathsf{extern} \  {#1}}
 \newcommand{\spcTyp}[2]{{#1}\langle\overline{#2}\rangle}
-\newcommand{\parserTyp}[2]{\mathsf{parser}\langle\overline{#1}\rangle(\overline{#2})}
-\newcommand{\controlTyp}[2]{\mathsf{control}\langle\overline{#1}\rangle(\overline{#2})}
-\newcommand{\packageTyp}[2]{\mathsf{package}\langle\overline{#1}\rangle(\overline{#2})}
+\newcommand{\parserTyp}[2]{\mathsf{parser}\, \langle\overline{#1}\rangle(\overline{#2})}
+\newcommand{\controlTyp}[2]{\mathsf{control}\, \langle\overline{#1}\rangle(\overline{#2})}
+\newcommand{\packageTyp}[2]{\mathsf{package}\, \langle\overline{#1}\rangle(\overline{#2})}
 %% the third arg is wildcard which is omitted for now.
 %% \newcommand{\packageTyp}[3]{\mathsf{package}\langle{#1}\rangle({#2},{#3})}
 \newcommand{\actionTyp}[2]{\mathsf{action}(\mathsf{data:}\ \overline{#1},\mathsf{control:}\ \overline{#2})}

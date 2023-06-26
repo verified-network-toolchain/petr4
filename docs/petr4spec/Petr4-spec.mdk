@@ -857,12 +857,19 @@ To be concrete, environments are all accumulated in one place and they are defin
 ~ End P4Syntax
 
 ###### - Accessing each enviornment can be done through field access of $\env$. For example, $\env.\typEnv$ gives access to the contents of type enviornment. However, for simplicity and since the  is global, we omit the $\env.$ part. So for example, $\typEnv$ is a shorthand for $\env.\typEnv$. { -; font-weight: "normal"; id: access-env; label: "access-env" }
+
 ###### - The notation $\lookupTypEnv \name$ looks up $\name$ in type environment $\typEnv$. Such notation is used for looking up in any of the environments. Note that $\typEnv$ stands for $\env . \typEnv$ in a lookup as well. Consequently, the notation $\env(\name)$ is meaningless since it does not state which environment field of $\env$ is being used for the lookup. { -; font-weight: "normal"; id: lookup-env; label: "lookup-env" }
+
 ###### - The notation $\insertToTypEnv \typName \typ $ extends the type environment with the new assignment of $\typ$ to $\typName$. This notation is used for extending any of the environments. { -; font-weight: "normal"; id: extend-env; label: "extend-env" }
+
 ###### - The notation $\insertToTypParEnv \typParam$ is a shorthand for $\insertToTypParEnv {\typParam = \notInstantiatedTyp}$ which extends the type parameter environment with the new parameter $\typParam$ that is not instantiated.  { -; font-weight: "normal"; id: extend-typ-par-env; label: "extend-typ-par-env" }
+
 ###### - The notation $\updateEnv {\VVal \typEnv}$ is short for $\updateEnv {\typEnv = \VVal \typEnv}$ which denotes the same environment as $\env$, except that the type environement $\typEnv$ has been replaced with type environment $\VVal \typEnv$. { -; font-weight: "normal"; id: update-env; label: "update-env" }
+
 ###### - The notation $\updateEnv {\insertToTypEnv \typName \typ}$ denotes the same environment as $\env$, except that the type environement $\typEnv$ has been extended with the assignment of $\typ$ to $\typName$. { -; font-weight: "normal"; id: update-env-extension; label: "update-env-extension" }
+
 ###### - The notation $\updateEnv {\VVal \typEnv, \VVal \varEnv, \cdots}$ denotes the same environment as $\env$, except that the environment $\typEnv, \varEnv, \cdots$ have been replaced with environments $\VVal \typEnv, \VVal \varEnv, \cdots$. { -; font-weight: "normal"; id: update-envs; label: "update-envs" }
+
 ###### - The notation $\emp$ denotes an empty environment. { -; font-weight: "normal"; id: emp-env; label: "emp-env" }
 
 ### Informal Notation { #sec-informal-notation }
@@ -1019,14 +1026,23 @@ It is important to note that the formal and informal notation each stand on thei
 The following notations are used in the definitions of the rules in the rest of this section:
 
 ###### - $\compileTimeEval \exp$ evaluates the well-formed expression $\exp$ with the enviornment $\env$ at compile-time. { -; font-weight: "normal"; id: compileTimeEval; label: "compileTimeEval" }
+
 ###### - $\compTimeKnown \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time. However, if the expression $\exp$ is a specialized type, extern, package, control, or parser but we cannot evaluate it at compile-time, we still consider it known at compile-time. { -; font-weight: "normal"; id: compTimeKnown; label: "compTimeKnown" }
+
 ###### - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgment to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgment: $\env \vdash \overline \A : \overline \typ$. Note that in this example the environment will not be extended so we do not need to pass it as a list. We adopt the same notation for mapping a predicate over a list, that is, $f (\overline x)$ returns true if for all elements of $\overline x$ the predicate $f$ holds. Applying a predicate to an empty list returns $\tru$ unless stated otherwise. Note that the notation $\overline {\field = \exp}$ denotes a list of assignment of expressions to fields, which is different from mapping a function or judgment to a list of input and getting a list of output. { -; font-weight: "normal"; id: mapping; label: "mapping" }
+
 ###### - $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union. { -; font-weight: "normal"; id: isHeaderOrUnion; label: "is_header_or_union" }
+
 ###### - $\isValidNestedTyp \typ$ is a predicate that returns true if the type $\typ$ can have nested types and its nested types are legal based on [P4's spec type nesting rules][#p4-type-nesting-rules]. We state explicitly what types can be nested in another type when defining the rule for the outer type to be well-formed. { -; font-weight: "normal"; id: isValidNestedTyp; label: "is_valid_nested" }
+
 ###### - $\distinct \fields$ is a predicate that returns $\tru$ if fields in $\fields$ are all distinct. { -; font-weight: "normal"; id: distinct; label: "are_distinct" }
+
 ###### - $\noFreeTypVar \typ$ is a predicate that returns $\tru$ if none of the type variables defined for the generic type $\typ$ are not free. { -; font-weight: "normal"; id: noFreeTypVar; label: "no_free_type_var" }
+
 ###### - $\isWidthInt \typ$ is a predicate that returns $\tru$ if the type $\typ$ is either $\intWidthTyp \exp$ or $\bitWidthTyp \exp$. { -; font-weight: "normal"; id: isWidthInt; label: "is_width_int" }
+
 ###### - $\isHeader \typ$ is a predicate that returns $\tru$ if the type $\typ$ is a header. { -; font-weight: "normal"; id: isHeader; label: "is_header" }
+
 ###### - $\isNumeric \exp \typ$ is a predicate that returns $\tru$ if one of the following holds: { -; font-weight: "normal"; id: isNumeric; label: "is_numeric" }
 
    * $\compTimeKnown \exp$ and $\typ = \integerTyp$

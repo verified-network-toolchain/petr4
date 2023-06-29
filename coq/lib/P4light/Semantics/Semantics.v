@@ -1951,8 +1951,53 @@ Definition load_parser_transition (p : path) (trans : @ParserTransition tags_t) 
       end
   end.
 
+Definition is_not_extern_packet_in (param : @P4Parameter tags_t) : bool :=
+  match param with
+  | MkParameter _ _ typ _ _ =>
+      match typ with
+      | TypExtern name => negb (String.eqb (P4String.str name) "packet_in")
+      | _ => true
+      end
+  end.
+
+Definition remove_packet_in_parameters (ps: list (@P4Parameter tags_t)) :=
+  List.filter is_not_extern_packet_in ps.
+
+Definition is_not_packet_in (exp: option (@Expression tags_t)): bool :=
+  match exp with
+  | Some (MkExpression _ _ typ _) =>
+      match typ with
+      | TypTypeName name => negb (String.eqb (P4String.str name) "packet_in")
+      | _ => true
+      end
+  | None => true
+  end.
+
+Definition remove_packet_in_opt_exprs (ps: list (option (@Expression tags_t))) :=
+  List.filter is_not_packet_in ps.
+
+Definition remove_packet_arg_in_call
+  (statement: (@Statement tags_t)): (@Statement tags_t) :=
+  match statement with
+    MkStatement tags stmt stmtyp =>
+      match stmt with
+      | StatMethodCall
+          (MkExpression etags expr
+             (TypFunction (MkFunctionType type_params parameters kind ret)) dir)
+          type_args args =>
+          MkStatement tags
+            (StatMethodCall
+               (MkExpression etags expr
+                  (TypFunction
+                     (MkFunctionType type_params
+                        (remove_packet_in_parameters parameters) kind ret))
+                  dir) type_args (remove_packet_in_opt_exprs args)) stmtyp
+      | _ => statement
+      end
+  end.
+
 Definition block_of_list_statement (stmts : list (@Statement tags_t)) : @Block tags_t :=
-  list_statement_to_block dummy_tags stmts.
+  list_statement_to_block dummy_tags (map remove_packet_arg_in_call stmts).
 
 Definition load_parser_state (p : path) (ge : genv_func) (state : @ParserState tags_t) : genv_func :=
   match state with

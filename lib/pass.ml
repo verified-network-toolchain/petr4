@@ -45,6 +45,8 @@ type checker_cfg =
 
 type backend =
   | GCLBackend of {depth: int; gcl_output: output}
+  (* TODO: figure out what the backend is actually doing *)
+  | CimplBackend of output
   | CBackend of output
 
 type backend_cfg = backend cfg
@@ -53,7 +55,7 @@ type compiler_cfg =
   { cfg_checker: checker_cfg;
     cfg_p4cub: pass_cfg;
     cfg_p4flat: pass_cfg;
-    cfg_backend: backend_cfg; }
+    cfg_backend: backend_cfg;}
 
 type input_cfg =
   | InputSTF of Filename.t

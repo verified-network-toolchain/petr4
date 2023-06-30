@@ -16,6 +16,7 @@ module P4P4info = P4info
 open Core
 module P4info = P4P4info
 
+
 module type DriverIO = sig
   val red: string -> string
   val green: string -> string
@@ -196,6 +197,7 @@ module MakeDriver (IO: DriverIO) = struct
        failwith ("unknown failure from Ccomp") 
 
  let to_gcl depth prog =
+   (*Poulet4.ToGCL.target,Poulet4.ToGCL.target*)
     let open Poulet4 in
     let gas = 100000 in
     let coq_gcl =
@@ -232,6 +234,34 @@ module MakeDriver (IO: DriverIO) = struct
     Poulet4_Ccomp.PrintClight.change_destination out.out_file;
     Poulet4_Ccomp.PrintClight.print_if clight;    
     Ok prog
+  
+    (*TODO: make its own module 
+    
+     let to_gcl depth prog =
+   (*Poulet4.ToGCL.target,Poulet4.ToGCL.target*)
+    let open Poulet4 in
+    let gas = 100000 in
+    let coq_gcl =
+      V1model.gcl_from_p4cub TableInstr.instr true gas depth prog
+    in
+    begin match coq_gcl with
+    | Result.Error msg -> Error (ToGCLError msg)
+    | Result.Ok gcl    -> Ok gcl
+    end
+
+    *) 
+
+    let to_cimpl (prog) = 
+      let cimpl_prog = Cimpl.tocimpl.to_cimpl (prog) in 
+      match prog with 
+      | Ok (x,y) -> ()
+      | Error (msg) -> ()
+    
+
+    let print_cimpl (out: Pass.output) prog =
+      Format.eprintf "TODO: implement GCL pretty printing.\n";
+      Ok prog
+    
 
   let run_parser (cfg: Pass.parser_cfg) =
     preprocess cfg
@@ -268,6 +298,12 @@ module MakeDriver (IO: DriverIO) = struct
            >>= to_clight
            >>= print_clight cfg_ccomp
            >>= fun x -> Ok ()
+           (*TODO: confirm what this is supposed to do and change implementation if required *)
+        | Run (CimplBackend output) -> raise (Failure "Unimplemented")
+           (*to_cimpl prog 
+           >>= print_cimpl output 
+           >>= fun x -> Ok () *)
+
         end
 
   let run_interpreter (cfg: Pass.interpreter_cfg) =
@@ -281,6 +317,7 @@ module MakeDriver (IO: DriverIO) = struct
                      input_port } ->
       let _ = Stf.evaler p4prog input_pkt_hex input_port (fun _ -> None) in
       Ok ()
+
 
   let run (cfg: Pass.cmd_cfg) =
     let open Pass in

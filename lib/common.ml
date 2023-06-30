@@ -16,6 +16,7 @@ module P4P4info = P4info
 open Core
 module P4info = P4P4info
 
+
 module type DriverIO = sig
   val red: string -> string
   val green: string -> string
@@ -193,6 +194,7 @@ module MakeDriver (IO: DriverIO) = struct
        failwith ("unknown failure from Ccomp") 
 
  let to_gcl depth prog =
+   (*Poulet4.ToGCL.target,Poulet4.ToGCL.target*)
     let open Poulet4 in
     let gas = 100000 in
     let coq_gcl =
@@ -239,7 +241,17 @@ module MakeDriver (IO: DriverIO) = struct
            >>= print_gcl gcl_output
            >>= fun x -> Ok ()
         | Run (CBackend cfg_ccomp) ->
-           Error (ToGCLError "CLight backend unsupported")
+           flatten_declctx prog
+           >>= hoist_clight_effects
+           >>= print_p4cub cfg
+           >>= to_clight
+           >>= print_clight cfg_ccomp
+           >>= fun x -> Ok ()
+           (*TODO: confirm what this is supposed to do and change implementation if required *)
+        | Run (CimplBackend output) -> raise (Failure "Unimplemented")
+           (*to_cimpl prog 
+           >>= print_cimpl output 
+           >>= fun x -> Ok () *)
         end
 
   let run_interpreter (cfg: Pass.interpreter_cfg) =
@@ -253,6 +265,7 @@ module MakeDriver (IO: DriverIO) = struct
                      input_port } ->
       let _ = Stf.evaler p4prog input_pkt_hex input_port (fun _ -> None) in
       Ok ()
+
 
   let run (cfg: Pass.cmd_cfg) =
     let open Pass in

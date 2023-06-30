@@ -84,7 +84,8 @@ let compiler_flags : Pass.compiler_cfg Command.Param.t =
     Pass.{ cfg_checker;
            cfg_p4cub   = parse_ext_flag output_p4cub;
            cfg_p4flat  = parse_ext_flag output_p4flat;
-           cfg_backend = parse_backend unroll_parsers output_gcl output_c; }
+           cfg_backend = parse_backend unroll_parsers output_gcl output_c;
+           }
   ]
 
 let interp_flags : Pass.interpreter_cfg Command.Param.t =

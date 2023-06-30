@@ -226,18 +226,6 @@ module MakeDriver (IO: DriverIO) = struct
     | Result.Ok gcl    -> Ok gcl
     end
 
-  let to_cimpl gcl = 
-    (* TODO: handle parser *)
-    let cimpl = ToCimpl.compile_program gcl in
-    match cimpl with 
-    | Ok x -> Ok x
-    | Error msg -> Error (ToCimplError ("Unexpected failure: " ^ msg))
-                   
-  let print_cimpl (out: Pass.output) prog =
-    Format.fprintf Format.str_formatter "%a" Pp.to_fmt (PrettyCimpl.format_program prog);
-    Out_channel.write_all out.out_file ~data:(Format.flush_str_formatter ());
-    Ok prog    
-
   let run_parser (cfg: Pass.parser_cfg) =
     preprocess cfg
     >>= lex cfg
@@ -297,6 +285,12 @@ module MakeDriver (IO: DriverIO) = struct
            >>= print_cimpl c_output
            >>= debug "All done!"
            >>= fun x -> Ok ()
+           (*TODO: confirm what this is supposed to do and change implementation if required *)
+        | Run (CimplBackend output) -> raise (Failure "Unimplemented")
+           (*to_cimpl prog 
+           >>= print_cimpl output 
+           >>= fun x -> Ok () *)
+
         end
 
   let run_interpreter (cfg: Pass.interpreter_cfg) =

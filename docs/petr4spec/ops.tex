@@ -31,6 +31,9 @@
 \newcommand*{\headerGenericTypWellT}{\rn{Generic}\rSep\rn{Header}\rT}
 \newcommand*{\headerUnionTypWellT}{\rn{HeaderUnion}\rT}
 \newcommand*{\structTypWellT}{\rn{Struct}\rT}
+\newcommand*{\parserTypWellT}{\rn{Parser}\rT}
+\newcommand*{\controlTypWellT}{\rn{Control}\rT}
+\newcommand*{\packageTypWellT}{\rn{Package}\rT}
 
 \newcommand*{\boolT}{\rn{Bool}\rT}
 \newcommand*{\stringT}{\rn{String}\rT}
@@ -206,6 +209,8 @@
 \newcommand{\insertsToTypEnv}[2]{\typEnv[\overline{{#1} = {#2}}]}
 \newcommand{\insertsToConstEnv}[2]{\constEnv[\overline{{#1} = {#2}}]}
 \newcommand{\insertToConstEnv}[2]{\constEnv[{{#1} = {#2}}]}
+\newcommand{\envWhere}[1]{\env \ \mathsf{where}\ {#1}}
+\newcommand{\envWhereCtxt}[1]{\envWhere {\ctxt = {#1}}}
 %% \newcommand{\insertToTypEnv}[1]{\typEnv[{#1} \ \mathsf{var}]}
 %% \newcommand{\insertToTypsEnv}[1]{\typEnv[\overline{{#1} \ \mathsf{var}}]}
 \newcommand{\suchThat}[2]{{#1}\ . \ {#2}}
@@ -235,6 +240,9 @@
 %checker
 \newcommand{\expCheck}[2]{\env \vdash {#1} : {#2}}
 \newcommand{\expCheckEnv}[3]{{#1} \vdash {#2} : {#3}}
+\newcommand{\prmCheck}[2]{{#1} \vdash {#2}}
+\newcommand{\dclCheck}[2]{\env \vdash {#1} \dashv {#2}}
+\newcommand{\allcastenv}[2]{\env \vdash {#1} \rightarrow {#2}}
 %inference
 \newcommand{\envOne}[2]{\Delta, T, \Gamma \vdash {#1} : {#2}}
 \newcommand{\expenv}[4]{\constEnv, \varEnv, \typEnv, \ctxt \vdash {#1} \leadsto {#2}, {#3}, {#4}}
@@ -247,6 +255,7 @@
 \newcommand{\typWellFormedNoEnv}[1]{\vdash {#1}}
 \newcommand{\typNotWellFormed}[1]{\env \nvdash {#1}}
 \newcommand{\typWellFormedUpdatedEnv}[2]{{#1}\vdash {#2}}
+%% \newcommand{\typWellFormedWithEnv}[3]{{#1}, {#2}, \externEnv \vdash {#3}} %delete after fixing harim's inference rules.
 \newcommand{\typEqEnv}[3]{ {#2} ==_{\env,{#1}} {#3}} %%todo: fix env
 \newcommand{\typEq}[2]{{#1} ==_\env {#2}}
 %context. type of expression. type of returned name.exp
@@ -255,13 +264,11 @@
 \newcommand{\stmtenvv}[5]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3}, {#4} \dashv \env_{#5}}
 %% \newcommand{\dclenv}[2]{\env, \ctxt \vdash {#1} \leadsto {#2} \dashv \env}
 \newcommand{\dclenv}[6]{\varEnv, \constEnv, \typEnv, \typSynEnv \vdash {#1} \leadsto {#2} \dashv {#3}, {#4}, {#5}, {#6}}
-\newcommand{\dclCheck}[2]{\env \vdash {#1} \dashv {#2}}
 %% \newcommand{\dclenvv}[4]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3} \dashv \env_{#4}}
 %% \newcommand{\dclenvvv}[4]{\constEnv, \typEnv \vdash {#1} \leadsto {#2} \dashv {#3}, {#4}}
 \newcommand{\explCast}[2]{\castenv {e} {#1} {#2}}
 \newcommand{\castenv}[3]{\env \vdash {#2} \rightarrow_{#1} {#3}}
 \newcommand{\implCast}[2]{\castenv {i} {#1} {#2}}
-\newcommand{\allcastenv}[2]{\env \vdash {#1} \rightarrow {#2}}
 %exp, args. exp', type pars, pars, kind, return type.
 %check if you need the dir to be returned as well. 
 \newcommand{\resolveFuncOver}[7]{\env, \ctxt \vdash \mathit{dispatch}({#1}, {#2}, {#3}, \funcType {#6} {#4} {#5} {#7})}
@@ -280,6 +287,8 @@
 \newcommand{\parserCtxt}{\mathsf{parserState}}
 \newcommand{\toplevel}{\mathsf{topLevel}}
 \newcommand{\declLocalCtxt}{\mathsf{declLocal}}
+\newcommand{\runtimeCtxt}[1]{\mathsf{runtime}\ \mathsf{#1}}
+\newcommand{\constructorCtxt}[1]{\mathsf{constructor}\ \mathsf{#1}}
 
 %%keywords used in nontypename
 \newcommand{\identifierkw}{\mathsf{identifier}}
@@ -395,13 +404,13 @@
 \newcommand{\fields}{\overline \field}
 \newcommand{\param}{x}
 \newcommand{\params}{\overline x}
-\newcommand{\prm}[1]{\dir_{#1}\  \param_{#1}:\typ_{#1}}
-\newcommand{\singleprm}{\dir \ \param: \typ }
+\newcommand{\prm}[1]{\dir_{#1}\,  \typ_{#1}\, \param_{#1}}
+\newcommand{\singleprm}{\dir \, \typ \, \param }
 \newcommand{\prms}{\overline {\singleprm}}
-\newcommand{\prmss}{\overline {\VVal \dir \ \VVal \param: \VVal \typ}}
+\newcommand{\prmss}{\overline {\VVal \dir \,  \VVal \typ \, \VVal \param}}
 \newcommand{\typParam}{\typVar}
 \newcommand{\typParams}{\overline \typParam}
-\newcommand{\pari}[1]{\dir_{#1}\ \param_{#1}: \typ_{#1}}
+\newcommand{\pari}[1]{\dir_{#1}\, \typ_{#1}\, \param_{#1} }
 \newcommand{\paris}[1]{\overline {\pari {#1}}}
 \newcommand{\pars}[2]{\pari {#1}, \ldots, \pari {#2}}
 % wildcard param for wild card type vars.
@@ -599,7 +608,7 @@
 \newcommand{\concatList}[2]{{#1}\ +\!+\ {#2}}
 \newcommand{\isDirectionless}[1]{\mathit{is\_directionless}({#1})}
 \newcommand{\whatevs}{\_\!\_}
-\newcommand{\valMatchTyp}[2]{\mathit{value\_matches\_type}(\overline {#1}, {#2})}
+\newcommand{\valMatchTyp}[2]{\mathit{value\_matches\_type}( {#1}, {#2})}
 \newcommand{\isSerializableTyp}[1]{\mathit{is\_serializable\_type}({#1})}
 \newcommand{\getFieldTyp}[1]{\mathit{get\_field\_type}({#1})}
 %fields 
@@ -733,3 +742,10 @@
 
 %helpers for types
 \newcommand{\isSurface}[1]{\mathit{is\_surface}({#1})}
+
+%helpers for packet types
+\newcommand{\hasPacketIn}[1]{\mathit{has\_packet\_in}({#1})}
+\newcommand{\ifTypeExternDirLess}[2]{\mathit{if\_type\_extern\_dir\_less}(\overline {{#1}\ {#2}})}
+\newcommand{\packetIn}{\mathsf{packet\_in}}
+\newcommand{\dropInit}[1]{\mathit{drop\_initializer}({#1})}
+\newcommand{\validParam}[2]{\mathit{valid\_param}({#1}, {#2})_\env}

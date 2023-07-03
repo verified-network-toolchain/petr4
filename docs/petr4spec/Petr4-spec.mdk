@@ -457,8 +457,8 @@ Directions are used for parameters and they determine whether the parameter is u
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\prmDef$ | $::=$ | $\dir \, \typ \, \var$ | $\qquad \text{parameters}$ |
-|   | $\vert$ | $\dir \, \typ \, \var = \exp$ | $\qquad \text{parameters with initializers}$ |
+| $\prmDef$ | $::=$ | $\singleprm$ | $\qquad \text{parameters}$ |
+|   | $\vert$ | $\singleprm = \exp$ | $\qquad \text{parameters with initializers}$ |
 { .booktable }
 ~ End P4Syntax
 
@@ -507,9 +507,9 @@ The surface IR has a single syntactic category for types, however, this syntacti
 |   | $\vert$ | $\structTyps \typParam \field {\typ}$ | $\qquad \text{structs}$ |
 |   | $\vert$ | $\enumTypDef$ | $\qquad \text{serializable enums}$ |
 |   | $\vert$ | $\enumTypNoTypDef$ | $\qquad \text{enums}$ |
-|   | $\vert$ | $\parserTyp \typParam {\prmDef}$ | $\qquad \text{parsers}$ |
-|   | $\vert$ | $\controlTyp \typParam {\prmDef}$ | $\qquad \text{controls}$ |
-|   | $\vert$ | $\packageTyp \typParam {\prmDef}$ | $\qquad \text{packages}$ |
+|   | $\vert$ | $\parserTyp \typParam {\singleprm}$ | $\qquad \text{parsers}$ |
+|   | $\vert$ | $\controlTyp \typParam {\singleprm}$ | $\qquad \text{controls}$ |
+|   | $\vert$ | $\packageTyp \typParam {\singleprm}$ | $\qquad \text{packages}$ |
 |   | $\vert$ | $\newTypeTyp \typName {\typ}$ | $\qquad \text{reference}$ |
 |   | $\vert$ | $\cdots$ | |
 { .booktable }
@@ -825,6 +825,8 @@ The type checker is defined over an _environment_, which collects relevant infor
 
 To be concrete, environments are all accumulated in one place and they are defined as the [record][#sec-aux-notation-ast] $\env$. 
 
+*todo: divide context into subcategories of decl, param, exper*
+
 ~ Begin P4Syntax
 
 **Context:**
@@ -839,6 +841,7 @@ To be concrete, environments are all accumulated in one place and they are defin
 |  | $\vert$ | $\parserCtxt$ |
 |  | $\vert$ | $\toplevel$ |
 |  | $\vert$ | $\declLocalCtxt$ |
+|  | $\vert$ | $\runtimeCtxt {control} |
 { .booktable }
 
 **Environment:**
@@ -869,6 +872,8 @@ To be concrete, environments are all accumulated in one place and they are defin
 ###### - The notation $\updateEnv {\insertToTypEnv \typName \typ}$ denotes the same environment as $\env$, except that the type environement $\typEnv$ has been extended with the assignment of $\typ$ to $\typName$. { -; font-weight: "normal"; id: update-env-extension; label: "update-env-extension" }
 
 ###### - The notation $\updateEnv {\VVal \typEnv, \VVal \varEnv, \cdots}$ denotes the same environment as $\env$, except that the environment $\typEnv, \varEnv, \cdots$ have been replaced with environments $\VVal \typEnv, \VVal \varEnv, \cdots$. { -; font-weight: "normal"; id: update-envs; label: "update-envs" }
+
+###### - The notation $\envWhere {\ctxt = \ctxtTyp}$ denotes environment $\env$ where its context is $\ctxtTyp$. { -; font-weight: "normal"; id: env-where; label: "env-where" }
 
 ###### - The notation $\emp$ denotes an empty environment. { -; font-weight: "normal"; id: emp-env; label: "emp-env" }
 
@@ -1029,7 +1034,9 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ###### - $\compTimeKnown \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time. However, if the expression $\exp$ is a specialized type, extern, package, control, or parser but we cannot evaluate it at compile-time, we still consider it known at compile-time. { -; font-weight: "normal"; id: compTimeKnown; label: "compTimeKnown" }
 
-###### - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgment to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgment: $\env \vdash \overline \A : \overline \typ$. Note that in this example the environment will not be extended so we do not need to pass it as a list. We adopt the same notation for mapping a predicate over a list, that is, $f (\overline x)$ returns true if for all elements of $\overline x$ the predicate $f$ holds. Applying a predicate to an empty list returns $\tru$ unless stated otherwise. Note that the notation $\overline {\field = \exp}$ denotes a list of assignment of expressions to fields, which is different from mapping a function or judgment to a list of input and getting a list of output. { -; font-weight: "normal"; id: mapping; label: "mapping" }
+###### - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgment to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgment: $\env \vdash \overline \A : \overline \typ$. Note that in this example the environment will not be extended so we do not need to pass it as a list. We adopt the same notation for mapping a predicate over a list, that is, $f (\overline x)$ returns true if for all elements of $\overline x$ the predicate $f$ holds. Applying a predicate to an empty list returns $\tru$ unless stated otherwise. Note that the notation $\overline {\field = \exp}$ denotes a list of assignment of expressions to fields, which is different from mapping a function or judgment to a list of input and getting a list of output. todo: if f(x,y) then f(xs,y) it's mapping f with y on elements of xs. { -; font-weight: "normal"; id: mapping; label: "mapping" }
+
+###### - todo: projecting type from a list of parameters, etc. { -; font-weight: "normal"; id: projection; label: "projection" }
 
 ###### - $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union. { -; font-weight: "normal"; id: isHeaderOrUnion; label: "is_header_or_union" }
 
@@ -1099,8 +1106,42 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ###### - $\ifIntComp \typ \exp$ is a predicate that returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-known. { -; font-weight: "normal"; id: ifIntComp; label: "if_int_is_compile_time_known" }
 
-###### - $\valMatchTyp \exp \typ$ is a predicate that returns true if every single expression in $\exps$ is well-formed with type $\typ$. { -; font-weight: "normal"; id: valMatchTyp; label: "value_match_type" }
+###### - $\valMatchTyp \exp \typ$ is a predicate that returns true if expression $\exp$ is well-formed with type $\typ$. { -; font-weight: "normal"; id: valMatchTyp; label: "value_match_type" }
 
+###### - $\hasPacketIn \typs$ is a predicate that returns true if there is at least one extern type $\externTyp \packetIn$. { -; font-weight: "normal"; id: hasPacketIn; label: "has_packet_in" }
+
+###### $\validParam \dir \typ$ is a predicate that returns true if a parameter with direction $\dir$ and type $\typ$ does not violate any of the conditions: { -; font-weight: "normal"; id: validParam; label: "valid_param" }
+
++ $\typ$ is be well-formed
++ if $\typ$ is an extern type then the direction must be $\less$
++ if $\typ$ is integer then the direction must be $\less$ 
++ if $\typ$ is string then the direction must be $\less$
++ the combination of $\env.\ctxt$ and $\typ$ matters.
+   * if $\ctxt$ is a constructor context then 
+      * if $\typ$ is package type then $\ctxt$ must be $\constructorCtxt {package}$
+      * if $\typ$ is parser type then $\ctxt$ must be either $\constructorCtxt {package}$ or $\constructorCtxt {parser}$ 
+      * if $\typ$ is control type then $\ctxt$ must be either $\constructorCtxt {package}$ or $\constructorCtxt {control}$ 
+      * if $\typ$ is extern type then $\ctxt$ must be one of the following:
+         + $\constructorCtxt {package}$
+         + $\constructorCtxt {parser}$
+         + $\constructorCtxt {control}$
+         + $\constructorCtxt {method}$
+      * if $\typ$ is function, action, table, or set then no matter the context the combination is not valid
+      * any other combination is valid
+   * if $\ctxt$ is a runtime context then
+      * if $\typ$ is package, parser, or control then no matter the context the combination is not valid
+      * if $\typ$ is extern type then $\ctxt$ must be one of the following:
+         * $\constructorCtxt {parser}$
+         * $\constructorCtxt {control}$
+         * $\constructorCtxt {method}$
+      * if $\typ$ is function, action, table, or set then no matter the context the combination is not valid
+      * any other combination is valid
++ $\env.\ctxt$ and $\typ$ must not match any of the following
+
+
+###### - $\ifTypeExternDirLess \dir \typ$ is a predicate that returns true if parameters that have extern type are $\less$. { -; font-weight: "normal"; id: ifTypeExternDirLess; label: "if_type_extern_dir_less" }
+
+###### - $\dropInit \prmDef$ is a function that returns the parameter without its initializer if it exists. { -; font-weight: "normal"; id: dropInit; label: "drop_initializer" }
 
 - $\isSurface \typ$ is a predicate that returns $\tru$ if type $\typ$ is one of the cases of [surface types][#sec-ast-surface-type].
 - An underscore (that is, $\whatevs$) is used when we do not need to use some specific information returned to us in a rule. For example, $\mathit{getLength}(\A)= \whatevs$ takes the length of $\A$, however, it actually does not care what the length is. Instead it just cares if $\A$ is a structure that has length.
@@ -1194,6 +1235,7 @@ $\intWidthTyp \exp$
 - The expression $\exp$ representing the width must be a [well-formed integer][#sec-exp-type-checker].
 - $\exp$ must evaluate to a number at compile-time. Let $\width$ represent this number. [($\compileTimeEval \exp$)][#compileTimeEval]
 - $\width$ must be positive and more than one.
+- Then, the type $\intWidthTyp \exp$ is well-formed.
 
 ~ Begin InfRule
   \inferrule
@@ -1212,6 +1254,7 @@ $\bitWidthTyp \exp$
 - The expression $\exp$ representing the width must be a [well-formed integer][#sec-exp-type-checker].
 - $\exp$ must evaluate to a number at compile-time. Let $\width$ represent this number. [($\compileTimeEval \exp$)][#compileTimeEval]
 - $\width$ must be non-negative.
+- Then, the type $\bitWidthTyp \exp$ is well-formed.
 
 ~ Begin InfRule
   \inferrule
@@ -1230,7 +1273,7 @@ $\varbitTyp \exp$
 - The expression $\exp$ representing the width of the integer must be a [well-formed integer][#sec-exp-type-checker].
 - $\exp$ must evaluate to a number at compile-time. Let $\width$ represent this number. [($\compileTimeEval \exp$)][#compileTimeEval]
 - $\width$ must be non-negative.
-
+- Then, the type $\varbitTyp \exp$ is well-formed.
 
 ~ Begin InfRule
   \inferrule
@@ -1255,8 +1298,9 @@ $\headerStackTyp \typName \exp$
 - The name $\typName$ must be defined in the type environment $\typEnv$ and let it correspond to the type $\typ$. [($\lookupTypEnv \name$)][#lookup-env]
 - The type $\typ$ must either be a header or header union. [(*is_header_or_union*)][#isHeaderOrUnion]
 - The expression $\exp$ representing the size of the array must be a [well-formed integer][#sec-exp-type-checker].
-- $\exp$ must evaluate to a number at compile-time. Let $\int$ reperesent this number. [($\compileTimeEval \exp$)][#compileTimeEval]
+- $\exp$ must evaluate to a number at compile-time. Let $\int$ represent this number. [($\compileTimeEval \exp$)][#compileTimeEval]
 - $\int$ must be positive.
+- Then, the header stack type $\headerStackTyp \typName \exp$ is well-formed.
 
 ~ Begin InfRule
 
@@ -1277,7 +1321,7 @@ $\headerStackTyp {\spcTyp \typName {\typArg}} \exp$
 
 - The type specialization must be [well-formed][#sec-specialized-t].
 - The header stack type of the generic type without specialization must be [well-formed][#sec-stack-t]. 
-
+- Then, the header stack type $\headerStackTyp {\spcTyp \typName {\typArg}} \exp$ is well-formed.
 
 ~ Begin InfRule
   \mprset {vskip=0.7ex}
@@ -1308,6 +1352,7 @@ $\tupleTyps \typ$
    + $\structTyps \typParam \field \typ$
    + $\tupleTyps \typ$
 - A tuple type with no component, that is, $\tupleTyps {}$, is always well-formed because it does not have any types that needs to satisfy the premises.
+- Then, the tuple type $\tupleTyps \typ$ is well-formed.
 
 ~ Begin InfRule
   \mprset {vskip=0.7ex}
@@ -1332,6 +1377,7 @@ $\headerTyps { } \field \typ$
    + $\boolTyp$
    + $\enumTypDef$
    + a struct or nested struct type that contains only the above types assigned to its fields 
+- Then, the non-generic header type $\headerTyps { } \field \typ$ is well-formed.
 
 ~ Begin InfRule
 
@@ -1356,6 +1402,7 @@ $\headerTyps  \typParam \field \typ$
    + Note that if the header is not generic, that is, $\typParams = \emp$, the predicate $\distinct \typParams$ still holds.
 - Type variables must not be free, that is, every single type variable declared in the list $\typParams$ must be assigned to at least one of the header's fields. This is due to P4 not supporting phantom types. [(*no_free_type_var*)][#noFreeTypVar]
    + Similarly, if the header is not generic the predicate $\noFreeTypVar {\headerTyps { } \field {\typ}}$ still holds.
+- Then, the generic header type $\headerTyps  \typParam \field \typ$ is well-formed.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1385,6 +1432,7 @@ $\headerUnionTyps  \typParam \field {\typName}$
 - The types $\typs$ must be a header type. [(*is_header*)][#isHeader]
 - The type parameters of the header union must be distinct. [(*distinct*)][#distinct]
 - Type variables in the header union must not be free. [(*no_free_type_var*)][#noFreeTypVar]
+- Then, the header union type $\headerUnionTyps  \typParam \field {\typName}$ is well-formed.
 
 ~ Begin InfRule
 
@@ -1405,6 +1453,8 @@ $\headerUnionTyps  \typParam \field {\typName}$
 
 ### Struct Types { #sec-struct-t }
 
+$\structTyps  \typParam \field {\typ}$
+
 - The fields of the header must be distinct. [(*distinct*)][#distinct]
 - The types of the fields must be well-formed under the environment $\env$ with its type parameter environment $\typParEnv$  extended with the type variables declared for the header. [($\updateEnv {\insertToTypParEnv \typParams}$)][#update-env-extension]
 - Not every type can be assigned to the fields of a struct type. One of the following types or a type name representing them must be assigned to the fields: [(*is_valid_nested*)][#isValidNestedTyp]
@@ -1422,6 +1472,7 @@ $\headerUnionTyps  \typParam \field {\typName}$
    + $\tupleTyps \typ$
 - Type variables must be distinct. [(*distinct*)][#distinct]
 - Type variables must not be free in a struct type. [(*no_free_type_var*)][#noFreeTypVar]
+- Then, the struct type $\structTyps  \typParam \field {\typ}$ is well-formed.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1458,6 +1509,7 @@ $\enumTyp {\VVal \typName} \typName \fields$
 
 - The type name $\VVal \typName$ must exist in the type synonym environment $\typSynEnv$ and let it correspond to the type $\typ$. [($\lookupTypSynEnv {\typName}$)][#lookup-env]
 - The substitution of $\typ$ with $\typName$ as the underlying type of the enum must result in a [well-formed enum][#sec-ser-enum-t].
+- Then, the serializable enumeration type $\enumTyp {\VVal \typName} \typName \fields$ is well-formed.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1474,6 +1526,7 @@ $\enumTypDef$
 - The underlying type is [well-formed][#sec-type-type-checker].
 - The underlying type is either a fixed-width signed or unsigned integer. [(*is_width_int*)][#isWidthInt]
 - The fields are distinct. [(*distinct*)][#distinct]
+- Then, the serializable enumeration type $\enumTypDef$ is well-formed.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1485,29 +1538,80 @@ $\enumTypDef$
     \quad (\serenumWellT)}
 ~ End InfRule
 
-### Parser Types
+### Parser Types { #sec-parser-t }
 
-### Control Types
+$\parserTyp  \typVar \singleprm $
 
-### Package Types
+- Type variables $\typVars$ must be distinct. [(*distinct*)][#distinct]
+- Type variables $\typVars$ must not be free. [(*no_free_type_var*)][#noFreeTypVar]
+- The parameters $\params$ must be distinct. [(*distinct*)][#distinct]
+- Let $\VVal \env$ represent the environment $\env$ except that its type variable environment has been extended with type parameters $\typVars$. [($\insertToTypParEnv \typParam$)][#extend-typ-par-env] 
+- The types of parameters $\typs$ must be [well-formed][#sec-type-type-checker] under the environment $\VVal \env$.
+- At least one of the parameters must have the type $\externTyp \packetIn$. [(*has_packet_in*)][#hasPacketIn]
+- Parameters must be valid. [(*valid_param*)][#validParam]
+- Then, the parser type $\parserTyp  \typVar \singleprm $ is well-formed.
 
-### Function Types
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {
+    \distinct \typVars\\
+    \noFreeTypVar {\parserTyp  \typVar {\singleprm}}\\\\
+    \distinct \params\\
+    \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\
+      \hasPacketIn \typs\\
+      % \ifTypeExternDirLess \dir \typ
+      \validParam \dir \typ}
+    {\typWellFormed { \parserTyp  \typVar {\singleprm }}}
+  }
+    \quad (\parserTypWellT)
+~ End InfRule
 
-### Set Types
 
-### Extern Types
+### Control Types { #sec-control-t }
 
-### Type Reference
+$\controlTyp  \typVar \singleprm $
 
-### Action Types
+- Type variables $\typVars$ must be distinct. [(*distinct*)][#distinct]
+- Type variables $\typVars$ must not be free. [(*no_free_type_var*)][#noFreeTypVar]
+- The parameters $\params$ must be distinct. [(*distinct*)][#distinct]
+- Let $\VVal \env$ represent the environment $\env$ except that its type variable environment has been extended with type parameters $\typVars$. [($\insertToTypParEnv \typParam$)][#extend-typ-par-env] 
+- The types of parameters $\typs$ must be [well-formed][#sec-type-type-checker] under the environment $\VVal \env$.
+- Parameters that have extern type must be $\less$. [(*if_type_extern_dir_less*)][#ifTypeExternDirLess]
+- Then, the control type $\controlTyp  \typVar \singleprm $ is well-formed.
 
-### Constructor Types
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {\distinct \typVars\\
+    \noFreeTypVar {\parserTyp  \typVar {\singleprm}}\\\\
+    \distinct \params\\
+    \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\
+      \ifTypeExternDirLess \dir \typ}
+    {\typWellFormed { \controlTyp  \typVar {\singleprm }}}
+  }
+    \quad (\controlTypWellT)
+~ End InfRule
 
-### Table Types
+### Package Types { #sec-package-t }
 
-### Void Type
+### Function Types { #sec-func-t }
 
-### Don't Care Type
+### Set Types { #sec-set-t }
+
+### Extern Types { #sec-extern-t }
+
+### Type Reference { #sec-type-ref-t }
+
+### Action Types { #sec-action-t }
+
+### Constructor Types { #sec-constructor-t }
+
+### Table Types { #sec-table-t }
+
+### Void Type { #sec-void-t }
+
+### Don't Care Type { #sec-dontcare-t }
 
 ## Type Equality { #sec-type-eq-type-checker }
 
@@ -1837,7 +1941,6 @@ It is important to note that the type casting judgment stands on its own, that i
      {\allcastenv {\structTyps {} {\field_1} {\typ_1}} {\headerTyps {} {\field_2} { \typ_2}}}}
      \quad (\rn{RecordToHeader}\rAE\rSep\rn{2})
 ~ End InfRuleHelper
-
 
 ## Expressions { #sec-exp-type-checker }
 The type checker judgment for expressions has the form $\expCheck \exp \typ$ and it reads "the expression $\exp$ is well-formed with type $\typ$ under the enviornment $\env$". 
@@ -2506,7 +2609,7 @@ $\serEnumDcl {\typ} \typName \field \exp$
 
 - The type of the declaration $\enumTypDef$ must be [well-formed][#sec-ser-enum-t].
 - The expressions assigned to the enum fields must be known at compile-time. [(*compile_time_known*)][#compTimeKnown].
-- All the expressions assigned to the enum fields must be well-formed and let them have type $\typ$. [(*value_match_type*)][#valMatchTyp]
+- All the expressions assigned to the enum fields must be well-formed and let them have type $\typ$. ([*value_match_type*][#valMatchTyp],[*mapping a predicate*][#mapping])
 - Let $\VVal \env$ be the same environment as $\env$, but with
    + The type environment $\typEnv$ extended with the assignment of type $\enumTypDef$ to $\typName$. [($\insertToTypEnv \typName \typ $)][#extend-env]
    + The variable environment $\varEnv$ extended with the assignments of the enumeration type $\enumTypDef$ and $\less$ direction to enum field names prefixed with the enum name, that is, $\overline {\typMem \typName \field}$. [($\insertToVarEnv \var  \typ \dir $)][#extend-env]
@@ -2520,7 +2623,7 @@ $\serEnumDcl {\typ} \typName \field \exp$
        % \widthInt {\surfaceTyp} = \width \\
        % \isConstant \exp \\\\
        \compTimeKnown {\exps}\\\\
-       \valMatchTyp \exp \typ\\\\
+       \valMatchTyp \exps \typ\\\\
         \insertToTypEnv \typName {\enumTypDef} = \VVal \typEnv\\\\
         \insertsToVarEnv {\typMem \typName \field} \enumTypDef \less = \VVal \varEnv\\\\
         \insertsToConstEnv {\typMem \typName \field} {\enumVal \typName \field}= \VVal \constEnv
@@ -2536,6 +2639,24 @@ $\serEnumDcl {\typ} \typName \field \exp$
 ### Control Type Declaration { #sec-control-typ-decl-type-checker }
 
 ### Parser Type Declaration { #sec-parser-typ-decl-type-checker }
+
+$\parserTypDcl \typName \typVar \prmDef$
+
+- All the expressions assigned to the enum fields must be well-formed and let them have type $\typ$. [(*value_match_type*)][#valMatchTyp]
+- [(*drop_initializer*)][#dropInit]
+- [][]
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {\dropInit \prmDefs =\overline \singleprm\\
+     \typWellFormed {\parserTyp  \typVar {\singleprm }}\\\\ 
+      \insertToTypEnv \typName {\parserTyp  \typVar {\singleprm}} = \VVal \typEnv\\
+      \valMatchTyp \exps \typs
+     }
+    {\dclCheck {\parserTypDcl \typName \typVar {\prmDef }} {\updateEnv {\VVal \typEnv}} }}
+  \quad (\parserTypD)
+~ End InfRule
 
 ### Package Type Declaration { #sec-package-typ-decl-type-checker }
 

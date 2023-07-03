@@ -1110,9 +1110,9 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ###### - $\hasPacketIn \typs$ is a predicate that returns true if there is at least one extern type $\externTyp \packetIn$. { -; font-weight: "normal"; id: hasPacketIn; label: "has_packet_in" }
 
-###### $\validParam \dir \typ$ is a predicate that returns true if a parameter with direction $\dir$ and type $\typ$ does not violate any of the conditions: { -; font-weight: "normal"; id: validParam; label: "valid_param" }
+###### $\validParam \dir \typ \env$ is a predicate that returns true if under environment $\env$ a parameter with direction $\dir$ and type $\typ$ does not violate any of the conditions: { -; font-weight: "normal"; id: validParam; label: "valid_param" }
 
-+ $\typ$ is be well-formed
++ $\typ$ is well-formed under environment $\env$
 + if $\typ$ is an extern type then the direction must be $\less$
 + if $\typ$ is integer then the direction must be $\less$ 
 + if $\typ$ is string then the direction must be $\less$
@@ -1545,10 +1545,9 @@ $\parserTyp  \typVar \singleprm $
 - Type variables $\typVars$ must be distinct. [(*distinct*)][#distinct]
 - Type variables $\typVars$ must not be free. [(*no_free_type_var*)][#noFreeTypVar]
 - The parameters $\params$ must be distinct. [(*distinct*)][#distinct]
-- Let $\VVal \env$ represent the environment $\env$ except that its type variable environment has been extended with type parameters $\typVars$. [($\insertToTypParEnv \typParam$)][#extend-typ-par-env] 
-- The types of parameters $\typs$ must be [well-formed][#sec-type-type-checker] under the environment $\VVal \env$.
+- Let $\VVal \env$ represent the environment $\env$ except that its type variable environment has been extended with type parameters $\typVars$ and its context is set to $\runtimeCtxt {control}$. [($\updateEnv {\ctxt = \runtimeCtxt {control}, \insertToTypParEnv \typParams}$)][#update-envs]
+- Parameters must be valid under the environment $\VVal \env$. [(*valid_param*)][#validParam]
 - At least one of the parameters must have the type $\externTyp \packetIn$. [(*has_packet_in*)][#hasPacketIn]
-- Parameters must be valid. [(*valid_param*)][#validParam]
 - Then, the parser type $\parserTyp  \typVar \singleprm $ is well-formed.
 
 ~ Begin InfRule
@@ -1557,11 +1556,12 @@ $\parserTyp  \typVar \singleprm $
     {
     \distinct \typVars\\
     \noFreeTypVar {\parserTyp  \typVar {\singleprm}}\\\\
-    \distinct \params\\
-    \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\
-      \hasPacketIn \typs\\
+    \distinct \params\\\\
+     % \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\
       % \ifTypeExternDirLess \dir \typ
-      \validParam \dir \typ}
+      \validParam \dir \typ {\updateEnv {\ctxt = \runtimeCtxt {control}, \insertToTypParEnv \typParams}}\\
+      \hasPacketIn \typs
+      }
     {\typWellFormed { \parserTyp  \typVar {\singleprm }}}
   }
     \quad (\parserTypWellT)
@@ -1575,9 +1575,8 @@ $\controlTyp  \typVar \singleprm $
 - Type variables $\typVars$ must be distinct. [(*distinct*)][#distinct]
 - Type variables $\typVars$ must not be free. [(*no_free_type_var*)][#noFreeTypVar]
 - The parameters $\params$ must be distinct. [(*distinct*)][#distinct]
-- Let $\VVal \env$ represent the environment $\env$ except that its type variable environment has been extended with type parameters $\typVars$. [($\insertToTypParEnv \typParam$)][#extend-typ-par-env] 
-- The types of parameters $\typs$ must be [well-formed][#sec-type-type-checker] under the environment $\VVal \env$.
-- Parameters that have extern type must be $\less$. [(*if_type_extern_dir_less*)][#ifTypeExternDirLess]
+- Let $\VVal \env$ represent the environment $\env$ except that its type variable environment has been extended with type parameters $\typVars$ and its context is set to $\runtimeCtxt {control}$. [($\updateEnv {\ctxt = \runtimeCtxt {control}, \insertToTypParEnv \typParams}$)][#update-envs]
+- Parameters must be valid under the environment $\VVal \env$. [(*valid_param*)][#validParam]
 - Then, the control type $\controlTyp  \typVar \singleprm $ is well-formed.
 
 ~ Begin InfRule
@@ -1585,9 +1584,10 @@ $\controlTyp  \typVar \singleprm $
   {\inferrule
     {\distinct \typVars\\
     \noFreeTypVar {\parserTyp  \typVar {\singleprm}}\\\\
-    \distinct \params\\
-    \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\
-      \ifTypeExternDirLess \dir \typ}
+    \distinct \params\\\\
+     % \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\
+      \validParam \dir \typ {\updateEnv {\ctxt = \runtimeCtxt {control}, \insertToTypParEnv \typParams}}
+      }
     {\typWellFormed { \controlTyp  \typVar {\singleprm }}}
   }
     \quad (\controlTypWellT)

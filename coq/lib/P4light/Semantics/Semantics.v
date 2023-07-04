@@ -1023,7 +1023,12 @@ Inductive exec_arg (read_one_bit : option bool -> bool -> Prop) :
   | exec_arg_inout : forall this st expr lv sv v sv' sig,
                      exec_lexpr read_one_bit this st expr lv sig ->
                      exec_read st lv sv ->
-                     (* determinize sval similar to in parameters; why not exec_expr_det? *)
+                     (* According to our interpretation of the descriptions regarding unspecified values
+                       in the P4 Spec, we choose to determinize values for in and inout arguments.
+                       We do not use exec_expr_det to determinize values, because we don't want to
+                       evaluate the expression twice. Although it is the same for effectless expressions
+                       we currently have, it is a cavet when we want to generalize
+                       to effectful expressions. *)
                      sval_to_val read_one_bit sv v ->
                      val_to_sval v sv' ->
                      exec_arg read_one_bit this st (Some expr) InOut (Some sv', Some lv) sig.

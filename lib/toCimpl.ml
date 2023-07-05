@@ -26,5 +26,5 @@ let compile_program (prsr,pipe) =
        dummy in
   let open Cimpl in 
   let stmts = compile pipe in
-  let cdecl = CFunction(CVoid, "main", CBlock stmts) in
+  let cdecl = CFunction(CInt, "main", CBlock stmts) in
   Ok (CProgram [cdecl])

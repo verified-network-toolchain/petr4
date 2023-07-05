@@ -1,4 +1,0 @@
-(library
- (name cimpl)
- (public_name cimpl)
- (libraries yojson ANSITerminal))

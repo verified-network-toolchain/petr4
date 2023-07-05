@@ -1,4 +1,1 @@
-open Poulet4
-
-val compile_program : (ToGCL.target * ToGCL.target) -> (Cimpl.cprog,string) Core.Result.t
-
+val compile_program : 'a -> (Cimpl.program,string) Result.t

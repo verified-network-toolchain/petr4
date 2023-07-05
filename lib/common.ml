@@ -249,9 +249,9 @@ module MakeDriver (IO: DriverIO) = struct
     | Result.Ok gcl    -> Ok gcl
     end
 
-  let to_cimpl (prsr,pipe) =
+  let to_cimpl gcl = 
     (* TODO: handle parser *)
-    let cimpl = ToCimpl.compile_program pipe in
+    let cimpl = ToCimpl.compile_program gcl in
     match cimpl with 
     | Ok x -> Ok x
     | Error msg -> Error (ToCimplError ("Unexpected failure: " ^ msg))

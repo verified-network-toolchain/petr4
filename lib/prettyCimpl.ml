@@ -25,6 +25,8 @@ let format_cdecl d =
           space ++
           text name ++
           space ++ 
+          text "()" ++
+          space ++
           format_cblk body)
         
 let format_program p =

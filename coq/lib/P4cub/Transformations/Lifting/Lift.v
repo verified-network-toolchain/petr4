@@ -82,13 +82,13 @@ Section LifteInduction.
 
   Hypothesis HLift_exprror : forall err,
       P (Exp.Error err) (Exp.Error err) [].
-  
+
   Hypothesis HLift_bit : forall w n,
       P (w `W n) (Exp.Var (Typ.Bit w) "lifted_bit" 0) [w `W n].
 
   Hypothesis HLift_int : forall w z,
       P (w `S z) (Exp.Var (Typ.Int w) "lifted_int" 0) [w `S z].
-  
+
   Hypothesis HLift_varbit : forall m w n,
       P (Exp.VarBit m w n) (Exp.Var (Typ.VarBit m) "lifted_varbit" 0) [Exp.VarBit m w n].
 
@@ -96,12 +96,12 @@ Section LifteInduction.
       Lift_exp e e' es ->
       P e e' es ->
       P (Exp.Member t x e) (Exp.Member t x e') es.
-  
+
   Hypothesis HLift_uop : forall t o e e' es,
       Lift_exp e e' es ->
       P e e' es ->
       P (Exp.Uop t o e) (Exp.Var t "lifted_uop" 0) (Exp.Uop t o e' :: es).
-  
+
   Hypothesis HLift_slice : forall hi lo e e' es,
       Lift_exp e e' es ->
       P e e' es ->
@@ -109,12 +109,12 @@ Section LifteInduction.
         (Exp.Slice hi lo e)
         (Exp.Var (Typ.Bit (Npos hi - Npos lo + 1)%N) "lifted_slice" 0)
         (Exp.Slice hi lo e' :: es).
-  
+
   Hypothesis HLift_cast : forall t e e' es,
       Lift_exp e e' es ->
       P e e' es ->
       P (Exp.Cast t e) (Exp.Var t "lifted_cast" 0) (Exp.Cast t e' :: es).
-  
+
   Hypothesis HLift_index : forall t e1 e2 e1' e2' es1 es2,
       Lift_exp e1 e1' es1 ->
       P e1 e1' es1 ->
@@ -127,7 +127,7 @@ Section LifteInduction.
            (fst (fst (shift_couple shift_exp shift_exp e1' e2' es1 es2)))
            (snd (fst (shift_couple shift_exp shift_exp e1' e2' es1 es2))))
         (snd (shift_couple shift_exp shift_exp e1' e2' es1 es2) ++ es1).
-  
+
   Hypothesis HLift_bop : forall t o e1 e2 e1' e2' es1 es2,
       Lift_exp e1 e1' es1 ->
       P e1 e1' es1 ->
@@ -141,7 +141,7 @@ Section LifteInduction.
            (fst (fst (shift_couple shift_exp shift_exp e1' e2' es1 es2)))
            (snd (fst (shift_couple shift_exp shift_exp e1' e2' es1 es2)))
            :: snd (shift_couple shift_exp shift_exp e1' e2' es1 es2) ++ es1).
-  
+
   Hypothesis HLift_lists : forall ls es es' ess,
       Forall3 Lift_exp es es' ess ->
       Forall3 P es es' ess ->
@@ -369,7 +369,7 @@ Section Liftlift.
   Qed.
 
   Local Hint Resolve Lift_lift_trns : core.
-  
+
   Ltac apply_Lift_lift_trns :=
       match goal with
       | h: Lift_trns _ _ _
@@ -403,11 +403,11 @@ Section Liftlift.
   Ltac apply_Lift_lift_exp_list :=
     match goal with
     | h : Lift_A_list shift_exp Lift_exp _ _ _
-      |- _ => apply Lift_lift_exp_list in h; rewrite h
+      |- _ => simple apply Lift_lift_exp_list in h; rewrite h
     end.
 
   Local Hint Extern 5 => apply_Lift_lift_exp_list : core.
-  
+
   Lemma Lift_lift_call : forall fk fk' es,
       Lift_call fk fk' es ->
       lift_call fk = (fk', es).
@@ -446,7 +446,7 @@ Section Liftlift.
       end.
 
   Local Hint Extern 5 => apply_Lift_lift_args : core.
-  
+
   Lemma Lift_lift_stm : forall s s',
       Lift_stm s s' -> lift_stm s = s'.
   Proof.
@@ -457,7 +457,7 @@ End Liftlift.
 
 Section liftLift.
   Local Hint Constructors Lift_exp : core.
-  
+
   Lemma lift_Lift_exp : forall e,
     Lift_exp e (fst (lift_exp e)) (snd (lift_exp e)).
   Proof.
@@ -472,7 +472,7 @@ Section liftLift.
 
   Local Hint Resolve lift_Lift_exp : core.
   Local Hint Constructors Lift_trns : core.
-  
+
   Lemma lift_Lift_trns : forall e,
       Lift_trns e (fst (lift_trns e)) (snd (lift_trns e)).
   Proof.
@@ -483,12 +483,14 @@ Section liftLift.
   Local Hint Resolve lift_Lift_trns : core.
   Local Hint Constructors Lift_call : core.
   Local Hint Resolve lift_A_list_Lift_A_list : core.
-  
+
   Lemma lift_Lift_call : forall fk,
       Lift_call fk (fst (lift_call fk)) (snd (lift_call fk)).
   Proof.
     intros [f ts [e |] | a cs | extrn mthd ts [e |] | ? ?];
       unravel; try let_destr_pair; cbn; eauto using lift_A_list_Lift_A_list.
+    constructor.
+    apply (lift_A_list_Lift_A_list shift_exp _ _ lift_Lift_exp cs).
   Qed.
 
   Local Hint Resolve lift_Lift_call : core.

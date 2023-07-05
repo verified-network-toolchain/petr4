@@ -14,22 +14,22 @@ Section EvalDeclList.
   Variable ϵ : list Val.t.
 
   Local Hint Resolve relate_decl_list_length : core.
-  
+
   Lemma eval_decl_list_length : forall es vs,
       eval_decl_list ϵ es vs -> length es = length vs.
   Proof using. eauto. Qed.
-  
+
   Local Hint Resolve shift_exp_eval : core.
   Local Hint Resolve relate_decl_list_app : core.
-    
+
   Lemma eval_decl_list_app : forall vs1 vs2 es1 es2,
       eval_decl_list ϵ es1 vs1 ->
       eval_decl_list ϵ es2 vs2 ->
       eval_decl_list ϵ (shift_list shift_exp 0 (length es1) es2 ++ es1) (vs2 ++ vs1).
   Proof using. eauto. Qed.
-  
+
   Local Hint Resolve shift_pairs_relate_snd : core.
-  
+
   Lemma shift_pairs_exp_eval_snd : forall ess vss,
       Forall2 (eval_decl_list ϵ) (map snd ess) vss ->
       eval_decl_list
@@ -40,7 +40,7 @@ Section EvalDeclList.
 
   Local Hint Resolve shift_pairs_relate_fst : core.
   Local Hint Resolve shift_exp_eval : core.
-  
+
   Lemma shift_pairs_exp_eval_fst : forall es ess vs vss,
       length es = length ess ->
       Forall3 (fun vs e v => ⟨ vs ++ ϵ, e ⟩ ⇓ v) vss es vs ->
@@ -73,7 +73,7 @@ Section EvalDeclList.
       ⟨ vs2 ++ vs1 ++ ϵ, fst (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2)) ⟩ ⇓ v1
       /\ ⟨ vs2 ++ vs1 ++ ϵ, snd (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2)) ⟩ ⇓ v2.
   Proof using. eauto. Qed.
-      
+
 End EvalDeclList.
 
 Section EvalExp.
@@ -104,7 +104,7 @@ Section EvalExp.
     end.
 
   Local Hint Extern 3 => shift_couple_resolve : core.
-  
+
   Lemma Lift_exp_good : forall e v,
       ⟨ ϵ, e ⟩ ⇓ v -> forall e' es,
         Lift_exp e e' es -> exists vs,
@@ -129,7 +129,8 @@ Section EvalExp.
     - pose proof IHhev1 _ _ H5 as (vs1 & hvs1 & hv1); clear IHhev1.
       pose proof IHhev2 _ _ H6 as (vs2 & hvs2 & hv2); clear IHhev2.
       exists (vs2 ++ vs1). rewrite <- app_assoc.
-      eauto.
+      split; eauto. shift_couple_resolve.
+      simple eapply ebs_index; [apply H | apply H0 | apply H1].
     - pose proof Forall2_specialize_Forall3
         _ _ _ _ _ _ H0 as h; clear H0.
       assert (hlenesvs : length es = length vs)
@@ -152,7 +153,7 @@ Section EvalExp.
       exists (Val.Lists ls vs :: concat vss).
       split; auto.
       constructor; eauto.
-      apply shift_pairs_exp_eval_snd ; eauto.
+      simple apply shift_pairs_exp_eval_snd ; eauto.
       rewrite sublist.combine_snd
         by eauto using Forall3_length23.
       assumption.
@@ -250,7 +251,7 @@ Section StatementLifting.
   Local Hint Constructors relop : core.
   Local Hint Constructors ctx_cutoff : core.
   Local Hint Resolve ctx_cutoff_add : core.
-  
+
   Lemma Lift_stm_good : forall Ψ ϵ ϵ' c s sig ψ,
       ctx_cutoff (length ϵ) c ->
       ⧼ Ψ, ϵ, c, s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ -> forall s',
@@ -285,7 +286,7 @@ Section StatementLifting.
       replace (v :: vs ++ ϵ) with ([v] ++ vs ++ ϵ) by reflexivity.
       replace (v' :: vs ++ ϵ') with ([v'] ++ vs ++ ϵ') by reflexivity.
       replace 1 with (length [v]) by reflexivity.
-      rewrite (eval_decl_list_length _ _ _ hvs). 
+      rewrite (eval_decl_list_length _ _ _ hvs).
       eapply shift_stm_eval; cbn; eauto.
       apply IHhs; cbn; eauto.
       apply ctx_cutoff_add with (l:=1). assumption.

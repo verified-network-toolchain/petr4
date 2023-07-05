@@ -5,26 +5,29 @@ let semi = text ";"
    
 let format_ctyp t =
   match t with
-  | Cimpl.CVoid -> text "void"
-  | Cimpl.CInt -> text "int"
+  | Cimpl.CTVoid -> text "void"
+  | Cimpl.CTInt -> text "int"
 
 let format_cvar x =
   text x
 
 let format_cexp e =
   match e with
-  | Cimpl.CVar x -> format_cvar x
+  | Cimpl.CEVar x ->
+     format_cvar x
+  | Cimpl.CEInt n ->
+     Int.to_string n |> text
                 
 let format_stmt s =
   match s with
-  | Cimpl.CSkip -> 
+  | Cimpl.CSSkip -> 
      semi
-  | Cimpl.CAssign(x,e) -> box(format_cvar x ++
-                              space ++
-                              text "=" ++
-                              space ++
-                              format_cexp e ++
-                              semi)
+  | Cimpl.CSAssign(x,e) -> box(format_cvar x ++
+                               space ++
+                               text "=" ++
+                               space ++
+                               format_cexp e ++
+                               semi)
            
 let format_cblk b =
   match b with
@@ -36,7 +39,7 @@ let format_cblk b =
            
 let format_cdecl d =
   match d with
-  | Cimpl.CFunction(typ,name,body) ->
+  | Cimpl.CDFunction(typ,name,body) ->
      box (format_ctyp typ ++
           space ++
           text name ++

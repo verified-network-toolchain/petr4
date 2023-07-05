@@ -276,6 +276,19 @@ module MakeDriver (IO: DriverIO) = struct
     >>= print_p4light cfg
 
   let run_compiler (cfg: Pass.compiler_cfg) =
+    let size (prsr,pipe) =
+      (* tail recursive to avoid StackOverflow *)
+      let rec loop g acc = 
+        let open Poulet4.GCL.GCL in
+        match g with
+        | GSkip -> 1
+        | GSeq(g1,g2) | GChoice(g1,g2) -> loop g2 (loop g1 (acc + 1))
+        | GAssign _ -> 1
+        | GAssume _ | GAssert _ -> 1
+        | GExternVoid _ | GExternAssn _ -> 1
+        | GTable _ -> 1 in
+      loop pipe 0 in 
+    
     run_checker cfg.cfg_checker
     >>= to_p4cub cfg
 
@@ -292,14 +305,14 @@ module MakeDriver (IO: DriverIO) = struct
         | Run (CBackend {depth; c_output}) ->
            let debug msg x =
              Printf.eprintf "[cimpl] ";
-             Printf.eprintf msg;
+             Printf.eprintf "%s" msg;
              Printf.eprintf "\n%!";
              return x in
            Ok prog 
            >>= debug "Starting..." 
            >>= debug "Converting to GCL..." 
            >>= to_gcl depth
-           >>= debug "Converting to Cimpl..."
+           >>= fun gcl -> debug ("Converting GCL[" ^ (size gcl |> string_of_int) ^ "] to Cimpl...") gcl
            >>= to_cimpl
            >>= debug "Pretty-printing Cimpl..."
            >>= print_cimpl c_output

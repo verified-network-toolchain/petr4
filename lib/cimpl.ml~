@@ -1,0 +1,7 @@
+type expression = unit
+
+type statement = unit
+
+type declaration = unit
+
+type program = declaration list

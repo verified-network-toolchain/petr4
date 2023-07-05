@@ -1,9 +1,18 @@
-type expression = unit
+type ctyp =
+  | CVoid
+  | CInt
 
-type statement = unit
+type cexpr =
+  | CVar of string
 
-and block = statement list
+type cstmt =
+  | CSkip
+
+and cblk =
+  | CBlock of cstmt list
                
-type declaration = unit
+type cdecl =
+  | CFunction of ctyp * string * cblk
                  
-type program = declaration list
+type cprog =
+  | CProgram of cdecl list 

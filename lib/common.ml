@@ -234,7 +234,8 @@ module MakeDriver (IO: DriverIO) = struct
     | Error msg -> Error (ToCimplError ("Unexpected failure: " ^ msg))
                    
   let print_cimpl (out: Pass.output) prog =
-    Format.eprintf "TODO: implement Cimpl pretty printing.\n";
+    Format.fprintf Format.str_formatter "%a" Pp.to_fmt (PrettyCimpl.format_program prog);
+    Out_channel.write_all out.out_file ~data:(Format.flush_str_formatter ());
     Ok prog    
 
   let run_parser (cfg: Pass.parser_cfg) =
@@ -266,9 +267,20 @@ module MakeDriver (IO: DriverIO) = struct
            >>= print_gcl gcl_output
            >>= fun x -> Ok ()
         | Run (CBackend {depth; c_output}) ->
-           to_gcl depth prog
+           let debug msg x =
+             Printf.eprintf "[cimpl] ";
+             Printf.eprintf msg;
+             Printf.eprintf "\n%!";
+             return x in
+           Ok prog 
+           >>= debug "Starting..." 
+           >>= debug "Converting to GCL..." 
+           >>= to_gcl depth
+           >>= debug "Converting to Cimpl..."
            >>= to_cimpl
-           >>= print_cimpl c_output 
+           >>= debug "Pretty-printing Cimpl..."
+           >>= print_cimpl c_output
+           >>= debug "All done!"
            >>= fun x -> Ok ()
         end
 

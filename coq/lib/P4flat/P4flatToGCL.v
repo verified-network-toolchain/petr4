@@ -16,41 +16,41 @@ Import ResultNotations.
 Module GEN := NameGen.NameGenParam.
 Open Scope string_scope.
 
-  (* A map from de Bruijn indices to fresh names. *)
-  Definition idx_map := list string.
-  Definition idx_map_init : idx_map := [].
-  Inductive vartyp :=
-  | LocalVar (typ: AST.Typ.t)
-  | TableFun (key_typ: list Typ.t) (act_arg_typs: list Typ.t).
-  Definition var_env := GEN.t vartyp.
-  Definition var_env_init : var_env := GEN.init.
+(* A map from de Bruijn indices to fresh names. *)
+Definition idx_map := list string.
+Definition idx_map_init : idx_map := [].
+Inductive vartyp :=
+| LocalVar (typ: AST.Typ.t)
+| TableFun (key_typ: list Typ.t) (act_arg_typs: list Typ.t).
+Definition var_env := GEN.t vartyp.
+Definition var_env_init : var_env := GEN.init.
 
-  Notation M := (state_monad var_env string).
+Notation M := (state_monad var_env string).
 
-  Definition freshen_name (s: string) (t: AST.Typ.t) : M string :=
-    let* e := get_state in
-    let (s, e') := GEN.freshen e s (LocalVar t) in
-    put_state e';;
-    mret s.
+Definition freshen_name (s: string) (t: AST.Typ.t) : M string :=
+  let* e := get_state in
+  let (s, e') := GEN.freshen e s (LocalVar t) in
+  put_state e';;
+  mret s.
 
-  Definition declare_var (name: string) (typ: AST.Typ.t) (m: idx_map) : M idx_map :=
-    let* name' := freshen_name name typ in
-    mret (name' :: m).
+Definition declare_var (name: string) (typ: AST.Typ.t) (m: idx_map) : M idx_map :=
+  let* name' := freshen_name name typ in
+  mret (name' :: m).
 
-  Definition declare_param (name: string) (param: CUB.Typ.param) : idx_map -> M idx_map :=
-    let typ := match param with
-               | PAIn t
-               | PAOut t 
-               | PAInOut t => t
-               end
-    in
-    declare_var name typ.
-  
-  Definition declare_params (params: CUB.Typ.params) : idx_map -> M idx_map :=
-    fold_left_monad (fun m '(name, p) => declare_param name p m) params.
+Definition declare_param (name: string) (param: CUB.Typ.param) : idx_map -> M idx_map :=
+  let typ := match param with
+             | PAIn t
+             | PAOut t 
+             | PAInOut t => t
+             end
+  in
+  declare_var name typ.
 
-  Definition find_var (m: idx_map) (k: nat) : M string :=
-    from_opt (nth_error m k) "find_var: index not found in idx_map".
+Definition declare_params (params: CUB.Typ.params) : idx_map -> M idx_map :=
+  fold_left_monad (fun m '(name, p) => declare_param name p m) params.
+
+Definition find_var (m: idx_map) (k: nat) : M string :=
+  from_opt (nth_error m k) "find_var: index not found in idx_map".
 
 
 Inductive p4sorts :=

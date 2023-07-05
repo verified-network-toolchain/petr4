@@ -145,4 +145,4 @@ Definition gcl_from_p4cub instr hv gas unroll p4cub : result string (ToGCL.targe
   let arrowtype := ({|Arr.inout:=InOut.mk_t [("check", Typ.Bool)] []; Arr.ret:=None|} : Typ.arrow) in
   let assume_decl := Top.Extern "_" 1 [] [] [("assume", (0%nat, [], arrowtype))] in
   let p4cub_instrumented := ToP4cub.add_extern  p4cub assume_decl in
-  ToGCL.from_p4cub instr hv gas unroll externs (package) p4cub.
+  ToGCL.from_p4cub instr hv gas unroll externs package p4cub.

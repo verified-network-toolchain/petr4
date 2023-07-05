@@ -2,11 +2,14 @@ type ctyp =
   | CVoid
   | CInt
 
+type cvar = string
+  
 type cexpr =
-  | CVar of string
+  | CVar of cvar
 
 type cstmt =
   | CSkip
+  | CAssign of cvar * cexpr
 
 and cblk =
   | CBlock of cstmt list

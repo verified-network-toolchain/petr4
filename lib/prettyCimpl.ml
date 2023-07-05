@@ -1,14 +1,30 @@
 open Pp
 open Pp.O
 
+let semi = text ";"
+   
 let format_ctyp t =
   match t with
   | Cimpl.CVoid -> text "void"
   | Cimpl.CInt -> text "int"
 
+let format_cvar x =
+  text x
+
+let format_cexp e =
+  match e with
+  | Cimpl.CVar x -> format_cvar x
+                
 let format_stmt s =
   match s with
-  | Cimpl.CSkip -> text ";"
+  | Cimpl.CSkip -> 
+     semi
+  | Cimpl.CAssign(x,e) -> box(format_cvar x ++
+                              space ++
+                              text "=" ++
+                              space ++
+                              format_cexp e ++
+                              semi)
            
 let format_cblk b =
   match b with

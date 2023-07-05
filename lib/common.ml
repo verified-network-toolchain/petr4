@@ -34,6 +34,7 @@ type error =
   | ToP4CubError of string
   | ToGCLError of string
   | ToCLightError of string
+  | ToCimplError of string
   (* not an error but an indicator to stop processing data *)
   | Finished
 
@@ -55,6 +56,8 @@ let error_to_string (e : error) : string =
     Printf.sprintf "togcl error: %s" s
   | ToCLightError s ->
     Printf.sprintf "toclight error: %s" s
+  | ToCimplError s ->
+    Printf.sprintf "tocimpl error: %s" s
   | Finished ->
     Printf.sprintf "error [Finished] (not actually an error)"
 
@@ -235,10 +238,7 @@ module MakeDriver (IO: DriverIO) = struct
     Poulet4_Ccomp.PrintClight.print_if clight;    
     Ok prog
   
-    (*TODO: make its own module 
-    
-     let to_gcl depth prog =
-   (*Poulet4.ToGCL.target,Poulet4.ToGCL.target*)
+  let to_gcl depth prog =
     let open Poulet4 in
     let gas = 100000 in
     let coq_gcl =
@@ -249,19 +249,16 @@ module MakeDriver (IO: DriverIO) = struct
     | Result.Ok gcl    -> Ok gcl
     end
 
-    *) 
-
-    let to_cimpl (prog) = 
-      let cimpl_prog = Cimpl.tocimpl.to_cimpl (prog) in 
-      match prog with 
-      | Ok (x,y) -> ()
-      | Error (msg) -> ()
-    
-
-    let print_cimpl (out: Pass.output) prog =
-      Format.eprintf "TODO: implement GCL pretty printing.\n";
-      Ok prog
-    
+  let to_cimpl (prsr,pipe) =
+    (* TODO: handle parser *)
+    let cimpl = ToCimpl.compile_program pipe in
+    match cimpl with 
+    | Ok x -> Ok x
+    | Error msg -> Error (ToCimplError ("Unexpected failure: " ^ msg))
+                   
+  let print_cimpl (out: Pass.output) prog =
+    Format.eprintf "TODO: implement Cimpl pretty printing.\n";
+    Ok prog    
 
   let run_parser (cfg: Pass.parser_cfg) =
     preprocess cfg
@@ -291,19 +288,11 @@ module MakeDriver (IO: DriverIO) = struct
            to_gcl depth prog
            >>= print_gcl gcl_output
            >>= fun x -> Ok ()
-        | Run (CBackend cfg_ccomp) ->
-           flatten_declctx prog
-           >>= hoist_clight_effects
-           >>= print_p4cub cfg
-           >>= to_clight
-           >>= print_clight cfg_ccomp
+        | Run (CBackend {depth; c_output}) ->
+           to_gcl depth prog
+           >>= to_cimpl
+           >>= print_cimpl c_output 
            >>= fun x -> Ok ()
-           (*TODO: confirm what this is supposed to do and change implementation if required *)
-        | Run (CimplBackend output) -> raise (Failure "Unimplemented")
-           (*to_cimpl prog 
-           >>= print_cimpl output 
-           >>= fun x -> Ok () *)
-
         end
 
   let run_interpreter (cfg: Pass.interpreter_cfg) =

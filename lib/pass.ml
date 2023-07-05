@@ -45,9 +45,7 @@ type checker_cfg =
 
 type backend =
   | GCLBackend of {depth: int; gcl_output: output}
-  (* TODO: figure out what the backend is actually doing *)
-  | CimplBackend of output
-  | CBackend of output
+  | CBackend of {depth: int; c_output: output}
 
 type backend_cfg = backend cfg
 

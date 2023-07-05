@@ -4,14 +4,17 @@ open GCL
    
 let compile_program (prsr,pipe) =
   let dummy = [] in
-  let compile g = 
-    match pipe with
+  (* TODO: not tail recursive *)
+  let rec compile g = 
+    match g with
     | GCL.GSkip ->
-       []
+       [Cimpl.CSkip]
     | GCL.GAssign(typ,lhs,rhs) ->
        dummy
     | GCL.GSeq(g1,g2) ->
-       dummy
+       let c2 = compile g2 in
+       let c1 = compile g1 in
+       c1 @ c2
     | GCL.GChoice(g1,g2) ->
        dummy
     | GCL.GAssume(phi) ->

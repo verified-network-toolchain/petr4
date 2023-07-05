@@ -19,7 +19,7 @@ let rec compile_gcl g : Cimpl.cstmt list =
   let dummy = [] in
   match g with
   | GCL.GSkip ->
-     [Cimpl.CSSkip]
+     []
   | GCL.GAssign(typ,lhs,rhs) ->
      let cvar = compile_lhs lhs in
      let cexpr = compile_rhs rhs in

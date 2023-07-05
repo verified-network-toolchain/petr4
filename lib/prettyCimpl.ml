@@ -32,10 +32,12 @@ let format_stmt s =
 let format_cblk b =
   match b with
   | Cimpl.CBlock ss ->
-     box (text "{" ++
-          space ++
-          Pretty.(format_list_nl) format_stmt ss ++
-          text "}")
+     text "{" ++
+     newline ++
+     text "    " ++  
+     box ~indent:4 (Pretty.(format_list_nl) format_stmt ss) ++
+     newline ++
+     text "}"
            
 let format_cdecl d =
   match d with

@@ -1,22 +1,23 @@
 type ctyp =
-  | CVoid
-  | CInt
+  | CTVoid
+  | CTInt
 
 type cvar =
   string
   
 type cexpr =
-  | CVar of cvar
-
+  | CEVar of cvar
+  | CEInt of int
+          
 type cstmt =
-  | CSkip
-  | CAssign of cvar * cexpr
+  | CSSkip
+  | CSAssign of cvar * cexpr
 
 and cblk =
   | CBlock of cstmt list
                
 type cdecl =
-  | CFunction of ctyp * string * cblk
+  | CDFunction of ctyp * string * cblk
                  
 type cprog =
   | CProgram of cdecl list 

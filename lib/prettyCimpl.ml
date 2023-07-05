@@ -11,7 +11,6 @@ let format_ctyp t =
 let format_cvar x =
   text x
 
-<<<<<<< HEAD
 let format_bop (x : Cimpl.bop) =
   match x with 
   | Cimpl.CBEq -> text "="
@@ -62,22 +61,18 @@ and format_stmt s =
       ++ format_list cs1 ++ newline ++ text "}" ++ space ++ text "else" ++ 
       space ++ text "{" ++ newline ++ text "    " ++ format_list cs2 ++
       newline ++ text "}"++ semi)
-=======
-let format_cexp e =
-  match e with
-  | Cimpl.CVar x -> format_cvar x
-                
-let format_stmt s =
-  match s with
-  | Cimpl.CSkip -> 
-     semi
   | Cimpl.CAssign(x,e) -> box(format_cvar x ++
                               space ++
                               text "=" ++
                               space ++
                               format_cexp e ++
                               semi)
->>>>>>> f1ebd060c (More stubs and tidying for Cimpl)
+  | Cimpl.CSAssign(x,e) -> box(format_cvar x ++
+                               space ++
+                               text "=" ++
+                               space ++
+                               format_cexp e ++
+                               semi)
            
 let format_cblk b =
   match b with

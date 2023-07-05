@@ -2,11 +2,15 @@ open Core
 open Poulet4
 open GCL
 
-let compile_lhs l : Cimpl.cvar =
-  failwith "unimplemented"
+let compile_lhs (l:string) : Cimpl.cvar =
+  l
 
-let compile_rhs r : Cimpl.cexpr =
-  failwith "unimplemented"
+let compile_rhs (r:BitVec.t) : Cimpl.cexpr =
+  match r with
+  | BitVec(n,w) ->
+     CEInt n
+  | _ -> 
+     failwith "unimplemented"
 
 let compile_typ t : Cimpl.ctyp =
   failwith "unimplemented"
@@ -15,18 +19,18 @@ let rec compile_gcl g : Cimpl.cstmt list =
   let dummy = [] in
   match g with
   | GCL.GSkip ->
-     [Cimpl.CSkip]
+     [Cimpl.CSSkip]
   | GCL.GAssign(typ,lhs,rhs) ->
-     let _ = compile_typ typ in
      let cvar = compile_lhs lhs in
      let cexpr = compile_rhs rhs in
-     [CAssign(cvar,cexpr)]
+     [CSAssign(cvar,cexpr)]
   | GCL.GSeq(g1,g2) ->
      let c1 = compile_gcl g1 in
      let c2 = compile_gcl g2 in
      c1 @ c2
   | GCL.GChoice(g1,g2) ->
-     dummy
+     (* TODO: Unsound! Just picking first branch *)
+     compile_gcl g1
   | GCL.GAssume(phi) ->
      dummy
   | GCL.GAssert(phi) ->
@@ -40,5 +44,5 @@ let rec compile_gcl g : Cimpl.cstmt list =
 
 let compile_program (prsr,pipe) =
   let stmts = compile_gcl pipe in
-  let cdecl = Cimpl.(CFunction(CInt, "main", CBlock stmts))in
+  let cdecl = Cimpl.(CDFunction(CTInt, "main", CBlock stmts))in
   Ok (Cimpl.CProgram [cdecl])

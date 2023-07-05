@@ -282,14 +282,14 @@ module MakeDriver (IO: DriverIO) = struct
         | Run (CBackend {depth; c_output}) ->
            let debug msg x =
              Printf.eprintf "[cimpl] ";
-             Printf.eprintf msg;
+             Printf.eprintf "%s" msg;
              Printf.eprintf "\n%!";
              return x in
            Ok prog 
            >>= debug "Starting..." 
            >>= debug "Converting to GCL..." 
            >>= to_gcl depth
-           >>= debug "Converting to Cimpl..."
+           >>= fun gcl -> debug ("Converting GCL[" ^ (size gcl |> string_of_int) ^ "] to Cimpl...") gcl
            >>= to_cimpl
            >>= debug "Pretty-printing Cimpl..."
            >>= print_cimpl c_output

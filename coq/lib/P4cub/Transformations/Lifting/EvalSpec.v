@@ -153,7 +153,9 @@ Section EvalExp.
       exists (Val.Lists ls vs :: concat vss).
       split; auto.
       constructor; eauto.
-      simple apply shift_pairs_exp_eval_snd ; eauto.
+      (* Here "apply" does not work because coq is untable to unify
+      some universe constraints. Maybe it is worth an issue report. *)
+      apply shift_pairs_exp_eval_snd ; eauto.
       rewrite sublist.combine_snd
         by eauto using Forall3_length23.
       assumption.

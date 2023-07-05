@@ -22,6 +22,8 @@ type bop =
 type uop = 
   | Neg
 
+type cvar = string
+  
 type cexpr =
   | CEVar of cvar
   | CEInt of int

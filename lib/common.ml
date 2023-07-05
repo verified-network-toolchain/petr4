@@ -313,6 +313,8 @@ module MakeDriver (IO: DriverIO) = struct
            >>= debug "Converting to GCL..." 
            >>= to_gcl depth
            >>= fun gcl -> debug ("Converting GCL[" ^ (size gcl |> string_of_int) ^ "] to Cimpl...") gcl
+           >>= fun gcl -> debug ("GCL: " ^ PrettyGCL.to_string gcl ^ "\n\n") gcl
+
            >>= to_cimpl
            >>= debug "Pretty-printing Cimpl..."
            >>= print_cimpl c_output

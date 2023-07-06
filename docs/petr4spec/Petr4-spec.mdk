@@ -873,7 +873,7 @@ To be concrete, environments are all accumulated in one place and they are defin
 
 ###### - The notation $\updateEnv {\VVal \typEnv, \VVal \varEnv, \cdots}$ denotes the same environment as $\env$, except that the environment $\typEnv, \varEnv, \cdots$ have been replaced with environments $\VVal \typEnv, \VVal \varEnv, \cdots$. { -; font-weight: "normal"; id: update-envs; label: "update-envs" }
 
-###### - The notation $\envWhere {\ctxt = \ctxtTyp}$ denotes environment $\env$ where its context is $\ctxtTyp$. { -; font-weight: "normal"; id: env-where; label: "env-where" }
+###### - The notation $\envWhere {\ctxt = \ctxtTyp}$ denotes environment $\env$ where its context is $\ctxtTyp$. { -; font-weight: "normal"; id: env-where; label: "env-where" } *reminder: it's not used at the moment."
 
 ###### - The notation $\emp$ denotes an empty environment. { -; font-weight: "normal"; id: emp-env; label: "emp-env" }
 
@@ -1116,7 +1116,7 @@ The following notations are used in the definitions of the rules in the rest of 
 + if $\typ$ is an extern type then the direction must be $\less$
 + if $\typ$ is integer then the direction must be $\less$ 
 + if $\typ$ is string then the direction must be $\less$
-+ the combination of $\env.\ctxt$ and $\typ$ matters.
++ the combination of $\env.\ctxt$ and $\typ$ matters:
    * if $\ctxt$ is a constructor context then 
       * if $\typ$ is package type then $\ctxt$ must be $\constructorCtxt {package}$
       * if $\typ$ is parser type then $\ctxt$ must be either $\constructorCtxt {package}$ or $\constructorCtxt {parser}$ 
@@ -1136,12 +1136,13 @@ The following notations are used in the definitions of the rules in the rest of 
          * $\constructorCtxt {method}$
       * if $\typ$ is function, action, table, or set then no matter the context the combination is not valid
       * any other combination is valid
-+ $\env.\ctxt$ and $\typ$ must not match any of the following
 
 
-###### - $\ifTypeExternDirLess \dir \typ$ is a predicate that returns true if parameters that have extern type are $\less$. { -; font-weight: "normal"; id: ifTypeExternDirLess; label: "if_type_extern_dir_less" }
+###### - $\ifTypeExternDirLess \dir \typ$ is a predicate that returns true if parameters that have extern type are $\less$. { -; font-weight: "normal"; id: ifTypeExternDirLess; label: "if_type_extern_dir_less" } *reminder: this is not used at the moment, instead it is covered by validParam*
 
 ###### - $\dropInit \prmDef$ is a function that returns the parameter without its initializer if it exists. { -; font-weight: "normal"; id: dropInit; label: "drop_initializer" }
+
+###### - $\isDirectionless \dir$ is a predicate that returns true only if $\dir$ is $\less$. { -; font-weight: "normal"; id: isDirectionless; label: "is_directionless" }
 
 - $\isSurface \typ$ is a predicate that returns $\tru$ if type $\typ$ is one of the cases of [surface types][#sec-ast-surface-type].
 - An underscore (that is, $\whatevs$) is used when we do not need to use some specific information returned to us in a rule. For example, $\mathit{getLength}(\A)= \whatevs$ takes the length of $\A$, however, it actually does not care what the length is. Instead it just cares if $\A$ is a structure that has length.
@@ -1545,7 +1546,7 @@ $\parserTyp  \typVar \singleprm $
 - Type variables $\typVars$ must be distinct. [(*distinct*)][#distinct]
 - Type variables $\typVars$ must not be free. [(*no_free_type_var*)][#noFreeTypVar]
 - The parameters $\params$ must be distinct. [(*distinct*)][#distinct]
-- Let $\VVal \env$ represent the environment $\env$ except that its type variable environment has been extended with type parameters $\typVars$ and its context is set to $\runtimeCtxt {control}$. [($\updateEnv {\ctxt = \runtimeCtxt {control}, \insertToTypParEnv \typParams}$)][#update-envs]
+- Let $\VVal \env$ represent the environment $\env$ except that its type variable environment has been extended with type parameters $\typVars$ and its context is set to $\runtimeCtxt {parser}$. [($\updateEnv {\ctxt = \runtimeCtxt {parser}, \insertToTypParEnv \typParams}$)][#update-envs]
 - Parameters must be valid under the environment $\VVal \env$. [(*valid_param*)][#validParam]
 - At least one of the parameters must have the type $\externTyp \packetIn$. [(*has_packet_in*)][#hasPacketIn]
 - Then, the parser type $\parserTyp  \typVar \singleprm $ is well-formed.
@@ -1559,7 +1560,7 @@ $\parserTyp  \typVar \singleprm $
     \distinct \params\\\\
      % \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\
       % \ifTypeExternDirLess \dir \typ
-      \validParam \dir \typ {\updateEnv {\ctxt = \runtimeCtxt {control}, \insertToTypParEnv \typParams}}\\
+      \validParam \dir \typ {\updateEnv {\ctxt = \runtimeCtxt {parser}, \insertToTypParEnv \typParams}}\\
       \hasPacketIn \typs
       }
     {\typWellFormed { \parserTyp  \typVar {\singleprm }}}
@@ -1583,7 +1584,7 @@ $\controlTyp  \typVar \singleprm $
   \mprset {vskip = 0.7ex}
   {\inferrule
     {\distinct \typVars\\
-    \noFreeTypVar {\parserTyp  \typVar {\singleprm}}\\\\
+    \noFreeTypVar {\controlTyp  \typVar {\singleprm}}\\\\
     \distinct \params\\\\
      % \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\
       \validParam \dir \typ {\updateEnv {\ctxt = \runtimeCtxt {control}, \insertToTypParEnv \typParams}}
@@ -1594,6 +1595,31 @@ $\controlTyp  \typVar \singleprm $
 ~ End InfRule
 
 ### Package Types { #sec-package-t }
+
+$\packageTyp  \typVar \singleprm $
+
+- Type variables $\typVars$ must be distinct. [(*distinct*)][#distinct]
+- Type variables $\typVars$ must not be free. [(*no_free_type_var*)][#noFreeTypVar]
+- The parameters $\params$ must be distinct. [(*distinct*)][#distinct]
+- Let $\VVal \env$ represent the environment $\env$ except that its type variable environment has been extended with type parameters $\typVars$ and its context is set to $\constructorCtxt {package}$. [($\updateEnv {\ctxt = \constructorCtxt {package}, \insertToTypParEnv \typParams}$)][#update-envs]
+- Parameters must be valid under the environment $\VVal \env$. [(*valid_param*)][#validParam]
+- The direction of all the parameters must be $\less$. [(*is_directionless*)][#isDirectionless]
+- Then, the package type $\packageTyp  \typVar \singleprm $ is well-formed.
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {\distinct \typVars\\
+    \noFreeTypVar {\packageTyp  \typVar {\singleprm}}\\\\
+    \distinct \params\\\\
+     % \typWellFormedUpdatedEnv {\updateEnv {\insertToTypParEnv \typParams}} \typs\\
+      \validParam \dir \typ {\updateEnv {\ctxt = \constructorCtxt {package}, \insertToTypParEnv \typParams}}\\
+      \isDirectionless \dirs
+      }
+    {\typWellFormed { \packageTyp  \typVar {\singleprm }}}
+  }
+    \quad (\controlTypWellT)
+~ End InfRule
 
 ### Function Types { #sec-func-t }
 
@@ -2645,12 +2671,13 @@ $\parserTypDcl \typName \typVar \prmDef$
 - All the expressions assigned to the enum fields must be well-formed and let them have type $\typ$. [(*value_match_type*)][#valMatchTyp]
 - [(*drop_initializer*)][#dropInit]
 - [][]
+- [($\updateEnv {\ctxt = \runtimeCtxt {parser}, \insertToTypParEnv \typParams}$)][#update-envs]
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
   {\inferrule
     {\dropInit \prmDefs =\overline \singleprm\\
-     \typWellFormed {\parserTyp  \typVar {\singleprm }}\\\\ 
+     \typWellFormedUpdatedEnv {\updateEnv {\ctxt = \runtimeCtxt {parser}}} {\parserTyp  \typVar {\singleprm }}\\\\ 
       \insertToTypEnv \typName {\parserTyp  \typVar {\singleprm}} = \VVal \typEnv\\
       \valMatchTyp \exps \typs
      }

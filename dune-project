@@ -35,7 +35,7 @@
    cstruct-sexp
    menhir
    ANSITerminal
-   (core (>= "0.15.0"))
+   (core (and (>= "0.15.0") (<= "0.16.0")))
    (pp (>= "1.1.2"))
    ppx_deriving_yojson
    (ppx_import (>= "0.15.0"))

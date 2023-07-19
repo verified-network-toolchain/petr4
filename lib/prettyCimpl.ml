@@ -11,14 +11,41 @@ let format_ctyp t =
 let format_cvar x =
   text x
 
-let format_cexp e =
+let format_bop (x : Cimpl.bop) =
+  match x with 
+  | Cimpl.EQ -> text "="
+  | Cimpl.NE -> text "!="
+  | Cimpl.LT -> text "<"
+  | Cimpl.GT -> text ">"
+  | Cimpl.GTE -> text ">="
+  | Cimpl.LTE -> text "<="
+  | Cimpl.And -> text "&&"
+  | Cimpl.Or -> text "||"
+  | Cimpl.Add -> text "+"
+  | Cimpl.Sub -> text "-"
+  | Cimpl.Mul -> text "*"
+  | Cimpl.Div -> text "/"
+  | Cimpl.Mod -> text "%"
+  
+let format_uop (x : Cimpl.uop) = 
+  match x with 
+  | Cimpl.Neg -> text ""
+
+let rec format_cexp e =
   match e with
   | Cimpl.CEVar x ->
      format_cvar x
   | Cimpl.CEInt n ->
      Int.to_string n |> text
-                
-let format_stmt s =
+  | Cimpl.CCompExpr (b, c1, c2) -> 
+    format_cexp c1  ++ space ++ format_bop b ++ space ++ format_cexp c2 ++ semi
+  | Cimpl.CUniExpr (u, c) -> 
+    format_uop u ++ space++ format_cexp c ++ semi
+
+let rec format_list s = 
+  List.fold_left (fun acc stmt -> acc ++ format_stmt stmt) (text "") s
+  
+and format_stmt s =
   match s with
   | Cimpl.CSSkip -> 
      semi
@@ -28,6 +55,12 @@ let format_stmt s =
                                space ++
                                format_cexp e ++
                                semi)
+  | Cimpl.CSIf (c1, cs1, cs2) -> 
+    box~indent:4 (text "if" ++
+      space ++ format_cexp c1 ++ space ++ text "{" ++ newline ++ text "    "
+      ++ format_list cs1 ++ newline ++ text "}" ++ space ++ text "else" ++ 
+      space ++ text "{" ++ newline ++ text "    " ++ format_list cs2 ++
+      newline ++ text "}"++ semi)
            
 let format_cblk b =
   match b with

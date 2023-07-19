@@ -1,7 +1,20 @@
 open Core
 open Poulet4
 open GCL
+open Cimpl
+open Form
 
+(*| GAssign (type : Typ.t) (lhs : lvalue) (rhs : rvalue)
+  | GSeq (g1 g2 : t)
+  | GChoice (g1 g2 : t)
+  | GAssume (phi : form)
+  | GAssert (phi : form)
+  | GExternVoid (e : string) (args : list (form + rvalue))
+  | GExternAssn (x : lvalue) (e : string) (args : list (form + rvalue))
+  | GTable (tbl : string)
+           (keys : list (rvalue * string))
+           (actions : list (string * ((list BitVec.t) * t))).
+*)
 let compile_lhs (l:string) : Cimpl.cvar =
   l
 
@@ -12,8 +25,35 @@ let compile_rhs (r:BitVec.t) : Cimpl.cexpr =
   | _ -> 
      failwith "unimplemented"
 
+(*takes in a formula and returns a cexpr*)
+let rec compile_form (f : Form.t) : cexpr = 
+   match f with 
+   | LBool b -> 
+      (* since C doesnt have booleans so we are using Int 1 and 0 for it*)
+      begin 
+         match b with 
+         | true -> CEInt 1 
+         | false -> CEInt 0
+      end 
+   | LBop ( lbop, t1 , t2 ) -> 
+      let c1 = compile_form t1 in
+      let c2 = compile_form t2 in 
+      begin 
+         match lbop with 
+         | LOr -> CCompExpr (Or, c1, c2)
+         | LAnd -> CCompExpr (And, c1, c2)
+         | LImp -> failwith "unimplemented"
+         | LIff -> failwith "unimplemented"
+      end 
+   | LNot t -> failwith "unimplemented"
+   | LVar cvar -> failwith "unimplemented"
+   | LComp (lcomp, t1, t2) -> failwith "unimplemented"
+
 let compile_typ t : Cimpl.ctyp =
   failwith "unimplemented"
+
+(* checks if two formulaes are equal*)
+let form_eq phi1 phi2 = true 
      
 let rec compile_gcl g : Cimpl.cstmt list =
   let dummy = [] in
@@ -24,17 +64,25 @@ let rec compile_gcl g : Cimpl.cstmt list =
      let cvar = compile_lhs lhs in
      let cexpr = compile_rhs rhs in
      [CSAssign(cvar,cexpr)]
-  | GCL.GSeq(g1,g2) ->
-     let c1 = compile_gcl g1 in
-     let c2 = compile_gcl g2 in
-     c1 @ c2
-  | GCL.GChoice(g1,g2) ->
-     (* TODO: Unsound! Just picking first branch *)
-     compile_gcl g1
-  | GCL.GAssume(phi) ->
-     dummy
+  | GCL.GSeq(g1,g2) -> 
+         (* something like x := 5 *)
+         let c1 = compile_gcl g1 in
+         let c2 = compile_gcl g2 in
+         c1 @ c2
+         (*GCL.GChoice(GSeq(GAssume phi1, g1), GSeq(GAssume(LNot(phi2), g2)) when form_eq phi1 phi2*)
+  | GCL.GChoice(GSeq(GAssume phi1, g1), GSeq(GAssume(Form.LNot(phi2)), g2)) when form_eq phi1 phi2 ->
+      let c1 = compile_gcl g1 in
+      let c2 = compile_gcl g2 in
+      let b = compile_form phi1 in 
+      [CSIf (b, c1, c2)]
+  | GCL.GChoice (_,_) -> failwith "unsupported choice"
+  | GCL.GAssume(phi) -> 
+   (*GAssume is basically precondition boolean expression*)
+   let c = compile_form phi  in [CSIf (c, [CSSkip], [CSSkip])]
   | GCL.GAssert(phi) ->
-     dummy
+   let c = compile_form phi  in [CSIf (c, [CSSkip], [CSSkip])]
+   (*handling GAssume and GAssert in the same way -> 
+         assume is precondition and assert is postcondition*)
   | GCL.GExternVoid(e,args) ->
      dummy
   | GCL.GExternAssn(x,e,args) ->
@@ -46,3 +94,5 @@ let compile_program (prsr,pipe) =
   let stmts = compile_gcl pipe in
   let cdecl = Cimpl.(CDFunction(CTInt, "main", CBlock stmts))in
   Ok (Cimpl.CProgram [cdecl])
+
+    (* use STF and start with P4 program for testing *)

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 (** Cimpl is a small subset of C. It is not intended to capture the
  *  entire language, but rather to serve as a compilation target for
  *  Petr4. 

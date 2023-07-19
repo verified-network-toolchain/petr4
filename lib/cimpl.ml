@@ -24,6 +24,9 @@ type uop =
 
 type cvar = string
   
+type uop = 
+  | Neg
+
 type cexpr =
   | CEVar of cvar
   | CEInt of int
@@ -43,3 +46,4 @@ type cdecl =
                  
 type cprog =
   | CProgram of cdecl list 
+

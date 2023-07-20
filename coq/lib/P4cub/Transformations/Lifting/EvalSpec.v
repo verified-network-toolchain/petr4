@@ -129,8 +129,10 @@ Section EvalExp.
     - pose proof IHhev1 _ _ H5 as (vs1 & hvs1 & hv1); clear IHhev1.
       pose proof IHhev2 _ _ H6 as (vs2 & hvs2 & hv2); clear IHhev2.
       exists (vs2 ++ vs1). rewrite <- app_assoc.
-      split; eauto. shift_couple_resolve.
-      simple eapply ebs_index; [apply H | apply H0 | apply H1].
+      split.
+      + eauto.
+      + shift_couple_resolve.
+        simple eapply ebs_index; [apply H | apply H0 | apply H1].
     - pose proof Forall2_specialize_Forall3
         _ _ _ _ _ _ H0 as h; clear H0.
       assert (hlenesvs : length es = length vs)
@@ -151,14 +153,15 @@ Section EvalExp.
         induction H; intros es' ih ess IH; inv ih; inv IH; firstorder eauto. }
       clear h.
       exists (Val.Lists ls vs :: concat vss).
-      split; auto.
-      constructor; eauto.
-      (* Here "apply" does not work because coq is untable to unify
-      some universe constraints. Maybe it is worth an issue report. *)
-      simple apply shift_pairs_exp_eval_snd ; eauto.
-      rewrite sublist.combine_snd
-        by eauto using Forall3_length23.
-      assumption.
+      split.
+      + constructor; eauto.
+        (* Here "apply" does not work because coq is untable to unify
+      som  e universe constraints. Maybe it is worth an issue report. *)
+        simple apply shift_pairs_exp_eval_snd ; eauto.
+        rewrite sublist.combine_snd
+          by eauto using Forall3_length23.
+        assumption.
+      + auto.
   Qed.
 
   Local Hint Resolve Lift_exp_good : core.

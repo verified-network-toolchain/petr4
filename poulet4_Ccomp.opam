@@ -13,7 +13,7 @@ depends: [
   "poulet4"
   "zarith"
   "coq-compcert"
-  "coq" {build}
+  "coq" {>= "8.15.0" & < "8.17.0" & build}
   "coq-equations" {build}
   "odoc" {with-doc}
 ]

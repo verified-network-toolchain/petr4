@@ -145,9 +145,10 @@ Section TypeExp.
       pose proof IHhet2 hG _ _ H6
         as (ts2 & hts2 & ht2); clear IHhet2; eauto.
       exists (ts2 ++ ts1).
-      rewrite <- app_assoc. split; eauto.
-      shift_couple_type_exp_resolve.
-      simple eapply type_index; [apply H | apply H0 | apply H1].
+      rewrite <- app_assoc. split.
+      + eauto.
+      + shift_couple_type_exp_resolve.
+        simple eapply type_index; [apply H | apply H0 | apply H1].
     - pose proof IHhet hG _ _ H6 as (ts & hts & ht); eauto.
     - pose proof Forall2_dumb _ _ _ _ _ _ hG H2 as H'; clear H2.
       pose proof Forall2_specialize_Forall3

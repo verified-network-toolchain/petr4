@@ -488,9 +488,9 @@ Section liftLift.
       Lift_call fk (fst (lift_call fk)) (snd (lift_call fk)).
   Proof.
     intros [f ts [e |] | a cs | extrn mthd ts [e |] | ? ?];
-      unravel; try let_destr_pair; cbn; eauto using lift_A_list_Lift_A_list.
-    constructor.
-    apply (lift_A_list_Lift_A_list shift_exp _ _ lift_Lift_exp cs).
+      unravel; try let_destr_pair; cbn; eauto using lift_A_list_Lift_A_list;
+      (constructor;
+       apply (lift_A_list_Lift_A_list shift_exp _ _ lift_Lift_exp cs)).
   Qed.
 
   Local Hint Resolve lift_Lift_call : core.

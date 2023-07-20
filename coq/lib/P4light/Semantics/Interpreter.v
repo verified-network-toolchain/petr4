@@ -43,7 +43,7 @@ Section Interpreter.
       | ValBaseUnion fields
       | ValBaseHeader fields _ =>
           from_opt (AList.get fields member)
-                   (Exn.Other "find_member: member not in fields")
+                   (Exn.Other ("find_member: member " ++ member ++ " not in fields"))
       | ValBaseStack headers next =>
           if string_dec member "size"
           then mret (ValBaseBit (to_loptbool 32%N (Zlength headers)))

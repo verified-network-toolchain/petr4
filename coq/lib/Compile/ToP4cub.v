@@ -10,7 +10,6 @@ From Poulet4 Require Export
      P4light.Syntax.Syntax
      P4cub.Syntax.Syntax
      P4cub.Syntax.Substitution
-     P4cub.Syntax.InferMemberTypes
      P4cub.Syntax.HeaderStack
      Monads.Result.
 Import AST Result Envn ResultNotations.
@@ -73,27 +72,6 @@ Fixpoint
           Some a :: l
       end
   end.
-
-Module NameGen.
-  Definition t := list (string * nat).
-  Fixpoint rep s n :=
-    match n with
-    | O => "_"
-    | S n' => s ++ rep s n'
-    end.
-
-  Fixpoint fresh (g : t) (x : string) : (t * string) :=
-    match g with
-    | [] => ([(x, 1)], x)
-    | (y,n)::g' =>
-      if String.eqb y x
-      then
-        ((y,n+1)::g', x ++ rep "$" n)
-      else
-        let (g'', x') := fresh g' x in
-        ((y,n)::g'', x')
-    end.
-End NameGen.
 
 Section ToP4cub.
   Variable tags_t : Type.
@@ -191,7 +169,7 @@ Section ToP4cub.
       (type_params : nat)
       (cparams : Top.constructor_params)
       (ecparams : list Typ.t)
-      (methods : Field.fs string (nat * list string * Typ.arrowT)).
+      (methods : Field.fs string (nat * list string * Typ.arrow)).
   
     Fixpoint append_methods (externs : list Top.t) : list Top.t :=
       match externs with
@@ -265,7 +243,7 @@ Section ToP4cub.
          decls.(functions);
          decls.(packages);
          decls.(externs)] in
-    let dummy_type := {| paramargs := []; rtrns := None |} in
+    let dummy_type := {| Arr.inout := InOut.mk_t [] []; Arr.ret := None |} in
     let dummy_function := Top.Funct "$DUMMY" 0 dummy_type ST.Skip in
     List.rev (dummy_function :: decls).
   
@@ -462,25 +440,23 @@ Section ToP4cub.
   
   Definition
     apply_arg_to_param
-      (pa : Exp.t -> paramarg Exp.t Exp.t) (exp : Exp.t)
-      (acc : result string (list (paramarg Exp.t Exp.t)))
-    : result string (list (paramarg Exp.t Exp.t)) :=
-    let+ fs := acc in
-    pa exp :: fs.
-  
-  Definition paramarg_fst {A B C : Set} (p : paramarg (A * B) (A * C)) : A :=
-    match p with
-    | PAIn (a,_)
-    | PAOut (a,_)
-    | PAInOut (a,_) => a
+      (dir : direction) (exp : Exp.t)
+      (acc : result string (list Exp.t * Exp.args))
+    : result string (list Exp.t *  Exp.args) :=
+    let+ (es, args) := acc in
+    match dir with
+    | Directionless => (exp :: es, args)
+    | In => (es, args <| InOut.inn := exp :: InOut.inn args |>)
+    | Out => (es, args <| InOut.out := exp :: InOut.out args |>)
+    | InOut => (es, InOut.mk_t (exp :: InOut.inn args) (exp :: InOut.out args))
     end.
   
   Fixpoint
     apply_args_to_params
-      (f_str : string) (paramarg_cnstrs : list (Exp.t -> paramarg Exp.t Exp.t))
-      (args : list (option Exp.t)) : result string (list (paramarg Exp.t Exp.t)) :=
-    match paramarg_cnstrs, args with
-    | [], [] => ok []
+      (f_str : string) (dirs : list direction)
+      (args : list (option Exp.t)) : result string (list Exp.t * Exp.args) :=
+    match dirs, args with
+    | [], [] => ok ([], InOut.mk_t [] [])
     | [], _ =>
         error
           ("Passed too many arguments to "
@@ -488,11 +464,11 @@ Section ToP4cub.
     | _, [] =>
         error
           ("Insufficient arguments for "
-             ++ f_str ++ " (" ++ string_of_nat (List.length paramarg_cnstrs) ++ " are missing)")
+             ++ f_str ++ " (" ++ string_of_nat (List.length dirs) ++ " are missing)")
     | _::params', None::args' =>
         apply_args_to_params f_str params' args'
-    | paramarg_cnstr::paramarg_cnstrs, (Some arg)::args' =>
-        apply_arg_to_param paramarg_cnstr arg (apply_args_to_params f_str paramarg_cnstrs args')
+    | dir::dirs, (Some arg)::args' =>
+        apply_arg_to_param dir arg (apply_args_to_params f_str dirs args')
     end.
   
   Fixpoint get_hdr_stack_name (e : Expression) : result string string :=
@@ -735,6 +711,9 @@ Section ToP4cub.
             else if (name =? "lastIndex")%string then
               let+ cub_expr := translate_expression expr in
               header_stack_last_index cub_expr
+            else if (name =? "isValid")%string then
+              let+ cub_expr := translate_expression expr in
+              E.Uop Typ.Bool Una.IsValid cub_expr
             else
               let* cub_type := translate_exp_type typ in
               match get_type_of_expr expr with
@@ -774,11 +753,22 @@ Section ToP4cub.
               end
         | ExpTernary cond tru fls =>
             error "Ternary expressions should have been hoisted by a previous pass"
-        (*| ExpFunctionCall _ =>*)
         | ExpFunctionCall func type_args args =>
-            error
-              ("calling " ++ get_func_name func
-                 ++ ", Function Calls should have been hoisted by a previous pass")
+            let '(MkExpression tags func_pt typ dir) := func in
+            match func_pt with
+            | ExpExpressionMember expr {| P4String.str := name |} =>
+                if (name =? "isValid")%string then
+                  let+ cub_expr := translate_expression expr in
+                  E.Uop Typ.Bool Una.IsValid cub_expr
+                else
+                  error
+                    ("calling " ++ get_func_name func
+                       ++ ", Function Calls should have been hoisted by a previous pass")
+            | _ =>
+                  error
+                    ("calling " ++ get_func_name func
+                       ++ ", Function Calls should have been hoisted by a previous pass")
+            end
         | ExpNamelessInstantiation typ args =>
             error "Nameless Intantiations should have been hoisted by a previous pass"
         | ExpDontCare =>
@@ -797,20 +787,18 @@ Section ToP4cub.
             Some x
         end.
       
-      Definition parameter_to_paramarg
-                 '(MkParameter _ dir typ _ {| P4String.str := x |} : @P4Parameter tags_t)
-        : result string (string * paramarg Typ.t Typ.t) :=
-        let+ t := translate_exp_type typ in
-        (x, match dir with
-            | Directionless
-            | In => PAIn t
-            | Out => PAOut t
-            | InOut => PAInOut t
-            end).
-
-      Definition parameters_to_params (parameters : list (@P4Parameter tags_t))
-        : result string (list (string * paramarg Typ.t Typ.t)) :=
-        rred (List.map (parameter_to_paramarg) parameters).
+      Definition parameters_to_params : list (@P4Parameter tags_t) -> result string (list (string * Typ.t) * Typ.params) :=
+        List.fold_right
+          (fun '(MkParameter _ dir typ _ {| P4String.str := x |}) m =>
+             let* '(xts,io) := m in
+             let+ t := translate_exp_type typ in
+             match dir with
+             | Directionless => ((x, t) :: xts, io)
+             | In => (xts, io <| InOut.inn := (x, t) :: InOut.inn io |>)
+             | Out => (xts, io <| InOut.out := (x, t) :: InOut.out io |>)
+             | InOut => (xts, InOut.mk_t ((x, t) :: InOut.inn io) ((x, t) :: InOut.out io))
+             end)
+          $ mret ([], InOut.mk_t [] []).
       
       Definition translate_expression_and_type e :=
         let* cub_t := translate_exp_type (get_type_of_expr e) in
@@ -820,23 +808,15 @@ Section ToP4cub.
       Definition translate_arglist
         : list (option (@Expression tags_t)) -> result string (list (option Exp.t)):=
         commute_result_optlist ∘ (list_of_opts_map translate_expression).
-
-      Definition paramarg_cnstr_of_param
-        '(MkParameter _ dir _ _ _ : @P4Parameter tags_t) : Exp.t -> paramarg Exp.t Exp.t :=
-        match dir with
-        | In | Directionless => PAIn
-        | Out => PAOut
-        | InOut => PAInOut
-        end.
       
       Definition translate_application_args
                  (callee : string)
                  (parameters : list P4Parameter)
                  (args : list (option (@Expression tags_t)))
-        : result string (list (paramarg Exp.t Exp.t)) :=
+        : result string (list Exp.t * Exp.args) :=
         let* (cub_args : list (option Exp.t)) := translate_arglist args in
-        let paramarg_cnstrs := List.map paramarg_cnstr_of_param parameters in
-        apply_args_to_params callee paramarg_cnstrs cub_args.
+        let dirs := List.map (SyntaxUtil.get_param_dir (tags_t:=tags_t)) parameters in
+        apply_args_to_params callee dirs cub_args.
       
       Definition translate_apply callee args ret_var ret_type : result string ST.t :=
         let typ := get_type_of_expr callee in
@@ -844,9 +824,9 @@ Section ToP4cub.
         | TypControl (MkControlType type_params parameters) =>
             let* callee_name := get_name callee in
             let callee_name_string := P4String.str callee_name in
-            let+ paramargs :=
+            let+ (_,args) :=
               translate_application_args callee_name_string parameters args in
-            ST.App (Call.Inst callee_name_string []) paramargs
+            ST.App (Call.Inst callee_name_string []) args
         | TypTable _ =>
             let+ callee_name := get_name callee in
             let callee_string := P4String.str callee_name in
@@ -866,8 +846,8 @@ Section ToP4cub.
       
       Definition translate_set_validity v callee :=
         let+ hdr := translate_expression callee in
-        ST.Asgn hdr (Exp.Uop Typ.Bool (Una.SetValidity v) hdr).
-      
+        ST.SetValidity v hdr.
+
       Definition translate_is_valid callee retvar :=
         let* hdr := translate_expression callee in
         match retvar with
@@ -880,15 +860,26 @@ Section ToP4cub.
       Definition
         translate_function_application
           (fname : P4String.t tags_t) ret type_args parameters args : result string ST.t :=
-        let* paramargs :=
+        let* (_,args) :=
           translate_application_args (P4String.str fname) parameters args in
         let+ cub_type_params := rred (List.map translate_exp_type type_args) in
-        ST.App (Call.Funct (P4String.str fname) cub_type_params ret) paramargs.
+        ST.App (Call.Funct (P4String.str fname) cub_type_params ret) args.
     End Expressions.
-
+    
     Definition translate_extern_string
       (term_names : list string) (ctx : DeclCtx) (extern_str f_str : string) args :=
-      let extern_decl :=  find (decl_has_name extern_str) ctx.(externs) in
+      let* cub_args := translate_arglist (term_names ++ get_variables ctx) args in
+      let dirs :=
+        List.map
+          (fun o => match o with
+                 | None => Directionless
+                 | Some (MkExpression _ _ _ d) => d
+                 end)
+          args in
+      let+ (_,args) := apply_args_to_params f_str dirs cub_args in
+      (* TODO Currently assuming method calls return None*)
+      ST.App (Call.Method extern_str f_str [] None) args.
+        (*let extern_decl :=  find (decl_has_name extern_str) ctx.(externs) in
       match extern_decl with
       | None => error ("ERROR expected an extern, but got " ++ extern_str)
       | Some (Top.Extern extn_name tparams cparams exp_cparams methods) =>
@@ -912,7 +903,7 @@ Section ToP4cub.
           end
       | Some _ =>
           error "Invariant Violated. Declaration Context Extern list contained something other than an extern."
-      end.
+      end.*)
     
     Definition translate_expression_member_call
       (term_names : list string)
@@ -985,7 +976,7 @@ Section ToP4cub.
                   Some $
                     match kind with
                     | FunExtern =>
-                        let* 'paramargs := translate_application_args
+                        let* (_,args) := translate_application_args
                                              (term_names ++ get_variables ctx) (P4String.str n) parameters args in
                         let+ cub_type_args := rred (lmap translate_exp_type type_args) in
                         (* TODO: need "_" to be initialized *)
@@ -993,7 +984,7 @@ Section ToP4cub.
                           (Call.Method
                              "_" (P4String.str n) cub_type_args
                              (Some (Exp.Var ret_type (fst ret_var) (snd ret_var))))
-                          paramargs
+                          args
                     | _ => translate_function_application
                             (term_names ++ get_variables ctx)
                             n (Some (Exp.Var ret_type (fst ret_var) (snd ret_var))) type_args parameters args
@@ -1078,29 +1069,24 @@ Section ToP4cub.
                    | TypFunction (MkFunctionType type_params parameters kind ret) =>
                        match kind with
                        | FunExtern =>
-                           let* 'paramargs := translate_application_args term_names (P4String.str n) parameters args in
+                           let* (_,args) := translate_application_args term_names (P4String.str n) parameters args in
                            let+ cub_type_args := rred (lmap translate_exp_type type_args) in
                            (* TODO: need "_" to be initialized *)
                            ST.App
                              (Call.Method
                                 "_" (P4String.str n) cub_type_args None)
-                             paramargs
+                             args
                        | _ =>
                            translate_function_application
                              term_names
                              n None type_args parameters args
                        end
                    | TypAction data_params ctrl_params =>
-                       let+ paramargs :=
+                       let+ (ctrl_args, data_args) :=
                          translate_application_args
                            term_names
                            (P4String.str n) (data_params ++ ctrl_params) args in
                        let num_of_data_args := List.length data_params in
-                       let data_args := List.firstn num_of_data_args paramargs in
-                       let ctrl_args :=
-                         List.map
-                           paramarg_elim
-                           (List.skipn num_of_data_args paramargs) in
                        ST.App (Call.Action (P4String.str n) ctrl_args) data_args
                    | _ => error
                            ("[translate_statement_pre_t] A name,"
@@ -1487,7 +1473,7 @@ Section ToP4cub.
   Definition translate_runtime_params
     (typ_names : list string)
     (params : list (@P4Parameter tags_t))
-    : result string (list (string * string) * Typ.params) :=
+    : result string (list (string * string) * list (string * Typ.t)* Typ.params) :=
     let '(eparams, params) :=
       List.partition
         (fun '(MkParameter _ _ t _ _) =>
@@ -1503,9 +1489,9 @@ Section ToP4cub.
            | TypExtern {| P4String.str := y |} => ok (x,y)
            | _ => error "Implementation error, should only be extern types here."
            end) eparams in
-    let+ params :=
+    let+ (xts,params) :=
       parameters_to_params typ_names params in
-    (eparams, params).
+    (eparams, xts, params).
   
   Definition
     translate_constructor_parameter
@@ -1516,10 +1502,10 @@ Section ToP4cub.
     | TypExtern typname =>
         ok (P4String.str var, InstTyp.Extern (P4String.str typname))
     | TypControl (MkControlType _ ps) =>
-        let+ (eparams,params) := translate_runtime_params typ_names ps in
+        let+ (eparams,_,params) := translate_runtime_params typ_names ps in
         (P4String.str var, InstTyp.Ctr Cnstr.Control (List.map snd eparams) params)
     | TypParser (MkControlType _ ps) =>
-        let+ (eparams,params) := translate_runtime_params typ_names ps in
+        let+ (eparams,_,params) := translate_runtime_params typ_names ps in
         (P4String.str var, InstTyp.Ctr Cnstr.Parser (List.map snd eparams) params)
     | TypPackage _ _ _  =>
         ok (P4String.str var, InstTyp.Package)
@@ -1554,12 +1540,12 @@ Section ToP4cub.
         (* TODO: how to get extern params? *)
         parameters_to_params
           typ_names ps
-          >>| inr ∘ InstTyp.Ctr Cnstr.Control []
+          >>| snd >>| inr ∘ InstTyp.Ctr Cnstr.Control []
     | TypParser (MkControlType _ ps) =>
         (* TODO: how to get extern params? *)
         parameters_to_params
           typ_names ps
-          >>| inr ∘ InstTyp.Ctr Cnstr.Parser []
+          >>| snd >>| inr ∘ InstTyp.Ctr Cnstr.Parser []
     | TypPackage _ _ _  =>
         ok $ inr InstTyp.Package
     | _ =>
@@ -1613,7 +1599,17 @@ Section ToP4cub.
     let '(MkTablePreActionRef name args) := pre_action in
     match name with
     | BareName {|P4String.str := act_name |} =>
-        match find_action decls act_name with
+        let dirs := List.map
+                      (fun o => match o with
+                             | None => Directionless
+                             | Some (MkExpression _ _ _ d) => d
+                             end) args in
+        let* (cub_args : list (option Exp.t))
+          := translate_arglist [] term_names args in
+        let+ (_,args) :=
+          apply_args_to_params act_name dirs cub_args in
+        (act_name, args)
+          (*match find_action decls act_name with
         | Some (Ctrl.Action _ _ params _) =>
             let paramarg_cnstrs :=
               List.map
@@ -1629,7 +1625,7 @@ Section ToP4cub.
               apply_args_to_params act_name paramarg_cnstrs cub_args in
             (act_name, args)
         | _ => error "could not find action for action ref"
-        end
+        end*)
     | QualifiedName _ _ =>
       error "don't know how to deal with quantified names"
     end.
@@ -1719,16 +1715,16 @@ Section ToP4cub.
     (m : MethodPrototype)
     : result string
         (Top.constructor_params * list Typ.t
-         + string * (nat * list string * Typ.arrowT)) :=
+         + string * (nat * list string * Typ.arrow)) :=
     match m with
     | ProtoMethod tags ret name type_args parameters =>
         let typ_names :=
           (List.map P4String.str type_args ++ typ_names)%list in
         let* cub_ret :=
           translate_return_type typ_names ret in
-        let+ params :=
+        let+ (_,params) :=
           parameters_to_params typ_names parameters in
-        let arrowtype : Typ.arrowT := {| paramargs:=params; rtrns := cub_ret |} in
+        let arrowtype : Typ.arrow := {| Arr.inout:=params; Arr.ret := cub_ret |} in
         (* TODO: how to get extern arguments? *)
         inr (P4String.str name,
             (List.length type_args, [], arrowtype))
@@ -1756,7 +1752,7 @@ Section ToP4cub.
     (typ_names : list string)
     (ms : list MethodPrototype)
     : result string (Top.constructor_params * list Typ.t
-              * Field.fs string (nat * list string * Typ.arrowT)) :=
+              * Field.fs string (nat * list string * Typ.arrow)) :=
     let+ ms := rred (List.map (translate_method typ_names) ms) in
     let '(cnstrs, ms) := partition_map (fun x => x) ms in
     (hd ([],[]) cnstrs, ms).
@@ -1788,8 +1784,8 @@ Section ToP4cub.
           translate_to_constructor_params
             [] constructor_params in
         let (names1, cub_expr_cparams) := List.split cub_expr_cparams in
-        let* '(cub_eparams, cub_params) := translate_runtime_params [] params in
-        let names2 := List.map fst cub_params in
+        let* '(cub_eparams , _ , cub_params) := translate_runtime_params [] params in
+        let names2 := List.map fst $ InOut.concat cub_params in
         let* local_ctx :=
           let loop acc decl :=
             let* ctx := acc in
@@ -1815,8 +1811,8 @@ Section ToP4cub.
           translate_to_constructor_params
             typ_names constructor_params in
         let (names1,cub_expr_cparams) := List.split cub_expr_cparams in
-        let* '(cub_eparams, cub_params) := translate_runtime_params [] params in
-        let names2 := List.map fst cub_params in
+        let* '(cub_eparams, _, cub_params) := translate_runtime_params [] params in
+        let names2 := List.map fst $ InOut.concat cub_params in
         let term_names := (names2 ++ names1 ++ term_names)%list in
         let* local_ctx :=
           let loop acc decl :=
@@ -1841,25 +1837,27 @@ Section ToP4cub.
         add_control ctx d
 | DeclFunction _ ret {| P4String.str := name |} type_params params body =>
     let typ_names := List.map P4String.str type_params in
-    let* params := parameters_to_params typ_names params in
+    let* (_,params) := parameters_to_params typ_names params in
     let* ret :=
       match ret with
       | TypVoid => ok None
       | _ => translate_exp_type typ_names ret >>| Some
       end in
-    let+ body := translate_block typ_names (List.map fst params) ctx body in
+    let names_io : InOut.t string string := InOut.map fst fst params in
+    let names := (InOut.inn names_io ++ InOut.out names_io)%list in
+    let+ body := translate_block typ_names names ctx body in
     add_function
       ctx
       (Top.Funct
          name (List.length typ_names)
-         {| paramargs:=params; rtrns:=ret |} body)
+         {| Arr.inout:=params; Arr.ret:=ret |} body)
   | DeclExternFunction tags ret {| P4String.str:=name |} type_params parameters =>
       let typ_names := List.map P4String.str type_params in
       let* cub_ret :=
         translate_return_type typ_names ret in
-      let* (eparams,params) :=
+      let* (eparams, _, params) :=
         translate_runtime_params typ_names parameters in
-      let arrowtype := {|paramargs:=params; rtrns:=cub_ret|} in
+      let arrowtype := {|Arr.inout:=params; Arr.ret:=cub_ret|} in
       let method := (name, (List.length type_params, List.map snd eparams, arrowtype)) in
       (* TODO come up with better naming scheme for externs *)
       let d := Top.Extern "_" 0 [] [] [method] in
@@ -1877,17 +1875,16 @@ Section ToP4cub.
     | DeclAction tags name data_params ctrl_params body =>
         (* TODO High prio *)
         let cub_name := P4String.str name in
-        let* ctrl_params :=
+        let* (ctrl_params, _) :=
           parameters_to_params
-            [] ctrl_params
-            >>| map_snd paramarg_elim in
-        let* data_params :=
+            [] ctrl_params in
+        let* (_,data_params) :=
           (* TODO: perhaps translate_decl
              needs to pass a [typ_names]
              parameter? *)
           parameters_to_params [] data_params in
         let term_names :=
-          (List.map fst ctrl_params ++ List.map fst data_params ++ term_names)%list in
+          (List.map fst ctrl_params ++ List.map fst $ ctrl_params ++ List.map fst $ InOut.concat data_params ++ term_names)%list in
         let+ cub_body :=
           translate_block
             [] term_names 
@@ -2004,36 +2001,19 @@ Section ToP4cub.
     end.
 
   Definition preprocess (tags : tags_t) p :=
-    let+ hoisted_simpl :=
-      hoist_nameless_instantiations
-        tags_t (SimplExpr.transform_prog tags p) in
-    let '(_,prog) := inline_typ_program Maps.IdentMap.empty hoisted_simpl in prog.
+    let p := SimplExpr.transform_prog tags p in
+    let+ p := hoist_nameless_instantiations tags_t p in
+    let  p := inline_constants p in
+    let '(_,p) := inline_typ_program Maps.IdentMap.empty p in
+    p.
 
   Fail Definition inline_cub_types (decls : DeclCtx) :=
     fold_left (fun acc '(x,t) => subst_type acc x t) (decls.(types)) decls.
 
-  Definition infer_member_types (decl : DeclCtx) :=
-    let infer_ds := List.map InferMemberTypes.inf_top in
-    let infer_Cds := List.map InferMemberTypes.inf_Cd in
-    let infer_pts := Field.map (fun '(cparams,ts) =>
-                                  (cparams, (* TODO: infer member types? *) ts)) in
-    {| variables := infer_Cds decl.(variables);
-      controls := infer_ds decl.(controls);
-       parsers := infer_ds decl.(parsers);
-       tables := infer_Cds decl.(tables);
-       actions := infer_Cds decl.(actions);
-       functions := infer_ds decl.(functions);
-       package_types := infer_pts decl.(package_types);
-       packages := infer_ds decl.(packages);
-       externs := infer_ds decl.(externs);
-       types := decl.(types);
-    |}.
-
   Definition translate_program (tags : tags_t) (p : program) : result string DeclCtx :=
-    let p' := inline_constants p in
-    let* '(Program decls) := preprocess tags p' in
+    let* '(Program decls) := preprocess tags p in
     let+ cub_decls := translate_decls decls in
-    infer_member_types ((*inline_cub_types*) cub_decls).
+    cub_decls.
 
   Definition translate_program' (tags : tags_t) (p : program) : result string (list Top.t) :=
     let+ ctx := translate_program tags p in 

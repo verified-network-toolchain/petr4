@@ -5,7 +5,8 @@ From Poulet4 Require Export
      P4cub.Semantics.Dynamic.BigStep.BigStep
      Monads.Result Compile.ToP4cub
      Utils.Util.StringUtil Utils.Util.ListUtil.
-Import Env.EnvNotations Result ResultNotations.
+Require Import RecordUpdate.RecordSet.
+Import Env.EnvNotations Result ResultNotations RecordSetNotations.
 
 Open Scope string_scope.
 
@@ -28,15 +29,8 @@ Definition index_array_str s idx :=
 
 Definition expenv : Type := Env.t string E.t.
 
-Definition get_exp (pa : paramarg E.t E.t) :=
-  match pa with
-  | PAInOut e => e
-  | PAIn e => e
-  | PAOut e => e
-  end.
-
-Definition args_to_expenv (args : F.fs string (paramarg E.t E.t)) : expenv :=
-  List.fold_right (fun '(param,arg) (env : expenv) => Env.bind param (get_exp arg) env) [] args.
+Definition args_to_expenv (args : InOut.t (string * Exp.t) (string * Exp.t)) : expenv :=
+  List.fold_right (uncurry Env.bind) [] $ InOut.concat args.
 
 Fixpoint subst_e (η : expenv) (e : E.t) : E.t :=
   match e with
@@ -73,6 +67,7 @@ Inductive t : Type :=
            (x : string)     (* Variable declaration. *)
 | IAssign (type : Typ.t) (lhs rhs : E.t)
                                (* assignment *)
+| ISetValidity (validity : bool) (hdr : E.t)
 | IConditional (guard_type : Typ.t)
                (guard : E.t)
                (tru_blk fls_blk : t)  (* conditionals *)
@@ -84,12 +79,12 @@ Inductive t : Type :=
 | IExit                               (* exit statement *)
 | IInvoke (x : string)
           (keys : list (Typ.t * E.t * string))
-          (actions : list (string * t))
+          (actions : list (string * (Typ.params * t)))
 | IExternMethodCall (extn : string) (method : string)
-    (args : F.fs string (paramarg E.t E.t)) (ret : option Exp.t).
+    (args : InOut.t (string * Exp.t) (string * Exp.t)) (ret : option Exp.t).
 
 Definition assume b  :=
-  IExternMethodCall "_" "assume" [("check",PAIn b)] None .
+  IExternMethodCall "_" "assume" (InOut.mk_t [("check",b)] []) None .
 
 Definition rename_string (table action x : string) (params : list string) :=
   if fold_right (fun y => orb (String.eqb x y)) false params
@@ -134,6 +129,8 @@ Fixpoint action_param_renamer (table action : string) (params : list string) (c 
     let rhs' := action_param_renamer_expr table action params rhs in
     let lhs' := action_param_renamer_expr table action params lhs in
     ok (IAssign t lhs' rhs', params)
+  | ISetValidity b e =>
+      ok (ISetValidity b $ action_param_renamer_expr table action params e, params)
   | IConditional typ cond tru fls =>
     let cond' := action_param_renamer_expr table action params cond in
     let* (tru', _) := action_param_renamer table action params tru in
@@ -155,7 +152,7 @@ Fixpoint action_param_renamer (table action : string) (params : list string) (c 
     error "Invocations should not occur within actions"
   | IExternMethodCall extn method pargs ret =>
       let pargs' :=
-        F.map (paramarg_map_same (action_param_renamer_expr table action params)) pargs in
+        InOut.map_uni (prod_map_snd (action_param_renamer_expr table action params)) pargs in
       ok (IExternMethodCall extn method pargs' ret, params)
   end.
 
@@ -165,7 +162,9 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
   | IVardecl type x =>
       (IVardecl type x, Env.remove x η)
   | IAssign t lhs rhs =>
-    (IAssign t (subst_e η lhs) (subst_e η rhs), η)
+      (IAssign t (subst_e η lhs) (subst_e η rhs), η)
+  | ISetValidity b e =>
+      (ISetValidity b $ subst_e η e, η)
   | IConditional guard_type guard tru_blk fls_blk =>
     (IConditional guard_type
                   (subst_e η guard)
@@ -183,24 +182,27 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
   | IExit => (c,η)
   | IInvoke x keys actions =>
     let keys' := List.map (fun '(t, m,k) => (t, subst_e η m, k)) keys in
-    let actions' := List.map (fun '(s,a) => (s, fst(subst_t η a))) actions in
+    let actions' := List.map (fun '(s, (params, a)) =>
+              (* TODO:: shadowing shouldn't happen, but maybe something like the following?*)
+              (* let η := Env.removes params η  in *)
+              (s, (params, fst (subst_t η a)))) actions
+    in
     (IInvoke x keys' actions', η)
-
   | IExternMethodCall extn method pas returns =>
-    let pas' := F.map (paramarg_map (subst_e η) (subst_e η)) pas in
+    let pas' := InOut.map_uni (prod_map_snd (subst_e η)) pas in
     (IExternMethodCall extn method pas' returns, η)
   end.
 
-Definition copy (args : list (string * paramarg E.t E.t)) : expenv :=
-  List.fold_right (fun '(param,arg) η => match arg with
+Definition copy (args : InOut.t (string * E.t) (string * E.t)) : expenv := args_to_expenv args.
+(*List.fold_right (fun '(param,arg) η => match arg with
                              | PAIn e => Env.bind param e η
                              | PAInOut e => Env.bind param e η
                              | PAOut e => Env.bind param e η
                              end)
-         (Env.empty String.string E.t) args.
+         (Env.empty String.string E.t) args.*)
 
 Definition string_list_of_params (ps : Typ.params) : list string :=
-  List.map fst ps.
+  List.map fst $ InOut.concat ps.
 
 Fixpoint elaborate_arg_expression (param : string) (arg : E.t) : F.fs string E.t :=
   let access := fun s f => s ++ "." ++ f in
@@ -238,20 +240,13 @@ Fixpoint elaborate_arg_expression (param : string) (arg : E.t) : F.fs string E.t
   | _ => [(param, arg)]
   end.
 
-Definition paramarg_map_union {A B : Set} (f : A -> F.fs string B) (pa : paramarg A A) : F.fs string (paramarg B B) :=
-  match pa with
-  | PAIn a => F.map PAIn (f a)
-  | PAOut a => F.map PAOut (f a)
-  | PAInOut a => F.map PAInOut (f a)
-  end.
+Definition elaborate_argument : F.f string E.t -> F.fs string E.t :=
+  uncurry elaborate_arg_expression.
 
-Definition elaborate_argument (parg : F.f string (paramarg E.t E.t)) : F.fs string (paramarg E.t E.t) :=
-  let '(param, arg) := parg in
-  paramarg_map_union (elaborate_arg_expression param) arg.
-
-
-Definition elaborate_arguments (args : F.fs string (paramarg E.t E.t)) :  F.fs string (paramarg E.t E.t) :=
-  List.concat (List.map elaborate_argument args).
+Definition elaborate_arguments (args : InOut.t (string * Exp.t) (string * Exp.t)) :  InOut.t (string * Exp.t) (string * Exp.t) :=
+  InOut.mk_t
+    (List.concat (A:=string * Exp.t) $ List.map elaborate_argument $ InOut.inn args)
+    (List.concat (A:=string * Exp.t) $ List.map elaborate_argument $ InOut.out args).
 
 Definition realize_symbolic_key (symb_var : string) (key_type : Typ.t) (key : E.t) (mk : string) :=
   let symb_key := E.Var key_type symb_var 0 in (* TODO: what de bruijn var to use? *)
@@ -611,7 +606,8 @@ with inline (gas : nat)
             ISeq (IVardecl t x) (ISeq (IAssign t (E.Var t x 0) e) s)
         end
     | ST.Asgn lhs rhs =>
-      ok (IAssign (typ_of_exp rhs) lhs rhs)
+        ok (IAssign (typ_of_exp rhs) lhs rhs)
+    | ST.SetValidity b e => ok $ ISetValidity b e
     | ST.Cond guard tru_blk fls_blk =>
       let* tru_blk' := inline gas unroll ctx tru_blk in
       let+ fls_blk' := inline gas unroll ctx fls_blk in
@@ -626,12 +622,15 @@ with inline (gas : nat)
 (*if List.existsb e_has_typ_var (List.map paramarg_elim args)
 then error "args has typevar call funct" else  *)
       match find_function ctx f with
-      | Some (TD.Funct _ _ {| paramargs:=params |} body) =>
+      | Some (TD.Funct _ _ {| Arr.inout:=params |} body) =>
           (*if s_extern_has_typ_var body then error "funct body has type var" else*)
         (** TODO check copy-in/copy-out *)
-            let* rslt := inline gas unroll ctx body in
-            (*if i_extern_has_typ_var rslt then error "funct rslt has type var" else*)
-        let args := List.combine (List.map fst params) args in
+        let* rslt := inline gas unroll ctx body in
+        (*if i_extern_has_typ_var rslt then error "funct rslt has type var" else*)
+        let args :=
+          InOut.mk_t
+            (List.combine (List.map fst $ InOut.inn params) $ InOut.inn args)
+            (List.combine (List.map fst $ InOut.out params) $ InOut.out args) in
         let (s,_) := subst_t (args_to_expenv args)
                        rslt in
         (*if i_extern_has_typ_var s then error "funct blk has type var" else*)
@@ -653,13 +652,15 @@ then error "args has typevar call funct" else  *)
             error "body has type var" else*)
         (** TODO handle copy-in/copy-out *) (* TODO handle control args *)
         let data_args :=
-          List.combine (List.map fst data_params) data_args in
+          InOut.mk_t
+            (List.combine (List.map fst $ InOut.inn data_params) $ InOut.inn data_args)
+            (List.combine (List.map fst $ InOut.out data_params) $ InOut.out data_args) in
         let ctrl_args :=
-          List.combine (List.map fst ctrl_params) (List.map PAIn ctrl_args) in
+          List.combine (List.map fst ctrl_params) (ctrl_args) in
         let* rslt := inline gas unroll ctx body in
         (*if i_extern_has_typ_var rslt then
           error "rslt has type var" else*)
-        let η := args_to_expenv (ctrl_args ++ data_args) in
+        let η := args_to_expenv (data_args <| InOut.inn := ctrl_args ++ InOut.inn data_args |>) in
         let blk := fst (subst_t η rslt) in
         (*if i_extern_has_typ_var blk then
           error "action block has type var" else*)
@@ -707,7 +708,10 @@ then error "args has typevar call funct" else  *)
               then error
                      ("control " ++ cname ++ " instance " ++ iname ++ " args has type var")%string
               else*)
-            let args := List.combine (List.map fst params) args in
+            let args :=
+               InOut.mk_t
+            (List.combine (List.map fst $ InOut.inn params) $ InOut.inn args)
+            (List.combine (List.map fst $ InOut.out params) $ InOut.out args) in
             let η := copy args in
             (*if List.existsb e_has_typ_var (List.map snd η)
             then error "control η has type var" else*)
@@ -739,35 +743,36 @@ then error "args has typevar call funct" else  *)
         let act_size := Nat.max (PeanoNat.Nat.log2_up (List.length actions)) 1 in
         let act_sizeN := BinNat.N.of_nat act_size in
         let act_type := Typ.Bit act_sizeN in
-        let act_to_gcl := fun i a acc_res =>
+        let inline_action := fun i action_name acc_res =>
           let* acc := acc_res in
-          let* act := from_opt (find_action ctx a) ("could not find action " ++ a ++ " in environment")%string in
-          match act with
+          let* action_cmds := from_opt (find_action ctx action_name) ("could not find action " ++ action_name ++ " in environment")%string in
+          match action_cmds with
           | CD.Action _ ctrl_params data_params body  =>
-              (*if s_extern_has_typ_var body then error "tbl action body has typ var" else*)
-                let* s := inline gas unroll ctx body in
-                (*if i_extern_has_typ_var s then error "tbl s has typ var" else*)
+            (* | Action : string -> list (string * Typ.t) -> Typ.params -> Stm.t -> CD.t             *)
+            let* s := inline gas unroll ctx body in
             let* (s', _) :=
-              action_param_renamer tbl_name a
+              action_param_renamer tbl_name action_name
                 (List.map fst ctrl_params ++ string_list_of_params data_params) s in
-            (*if i_extern_has_typ_var s' then error "tbl s' has type var" else*)
+            let params :=
+              InOut.map_uni
+                (prod_map_fst (fun param_name => rename_string tbl_name action_name param_name [param_name]))
+                data_params in
             let set_action_run :=
                 IAssign act_type
                           (E.Var act_type ("_return$" ++ tbl_name ++ ".action_run") 0)
                           (E.Bit act_sizeN (BinInt.Z.of_nat i)) 
             in
-            ok (ISeq set_action_run s' :: acc)
+            ok ((params, ISeq set_action_run s') :: acc)
           | _ =>
             error "[ERROR] expecting action when `find`ing action, got something else"
           end
         in
-        let* acts := fold_lefti act_to_gcl (ok []) (List.map fst actions) in
-        let* named_acts := zip (List.map fst actions) acts in
+        let action_names := List.map fst actions in
+        let* inlined_acts := fold_lefti inline_action (ok []) action_names in
+        let* named_acts := zip action_names inlined_acts in
         let (assumes, keys') := normalize_keys tbl_name keys in
-        (*if i_extern_has_typ_var assumes then error "assumes has typ var" else*)
-          let invocation := IInvoke tbl_name keys' named_acts in
-          (*if i_extern_has_typ_var invocation then error "invocation has typ var" else*)
-            ok $ ISeq assumes invocation
+        let invocation := IInvoke tbl_name keys' named_acts in
+        ok $ ISeq assumes invocation
       | _ =>
         error "[ERROR] expecting table when getting table, got something else"
       end
@@ -777,14 +782,17 @@ then error "args has typevar call funct" else  *)
             then error "args has typevar call method" else*)
         match find_extern ctx ext with
         | Some (TD.Extern _ _ _ _ methods) =>
-            let* '((_, _, {|paramargs:=params|}) : nat * list string * Typ.arrowT) :=
+            let* '((_, _, {|Arr.inout:=params|}) : nat * list string * Typ.arrow) :=
               Result.from_opt
                 (Field.get method methods)
                 ("[Error] couldn't find extern method "
                    ++ method ++ " in extern " ++ ext)%string in
             (*if List.existsb e_has_typ_var (List.map paramarg_elim args)
             then error "args has typevar 1" else*)
-              let args := List.combine (List.map fst params) args in
+            let args :=
+               InOut.mk_t
+            (List.combine (List.map fst $ InOut.inn params) $ InOut.inn args)
+            (List.combine (List.map fst $ InOut.out params) $ InOut.out args) in
               (*if List.existsb e_has_typ_var (List.map (paramarg_elim ∘ snd) args)
             then error "args has typevar 2" else*)
             ok (IExternMethodCall ext method args ret)
@@ -816,21 +824,24 @@ Definition elim_tuple_assign (ltyp : Typ.t) (lhs rhs : E.t) : result string Inli
   | _,_ => ok (Inline.IAssign ltyp lhs rhs)
   end.
 
-Definition elaborate_tuple_literal
+Fail Definition elaborate_tuple_literal
            (param : string)
            (ctor : E.t -> paramarg E.t E.t)
            (es : list E.t)
-           (args : F.fs string (paramarg E.t E.t)) :=
-  ListUtil.fold_righti (fun idx e acc =>
-   let index := fun s =>  index_array_str s idx in
-   (index param, ctor e) :: acc) args es.
+           (args : InOut.t (string * Exp.t) (string * Exp.t)) :=
+  InOut.mk_t
+    (ListUtil.fold_righti
+       (fun idx e acc =>
+          let index := fun s =>  index_array_str s idx in
+          (index param, ctor e) :: acc) args es).
 
 Fixpoint elim_tuple (c : Inline.t) : result string t :=
   match c with
   | ISkip => ok c
   | IVardecl _ _ => ok c
+  | ISetValidity _ _ => ok c
   | IAssign type lhs rhs =>
-    elim_tuple_assign type lhs rhs
+      elim_tuple_assign type lhs rhs
   | IConditional typ g tru fls =>
     let* gs' := elim_tuple_expr g in
     let* g' := extract_single gs' "TypeError conditional must be a singleton" in
@@ -849,10 +860,10 @@ Fixpoint elim_tuple (c : Inline.t) : result string t :=
   | IExit => ok c
   | IInvoke x keys actions =>
     (** TODO do we need to eliminate tuples in keys??*)
-    let+ actions := List.fold_right (fun '(name, act) acc =>
+    let+ actions := List.fold_right (fun '(name, (params, act)) acc =>
                      let* act := elim_tuple act in
                      let+ acc := acc in
-                     (name, act) :: acc) (ok []) actions in
+                     (name, (params, act)) :: acc) (ok []) actions in
     IInvoke x keys actions
   | IExternMethodCall extern method args ret  =>
       let arrow := elaborate_arguments args in
@@ -864,16 +875,17 @@ Definition header_fields  (e : E.t) (fields : list Typ.t) : list (E.t * Typ.t)  
     ++ [(E.Uop Typ.Bool Una.IsValid e , Typ.Bool)].
 
 Definition header_elaboration_assign  (lhs rhs : E.t) (fields : list Typ.t) : result string t :=
-  let lhs_members := header_fields  lhs fields in
+  let lhs_members := header_fields lhs fields in
   let rhs_members := header_fields  rhs fields in
   let+ assigns := zip lhs_members rhs_members  in
   let f := fun '((lhs_mem, typ), (rhs_mem, _)) acc => ISeq (IAssign typ lhs_mem rhs_mem ) acc  in
-  List.fold_right f (ISkip ) assigns.
+  List.fold_right f ISkip assigns.
 
 Fixpoint elaborate_headers (c : Inline.t) : result string Inline.t :=
   match c with
   | ISkip => ok c
   | IVardecl _ _ => ok c
+  | ISetValidity _ _ => ok c
   | IAssign type lhs rhs =>
     match type with
     | Typ.Struct true fields =>
@@ -897,8 +909,10 @@ Fixpoint elaborate_headers (c : Inline.t) : result string Inline.t :=
 | IReturnFruit _ _ => ok c
 | IExit => ok c
 | IInvoke x keys actions =>
-  let opt_actions := map_snd elaborate_headers actions in
-  let+ actions' := rred (List.map res_snd opt_actions) in
+  let+ actions' := List.fold_left (fun actions '(name, (params, act)) =>
+                   let* actions := actions in
+                   let+ act := elaborate_headers act in
+                   List.app actions [(name, (params, act))]) actions (ok []) in
   IInvoke x keys actions'
 | IExternMethodCall extern method args ret =>
     let arrow := elaborate_arguments args in
@@ -912,8 +926,8 @@ Fixpoint ifold {A : Type} (n : nat) (f : nat -> A -> A) (init : A) :=
   end.
 
 Definition elaborate_extract extern args ret  : result string Inline.t :=
-  match args with
-  | [(hdr, (PAOut arg))] =>
+  match InOut.inn args with
+  | [(hdr, arg)] =>
     (*match arg with
      TODO: what to do here now?
       | E.ExprMember (Typ.HeaderStack fields num) mem header_stack  =>
@@ -933,6 +947,7 @@ Definition elaborate_extract extern args ret  : result string Inline.t :=
 Fixpoint elaborate_arrays (c : Inline.t) : result string Inline.t :=
   match c with
   | ISkip => ok c
+  | ISetValidity _ _ => ok c
   | IVardecl type x =>
     match type with
     | Typ.Array size t =>
@@ -978,10 +993,10 @@ Fixpoint elaborate_arrays (c : Inline.t) : result string Inline.t :=
   | IExit => ok c
   | IInvoke x keys actions =>
     (* TODO: Do something with keys? *)
-    let rec_act_call := fun acc_opt '(nm, act) =>
+    let rec_act_call := fun acc_opt '(nm, (params, act)) =>
         let* acc := acc_opt in
         let+ act' := elaborate_arrays act in
-        (nm, act') :: acc
+        (nm, (params, act')) :: acc
     in
     let+ actions' := fold_left rec_act_call actions (ok []) in
     IInvoke x keys (rev actions')
@@ -999,6 +1014,7 @@ Definition struct_fields (s : string) (fields : list Typ.t) : list (string * Typ
 Fixpoint elaborate_structs (c : Inline.t) : result string Inline.t :=
   match c with
   | ISkip => ok c
+  | ISetValidity _ _ => ok c
   | IVardecl type s =>
     match type with
     | Typ.Struct false fields =>
@@ -1054,9 +1070,11 @@ Fixpoint elaborate_structs (c : Inline.t) : result string Inline.t :=
   | IReturnFruit _ _ => ok c
   | IExit => ok c
   | IInvoke x keys actions =>
-    let opt_actions := map_snd elaborate_structs actions in
-    let+ actions' := rred (List.map res_snd opt_actions) in
-    IInvoke x keys actions'
+    let+ actions := List.fold_left (fun actions '(name, (params, act)) =>
+                   let* actions := actions in
+                   let+ act := elaborate_structs act in
+                   List.app actions [(name, (params, act))]) actions (ok []) in
+    IInvoke x keys actions
   | IExternMethodCall extern method arrow ret =>
       let arrow := elaborate_arguments arrow in
     ok (IExternMethodCall extern method arrow ret)
@@ -1066,6 +1084,7 @@ Fixpoint eliminate_slice_assignments (c : t) : result string t :=
   match c with
   | ISkip => ok c
   | IVardecl _ _ => ok c
+  | ISetValidity _ _ => ok c
   | IAssign typ (E.Slice hi lo e) rhs =>
     let lhs_typ := typ_of_exp e in
     let concat := fun typ => E.Bop typ Bin.PlusPlus in
@@ -1096,20 +1115,20 @@ Fixpoint eliminate_slice_assignments (c : t) : result string t :=
   | IReturnFruit _ _ => ok c
   | IExit => ok c
   | IInvoke tbl keys actions =>
-    let+ actions' := F.fold (fun name act acts =>
+    let+ actions' := F.fold (fun name '(params, act) acts =>
              let* act' := eliminate_slice_assignments act in
              let+ acts' := acts in
-             (name, act') :: acts') actions (ok []) in
+             (name, (params, act')) :: acts') actions (ok []) in
     IInvoke tbl keys actions'
   | IExternMethodCall _ _ _ _ => ok c
   end.
 
 Definition inline_assert (check : E.t)  : t :=
-  let args := [("check", PAIn check)] in
+  let args := InOut.mk_t [("check", check)] [] in
   IExternMethodCall "_" "assert" args None.
 
 Definition isValid (hdr : E.t) : E.t :=
-  E.Uop Typ.Bool Una.IsValid hdr .
+  E.Uop Typ.Bool Una.IsValid hdr.
 
 Fixpoint header_asserts (e : E.t) : result string t :=
   match e with
@@ -1146,18 +1165,11 @@ Fixpoint header_asserts (e : E.t) : result string t :=
     error "[ERROR] [header_asserts] array indexing should be factored out by now"
   end.
 
-
-Definition get_from_paramarg {A : Set} (pa : paramarg A A) :=
-  match pa with
-  | PAIn a => a
-  | PAOut a => a
-  | PAInOut a => a
-  end.
-
 Fixpoint assert_headers_valid_before_use (c : t) : result string t :=
   match c with
   | ISkip
   | IVardecl _ _ => ok c
+  | ISetValidity _ _ => ok c
   | IAssign _ lhs rhs  =>
       let* lhs_asserts :=
         match header_asserts lhs with
@@ -1197,23 +1209,22 @@ Fixpoint assert_headers_valid_before_use (c : t) : result string t :=
   | IExit => ok c
   | IInvoke t ks acts  =>
   (* Assume keys have been normalized, so dont to check them*)
-    let+ acts' := rred (List.map (fun '(a,c) =>
+    let+ acts' := rred (List.map (fun '(a,(params, c)) =>
                   let+ c' := assert_headers_valid_before_use c in
-                  (a, c')) acts) in
+                  (a, (params, c'))) acts) in
     IInvoke t ks acts' 
-  | IExternMethodCall ext method paramargs ret =>
+  | IExternMethodCall ext method args ret =>
     if String.eqb method "extract" then ok c else
       let+ asserts :=
         match List.fold_left
-                (fun acc_asserts '(param, arg)  =>
+                (fun acc_asserts '(param, arg_exp)  =>
                    let* acc_asserts := acc_asserts in
-                   let arg_exp := get_from_paramarg arg in
                    let+ new_asserts := header_asserts arg_exp  in
-                   ISeq acc_asserts new_asserts ) paramargs (ok (ISkip )) with
+                   ISeq acc_asserts new_asserts ) (InOut.concat args) (ok (ISkip )) with
         | Ok o => ok o
         | Error e => error ("methocall: " ++ e)
         end in
-    ISeq asserts (IExternMethodCall ext method paramargs ret)
+    ISeq asserts (IExternMethodCall ext method args ret)
   end.
 
 End Inline.

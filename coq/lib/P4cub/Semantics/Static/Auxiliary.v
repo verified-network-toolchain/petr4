@@ -29,13 +29,21 @@ Ltac invert_type_lst_ok :=
 Section Lemmas.
   Local Hint Constructors lexpr_ok : core.
   
-  Lemma shift_lexpr_ok : forall sh e,
-      lexpr_ok e -> lexpr_ok (shift_exp sh e).
+  Lemma shift_lexpr_ok : forall c a e,
+      lexpr_ok e -> lexpr_ok (shift_exp c a e).
   Proof.
-    intros sh e h; induction h; unravel; auto.
+    intros c a e h; induction h; unravel; auto.
   Qed.
       
   Local Hint Resolve shift_lexpr_ok : core.
+  Local Hint Resolve Forall_impl : core.
+
+  Lemma shift_lexprs_ok : forall c a es,
+      Forall lexpr_ok es -> Forall lexpr_ok (map (shift_exp c a) es).
+  Proof using.
+    intros. rewrite Forall_map. eauto.
+  Qed.
+  
   Local Hint Constructors typ_ok : core.
   
   Lemma typ_ok_le : forall Δ₁ Δ₂ τ,
@@ -152,10 +160,10 @@ Section Lemmas.
       rewrite <- Forall2_map_l; unravel; assumption.
   Qed.
 
-  Lemma shift_type_exp : forall ts1 ts2 τ e,
+  Lemma shift_type_exp : forall ts1 ts2 e τ,
       `⟨ Δ, ts1 ++ Γ ⟩ ⊢ e ∈ τ ->
       `⟨ Δ, ts1 ++ ts2 ++ Γ ⟩
-        ⊢ shift_exp (Shifter (length ts1) (length ts2)) e ∈ τ.
+        ⊢ shift_exp (length ts1) (length ts2) e ∈ τ.
   Proof using.
     intros ts1 ts2 t e h.
     (*generalize dependent ts2.*)
@@ -181,14 +189,73 @@ Section Lemmas.
   Qed.
 
   Local Hint Resolve shift_type_exp : core.
-  Local Hint Constructors rel_paramarg : core.
-  
-  Lemma shift_type_arg : forall ts1 ts2 arg param,
-      type_arg Δ (ts1 ++ Γ) arg param ->
-      type_arg Δ (ts1 ++ ts2 ++ Γ)
-        (shift_arg (Shifter (length ts1) (length ts2)) arg) param.
+  Local Hint Resolve sublist.Forall2_impl : core.
+
+  Lemma shift_type_exps : forall ts1 ts2 es τs,
+      Forall2 (type_exp Δ (ts1 ++ Γ)) es τs ->
+      Forall2 (type_exp Δ (ts1 ++ ts2 ++ Γ))
+        (map (shift_exp (length ts1) (length ts2)) es) τs.
   Proof using.
-    unfold type_arg.
-    intros ts1 ts2 arg param h; inv h; cbn; firstorder auto.
+    intros ts1 ts2 es ts h.
+    rewrite <- Forall2_map_l. eauto.
+  Qed.
+
+  Lemma shift_type_inn_arg : forall ts1 ts2 e param,
+      type_inn_arg Δ (ts1 ++ Γ) e param ->
+      type_inn_arg Δ (ts1 ++ ts2 ++ Γ)
+        (shift_exp (length ts1) (length ts2) e) param.
+  Proof using.
+    unfold type_inn_arg.
+    intros ts1 ts2 e [_ t].
+    auto.
+  Qed.
+
+  Local Hint Resolve shift_type_inn_arg : core.
+  
+  Lemma shift_type_inn_args : forall ts1 ts2 es params,
+      Forall2 (type_inn_arg Δ (ts1 ++ Γ)) es params ->
+      Forall2
+        (type_inn_arg Δ (ts1 ++ ts2 ++ Γ))
+        (map (shift_exp (length ts1) (length ts2)) es)
+        params.
+  Proof using.
+    intros. rewrite <- Forall2_map_l. eauto.
+  Qed.
+
+  Local Hint Resolve shift_type_inn_args : core.
+
+  Lemma shift_type_out_arg : forall ts1 ts2 e param,
+      type_out_arg Δ (ts1 ++ Γ) e param ->
+      type_out_arg Δ (ts1 ++ ts2 ++ Γ)
+        (shift_exp (length ts1) (length ts2) e) param.
+  Proof using.
+    unfold type_out_arg.
+    intros ts1 ts2 e [_ t] [ht hl].
+    auto.
+  Qed.
+
+  Local Hint Resolve shift_type_out_arg : core.
+
+  Lemma shift_type_out_args : forall ts1 ts2 es params,
+      Forall2 (type_out_arg Δ (ts1 ++ Γ)) es params ->
+      Forall2
+        (type_out_arg Δ (ts1 ++ ts2 ++ Γ))
+        (map (shift_exp (length ts1) (length ts2)) es)
+        params.
+  Proof using.
+    intros. rewrite <- Forall2_map_l. eauto.
+  Qed.
+
+  Local Hint Resolve shift_type_out_args : core.
+  Local Hint Constructors InOut.Forall2 : core.
+  
+  Lemma shift_type_args : forall ts1 ts2 args params,
+      type_args  Δ (ts1 ++ Γ) args params ->
+      type_args Δ (ts1 ++ ts2 ++ Γ)
+        (shift_args (length ts1) (length ts2) args) params.
+  Proof using.
+    unfold type_args.
+    intros ts1 ts2 [innargs outargs] [innparams outparams] [hinn hout].
+    constructor; cbn in *; eauto.
   Qed.
 End Lemmas.

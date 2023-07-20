@@ -11,46 +11,37 @@ let rec string_charlist (s:String.t) =
 let bigint_positive i = P.of_int64 (Int64.of_string (Bignum.to_string_accurate (Bignum.of_bigint i)))
 let bigint_coqN i = N.of_int64 (Int64.of_string (Bignum.to_string_accurate (Bignum.of_bigint i)))
 let bigint_coqZ i = Z.of_sint64 (Int64.of_string (Bignum.to_string_accurate (Bignum.of_bigint i)))
-let convert_paramarg (x : ('a, 'b) Prev.paramarg) = 
-    match x with 
-    | Prev.PAIn a -> PAIn a
-    | Prev.PAOut b -> PAOut b 
-    | Prev.PAInOut b -> PAInOut b
+let convert_inout (io : ('a, 'b) Prev.InOut.t) =
+  { InOut.inn = Prev.InOut.inn io ; InOut.out = Prev.InOut.out io }
 
-let convert_paramarg_poly (x : ('a,'b) Prev.paramarg) (funa: 'a -> 'c)
-    (funb : 'b -> 'd) = 
-    match x with 
-    | Prev.PAIn a -> PAIn (funa a)
-    | Prev.PAOut b -> PAOut (funb b) 
-    | Prev.PAInOut b -> PAInOut (funb b)
+let convert_inout_poly  (funa: 'a -> 'c) (funb : 'b -> 'd) (io : ('a, 'b) Prev.InOut.t) : ('c, 'd) InOut.t =
+  { InOut.inn = List.map funa (Prev.InOut.inn io) ; InOut.out = List.map funb (Prev.InOut.out io) }
 
-let sum_convert_poly (x: ('a,'b) Poulet4.Datatypes.sum)
-    (funa : 'a -> 'c) (funb : 'b -> 'd) =
+let sum_convert_poly (funa : 'a -> 'c) (funb : 'b -> 'd) (x: ('a,'b) Poulet4.Datatypes.sum)=
     match x with 
     | Poulet4.Datatypes.Coq_inl a -> 
         Poulet4_Ccomp.Datatypes.Coq_inl (funa a)
     | Poulet4.Datatypes.Coq_inr b -> 
         Poulet4_Ccomp.Datatypes.Coq_inr (funb b)
 
-let convert_Field_poly (x: 'k * 'v) (funk : 'k -> 'k1)
-(funv : 'v -> 'v1): 'k1 * 'v1 =
+let convert_Field_poly (funk : 'k -> 'k1)
+(funv : 'v -> 'v1) (x: 'k * 'v) : 'k1 * 'v1 =
     (funk (fst x), funv (snd x))
 
-let convert_Fields_poly (x: ('k * 'v) list) (funk : 'k -> 'k1)
-(funv : 'v -> 'v1): ('k1 * 'v1) list  =
-    List.map (fun x -> convert_Field_poly x funk funv) x
+let convert_Fields_poly (funk : 'k -> 'k1)
+(funv : 'v -> 'v1) : ('k * 'v) list -> ('k1 * 'v1) list  =
+    List.map (convert_Field_poly funk funv)
 
-let convert_arrow_poly (x : ('k,'a,'b) Prev.arrow)
+let convert_arrow_poly
     (funk : 'k -> 'k1)
     (funa : 'a -> 'a1)
     (funb : 'b -> 'b1)
-    : ('k1,'a1,'b1) arrow = 
+    (x : ('k,'a,'b) Prev.Arr.t)
+    : ('k1,'a1,'b1) Arr.t = 
     {
-        paramargs = 
-            List.map 
-            (fun y -> (funk (fst y), convert_paramarg_poly (snd y) funa funb)) 
-            x.paramargs;
-        rtrns = Option.map funb x.rtrns;
+        Arr.inout = 
+            convert_inout_poly funk funa (Prev.Arr.inout x);
+        Arr.ret = Option.map funb (Prev.Arr.ret x);
     }
 
 
@@ -66,13 +57,16 @@ let rec convert_type (x : Prev.Typ.t) =
     | Prev.Typ.VarBit z -> Typ.VarBit (bigint_coqN z)
 
 
-let convert_params (fs) = 
-    convert_Fields_poly fs 
-    string_charlist
-    (fun x -> convert_paramarg_poly x convert_type convert_type)
+let convert_params =
+    convert_inout_poly
+      (convert_Field_poly string_charlist convert_type)
+      (convert_Field_poly string_charlist convert_type)
 
-let convert_arrowT (a) = 
-    convert_arrow_poly a string_charlist convert_type convert_type
+let convert_arrowT = 
+    convert_arrow_poly
+     (convert_Field_poly string_charlist convert_type)
+     (convert_Field_poly string_charlist convert_type)
+     convert_type
 
 let convert_cnstr : Prev.Cnstr.t -> Cnstr.t =
   function
@@ -98,7 +92,6 @@ let convert_una (u:Prev.Una.t) =
     | Prev.Una.BitNot -> Una.BitNot 
     | Prev.Una.Minus -> Una.Minus
     | Prev.Una.IsValid -> Una.IsValid
-    | Prev.Una.SetValidity b -> Una.SetValidity b
 
 let convert_bin (b: Prev.Bin.t) = 
     match b with
@@ -162,8 +155,7 @@ let rec convert_expression (x : Prev.Exp.t) = match x with
 
 
 let args_convert : Prev.Exp.args -> Exp.args =
-   List.map
-   (fun x -> convert_paramarg_poly x convert_expression convert_expression)
+  convert_inout_poly convert_expression convert_expression
 
 let constructor_args_convert
   : Prev.Top.constructor_args -> Top.constructor_args =
@@ -192,7 +184,7 @@ let convert_trns (e :  Prev.Trns.t) =
     | Prev.Trns.Select (e,st,fs) ->
         Trns.Select(convert_expression e, 
         state_label_convert st,
-        convert_Fields_poly fs pat_convert state_label_convert)
+        convert_Fields_poly pat_convert state_label_convert fs)
 
 let convert_call : Prev.Call.t -> Call.t =
 function
@@ -212,11 +204,13 @@ let rec stm_convert (s:  Prev.Stm.t) =
     | Prev.Stm.Skip -> Stm.Skip
     | Prev.Stm.LetIn (x, e, s) -> 
         Stm.LetIn (string_charlist x,
-        sum_convert_poly e convert_type convert_expression,
+        sum_convert_poly convert_type convert_expression e,
         stm_convert s)
     | Prev.Stm.Asgn (x,y) ->
         Stm.Asgn (convert_expression x,
         convert_expression y)
+    | Prev.Stm.SetValidity (b,e) ->
+        Stm.SetValidity (b, convert_expression e)
     | Prev.Stm.Cond (e,x,y) ->
         Stm.Cond (convert_expression e,
         stm_convert x, stm_convert y)
@@ -234,7 +228,7 @@ let controld_convert (d :  Prev.Ctrl.t) =
     | Prev.Ctrl.Var (x,e) ->
         Ctrl.Var
          (string_charlist x,
-          sum_convert_poly e convert_type convert_expression)
+          sum_convert_poly convert_type convert_expression e)
     | Prev.Ctrl.Action (a, ctrl_params, data_params, st) ->
         Ctrl.Action (
             string_charlist a,
@@ -263,15 +257,15 @@ let topdecl_convert (d:  Prev.Top.t) =
             Nat.of_int n,
             convert_constructor_params c,
             List.map convert_type eps,
-            convert_Fields_poly fs string_charlist
+            convert_Fields_poly string_charlist
             (fun ((ts,exs),arr) ->
-             (Nat.of_int ts, List.map string_charlist exs), convert_arrowT arr))
+             (Nat.of_int ts, List.map string_charlist exs), convert_arrowT arr) fs)
     | Prev.Top.Control (s, c, ts, fs, p, d, st) ->
         Top.Control (
             string_charlist s,
             convert_constructor_params c,
             List.map convert_type ts,
-            convert_Fields_poly fs string_charlist string_charlist,
+            convert_Fields_poly string_charlist string_charlist fs,
             convert_params p,
             List.map controld_convert d,
             stm_convert st)
@@ -280,7 +274,7 @@ let topdecl_convert (d:  Prev.Top.t) =
             string_charlist s, 
             convert_constructor_params c,
             List.map convert_type ts,
-            convert_Fields_poly fs string_charlist string_charlist,
+            convert_Fields_poly string_charlist string_charlist fs,
             convert_params p,
             stm_convert bl,
             List.map stm_convert fs2)

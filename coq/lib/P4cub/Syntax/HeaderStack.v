@@ -119,12 +119,7 @@ Definition
           (Exp.Bop
              (Typ.Bit 32%N)
              `-%bin i count_bit32))%stm in
-  let asgn_front i :=
-    (hdsa i `:=
-          Exp.Uop
-          header_type
-          (Una.SetValidity false)
-          (hdsa i))%stm in
+  let asgn_front i := Stm.SetValidity false $ hdsa i in
   let asgn_pusheds :=
     seq count_nat (N.to_nat size)
         ▷ List.map bit32_of_nat
@@ -158,12 +153,7 @@ Definition
           (Exp.Bop
              (Typ.Bit 32%N) `+%bin
              i count_bit32))%stm in
-  let asgn_last i :=
-    (hdsa i `:=
-          Exp.Uop
-          header_type
-          (Una.SetValidity false)
-          (hdsa i))%stm in
+  let asgn_last i := Stm.SetValidity false $ hdsa i in
   let size_nat := N.to_nat size in
   let mid :=  size_nat - count_nat in
   let asgn_poppeds :=

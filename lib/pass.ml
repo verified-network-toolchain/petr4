@@ -78,6 +78,7 @@ let parse_extension (ext: string) : fmt option =
   | "p4flat"
   | "gcl" -> Some Sexps
   | "p4"  -> Some Concrete
+  | "c"   -> Some Concrete 
   | "ml"  -> Some Ocaml
   | "v"   -> Some Coq
   | _     -> None

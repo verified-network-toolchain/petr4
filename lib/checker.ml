@@ -955,7 +955,13 @@ and add_cast env (expr: coq_Expression) new_typ =
   let orig_typ = type_of_expr expr in
   if cast_ok env orig_typ new_typ
   then add_cast_unsafe expr new_typ
-  else failwith "Cannot cast."
+  else begin
+    Printf.printf "Cannot cast\n%!";
+    Printp4.print_expr Format.str_formatter expr;
+    Printf.printf "to type\n%!";
+    Printp4.print_type Format.std_formatter new_typ;
+    failwith "Typecast error"
+  end
 
 and cast_if_needed env (expr: P4light.coq_Expression) typ : P4light.coq_Expression =
   let MkExpression (info, pre_expr, expr_typ, dir) = expr in

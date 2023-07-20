@@ -8,9 +8,9 @@ Language](https://p4.org) backed by an independent reference implementation.
 See https://verified-network-toolchain.github.io/petr4/ or check out the `gh-pages` branch
 for information on the Petr4 artifact.
 
-## Getting Started
+# Getting Started
 
-### Installing Petr4
+## Installing Petr4
 
 1. Install OPAM 2 following the official [OPAM installation
    instructions](https://opam.ocaml.org/doc/Install.html). Make sure `opam
@@ -21,14 +21,14 @@ for information on the Petr4 artifact.
    sudo apt-get install m4 libgmp-dev
    ```
 
-#### Installing from OPAM
+### Installing from OPAM
 1. Install petr4 from the opam repository. This will take a while the first time
    because it installs OPAM dependencies.
    ```
    opam install petr4
    ```
 
-#### Installing from source
+### Installing from source
 You can use the [scripts](https://github.com/verified-network-toolchain/petr4/tree/main/.github/scripts) to install Petr4. 
 Alternatively, follow theses steps:
 1. Check the installed version of OCaml:
@@ -55,12 +55,12 @@ Alternatively, follow theses steps:
    ```
    opam repo add coq-released https://coq.inria.fr/opam/released
    opam pin add coq-vst-zlist https://github.com/PrincetonUniversity/VST.git
-   make deps
    ```
 
 1. Use dune to build and install petr4.
    ```
-   dune build
+   opam install . --deps-only
+   opam exec -- dune build
    dune install
    ```
 
@@ -69,7 +69,18 @@ Alternatively, follow theses steps:
    make test
    ```
 
-### Running Petr4
+   To run the CI tests locally:
+   ```
+   opam exec -- make ci-test
+   ```
+
+   To run STF tests:
+   ```
+   opam exec -- make test-stf
+   ```
+
+
+## Running Petr4
 
 Currently `petr4` is merely a P4 front-end. By default, it will parse
 a source program to an abstract syntax tree and print it out, either
@@ -77,21 +88,22 @@ as P4 or encoded into JSON.
 
 Run `petr4 -help` to see the list of currently-supported options.
 
-### Web user interface
+## Web user interface
 
 `petr4` uses `js_of_ocaml` to provide a web interface. To compile to javascript,
 run `make web`. Then open `index.html` in `html_build` in a browser.
 
-## Contributing
+
+# Contributing
 
 Petr4 is an open-source project. We encourage contributions!
 Please file issues on
 [Github](https://github.com/cornell-netlab/petr4/issues).
 
-## Credits
+# Credits
 
 See the list of [contributors](CONTRIBUTORS).
 
-## License
+# License
 
 Petr4 is released under the [Apache2 License](LICENSE).

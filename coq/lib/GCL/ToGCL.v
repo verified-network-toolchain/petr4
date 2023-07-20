@@ -1,3 +1,4 @@
+
 Require Import Coq.Program.Basics.
 From Poulet4 Require Export P4cub.Syntax.AST
      Utils.P4Arith Utils.Envn
@@ -25,22 +26,6 @@ Definition append {A : Type} (l : list A) (l' : list A) : list A :=
 
 Definition fold_right {A B : Type} (f : B -> A -> A) (a0 : A) (bs : list B ) :=
   List.fold_left (fun a b => f b a) (rev' bs) a0.
-
-(* Fixpoint rev_concat (s s' : string) : string := *)
-(*   match s with *)
-(*   | EmptyString => s' *)
-(*   | String c s => rev_concat s (String c s') *)
-(*   end. *)
-(* Fixpoint string_reverse (s : string) : string := *)
-(*   rev_concat s EmptyString. *)
-
-
-(* Fixpoint safe_concat (s s' : string) : string := *)
-(*   match s' with *)
-(*   | EmptyString => s *)
-(*   | _ => *)
-(*     rev_concat (string_reverse s) s' *)
-(*   end. *)
 
 Infix "@@" := String.append (right associativity, at level 60).
 
@@ -151,11 +136,11 @@ Section ToGCL.
     ok fn.
   Definition empty : model := Env.empty string extern.
 
-  Definition pipeline : Type := list Typ.t -> TD.constructor_args  -> result string ST.t.
+  Definition pipeline : Type := list Typ.t -> TD.constructor_args  -> result string (ST.t * ST.t).
 
   Section Instr.
 
-    Variable instr : string -> list (nat * BitVec.t * string) -> list (string * target) -> result string target.
+    Variable instr : (string -> list (nat * BitVec.t * string) -> list (string * (list BV.t * target)) -> result string target).
 
     Definition pos := GCL.pos.
     Fixpoint scopify (ctx : ctx) (e : E.t ) : E.t  :=
@@ -311,7 +296,7 @@ Section ToGCL.
       | E.VarBit m w v =>
         ok (BV.bit (Some (BinNat.N.to_nat w)) (BinInt.Z.to_nat v))
       | E.Var t x _ =>
-        let* w := width_of_type x t (*over ("couldn't get type-width of " @@ x @@ " while converting to rvalue")*) in
+        let* w := width_of_type x t in
         ok (BV.BVVar x w)
       | E.Slice hi lo e =>
         let+ rv_e := to_rvalue e in
@@ -341,11 +326,6 @@ Section ToGCL.
           let+ header := to_lvalue arg in
           let hvld := header @@ ".is_valid" in
           BV.BVVar hvld 1
-        | Una.SetValidity b =>
-            (* TODO @Rudy isn't this a command? *)
-            (* TODO @Eric the uop [SetValid] is now [SetValidity true]
-               and [SetInvalid] is now [SetValidity false]. *)
-          error "SetValidity is unimplemented"
         end
       | E.Bop typ op lhs rhs =>
         let* l := to_rvalue lhs in
@@ -440,8 +420,7 @@ Section ToGCL.
       | E.Lists (Lst.Header _) _ =>
         error "Header in the rvalue positon should have been factored out by previous passes"
       | E.Member ret_type mem arg =>
-          let* w := width_of_type (string_of_nat mem) ret_type (*over
-                      ("couldn't get width of ??." @@ string_of_nat mem @@ " while converting to_rvalue")*) in
+        let* w := width_of_type (string_of_nat mem) ret_type in
         let+ lv := to_lvalue arg in
         BV.BVVar (lv @@ "." @@ string_of_nat mem) w
       | E.Error _ => error "errors are not rvalues."
@@ -484,6 +463,8 @@ Section ToGCL.
       | E.Slice hi lo e =>
         error "Typeerror: BitVector Slices are not booleans (perhaps you want to insert a cast?)"
 
+      | E.Error _ =>
+        error "Typeerror: Errors are not formulae"
       | E.Cast type arg =>
         let~ rvalue_arg := to_rvalue arg over "couldn't convert to rvalue under cast" in
         let cast := fun w => ok (GCL.isone (BV.UnOp (BV.BVCast w) rvalue_arg)) in
@@ -507,8 +488,6 @@ Section ToGCL.
           let+ header := to_lvalue arg in
           let hvld := header @@ ".is_valid" in
           GCL.isone (BV.BVVar hvld 1)
-        | Una.SetValidity b =>
-          error "TODO: implement case for E.Setvalidity"
         end
       | E.Bop typ op lhs rhs =>
         let lbin := fun o => let* l := to_form lhs in
@@ -553,10 +532,12 @@ Section ToGCL.
         error "Headers are not formulae"
       | E.Member exp_type mem arg =>
         let* lv := to_lvalue arg in
+        (* let~ w := (width_of_type expr_type) over ("failed getting type") in *)
         let~ w := (width_of_type (string_of_nat mem) exp_type) over ("failed getting type of " @@ string_of_nat mem) in
-        ok (GCL.isone (BV.BVVar lv w))
-      | E.Error _ =>
-        error "errors are not formulae"
+        if Nat.eqb w 1 then
+          ok (GCL.isone (BV.BVVar (lv @@ "." @@ string_of_nat mem) 1))
+        else
+          error ("Got type of " @@ string_of_nat mem @@ "but it's type width wasn't 1")
       | E.Lists (Lst.Array _) _ =>
         error "HeaderStacks are not formulae"
       | E.Index _ stack index =>
@@ -571,24 +552,19 @@ Section ToGCL.
       ok (iteb phi tg fg, ctx).
 
     Definition arrowE_to_arglist
-      : F.fs string (paramarg E.t E.t)
-        -> result string (list (string * (Form.t + BV.t))) :=
-      List.fold_right (fun '(name, pa) acc_res =>
+      (args : InOut.t (string * Exp.t) (string * Exp.t))
+      : result string (list (string * (Form.t + BV.t))) :=
+      List.fold_right (fun '(name, e) acc_res =>
                          let* res := acc_res in
-                         match pa with
-                         | PAIn e
-                         | PAOut e
-                         | PAInOut e =>
-                           match typ_of_exp e with
-                           | Typ.Bool =>
+                         match typ_of_exp e with
+                         | Typ.Bool =>
                              let* phi := to_form e (*over "couldn't convert form in arrowE_to_arglist"*) in
                              ok ((name, inl phi) :: res)
-                           | _ =>
+                         | _ =>
                              let* e' := to_rvalue e (*over "couldn't convert rvalue in arrowE_to_arglist"*) in
                              ok ((name, inr e') :: res)
-                           end
                          end)
-                      (ok []).
+        (ok []) (InOut.concat args).
 
 
     Definition lvalue_subst param new old :=
@@ -627,6 +603,11 @@ Section ToGCL.
         let e := GCL.GAssign type lhs' rhs' in
         ok (e, c)
 
+      | Inline.ISetValidity b e =>
+          let~ hdr_str := to_lvalue (scopify c e) over "couldn't convert e of ISetValidity to lvalue" in
+          let validity := hdr_str @@ ".isValid" in
+          ok (GCL.GAssign Typ.Bool validity (BV.bit (Some 1) 1), c)
+           
       | Inline.IConditional guard_type guard tru_blk fls_blk =>
         let* tru_blk' := inline_to_gcl c arch tru_blk in
         let* fls_blk' := inline_to_gcl c arch fls_blk in
@@ -654,9 +635,15 @@ Section ToGCL.
         ok (GCL.GAssign (Typ.Bit (BinNat.N.of_nat 1)) "exit" (BV.bit (Some 1) 1), update_exit c true)
 
       | Inline.IInvoke tbl keys actions =>
-        let* actions' := union_map_snd (fst >>=> inline_to_gcl c arch) actions in
+        let* actions' := rred (map (fun '(name, (params, act)) =>
+                                      let* bv_params := rred (List.map (fun '(name, type) =>
+                                                                          let+ w := width_of_type name type in
+                                                                          BV.BVVar name w) $ InOut.concat params) in
+                                      let+ (gcl_act,_) := inline_to_gcl c arch act in
+                                      (name, (bv_params, gcl_act))) actions)
+        in
         let* keys' := rred (map (fun '(t,e,mk) =>
-                                   let~ w := width_of_type (tbl @@ " key") t over ("[inline_to_gcl] failed getting width of table key. Table: " @@ tbl ) in
+                                   let~ w := width_of_type "" t over ("[inline_to_gcl] failed getting width of table key. Table: " @@ tbl ) in
                                    let~ e' := to_rvalue e over "failed converting keys to rvalue" in
                                    ok (w, e', mk)) keys) in
         let+ g := instr tbl keys' actions' in
@@ -680,23 +667,17 @@ Section ToGCL.
       end.
 
     (* use externs to specify inter-pipeline behavior.*)
-    Definition get_main ctx (pipe : pipeline) : result string ST.t :=
+    Definition get_main ctx (pipe : pipeline) : result string (ST.t * ST.t) :=
       match find_package  ctx "main" with
       | Some (TD.Instantiate _ _ type_args args _) =>
         pipe type_args args
       | _ =>
         error "expected package, got sth else"
       end.
-    
+
     Definition inlining_passes
       (gas unroll : nat) (ext : model) (ctx : ToP4cub.DeclCtx) (s : ST.t) : result string Inline.t :=
-      (*if applys_bruh "h'3" s then
-        error "cub applys h'3 somewhere" else*)
-      (*if s_extern_has_typ_var s then
-        error "cub has type vars" else*)
       let* inline_stm := Inline.inline gas unroll ctx s in
-      (*if i_extern_has_typ_var inline_stm then
-        error "inline introduced type vars" else*)
       let* no_stk := Inline.elaborate_arrays inline_stm in
       let* no_stk := Inline.elaborate_arrays no_stk in (*Do it twice, because extract might introduce more hss, but it wont after 2x *)
       let* no_tup := Inline.elim_tuple no_stk in
@@ -706,22 +687,28 @@ Section ToGCL.
       ok no_slice.
 
     Definition inline_from_p4cub (gas unroll : nat)
-               (ext : model) (pipe : pipeline)
-               (ctx : ToP4cub.DeclCtx)  : result string Inline.t :=
-      let* s := get_main ctx pipe in
-      inlining_passes gas unroll ext ctx s.
+               (ext : model) (pipeline : pipeline)
+               (ctx : ToP4cub.DeclCtx)  : result string (Inline.t * Inline.t) :=
+      let* (prsr, pipe) := get_main ctx pipeline in
+      let* inline_prsr := inlining_passes gas unroll ext ctx prsr in
+      let+ inline_pipe := inlining_passes gas unroll ext ctx pipe in
+      (inline_prsr, inline_pipe).
 
-    Definition p4cub_statement_to_gcl (gas unroll : nat)
+    Definition p4cub_statement_to_gcl
+               (hdrs : bool)
+               (gas unroll : nat)
                (ctx : ToP4cub.DeclCtx)
                (arch : model) (s : ST.t) : result string target :=
       let* inlined := inlining_passes gas unroll arch ctx s in
-      let* instred := Inline.assert_headers_valid_before_use inlined in
+      let* instred := if hdrs then Inline.assert_headers_valid_before_use inlined else ok inlined in
       let+ (gcl,_) := inline_to_gcl initial arch instred in
       gcl.
 
-    Definition from_p4cub (gas unroll : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx) : result string target :=
-      let* stm := get_main ctx pipe in
-      p4cub_statement_to_gcl gas unroll ctx ext stm.
+    Definition from_p4cub (hdrs : bool) (gas unroll : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx) : result string (target * target) :=
+      let* (prsr, pipe) := get_main ctx pipe in
+      let* tgt_prsr := p4cub_statement_to_gcl hdrs gas unroll ctx ext prsr in
+      let+ tgt_pipe := p4cub_statement_to_gcl hdrs gas unroll ctx ext pipe in
+      (tgt_prsr, tgt_pipe).
 
   End Instr.
 End ToGCL.

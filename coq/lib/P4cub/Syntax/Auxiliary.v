@@ -2,7 +2,8 @@ Require Import Coq.PArith.BinPos
         Poulet4.Monads.Monad Poulet4.Monads.Option
         Coq.NArith.BinNat.
 From Poulet4 Require Import Utils.P4Arith
-     P4cub.Syntax.AST P4cub.Syntax.CubNotations.
+  P4cub.Syntax.AST P4cub.Syntax.CubNotations
+  P4cub.Syntax.Shift P4cub.Syntax.IndPrincip.
 
 Definition stmt_of_list : list Stm.t -> Stm.t :=
   List.fold_right Stm.Seq Stm.Skip.
@@ -51,3 +52,28 @@ Definition typ_of_lists (ls : Lst.t) (es : list Exp.t) : Typ.t :=
   | Lst.Struct   => Typ.Struct false (List.map typ_of_exp es)
   | Lst.Header _ => Typ.Struct true (List.map typ_of_exp es)
   end.
+
+Section shifttypof.
+  Variables c amt : nat.
+
+  Lemma typ_of_shift_exp : forall e,
+      typ_of_exp (shift_exp c amt e) = typ_of_exp e.
+  Proof using.
+    intros e; induction e using custom_exp_ind;
+      unravel; auto.
+    apply map_ext_Forall in H.
+    rewrite <- map_map with (f:=shift_exp c amt) (g:=typ_of_exp) in H.
+    destruct l; f_equal; auto.
+    rewrite map_length. reflexivity.
+  Qed.
+
+  Lemma typ_of_shift_exps : forall es,
+      map typ_of_exp (map (shift_exp c amt) es) = map typ_of_exp es.
+  Proof using.
+    intro es.
+    rewrite map_map.
+    apply map_ext_Forall.
+    rewrite Forall_forall.
+    auto using typ_of_shift_exp.
+  Qed.
+End shifttypof.

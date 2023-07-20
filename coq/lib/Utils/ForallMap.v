@@ -1117,3 +1117,41 @@ Section Forall4.
     Forall4 ts us vs ws ->
     Forall4 (t :: ts) (u :: us) (v :: vs) (w :: ws).
 End Forall4.
+
+Lemma Forall3_Forall2_12 : forall (U V : Type) (R : U -> U -> V -> Prop) us vs,
+    Forall3 R us us vs <-> Forall2 (fun u => R u u) us vs.
+Proof.
+  intros U V R us vs.
+  rewrite Forall3_forall, Forall2_forall_nth_error.
+  split.
+  - intros (_ & hlen & h).
+    split; eauto.
+  - intros [hlen h].
+    repeat split; eauto.
+    intros n u1 u2 v hu1 hu2 hv.
+    rewrite hu1 in hu2; inv hu2. eauto.
+Qed.
+
+Lemma Forall3_Forall2_13 : forall (U V : Type) (R : U -> V -> U -> Prop) us vs,
+    Forall3 R us vs us <-> Forall2 (fun u v => R u v u) us vs.
+Proof.
+  intros U V R us vs.
+  rewrite Forall3_permute_23, Forall3_Forall2_12.
+  reflexivity.
+Qed.
+
+Lemma Forall3_Forall2_23 : forall (U V : Type) (R : U -> V -> V -> Prop) us vs,
+    Forall3 R us vs vs <-> Forall2 (fun u v => R u v v) us vs.
+Proof.
+  intros U V R us vs.
+  rewrite Forall3_permute_12, Forall3_Forall2_13,
+    Forall2_flip. reflexivity.
+Qed.
+
+Lemma Forall3_Forall_123 : forall (U : Type) (R : U -> U -> U -> Prop) us,
+    Forall3 R us us us <-> Forall (fun u => R u u u) us.
+Proof using.
+  intros U R us.
+  rewrite Forall3_Forall2_12, Forall2_Forall.
+  reflexivity.
+Qed.

@@ -1,12 +1,12 @@
 From compcert Require Import Clight Ctypes Integers Cop AST Clightdefs.
 From RecordUpdate Require Import RecordSet.
 Require Import Poulet4.P4cub.Syntax.Syntax.
-Require Import Poulet4.Ccomp.IdentGen.
 Require Import Poulet4.Ccomp.Petr4Runtime.
 Require Import Poulet4.Utils.Envn.
 Require Import Poulet4.Monads.Result Poulet4.Monads.State.
 Require Import String.
 Require Import Poulet4.Utils.Util.Utiliser.
+Require Poulet4.Utils.NameGen.
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt
         Coq.Classes.EquivDec Coq.Program.Program.
@@ -132,7 +132,7 @@ Section CEnv.
         composites : (list (Typ.t * Ctypes.composite_definition))
                        
       ; (** Name generator counter. *) (* TODO maybe use state monad instead? *)
-        identGenerator : IdentGen.generator
+        identGenerator : NameGen.t
                            
       ; (** Clight idents to clight functions. *)
         fenv : Env.t AST.ident Clight.function
@@ -208,7 +208,7 @@ Section CEnv.
     ; temps := []
     ; vars := []
     ; composites := [(standard_metadata_cub,standard_metadata_t)]
-    ; identGenerator := IdentGen.gen_init
+    ; identGenerator := NameGen.init
     ; fenv := Env.empty _ _
     ; tempOfArg := Env.empty _ _
     ; instantiationCarg := []
@@ -229,39 +229,38 @@ Section CEnv.
   Definition var_bind (id: ident) (env: ClightEnv) : ClightEnv 
     := {{ env with varMap := id :: env.(varMap) }}.
 
+  Definition gen_tmp (env: ClightEnv) : ClightEnv * positive :=
+    let (new_ident, gen') := NameGen.freshen env.(identGenerator) "_p_e_t_r_4_" in
+    ({{env with varMap := env.(varMap); identGenerator := gen' }}, $new_ident).
+
   Definition add_temp (t: Ctypes.type) (env: ClightEnv) : ClightEnv :=
-    let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+    let (env, new_ident) := gen_tmp env in
     {{ env with varMap := new_ident :: env.(varMap)
-     ; temps := (new_ident, t) :: env.(temps)
-     ; identGenerator := gen' }}.
+     ; temps := (new_ident, t) :: env.(temps) }}.
 
   (* TODO: maybe incorrect after de Bruijn adjustment. :(. *)
   Definition add_temp_arg
     (t: Ctypes.type) (oldid : AST.ident) (env: ClightEnv) : ClightEnv := 
-    let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+    let (env, new_ident) := gen_tmp env in
     {{ env with vars := (new_ident, t)::env.(vars)
-     ; tempOfArg := (oldid,new_ident) :: env.(tempOfArg)
-     ; identGenerator := gen' }}.
+     ; tempOfArg := (oldid,new_ident) :: env.(tempOfArg) }}.
 
   Definition add_temp_nameless (t: Ctypes.type) : State ClightEnv ident :=
     let* env := get_state in
-    let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
-    put_state {{ env with temps := (new_ident, t)::(env.(temps))
-               ; identGenerator := gen' }};;
+    let (env, new_ident) := gen_tmp env in
+    put_state {{ env with temps := (new_ident, t)::(env.(temps)) }};;
     mret new_ident.
 
   Definition add_var (t: Ctypes.type) (env: ClightEnv) : ClightEnv :=
-    let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+    let (env, new_ident) := gen_tmp env in
     {{ env with varMap := new_ident :: env.(varMap)
-     ; vars := (new_ident, t) :: env.(vars)
-     ; identGenerator := gen' }}.
+     ; vars := (new_ident, t) :: env.(vars) }}.
 
   Definition add_instance_var
     (inst_name : string) (t: Ctypes.type) (env: ClightEnv) : ClightEnv :=
-    let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+    let (env, new_ident) := gen_tmp env in
     {{ env with instanceMap := Env.bind inst_name new_ident env.(instanceMap)
-     ; vars := (new_ident, t) :: env.(vars)
-     ; identGenerator := gen' }}.
+     ; vars := (new_ident, t) :: env.(vars) }}.
   
   Definition add_composite_typ 
     (p4t : Typ.t) (composite_def : Ctypes.composite_definition)
@@ -270,9 +269,8 @@ Section CEnv.
 
   Definition add_tpdecl
     (name: string) (decl: Top.t) (env: ClightEnv) : ClightEnv := 
-    let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
-    {{ env with topMap := Env.bind name new_ident env.(topMap)
-     ; identGenerator := gen' }}.
+    let (env, new_ident) := gen_tmp env in
+    {{ env with topMap := Env.bind name new_ident env.(topMap) }}.
 
   Definition add_function
     (name: string)  (f: Clight.function) (env: ClightEnv) : ClightEnv :=
@@ -285,10 +283,9 @@ Section CEnv.
     add_parser_state
       (f: Clight.function) (env: ClightEnv) : ClightEnv :=
     (* TODO: why isn't ident generator used here. *)
-    let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+    let (env, new_ident) := gen_tmp env in
     {{ env with parser_stateMap := new_ident :: env.(parser_stateMap)
-     ; fenv := Env.bind new_ident f env.(fenv)
-     ; identGenerator := gen' }}.
+     ; fenv := Env.bind new_ident f env.(fenv) }}.
 
   Definition update_function
     (name: string) (f: Clight.function) (env: ClightEnv) : ClightEnv :=
@@ -367,14 +364,14 @@ Section CEnv.
   Definition add_Table
     (name : string) (key : list (Exp.t * string))
     (actions : list (string * Exp.args)) (env: ClightEnv) : ClightEnv :=
-    let (gen', new_id) := IdentGen.gen_next env.(identGenerator) in
+    let (env, new_id) := gen_tmp env in
     let gvar :=
       {| gvar_info := (Tstruct _Table noattr)
       ; gvar_init := []
       ; gvar_readonly := false
       ; gvar_volatile := false |} in
     {{ env with tblMap := Env.bind name new_id env.(tblMap)
-     ; identGenerator := gen' ; globvars := (new_id, gvar) :: env.(globvars) }}
+       ; globvars := (new_id, gvar) :: env.(globvars) }}
       <| tables := Env.bind name (key,actions) env.(tables) |>.
 
   Definition
@@ -384,8 +381,8 @@ Section CEnv.
   
   Definition new_ident : State ClightEnv ident :=
     let* env := get_state in
-    let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
-    put_state (env <| identGenerator := gen' |>) ;; mret new_ident.
+    let (env, new_ident) := gen_tmp env in
+    put_state env ;; mret new_ident.
 
   Definition clear_temp_vars (env: ClightEnv) : ClightEnv :=
     {{ env with temps := []; vars := [] }}.
@@ -558,7 +555,7 @@ Section CEnv.
     match Env.find val env.(numStrMap) with 
     | Some id => mret id
     | None =>
-        let (gen', new_id) := IdentGen.gen_next env.(identGenerator) in
+        let (env, new_id) := gen_tmp env in
         let dec := Z.to_int val in
         let (inits, length) := to_C_dec_str dec in
         let gvar :=

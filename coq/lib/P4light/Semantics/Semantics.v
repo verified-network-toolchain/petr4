@@ -403,8 +403,7 @@ Definition loc_to_sval_const (this : path) (loc : Locator) : option Sval :=
 
 (* Execution relation for side-effectless expressions. *)
 Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
-  : path -> (* temp_env -> *) state -> (@Expression tags_t) -> Sval ->
-    (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
+  : path -> state -> (@Expression tags_t) -> Sval -> Prop :=
   | exec_expr_bool : forall b this st tag typ dir,
                      exec_expr read_one_bit this st
                      (MkExpression tag (ExpBool b) typ dir)
@@ -978,7 +977,6 @@ Definition get_arg_directions (func : @Expression tags_t) : Result.result Exn.t 
       Result.error (Exn.Other ("get_arg_directions: passed type that is not a function type"))
   end.
 
-
 (* given expression and direction, evaluate to argument. *)
 (* in -> (Some _, None) *)
 (* out -> (None, Some _) *)
@@ -996,6 +994,17 @@ Definition get_arg_directions (func : @Expression tags_t) : Result.result Exn.t 
       4. If a direction out parameter has any other type, e.g. bit<W>, an implementation need
          not initialize it to any predictable value.
 *)
+(* Qinshi: This definition does not allow passing objects as arguments.
+  The P4 Spec allows directionless arguments to be objects,
+  which is reasonable as directionless arguments are already required to be compile-time known.
+  This mechnism is not widely used. I have only seen
+  that packet_in in parsers and packet_out in deparsers are passed in this way.
+  Nate told me when I asked him, that packet_in and packet_out mean to be constructor parameters.
+  So the instantiation phase uses special rules to convert them into constructor parameters.
+  If we want to support passing objects as arguments,
+  we'll need the argument passing mechanism to use (Val + path) instead of (Val),
+  since objects are represented by paths.
+  Nonetheless, this definition allows unbounded integer (included in Val) as directionless argument. *)
 Inductive exec_arg (read_one_bit : option bool -> bool -> Prop) :
                    path -> state -> option (@Expression tags_t) -> direction -> argument -> signal -> Prop :=
   | exec_arg_directionless : forall this st expr v sv,
@@ -1014,7 +1023,12 @@ Inductive exec_arg (read_one_bit : option bool -> bool -> Prop) :
   | exec_arg_inout : forall this st expr lv sv v sv' sig,
                      exec_lexpr read_one_bit this st expr lv sig ->
                      exec_read st lv sv ->
-                     (* determinize sval similar to in parameters; why not exec_expr_det? *)
+                     (* According to our interpretation of the descriptions regarding unspecified values
+                       in the P4 Spec, we choose to determinize values for in and inout arguments.
+                       We do not use exec_expr_det to determinize values, because we don't want to
+                       evaluate the expression twice. Although it is the same for effectless expressions
+                       we currently have, it is a cavet when we want to generalize
+                       to effectful expressions. *)
                      sval_to_val read_one_bit sv v ->
                      val_to_sval v sv' ->
                      exec_arg read_one_bit this st (Some expr) InOut (Some sv', Some lv) sig.
@@ -1336,7 +1350,7 @@ with exec_block (read_one_bit : option bool -> bool -> Prop) :
   | exec_block_nil : forall this_path st tags,
                      exec_block read_one_bit this_path st (BlockEmpty tags) st SContinue
   | exec_block_cons : forall stmt rest this_path st st' st'' sig sig',
-                      (* This style is for avoiding backtracking *)
+                      (* This style is for avoiding backtracking when executing by "econstructor". *)
                       exec_stmt read_one_bit this_path st stmt st' sig ->
                       exec_block read_one_bit this_path st'
                           (if is_continue sig then rest else empty_block) st'' sig' ->

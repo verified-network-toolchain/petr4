@@ -42,9 +42,7 @@ Variant una_type : Una.t -> Typ.t -> Typ.t -> Prop :=
   | una_UMinus τ :
     numeric τ -> una_type `-%una τ τ
   | una_IsValid ts :
-    una_type Una.IsValid (Typ.Struct true ts) Typ.Bool
-  | una_SetValidity b ts :
-    una_type (Una.SetValidity b) (Typ.Struct true ts) (Typ.Struct true ts).
+    una_type Una.IsValid (Typ.Struct true ts) Typ.Bool.
 
 (** Evidence a binary operation is valid
     for operands of a type and produces some type. *)
@@ -123,7 +121,7 @@ Definition fenv : Set :=
   Clmt.t
     String.string (** function name. *)
     (nat (** type parameters. *)
-     * Typ.arrowT (** signature. *)).
+     * Typ.arrow (** signature. *)).
 
 (** Action names to signatures. *)
 Definition aenv : Set :=
@@ -138,7 +136,7 @@ Definition ienv : Set :=
     String.string (** Instance name *)
     (Field.fs
        String.string (** Method name. *)
-       (nat * Typ.arrowT (** Method type signature. *))
+       (nat * Typ.arrow (** Method type signature. *))
      + Cnstr.t (** Parser or control instance. *)
        * list String.string (** Types of extern arguments. *)
        * Typ.params (** Types of expression arguments. *)).
@@ -204,10 +202,7 @@ Variant return_void_ok : ctx -> Prop :=
 
 (** Put parameters into environment. *)
 Definition bind_all (ps : Typ.params) (Γ : list Typ.t) : list Typ.t :=
-  map (fun 
-       '(PAIn τ
-        | PAOut τ
-        | PAInOut τ) => τ) (map snd ps) ++ Γ.
+  map snd $ InOut.inn ps ++ map snd $ InOut.out ps ++ Γ.
 
 (** Constructor Parameter types, for instantiations *)
 Inductive constructor_type : Set :=
@@ -266,11 +261,11 @@ Variant valid_state (total : nat) : Lbl.t -> Prop :=
     valid_state total (Lbl.Name st).
 
 (** Appropriate signal. *)
-Variant good_signal : Typ.arrowT -> Signal.t -> Prop :=
-  | good_signal_cont params :
-    good_signal {|paramargs:=params; rtrns:=None|} Signal.Cnt
-  | good_signal_return params ret :
-    good_signal {|paramargs:=params; rtrns:=Some ret|} Signal.Ret.
+Variant good_signal : option Typ.t -> Signal.t -> Prop :=
+  | good_signal_cont :
+    good_signal None Signal.Cnt
+  | good_signal_return ret :
+    good_signal (Some ret) Signal.Ret.
 
 (** (Syntactic) Evidence an expression may be an lvalue. *)
 Inductive lexpr_ok : Exp.t -> Prop :=

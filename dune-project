@@ -23,9 +23,10 @@
  (bug_reports  "https://github.com/verified-network-toolchain/petr4")
  (license      "Apache-2.0")
  (depends
+   conf-gmp
+   conf-m4
    poulet4
    poulet4_Ccomp
-   coq-compcert
    alcotest
    bignum
    (ocaml (>= "4.09.1"))
@@ -34,7 +35,7 @@
    cstruct-sexp
    menhir
    ANSITerminal
-   (core (>= "0.15.0"))
+   (core (and (>= "v0.15.0") (< "v0.16.0")))
    (pp (>= "1.1.2"))
    ppx_deriving_yojson
    (ppx_import (>= "0.15.0"))
@@ -46,8 +47,7 @@
    js_of_ocaml-lwt
    js_of_ocaml-ppx
    (p4pp (>= "0.1.11"))
-   odoc
-   (coq (and (<= "8.15.2" ) :build))))
+   (coq (and (>= "8.15.0" ) (< "8.17.0") :build))))
 
 (package
  (name poulet4)
@@ -70,11 +70,12 @@
  (depends
    bignum
   (dune :build)
-  (coq (and (<= "8.15.2") :build))
+  (coq (and (>= "8.15.0") (< "8.17.0") :build))
   (coq-equations :build)
   (coq-record-update :build)
   (coq-compcert :build)
-  (coq-vst-zlist :build)))
+  (coq-vst-zlist :build)
+  (coq-stdpp :build)))
 
 (package
  (name poulet4_Ccomp)
@@ -92,5 +93,5 @@
    poulet4
    zarith
    coq-compcert
-   (coq :build)
+   (coq (and (>= "8.15.0") (< "8.17.0") :build))
    (coq-equations :build)))

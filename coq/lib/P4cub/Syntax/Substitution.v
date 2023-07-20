@@ -63,14 +63,6 @@ Section Sub.
         Exp.Member (tsub_typ rt) mem (tsub_exp arg)
     | Exp.Lists l es => Exp.Lists (tsub_lists l) $ map tsub_exp es
     end.
-  
-  Definition tsub_param
-    : paramarg Typ.t Typ.t -> paramarg Typ.t Typ.t :=
-    paramarg_map_same $ tsub_typ.
-
-  Definition tsub_arg
-    : paramarg Exp.t Exp.t -> paramarg Exp.t Exp.t :=
-    paramarg_map_same $ tsub_exp.
 
   Definition tsub_trns (transition : Trns.t) :=
     match transition with
@@ -89,7 +81,10 @@ Section Sub.
       => Call.Method e m (map tsub_typ τs) $ option_map tsub_exp oe
     | Call.Inst _ _ => fk
     end.
-
+  
+  Definition tsub_args : Exp.args -> Exp.args :=
+    InOut.map_uni tsub_exp.
+  
   Fixpoint tsub_stm (s : Stm.t) : Stm.t :=
     match s with
     | Stm.Skip
@@ -98,10 +93,11 @@ Section Sub.
     | Stm.Trans e => Stm.Trans $ tsub_trns e
     | (lhs `:= rhs)%stm
       => (tsub_exp lhs `:= tsub_exp rhs)%stm
+    | Stm.SetValidity b e => Stm.SetValidity b $ tsub_exp e
     | Stm.Invoke e t
       => Stm.Invoke (option_map tsub_exp e) t
     | Stm.App fk args
-      => Stm.App (tsub_call fk) $ map tsub_arg args
+      => Stm.App (tsub_call fk) $ tsub_args args
     | (`let x := e `in s)%stm
       => (`let x := map_sum tsub_typ tsub_exp e `in tsub_stm s)%stm
     | (s₁ `; s₂)%stm => (tsub_stm s₁ `; tsub_stm s₂)%stm
@@ -109,29 +105,30 @@ Section Sub.
       => (`if tsub_exp g `then tsub_stm tru `else tsub_stm fls)%stm
     end.
   
+  Definition tsub_params : Typ.params -> Typ.params :=
+    InOut.map_uni $ prod_map_snd tsub_typ.
+  
   Definition tsub_insttyp
              (ctor_type : InstTyp.t) : InstTyp.t :=
     match ctor_type with
     | InstTyp.Ctr flag extern_params params =>
         InstTyp.Ctr flag
-          extern_params (map_snd tsub_param params)
+          extern_params (tsub_params params)
     | InstTyp.Package => InstTyp.Package
     | InstTyp.Extern e => InstTyp.Extern e
     end.
 
-  Definition tsub_arrowT
-             '({| paramargs:=params; rtrns:=ret |} : Typ.arrowT) : Typ.arrowT :=
-    {| paramargs := map_snd tsub_param params
-    ; rtrns := option_map tsub_typ ret |}.
+  Definition tsub_arrow : Typ.arrow -> Typ.arrow :=
+    Arr.map_uni (prod_map_snd tsub_typ) tsub_typ.
 
   Definition tsub_cparams : Top.constructor_params -> Top.constructor_params :=
-    List.map (FunUtil.map_snd tsub_insttyp).
+    List.map (prod_map_snd tsub_insttyp).
 End Sub.
 
 Definition tsub_method
            (σ : nat -> Typ.t)
-           '((Δ,xs,arr) : nat * list string * Typ.arrowT) :=
-  (Δ,xs,tsub_arrowT (exts `^ Δ σ) arr).
+           '((Δ,xs,arr) : nat * list string * Typ.arrow) :=
+  (Δ,xs,tsub_arrow (exts `^ Δ σ) arr).
 
 Definition tsub_ctrl (σ : nat -> Typ.t) (d : Ctrl.t) :=
   match d with
@@ -140,11 +137,11 @@ Definition tsub_ctrl (σ : nat -> Typ.t) (d : Ctrl.t) :=
   | Ctrl.Action a cps dps body =>
       Ctrl.Action
         a (map_snd (tsub_typ σ) cps)
-        (map_snd (tsub_param σ) dps) $ tsub_stm σ body
+        (tsub_params σ dps) $ tsub_stm σ body
   | Ctrl.Table t key acts def =>
       Ctrl.Table
         t (List.map (fun '(e,mk) => (tsub_exp σ e, mk)) key)
-        (List.map (fun '(a,args) => (a, map (tsub_arg σ) args)) acts)
+        (List.map (fun '(a,args) => (a, tsub_args σ args)) acts)
         $ option_map (fun '(a,es) => (a, map (tsub_exp σ) es)) def
   end.
 
@@ -158,30 +155,30 @@ Definition tsub_top (σ : nat -> Typ.t) (d : Top.t) : Top.t :=
   | Top.Extern ename tparams cparams expr_cparams methods =>
       let σ' := exts `^ tparams σ in
       let cparams' :=
-        List.map (FunUtil.map_snd $ tsub_insttyp σ') cparams in
+        List.map (prod_map_snd $ tsub_insttyp σ') cparams in
       let expr_cparams' :=
         map (tsub_typ σ') expr_cparams in
       let methods' := Field.map (tsub_method σ') methods in
       Top.Extern ename tparams cparams' expr_cparams' methods'
   | Top.Control cname cparams expr_cparams eparams params body apply_blk =>
-      let cparams' := map (FunUtil.map_snd $ tsub_insttyp σ) cparams in
+      let cparams' := map (prod_map_snd $ tsub_insttyp σ) cparams in
       let expr_cparams' :=
         map (tsub_typ σ) expr_cparams in
-      let params' := map_snd (tsub_param σ) params in
+      let params' := tsub_params σ params in
       let body' := map (tsub_ctrl σ) body in
       let apply_blk' := tsub_stm σ apply_blk in
       Top.Control cname cparams' expr_cparams' eparams params' body' apply_blk'
   | Top.Parser pn cps expr_cparams eps ps strt sts =>
-      let cps' := map (FunUtil.map_snd $ tsub_insttyp σ) cps in
+      let cps' := map (prod_map_snd $ tsub_insttyp σ) cps in
       let expr_cparams' :=
         map (tsub_typ σ) expr_cparams in
-      let ps' := map_snd (tsub_param σ) ps in
+      let ps' := tsub_params σ ps in
       let start' := tsub_stm σ strt in
       let states' := map (tsub_stm σ) sts in
       Top.Parser pn cps' expr_cparams' eps ps' start' states'
   | Top.Funct f tparams params body =>
       let σ' := exts `^ tparams σ in
-      let cparams' := tsub_arrowT σ' params in
+      let cparams' := tsub_arrow σ' params in
       let body' := tsub_stm σ' body in
       Top.Funct f tparams cparams' body'
   end.

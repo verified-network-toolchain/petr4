@@ -61,8 +61,6 @@ Definition eval_una (op : Una.t) (v : Val.t) : option Val.t :=
   | `-%una, w VS z => Some $ Val.Int w $ IntArith.neg w z
   | Una.IsValid, Val.Lists (Lst.Header b) _
     => Some (Val.Bool b)
-  | Una.SetValidity b, Val.Lists _ vs
-    => Some $ Val.Lists (Lst.Header b) vs
   | _, _ => None
   end.
 

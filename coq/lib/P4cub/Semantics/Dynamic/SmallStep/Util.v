@@ -71,8 +71,6 @@ Section StepDefs.
     | `-%una, (w `W z)%exp => Some $ Exp.Bit w $ BitArith.neg w z
     | `-%una, (w `S z)%exp => Some $ Exp.Int w $ IntArith.neg w z
     | Una.IsValid, Exp.Lists (Lst.Header b) _ => Some $ Exp.Bool b
-    | Una.SetValidity b, Exp.Lists _ fs
-      => Some $ Exp.Lists (Lst.Header b) fs
     | _, _ => None
     end.
 
@@ -318,7 +316,6 @@ Section StepDefs.
                | H: Some _ = Some _ |- _ => inv H
                end; eauto 2.
       - destruct x; discriminate || some_inv; auto.
-      - inv H3; eauto.
     Qed.
   End HelpersType.
   
@@ -447,7 +444,7 @@ Fixpoint lv_update (lv v : Exp.t) (ϵ : list Exp.t) : list Exp.t :=
   | _ => ϵ
   end.
 
-(** Create a new environment
+(*(** Create a new environment
     from a closure environment where
     values of [In] args are substituted
     into the function parameters. *)
@@ -461,9 +458,9 @@ Definition copy_in
              | PAOut lv
              | PAInOut lv => lv_lookup ϵcall lv
              end)
-    ▷ sequence.
+    ▷ sequence.*)
 
-(** Update call-site environment with
+(*(** Update call-site environment with
     out variables from function call evaluation. *)
 Definition copy_out
            (argsv : Exp.args) (ϵ_func : list Exp.t)
@@ -478,4 +475,4 @@ Definition copy_out
            | None   => ϵ_call
            | Some v => lv_update lv v ϵ_call
            end
-       end) ϵ_call argsv.
+       end) ϵ_call argsv.*)

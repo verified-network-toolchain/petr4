@@ -52,15 +52,57 @@ Tactic Notation "match_some_inv" "as" simple_intropattern(E) :=
 
 Tactic Notation "match_some_inv" := match_some_inv as ?.
 
-(** * Utility Functions *)
+Ltac pair_destr :=
+  lazymatch goal with
+  | h: (_,_) = (_,_) |- _ => inv h
+  end.
+
+Ltac conj_destr :=
+  lazymatch goal with
+    h: _ /\ _ |- _ => destruct h as [? ?]
+  end.
+
+Ltac let_destr_pair :=
+  lazymatch goal with
+  | h: context [let (_,_) := ?a in _] |- _
+    => rewrite surjective_pairing with (p:=a) in h; cbn
+  | |- context [let (_,_) := ?a in _]
+    => rewrite surjective_pairing with (p:=a); cbn
+  end.
+
+Ltac pair_fst_snd_eqns :=
+  lazymatch goal with
+    h: _ = (_,_) |- _
+    => pose proof f_equal fst h as ?; pose proof f_equal snd h as ?; clear h;
+      cbn in *; subst; cbn in *
+  end.
+
+(** * Utility Definitions *)
 
 Section MapProd.
-  Context {A B C : Type}.
-  Variable f : A -> B.
+  Polymorphic Universes a b c.
+  Polymorphic Context {A : Type@{a}} {B : Type@{b}} {C : Type@{c}}.
+  Polymorphic Variable f : A -> B.
 
-  Definition map_fst '((a,c) : A * C) : B * C := (f a, c).
+  Polymorphic Definition prod_map_fst '((a,c) : A * C) : B * C := (f a, c).
 
-  Definition map_snd '((c,a) : C * A) : C * B := (c, f a).
+  Polymorphic Definition prod_map_snd '((c,a) : C * A) : C * B := (c, f a).
+
+  Polymorphic Lemma fst_prod_map_fst : forall ac,
+      fst (prod_map_fst ac) = f (fst ac).
+  Proof using. intros [? ?]; reflexivity. Qed.
+
+  Polymorphic Lemma snd_prod_map_fst : forall ac,
+      snd (prod_map_fst ac) = snd ac.
+  Proof using. intros [? ?]; reflexivity. Qed.
+  
+  Polymorphic Lemma snd_prod_map_snd : forall ca,
+      snd (prod_map_snd ca) = f (snd ca).
+  Proof using. intros [? ?]; reflexivity. Qed.
+
+  Polymorphic Lemma fst_prod_map_snd : forall ca,
+      fst (prod_map_snd ca) = fst ca.
+  Proof using. intros [? ?]; reflexivity. Qed.
 End MapProd.
 
 Fixpoint n_compose {A : Type} (n : nat) (f : A -> A) (x : A) : A :=

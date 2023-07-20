@@ -1,79 +1,135 @@
-Require Import Coq.PArith.BinPos Coq.ZArith.BinInt.
+Require Import Coq.PArith.BinPos Coq.ZArith.BinInt
+  Poulet4.Monads.Option.
 Require Export Poulet4.P4cub.Syntax.P4Field.
+From RecordUpdate Require Import RecordSet.
 Import String.
 
 (** * P4cub AST *)
 
-(** De Bruijn syntax. *)
+Module InOut.
+  Section InOut.
+    Variables A B : Set.
+    
+    (** Function parameters/arguments. *)
+    Record t : Set :=
+      mk_t
+        { inn : list A;
+          out : list B }.
 
-(** Function call parameters/arguments. *)
-Variant paramarg (A B : Set) : Set :=
-  | PAIn    (a : A) (** in-parameter. *)
-  | PAOut   (b : B) (** out-parameter. *)
-  | PAInOut (b : B) (** inout-parameter. *).
+    Global Instance eta_inout : Settable _ :=
+      settable! mk_t < inn ; out >.
+  End InOut.
 
-Arguments PAIn {_} {_}.
-Arguments PAOut {_} {_}.
-Arguments PAInOut {_} {_}.
+  Arguments mk_t {A} {B}.
+  Arguments inn {A} {B}.
+  Arguments out {A} {B}.
 
-Definition paramarg_map {A B C D : Set}
-           (f : A -> C) (g : B -> D)
-           (pa : paramarg A B) : paramarg C D :=
-  match pa with
-  | PAIn    a => PAIn      (f a)
-  | PAOut   b => PAOut     (g b)
-  | PAInOut b => PAInOut   (g b)
-  end.
+  Section InOut.
+    Context {A : Set}.
 
-Definition paramarg_map_same
-           {A B : Set} (f : A -> B)
-  : paramarg A A -> paramarg B B :=
-  paramarg_map f f.
+    Definition concat (io : t A A) : list A :=
+      inn io ++ out io.
 
-(** A predicate on a [paramarg]. *)
-Variant pred_paramarg {A B : Set}
-  (P : A -> Prop) (Q : B -> Prop) : paramarg A B -> Prop :=
-  | pred_PAIn a : P a -> pred_paramarg P Q (PAIn a)
-  | pred_PAOut b : Q b -> pred_paramarg P Q (PAOut b)
-  | pred_PAInOut b : Q b -> pred_paramarg P Q (PAInOut b).
+    Context {B : Set}.
 
-Definition pred_paramarg_same {A : Set} (P : A -> Prop)
-  : paramarg A A -> Prop := pred_paramarg P P.
+    Definition length (io : t A B) : nat :=
+      List.length (A:=A) $ inn $ io + List.length (A:=B) $ out $ io.
 
-Definition paramarg_strength {A B : Set} (arg : paramarg (option A) (option B)) : option (paramarg A B) :=
-  match arg with
-  | PAIn a => a >>| PAIn
-  | PAOut b => b >>| PAOut
-  | PAInOut b => b >>| PAInOut
-  end.
+    Definition append (io1 io2 : t A B) : t A B :=
+      mk_t (InOut.inn io1 ++ InOut.inn io2) (InOut.out io1 ++ InOut.out io2).
+    
+    (** Monadic sequence specifically for option.
+        I tried to generalize it but ran into
+        universe errors all  over the codebase... *)
+    Definition opt_seq (io : t (option A) (option B)) : option (t A B) :=
+      let* inns := sequence $ inn io in
+      let^ outs := sequence $ out io in
+      mk_t inns outs.
+    
+    Context {D C : Set}.
+    
+    Definition map (f : A -> C) (g : B -> D) (io : t A B) : t C D :=
+      mk_t (List.map f io.(inn)) (List.map g io.(out)).
+    
+    Lemma map_inn : forall (f : A -> C) (g : B -> D) (io : t A B),
+        inn (map f g io) = List.map f (inn io).
+    Proof using. intros f g [ioi ioo]; reflexivity. Qed.
 
-(** Relating [paramarg]s. *)
-Variant rel_paramarg {A1 A2 B1 B2 : Set}
-  (R : A1 -> A2 -> Prop) (Q : B1 -> B2 -> Prop)
-  : paramarg A1 B1 -> paramarg A2 B2 -> Prop :=
-  | rel_paramarg_PAIn a1 a2 :
-    R a1 a2 -> rel_paramarg R Q (PAIn a1) (PAIn a2)
-  | rel_paramarg_PAOut b1 b2 :
-    Q b1 b2 -> rel_paramarg R Q (PAOut b1) (PAOut b2)
-  | rel_paramarg_PAInOut b1 b2 :
-    Q b1 b2 -> rel_paramarg R Q (PAInOut b1) (PAInOut b2).
+    Lemma map_out  : forall (f : A -> C) (g : B -> D) (io : t A B),
+        out (map f g io) = List.map g (out io).
+    Proof using. intros f g [ioi ioo]; reflexivity. Qed.
+    
+    Record Forall (R : A -> Prop) (Q : B -> Prop) (io : t A B) : Prop :=
+      mk_Forall
+        { inn_forall : List.Forall R io.(inn);
+          out_forall : List.Forall Q io.(out) }.
 
-Definition rel_paramarg_same {A B : Set} (R : A -> B -> Prop) :
-  paramarg A A -> paramarg B B -> Prop :=
-  rel_paramarg R R.
+    Record Forall2 (R : A -> C -> Prop) (Q : B -> D -> Prop) (io1 : t A B) (io2 : t C D) : Prop :=
+      mk_Forall2
+        { inn_forall2 : List.Forall2 R io1.(inn) io2.(inn);
+          out_forall2 : List.Forall2 Q io1.(out) io2.(out) }.
+  End InOut.
 
-Definition paramarg_elim {A : Set} (p : paramarg A A) : A :=
-    match p with
-    | PAIn a | PAOut a | PAInOut a => a
-    end.
+  Lemma length_map : forall {A B C D : Set} (f : A -> C) (g : B -> D) io,
+      InOut.length (InOut.map f g io) = InOut.length io.
+  Proof.
+    intros. unfold length, map. unravel.
+    do 2 rewrite map_length. reflexivity.
+  Qed.
+  
+  Section Uniform.
+    Context {A B : Set}.
 
-(** Function signatures/instantiations. *)
-Record arrow (A B C : Set) : Set :=
-  { paramargs : list (A * paramarg B C);
-    rtrns : option C }.
+    Definition map_uni (f : A -> B) : t A A -> t B B := map f f.
 
-Arguments paramargs {_} {_} {_}.
-Arguments rtrns {_} {_} {_}.
+    Definition Forall_uni (R : A -> Prop) : t A A -> Prop := Forall R R.
+  End Uniform.
+End InOut.
+  
+Module Arr.
+  Section Arr.
+    Variables A B C : Set.
+    Record t : Set :=
+      mk_t
+        { inout :> InOut.t A B;
+          ret : option C }.
+
+    Global Instance eta_arr : Settable _ :=
+      settable! mk_t < inout ; ret >.
+  End Arr.
+
+  Arguments mk_t {A} {B} {C}.
+  Arguments inout {A} {B} {C}.
+  Arguments ret {A} {B} {C}.
+
+  Section Arr.
+    Context {A B C D E F : Set}.
+
+    Definition map (f : A -> D) (g : B -> E) (h : C -> F) (arr : t A B C) : t D E F :=
+      mk_t (InOut.map f g arr.(inout)) (option_map h arr.(ret)).
+
+    Record Forall (R : A -> Prop) (Q : B -> Prop) (P : C -> Prop) (arr : t A B C) : Prop :=
+      mk_Forall
+        { inout_forall : InOut.Forall R Q arr.(inout);
+          ret_forall   : predop P arr.(ret) }.
+
+    Record Forall2 (R : A -> D -> Prop) (Q : B -> E -> Prop) (P : C -> F -> Prop)
+      (arr1 : t A B C) (arr2 : t D E F) : Prop :=
+      mk_Forall2
+        { inout_forall2 : InOut.Forall2 R Q arr1.(inout) arr2.(inout);
+          ret_forall2   : relop P arr1.(ret) arr2.(ret) }.
+  End Arr.
+
+  Section Uniform.
+    Context {A B C D : Set}.
+
+    Definition map_uni (f : A -> C) (g : B -> D) : t A A B -> t C C D :=
+      map f f g.
+
+    Definition Forall_uni (R : A -> Prop) (Q : B -> Prop) : t A A B -> Prop :=
+      Forall R R Q.
+  End Uniform.
+End Arr.
 
 (** * Type Grammar *)
 Module Typ.
@@ -88,13 +144,8 @@ Module Typ.
   | Struct (isheader : bool) (fields : list t) (** struct or header types. *)
   | Var    (type_name : nat)                  (** type variables *).
 
-  (** Function parameters. *)
-  Definition param : Set := paramarg Typ.t Typ.t.
-  Definition params : Set :=
-    list ((* original name *) string * param).
-
-  (** Function types. *)
-  Definition arrowT : Set := arrow (* original name *) string Typ.t Typ.t.
+  Definition params : Set := InOut.t (string * t) (string * t).
+  Definition arrow  : Set := Arr.t (string * t) (string * t) t.
 End Typ.
 
 (** Unary operations. *)
@@ -103,8 +154,7 @@ Module Una.
     | Not                        (** boolean negation *)
     | BitNot                     (** bitwise negation *)
     | Minus                      (** integer negation *)
-    | IsValid                    (** check header validity *)
-    | SetValidity (validity : bool) (** set a header's validity to [validity] *).
+    | IsValid                    (** check header validity *).
 End Una.
 
 (** Binary operations. *)
@@ -163,9 +213,7 @@ Module Exp.
   | Member (result_type : Typ.t) (mem : nat) (arg : t)        (** struct member *)
   | Error  (err : string)                                   (** error literals *).
 
-  (** Function call arguments. *)
-  Definition arg : Set := paramarg Exp.t Exp.t.
-  Definition args : Set := list arg.
+  Definition args : Set := InOut.t t t.
 End Exp.
 
 (** Parser states. *)
@@ -207,12 +255,12 @@ Module Call.
   (** Procedural calls. *)
   Variant t : Set :=
     | Funct  (function_name : string) (type_args : list Typ.t)
-        (returns : option Exp.t)                              (** function application. *)
+        (returns : option Exp.t)                             (** function application. *)
     | Action (action_name : string)
-        (control_plane_args : list Exp.t)                     (** action call. *)
-    | Method (extern_instance_name method_name : string)       (** extern method call *)
+        (control_plane_args : list Exp.t)                    (** action call. *)
+    | Method (extern_instance_name method_name : string)     (** extern method call *)
         (type_args : list Typ.t) (returns : option Exp.t)
-    | Inst   (instance_name : string) (ext_args : list string) (** parser/control instance apply *).
+    | Inst (instance_name : string) (ext_args : list string) (** parser/control instance apply *).
 End Call.
 
 (** * Statement and Block Grammar *)
@@ -220,18 +268,19 @@ Module Stm.
   Inductive t : Set :=
     
   (** terminators to a statement block: *)
-  | Skip                                               (** skip/no-op *)
+  | Skip                                              (** skip/no-op *)
   | Ret (e : option Exp.t)                            (** return *)
-  | Exit                                               (** exit *)
-  | Trans (trns : Trns.t)                              (** parser transition *)  
+  | Exit                                              (** exit *)
+  | Trans (trns : Trns.t)                             (** parser transition *)  
   | Asgn (lhs rhs : Exp.t)                            (** assignment *)
+  | SetValidity (validity : bool) (hdr : Exp.t) (** set a header [hdr]'s validity to [validity] *)
   | App (call : Call.t) (args : Exp.args)             (** procedural application *)
   | Invoke (lhs : option Exp.t) (table_name : string) (** table invocation *)
       
   (** blocks of statements: *)
   | LetIn (original_name : string) (init : Typ.t  + Exp.t)
-      (tail : t)                        (** variable declaration/initialization, a let-in operator *)
-  | Seq (head tail : t)                 (** sequenced blocks, variables introduced in [head] not in [tail] *)
+      (tail : t)                       (** variable declaration/initialization, a let-in operator *)
+  | Seq (head tail : t)                (** sequenced blocks, variables introduced in [head] not in [tail] *)
   | Cond (guard : Exp.t) (tru fls : t) (** conditionals *).
 End Stm.
 
@@ -240,17 +289,17 @@ Module Ctrl.
   (** Declarations occuring within controls. *)
   Variant t : Set :=
     | Var (original_name : string) (expr : Typ.t + Exp.t) (** variable declaration *)
-  | Action (action_name : string)
-      (control_plane_params : list (string * Typ.t))
-      (data_plane_params : Typ.params)
-      (body : Stm.t)                                      (** action declaration *)
-  | Table (table_name : string)
-      (key : list (Exp.t * string))
-      (actions :
-        list
-          (string (** action name *)
-           * Exp.args (** data-plane arguments *)))
-      (default_action : option (string * list Exp.t))     (** table declaration *).
+    | Action (action_name : string)
+        (control_plane_params : list (string * Typ.t))
+        (data_plane_params : Typ.params)
+        (body : Stm.t)                                      (** action declaration *)
+    | Table (table_name : string)
+        (key : list (Exp.t * string))
+        (actions :
+          list
+            (string (** action name *)
+             * Exp.args (** data-plane arguments *)))
+        (default_action : option (string * list Exp.t))     (** table declaration *).
 End Ctrl.
 
 (** Constructor variants in p4. *)
@@ -290,7 +339,7 @@ Module Top.
                      string (** method name *)
                      (nat             (** type parameters *)
                       * list string (** extern parameters *)
-                      * Typ.arrowT (** parameters *)))
+                      * Typ.arrow (** parameters *)))
     (** extern declarations *)
     | Control
         (control_name : string)
@@ -312,7 +361,7 @@ Module Top.
     | Funct
         (function_name : string)
         (type_params : nat)
-        (signature : Typ.arrowT)
+        (signature : Typ.arrow)
         (body : Stm.t) (** function declaration *).
 
   (** A p4cub program. *)

@@ -61,9 +61,15 @@ Module Clmt.
             | Some _ => None
             | None   => e₂ y
             end.
+
+    Definition map {U : Set} (f : T -> U) (e : t D T) : t D U :=
+      option_map f ∘ e.
     
     Definition disjoint_union (e₁ e₂ e₃ : t D T) : Prop :=
       disjoint e₁ e₂ /\ union e₁ e₂ = e₃.
+
+    Definition all (P : T -> Prop) (e : t D T) : Prop :=
+      forall y, predop P (e y).
     
     Section Lemmas.
       Local Hint Extern 0 => simpl_equiv_dec : core.
@@ -72,39 +78,46 @@ Module Clmt.
       
       Lemma bind_sound : forall x v e,
           bind x v e x = Some v.
-      Proof.
+      Proof using.
         intros; simpl; autounfold with *; auto.
       Qed.
       
       Lemma bind_complete : forall x y v e,
           y <> x -> bind y v e x = e x.
-      Proof.
+      Proof using.
         intros; simpl; autounfold with *; auto.
       Qed.
       
       Lemma bind_twice : forall x y v v' e,
           bind x v (bind x v' e) y = bind x v e y.
-      Proof.
+      Proof using.
         intros; simpl; autounfold with *; destruct_if; auto.
       Qed.
       
       Lemma bind_diff_comm : forall x y z u v e,
           x <> y ->
           bind x u (bind y v e) z = bind y v (bind x u e) z.
-      Proof.
+      Proof using.
         intros; simpl; autounfold with *;
           repeat (destruct_if; auto); subst; contradiction.
       Qed.
-    
+
+      Lemma bind_map : forall {U : Set} (f : T -> U) x e,
+          map f e x = option_map f (e x).
+      Proof using.
+        intros U f x e.
+        reflexivity.
+      Qed.
+      
       Global Instance sub_env_reflexive : Reflexive sub_env.
-      Proof. firstorder. Qed.
+      Proof using. firstorder. Qed.
 
       Global Instance sub_env_transitive : Transitive sub_env.
-      Proof. firstorder. Qed.
+      Proof using. firstorder. Qed.
 
       Global Instance sub_env_antisymmetric
         : @Antisymmetric _ eq _ sub_env.
-      Proof.
+      Proof using.
         unfold Antisymmetric, sub_env.
         intros e1 e2 H1 H2.
         extensionality k.
@@ -116,7 +129,7 @@ Module Clmt.
       (** TODO: [e ⊆ bind k v e <-> find k e = None \/ find k e = Some v] *)
       Lemma find_none_bind_sub_env : forall e k v,
           e k = None -> sub_env e (bind k v e).
-      Proof.
+      Proof using.
         unfold sub_env, bind;
           intros e k v H k' v' Hkv'; simpl.
         destruct_if; auto; subst.
@@ -125,7 +138,7 @@ Module Clmt.
       
       Lemma union_sub_env :
         forall e1 e2, sub_env e1 (union e1 e2).
-      Proof.
+      Proof using.
         unfold sub_env, union;
           intros e1 e2 k v Hkv.
         rewrite Hkv; reflexivity.
@@ -133,20 +146,20 @@ Module Clmt.
       
       Lemma disjoint_sym : forall e1 e2,
           disjoint e1 e2 -> disjoint e2 e1.
-      Proof.
+      Proof using.
         firstorder.
       Qed.
       
       Lemma forall_conj_distr : forall (U : Set) (P Q : U -> Prop),
           (forall u, P u /\ Q u) <-> (forall u, P u) /\ forall u, Q u.
-      Proof.
+      Proof using.
         firstorder.
       Qed.
       
       Lemma disjoint_nexists : forall e1 e2,
           disjoint e1 e2 ->
           ~ exists k v, e1 k = Some v /\ e2 k = Some v.
-      Proof.
+      Proof using.
         intros e1 e2 H (k & v & He1 & He2).
         unfold disjoint in H; specialize H with k.
         destruct H as [H1 H2].
@@ -160,7 +173,7 @@ Module Clmt.
           and [e2] are not empty. *)
       Lemma disjoint_eq_env : forall e1 e2,
           disjoint e1 e2 -> e1 <> e2.
-      Proof.
+      Proof using.
         unfold disjoint; intros e1 e2 Hd H; subst.
         apply forall_conj_distr in Hd.
         destruct Hd as [H1 _].
@@ -169,7 +182,7 @@ Module Clmt.
       Lemma find_union_l : forall e1 e2 k v,
           e1 k = Some v ->
           union e1 e2 k = Some v.
-      Proof.
+      Proof using.
         intros e1 e2 k v H; unfold union;
           rewrite H; reflexivity.
       Qed.
@@ -179,7 +192,7 @@ Module Clmt.
       Lemma find_union_r : forall e1 e2 k,
           e1 k = None ->
           union e1 e2 k = e2 k.
-      Proof.
+      Proof using.
         unfold union; intros e1 e2 k H; rewrite H; reflexivity.
       Qed.
 
@@ -188,7 +201,7 @@ Module Clmt.
       Lemma find_union_some : forall e1 e2 k v,
           union e1 e2 k = Some v ->
           e1 k = Some v \/ e2 k = Some v.
-      Proof.
+      Proof using.
         intros e1 e2 k v H; unfold union in *.
         destruct (e1 k) as [v1 |] eqn:Hke1; auto.
       Qed.
@@ -197,7 +210,7 @@ Module Clmt.
       
       Lemma disjoint_union_eq_env : forall e1 e2,
           disjoint e1 e2 -> union e1 e2 = union e2 e1.
-      Proof.
+      Proof using.
         unfold disjoint; intros e1 e2 H.
         extensionality k.
         unfold disjoint. apply forall_conj_distr in H as [H1 H2].
@@ -210,7 +223,7 @@ Module Clmt.
       Qed.
       
       Lemma disjoint_empty : forall e, disjoint e (empty D T).
-      Proof.
+      Proof using.
         unfold disjoint; intros e k; split;
           unravel; auto; try contradiction.
       Qed.
@@ -220,7 +233,7 @@ Module Clmt.
       
       Lemma disjoint_union_sym : forall e1 e2 e3,
           disjoint_union e1 e2 e3 -> disjoint_union e2 e1 e3.
-      Proof.
+      Proof using.
         unfold disjoint_union.
         intros e1 e2 e3 [Hd Heq]; split; subst; auto.
       Qed.
@@ -228,7 +241,7 @@ Module Clmt.
       Lemma disjoint_sub_env_union_inj_r : forall l r r',
           disjoint l r ->
           sub_env (union l r) (union l r') -> sub_env r r'.
-      Proof.
+      Proof using.
         unfold disjoint, sub_env; intros l r r' Hd Hs k v Hkv;
           specialize Hd with k; specialize Hs with k v;
             destruct Hd as [Hd1 Hd2].
@@ -243,7 +256,7 @@ Module Clmt.
       Lemma eq_env_union_inj : forall l r r',
           disjoint l r -> disjoint l r' ->
           union l r = union l r' -> r = r'.
-      Proof.
+      Proof using.
         unfold disjoint; intros l r r' Hr Hr' Hu.
         extensionality k.
         specialize Hr with k; specialize Hr' with k.
@@ -262,7 +275,7 @@ Module Clmt.
       Lemma disjoint_union_unique_eq_env_r : forall l r r' e,
           disjoint_union l r e ->
           disjoint_union l r' e -> r = r'.
-      Proof.
+      Proof using.
         unfold disjoint_union.
         intros l r r' e [Hdr Hr] [Hdr' Hr']; subst.
         eauto.
@@ -271,7 +284,7 @@ Module Clmt.
       Lemma disjoint_union_unique_eq_env :  forall l r e e',
           disjoint_union l r e ->
           disjoint_union l r e' -> e = e'.
-      Proof.
+      Proof using.
         unfold disjoint_union;
           intros l r e e' [Hd He] [Hd' He'];
           subst; reflexivity.
@@ -279,7 +292,7 @@ Module Clmt.
       
       Lemma sub_env_union : forall e1 e2 e3,
           sub_env (union e1 e2) e3 -> sub_env e1 e3.
-      Proof.
+      Proof using.
         unfold sub_env; intros e1 e2 e3 H k v Hkv; eauto.
       Qed.
 
@@ -288,7 +301,7 @@ Module Clmt.
       
       Lemma disjoint_union_sub_env : forall e1 e2 e3,
           disjoint_union e1 e2 e3 -> sub_env e1 e3.
-      Proof.
+      Proof using.
         intros e1 e2 e3 [Hd He3]; subst; auto.
       Qed.
       
@@ -297,7 +310,7 @@ Module Clmt.
     
       Lemma sub_env_disjoint_union_exists : forall e1 e2,
           sub_env e1 e2 -> exists e, disjoint_union e1 e e2.
-      Proof.
+      Proof using.
         intros e1 e2 Hs.
         unfold disjoint_union.
         exists (strip e1 e2).

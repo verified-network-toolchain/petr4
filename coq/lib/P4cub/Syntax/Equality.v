@@ -161,8 +161,6 @@ Global Instance UopEqDec : EqDec Una.t eq.
 Proof.
   intros [] []; unravel in *; firstorder;
     try (right; intros ?; discriminate).
-  elim validity; elim validity0; auto;
-    try (right; intros ?; discriminate).
 Defined.
   
 Global Instance BopEqDec : EqDec Bin.t eq.

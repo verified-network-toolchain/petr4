@@ -55,12 +55,12 @@ Alternatively, follow theses steps:
    ```
    opam repo add coq-released https://coq.inria.fr/opam/released
    opam pin add coq-vst-zlist https://github.com/PrincetonUniversity/VST.git
-   make deps
    ```
 
 1. Use dune to build and install petr4.
    ```
-   dune build
+   opam install . --deps-only
+   opam exec -- dune build
    dune install
    ```
 
@@ -68,6 +68,17 @@ Alternatively, follow theses steps:
    ``` 
    make test
    ```
+
+   To run the CI tests locally:
+   ```
+   opam exec -- make ci-test
+   ```
+
+   To run STF tests:
+   ```
+   opam exec -- make test-stf
+   ```
+
 
 ## Running Petr4
 
@@ -81,6 +92,7 @@ Run `petr4 -help` to see the list of currently-supported options.
 
 `petr4` uses `js_of_ocaml` to provide a web interface. To compile to javascript,
 run `make web`. Then open `index.html` in `html_build` in a browser.
+
 
 # Contributing
 

@@ -820,12 +820,12 @@ The type checker is defined over an _environment_, which collects relevant infor
 - Variables ($\varEnv$): the list of mapping a variable to its type and direction
 - Constants ($\constEnv$): the list of mapping a constant name to its value
 - Externs ($\externEnv$): the list of mapping an extern name to methods it provides
-- Context ($\ctxt$): states the lexical context and scope of the sub-program such as _top-level_, _parser_, etc, denoted 
+- Context ($\ctxt$): states the lexical context and scope of the sub-program, it is prefixed with $\exp$, $\stmt$, and $\dcl$ which represent the expression, statement, and declaration scope, respectively.
 
 
 To be concrete, environments are all accumulated in one place and they are defined as the [record][#sec-aux-notation-ast] $\env$. 
 
-*todo: divide context into subcategories of decl, param, exper*
+*discuss: context with ryan.*
 
 ~ Begin P4Syntax
 
@@ -833,15 +833,39 @@ To be concrete, environments are all accumulated in one place and they are defin
 
 |     |      |     |
 |~~~~:|:~~~~:|:~~~~|
-| $\ctxtTyp$ | $::=$ | $\cte$ | 
-|  | $\vert$ | $\applyBlockCtxt$ |
-|  | $\vert$ | $\actionCtxt$ |
-|  | $\vert$ | $\tableActionCtxt$ |
-|  | $\vert$ | $\funcCtxt \typ$ |
-|  | $\vert$ | $\parserCtxt$ |
-|  | $\vert$ | $\toplevel$ |
-|  | $\vert$ | $\declLocalCtxt$ |
-|  | $\vert$ | $\runtimeCtxt {control} |
+| $\ctxtTyp$ | $::=$ | $\expParserStateCtxt$ |
+|  | $\vert$ | $\expApplyBlockCtxt$ |
+|  | $\vert$ | $\expDclLocalCtxt$ |
+|  | $\vert$ | $\expTableActionCtxt$ |
+|  | $\vert$ | $\expActionCtxt$ |
+|  | $\vert$ | $\expMethodCtxt$ |
+|  | $\vert$ | $\expFuncCtxt$ |
+|  | $\vert$ | $\expConstantCtxt$ |
+|  | $\vert$ | $\dclTopLevelCtxt$ |
+|  | $\vert$ | $\dclNestedCtxt$ |
+|  | $\vert$ | $\dclStmtCtxt \stmtCtxt$ |
+|  | $\vert$ | $\stmtCtxt$ |
+|  | $\vert$ | $\runtimeCtxt \ctxtPrm$ |
+|  | $\vert$ | $\constructorCtxt \ctxtPrm$ |
+{ .booktable }
+
+|     |      |     |
+|~~~~:|:~~~~:|:~~~~|
+| $\stmtCtxt$ | $::=$ | $\stmtMethodCtxt \typ$ |
+|  | $\vert$ | $\stmtFuncCtxt \typ$ |
+|  | $\vert$ | $\stmtActionCtxt$ |
+|  | $\vert$ | $\stmtParserStateCtxt$ |
+|  | $\vert$ | $\stmtApplyBlockCtxt$ |
+{ .booktable }
+
+|     |      |     |
+|~~~~:|:~~~~:|:~~~~|
+| $\ctxtPrm$ | $::=$ | $\parserCtxtPrm$ | 
+|  | $\vert$ | $\controlCtxtPrm$ |
+|  | $\vert$ | $\methodCtxtPrm$ |
+|  | $\vert$ | $\actionCtxtPrm$ |
+|  | $\vert$ | $\functionCtxtPrm$ |
+|  | $\vert$ | $\packageCtxtPrm$ |
 { .booktable }
 
 **Environment:**
@@ -873,7 +897,9 @@ To be concrete, environments are all accumulated in one place and they are defin
 
 ###### - The notation $\updateEnv {\VVal \typEnv, \VVal \varEnv, \cdots}$ denotes the same environment as $\env$, except that the environment $\typEnv, \varEnv, \cdots$ have been replaced with environments $\VVal \typEnv, \VVal \varEnv, \cdots$. { -; font-weight: "normal"; id: update-envs; label: "update-envs" }
 
-###### - The notation $\envWhere {\ctxt = \ctxtTyp}$ denotes environment $\env$ where its context is $\ctxtTyp$. { -; font-weight: "normal"; id: env-where; label: "env-where" } *reminder: it's not used at the moment."
+###### - The notation $\envWhere {\ctxt = \ctxtTyp}$ denotes environment $\env$ where its context is $\ctxtTyp$. { -; font-weight: "normal"; id: env-where; label: "env-where" }
+
+*reminder: this notation is not used at the moment."
 
 ###### - The notation $\emp$ denotes an empty environment. { -; font-weight: "normal"; id: emp-env; label: "emp-env" }
 
@@ -1034,9 +1060,9 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ###### - $\compTimeKnown \exp$ is a predicate that returns $\tru$ if expression $\exp$ can be evaluated at compile-time. However, if the expression $\exp$ is a specialized type, extern, package, control, or parser but we cannot evaluate it at compile-time, we still consider it known at compile-time. { -; font-weight: "normal"; id: compTimeKnown; label: "compTimeKnown" }
 
-###### - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. We adopt the similar notation for applying a judgment to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgment: $\env \vdash \overline \A : \overline \typ$. Note that in this example the environment will not be extended so we do not need to pass it as a list. We adopt the same notation for mapping a predicate over a list, that is, $f (\overline x)$ returns true if for all elements of $\overline x$ the predicate $f$ holds. Applying a predicate to an empty list returns $\tru$ unless stated otherwise. Note that the notation $\overline {\field = \exp}$ denotes a list of assignment of expressions to fields, which is different from mapping a function or judgment to a list of input and getting a list of output. todo: if f(x,y) then f(xs,y) it's mapping f with y on elements of xs. { -; font-weight: "normal"; id: mapping; label: "mapping" }
+###### - The notation $f(\overline x) = \overline y$ applies the function $f$ that takes $x$ and returns $y$ (i.e., $f(x) = y$) to a list input $\overline x$ and returns a list output $\overline y$. This is generally described as mapping a function over a structure in programming languages. We adopt the similar notation for applying a judgment to a list of phrases, that is, applying the judgement $\env \vdash \A : \typ$ to a list of phrases gives us the judgment: $\env \vdash \overline \A : \overline \typ$. Note that in this example the environment will not be extended so we do not need to pass it as a list. We also adopt this notation for mapping a predicate over a list, that is, $f (\overline x)$ returns true if for all elements of $\overline x$ the predicate $f$ holds. Applying a predicate to an empty list returns $\tru$ unless stated otherwise. Note that if a function/predicate takes more than one argument, we can map it over only one argument. That is, consider the function $f(x, y)$ we can map it over the first argument without mapping it over the second one, denoted by $\f(\overline x, y)$. Such mapping relies on the definition of the function. Note that the notation $\overline {\field = \exp}$ denotes a list of assignment of expressions to fields, which is different from mapping a function or judgment to a list of input and getting a list of output. { -; font-weight: "normal"; id: mapping; label: "mapping" }
 
-###### - todo: projecting type from a list of parameters, etc. { -; font-weight: "normal"; id: projection; label: "projection" }
+###### - The notation $\params$ projects the name of parameters from parameter defintion $\prms$. Similarly, the notation $\dirs$ projects their directions. That is, when an open list such as $\overlin {x, y, z, \etc}$ exists we can simply project elements of a specific type/location by using the list symbol over the type/location we want to project, e.g., $\overline x$ projects the $x$s from $\overling {x, y, z, \etc}$. Note that the extra symbols such as comma, equal sign, etc does not matter when projecting elements form a list. { -; font-weight: "normal"; id: projection; label: "projection" }
 
 ###### - $\isHeaderOrUnion \typ$ is a predicate that returns $\tru$ if $\typ$ is a header or header union. { -; font-weight: "normal"; id: isHeaderOrUnion; label: "is_header_or_union" }
 
@@ -1062,15 +1088,6 @@ The following notations are used in the definitions of the rules in the rest of 
    * $\intWidthTyp \width$
    * $\bitWidthTyp \width$
    * $\enumTypDef$ 
-
-###### - $\maskTypeIs {\typ_1} {\typ_2}$ is a function that determines the type of a mask expression based on the type of its two operands and it is defined for the following cases: { -; font-weight: "normal"; id: maskTypeIs; label: "mask_type" }
-
-  + if $\typ_1 = \typ_2 = \bitWidthTyp \width$,
-  then $\maskTypeIs {\typ_1} {\typ_2} = \bitWidthTyp \width$
-  + if $\typ_1 = \bitWidthTyp \width, \typ_2 = \integerTyp$,
-  then $\maskTypeIs {\typ_1} {\typ_2} = \integerTyp$
-  + if $\typ_1 = \integerTyp, \typ_2 =  \bitWidthTyp \width$,
-  then $\maskTypeIs {\typ_1} {\typ_2} = \bitWidthTyp \width$
 
 ###### - $\typHasEq \typ$ is a predicate that returns $\tru$ if $\typ$ is one of the followings (conceptually, the following types are the ones that checking equality of two expressions both with one of these types has been defined. Note that this is different from checking if two types are equal): { -; font-weight: "normal"; id: typHasEq; label: "has_equality" }
 
@@ -2094,7 +2111,7 @@ $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$
   + The type of $\exp_1$ must be a fixed-width unsigned integer $\bitWidthTyp \width$.
 - Or:
   + The type of $\exp_1$ must be a fixed-width signed integer $\intWidthTyp \width$.
-- Under a $\cte$ context, expressions representing the indices of slicing must be [well-formed][#sec-exp-type-checker] with one the following types: [(*is_num_or_enum*)][#isNumOrEnum]:
+- Under a $\expConstantCtxt$ context, expressions representing the indices of slicing must be [well-formed][#sec-exp-type-checker] with one the following types: [(*is_num_or_enum*)][#isNumOrEnum]:
    + $\integerTyp$
    + $\intWidthTyp \width$
    + $\bitWidthTyp \width$
@@ -2111,8 +2128,8 @@ $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$
   {\inferrule
      {\expCheck {\exp_1} {\bitWidthTyp \width} \\\\
       % \widthInt { {\typ_1}} = \width \\\\
-      \expCheckEnv {\updateEnv {\ctxt = \cte}} {\exp_2} {\typ_2} \\\\ 
-      \expCheckEnv {\updateEnv {\ctxt = \cte}} {\exp_3}  {\typ_3} \\\\ 
+      \expCheckEnv {\updateEnv {\ctxt = \expConstantCtxt}} {\exp_2} {\typ_2} \\\\ 
+      \expCheckEnv {\updateEnv {\ctxt = \expConstantCtxt}} {\exp_3}  {\typ_3} \\\\ 
       \isNumOrEnum  {\typ_2} \\\\
       \isNumOrEnum  {\typ_3} \\\\
       \compileTimeEval { {\exp_2}} = \int_1 \\
@@ -2129,8 +2146,8 @@ $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$
   {\inferrule
      {\expCheck {\exp_1} {\intWidthTyp \width} \\\\
       % \widthInt { {\typ_1}} = \width \\\\
-      \expCheckEnv {\updateEnv {\ctxt = \cte}} {\exp_2} {\typ_2}  \\\\
-      \expCheckEnv {\updateEnv {\ctxt = \cte}} {\exp_3}  {\typ_3}  \\\\
+      \expCheckEnv {\updateEnv {\ctxt = \expConstantCtxt}} {\exp_2} {\typ_2}  \\\\
+      \expCheckEnv {\updateEnv {\ctxt = \expConstantCtxt}} {\exp_3}  {\typ_3}  \\\\
       \isNumOrEnum  {\typ_2} \\\\
       \isNumOrEnum  {\typ_3} \\\\
       \compileTimeEval { {\exp_2}} = \int_1 \\
@@ -2462,6 +2479,22 @@ $\ternary {\exp_1} {\exp_2} {\exp_3}$
 
 ### Bit Mask Operation { #sec-bit-mask-type-checker }
 
+$\mask {\exp_1} {\exp_2}$
+
+-
+- Then, 
+
+~ Begin InfRule
+  \inferrule
+     {\expCheck {\exp_1} {\typ_1} \\
+      \expCheck {\exp_2} {\typ_2} \\\\
+      \typEq {\typ_1} {\typ_2}\\
+      \isNumOrEnum {\typ_1}}
+     {\expCheck {\mask {\exp_1} {\exp_2}} {\setTyp {\typ_1}}  }
+     \quad (\maskE)
+~ End InfRule
+
+
 ### Range Operation { #sec-range-type-checker }
 
 $\range {\exp_1} {\exp_2}$
@@ -2697,7 +2730,7 @@ $\parserTypDcl \typName \typVar \prmDef$
 
 $\packageTypDcl \typName \typVar \prmDef$
 
-*todo: discuss petr4 implementation with Ryan. this diverges from petr4 at the moment.*
+*discuss: petr4 implementation with Ryan. this diverges from petr4 at the moment.*
 
 - Let $\overline \singleprm$ be the parameters without any initializers. [(*drop_initializer*)][#dropInit]
 - Let $\VVal \env$ represent an environment the same as $\env$ except that the context is $\constructorCtxt {package}$. [($\updateEnv {\ctxt = \constructorCtxt {package}}$)][#update-envs]

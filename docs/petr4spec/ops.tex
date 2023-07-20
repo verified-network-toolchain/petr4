@@ -279,16 +279,37 @@
 \newcommand{\resolveConstOver}[6]{\env, \ctxt \vdash \mathit{dispatch} \left( {#1}, {#2} \constructorTyp {#3} {#4} {#5} {#6}\right)}
 
 %contexts:
-\newcommand{\cte}{\mathsf{constant}}
-\newcommand{\applyBlockCtxt}{\mathsf{apply\_lock}}
-\newcommand{\actionCtxt}{\mathsf{action}}
-\newcommand{\tableActionCtxt}{\mathsf{table\_action}}
-\newcommand{\funcCtxt}[1]{\mathsf{function}\ {#1}}
-\newcommand{\parserCtxt}{\mathsf{parserState}}
-\newcommand{\toplevel}{\mathsf{topLevel}}
-\newcommand{\declLocalCtxt}{\mathsf{declLocal}}
-\newcommand{\runtimeCtxt}[1]{\mathsf{runtime}\ \mathsf{#1}}
-\newcommand{\constructorCtxt}[1]{\mathsf{constructor}\ \mathsf{#1}}
+% statement context
+\newcommand{\expParserStateCtxt}{\mathsf{exp\_parser\_state}}
+\newcommand{\expApplyBlockCtxt}{\mathsf{exp\_apply\_block}}
+\newcommand{\expDclLocalCtxt}{\mathsf{exp\_dcl\_local}}
+\newcommand{\expTableActionCtxt}{\mathsf{exp\_table\_action}}
+\newcommand{\expActionCtxt}{\mathsf{exp\_action}}
+\newcommand{\expMethodCtxt}{\mathsf{exp\_method}}
+\newcommand{\expFuncCtxt}{\mathsf{exp\_function}}
+\newcommand{\expConstantCtxt}{\mathsf{exp\_constant}}
+% declaration context
+\newcommand{\dclTopLevelCtxt}{\mathsf{dcl\_top\_level}}
+\newcommand{\dclNestedCtxt}{\mathsf{dcl\_nested}}
+\newcommand{\dclStmtCtxt}[1]{\mathsf{dcl\_stmt}{#1}}
+%stmt context
+\newcommand{\stmtCtxt}{\mathit{stmt\_ctxt}}
+\newcommand{\stmtMethodCtxt}[1]{\mathsf{stmt\_method}\ {#1}}
+\newcommand{\stmtFuncCtxt}[1]{\mathsf{stmt\_function}\ {#1}}
+\newcommand{\stmtParserStateCtxt}{\mathsf{stmt\_parser\_state}}
+\newcommand{\stmtApplyBlockCtxt}{\mathsf{stmt\_apply\_lock}}
+\newcommand{\stmtActionCtxt}{\mathsf{stmt\_action}}
+% parameter context
+\newcommand{\runtimeCtxt}[1]{\mathsf{param\_runtime}\ \mathsf{#1}}
+\newcommand{\constructorCtxt}[1]{\mathsf{param\_constructor}\ \mathsf{#1}}
+%parser. control. method. action. function. package.
+\newcommand{\ctxtPrm}{\mathit{ctxt\_prm}}
+\newcommand{\parserCtxtPrm}{\mathsf{parser}}
+\newcommand{\controlCtxtPrm}{\mathsf{control}}
+\newcommand{\methodCtxtPrm}{\mathsf{method}}
+\newcommand{\actionCtxtPrm}{\mathsf{action}}
+\newcommand{\functionCtxtPrm}{\mathsf{function}}
+\newcommand{\packageCtxtPrm}{\mathsf{package}}
 
 %%keywords used in nontypename
 \newcommand{\identifierkw}{\mathsf{identifier}}
@@ -348,13 +369,13 @@
 \newcommand{\nonoptConstraint}{N}
 \newcommand{\typeEqs}{\Delta}
 \newcommand{\anyTyp}{a}
-\newcommand{\typEnv}{\Delta}
-\newcommand{\typParEnv}{\Upsilon}
-\newcommand{\typSynEnv}{\Theta}
-\newcommand{\varEnv}{\Gamma}
-\newcommand{\constEnv}{\Sigma}
-\newcommand{\externEnv}{\Xi}
-\newcommand{\env}{\Omega}
+\newcommand{\typEnv}{\mathit{typeEnv}}%{\Delta}
+\newcommand{\typParEnv}{\mathit{typeParEnv}}%{\Upsilon}
+\newcommand{\typSynEnv}{\mathit{typeSynEnv}}%{\Theta}
+\newcommand{\varEnv}{\mathit{varEnv}}%{\Gamma}
+\newcommand{\constEnv}{\mathit{constantEnv}}%{\Sigma}
+\newcommand{\externEnv}{\mathit{externEnv}}%{\Xi}
+\newcommand{\env}{\mathit{env}}%{\Omega}
 %% \newcommand{\typEnv}{\Gamma}
 %% \newcommand{\constEnv}{\Sigma}
 \newcommand{\typ}{\tau}
@@ -368,7 +389,7 @@
 \newcommand{\declaredTyp}{\nu}
 \newcommand{\synTyp}{\sigma}
 \newcommand{\typKind}{t}
-\newcommand{\ctxt}{C}
+\newcommand{\ctxt}{ctxt}
 \newcommand{\ctxtTyp}{c}
 \newcommand{\bool}{b}
 \newcommand{\tru}{\mathsf{true}}
@@ -537,7 +558,7 @@
 \newcommand{\breakMaybes}[3]{\mathit{break\_option}({#1})=\left({#2},{#3}\right)}
 \newcommand{\isExtern}[1]{\mathit{is\_extern}({#1})}
 \newcommand{\nothing}{\bot}
-\newcommand{\maskTypeIs}[2]{\mathit{mask\_type}({#1},{#2})}
+%% \newcommand{\maskTypeIs}[2]{\mathit{mask\_type}({#1},{#2})}
 % \typ = \intWidthTyp \width \textOr \bitWidthTyp \width
 \newcommand{\widthInt}[1]{\mathit{width\_int}({#1})}
 \newcommand{\isWidthInt}[1]{\mathit{is\_width\_int}({#1})}

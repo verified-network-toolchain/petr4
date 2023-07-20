@@ -894,16 +894,12 @@ and type_expression
     (exp: Expression.t)
   : P4light.coq_Expression =
   match exp with
-  (* e, c |- True ~~> {True; Bool; Directionless} *)
   | True {tags} ->
     MkExpression (tags, ExpBool true, TypBool, Directionless)
-  (* e, c |- False ~~> {False; Bool; Directionless} *)
   | False {tags} ->
     MkExpression (tags, ExpBool false, TypBool, Directionless)
-  (* e, c |- str ~~> {str; String; Directionless} *)
   | String {tags; str} ->
     MkExpression (tags, ExpString str, TypString, Directionless)
-  (* P4Int = { value : bigint; width_signed: (int * bool) option}*)
   | Int {tags; x}->
     type_int x
   | Name {tags; name} ->
@@ -911,17 +907,6 @@ and type_expression
     MkExpression (tags, ExpName (name, P4light.noLocator), typ, dir)
   | ArrayAccess { array; index; tags } ->
     type_array_access env ctx tags array index
-    (*
-     Note: ctx determines the nature of the scope we're working in.
-       ctx :: Typed. ExprContext.t
-       ExprContext = ParserState
-                   | ApplyBlock
-                   | DeclLocals
-                   | TableAction
-                   | Action
-                   | Function
-                   | Constant
-    *)
   | BitStringAccess { bits; lo; hi ; tags} ->
     type_bit_string_access env ctx tags bits lo hi
   | List { values; tags } ->

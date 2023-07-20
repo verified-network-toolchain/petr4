@@ -23,7 +23,6 @@ depends: [
   "conf-m4"
   "poulet4"
   "poulet4_Ccomp"
-  "coq-compcert"
   "alcotest"
   "bignum"
   "ocaml" {>= "4.09.1"}
@@ -32,7 +31,7 @@ depends: [
   "cstruct-sexp"
   "menhir"
   "ANSITerminal"
-  "core" {>= "0.15.0"}
+  "core" {>= "v0.15.0" & < "v0.16.0"}
   "pp" {>= "1.1.2"}
   "ppx_deriving_yojson"
   "ppx_import" {>= "0.15.0"}

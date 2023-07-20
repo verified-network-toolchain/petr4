@@ -43,7 +43,7 @@ depends: [
   "js_of_ocaml-lwt"
   "js_of_ocaml-ppx"
   "p4pp" {>= "0.1.11"}
-  "coq" {<= "8.15.2" & build}
+  "coq" {>= "8.15.0" & < "8.17.0" & build}
   "odoc" {with-doc}
 ]
 build: [

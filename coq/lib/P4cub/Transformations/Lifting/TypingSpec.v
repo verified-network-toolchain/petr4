@@ -18,14 +18,14 @@ Section TypeDeclList.
   Variable Γ : list Typ.t.
 
   Local Hint Resolve relate_decl_list_length : core.
-  
+
   Lemma type_decl_list_length : forall es ts,
       type_decl_list Δ Γ es ts -> length es = length ts.
   Proof using. eauto. Qed.
-  
+
   Local Hint Resolve shift_type_exp : core.
   Local Hint Resolve relate_decl_list_app : core.
-    
+
   Lemma type_decl_list_app : forall τs1 τs2 es1 es2,
       type_decl_list Δ Γ es1 τs1 ->
       type_decl_list Δ Γ es2 τs2 ->
@@ -33,7 +33,7 @@ Section TypeDeclList.
   Proof using. eauto. Qed.
 
   Local Hint Resolve shift_pairs_relate_snd : core.
-    
+
   Lemma shift_pairs_type_snd : forall ess tss,
       Forall2 (type_decl_list Δ Γ) (map snd ess) tss ->
       type_decl_list
@@ -41,9 +41,9 @@ Section TypeDeclList.
         (concat (snd (shift_pairs shift_exp ess)))
         (concat tss).
   Proof using. eauto. Qed.
-  
+
   Local Hint Resolve shift_pairs_relate_fst : core.
-  
+
   Lemma shift_pairs_type_fst : forall es ess ts tss,
       length es = length ess ->
       Forall3 (fun ts e t => `⟨ Δ, ts ++ Γ ⟩ ⊢ e ∈ t) tss es ts ->
@@ -71,7 +71,7 @@ Section TypeDeclList.
       type_decl_list Δ Γ es2 ts2 ->
       `⟨ Δ, ts1 ++ Γ ⟩ ⊢ e1 ∈ t1 ->
       `⟨ Δ, ts2 ++ Γ ⟩ ⊢ e2 ∈ t2 ->
-      `⟨ Δ, ts2 ++ ts1 ++ Γ ⟩ ⊢ fst (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2)) ∈ t1 
+      `⟨ Δ, ts2 ++ ts1 ++ Γ ⟩ ⊢ fst (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2)) ∈ t1
       /\ `⟨ Δ, ts2 ++ ts1 ++ Γ ⟩ ⊢ snd (fst (shift_couple shift_exp shift_exp e1 e2 es1 es2)) ∈ t2.
   Proof using. eauto. Qed.
 End TypeDeclList.
@@ -119,7 +119,7 @@ Section TypeExp.
   Local Hint Extern 3 => shift_couple_type_exp_resolve : core.
 
   Hypothesis hG : Forall (typ_ok Δ) Γ.
-  
+
   Theorem Lift_exp_type_exp : forall e τ,
       `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> forall e' es,
           Lift_exp e e' es -> exists τs,
@@ -145,7 +145,10 @@ Section TypeExp.
       pose proof IHhet2 hG _ _ H6
         as (ts2 & hts2 & ht2); clear IHhet2; eauto.
       exists (ts2 ++ ts1).
-      rewrite <- app_assoc. eauto.
+      rewrite <- app_assoc. split.
+      + eauto.
+      + shift_couple_type_exp_resolve.
+        simple eapply type_index; [apply H | apply H0 | apply H1].
     - pose proof IHhet hG _ _ H6 as (ts & hts & ht); eauto.
     - pose proof Forall2_dumb _ _ _ _ _ _ hG H2 as H'; clear H2.
       pose proof Forall2_specialize_Forall3
@@ -171,7 +174,7 @@ Section TypeExp.
       exists (typ_of_lists ls es :: concat tss).
       split; eauto.
       constructor; eauto.
-      eapply shift_pairs_type_snd.
+      simple apply shift_pairs_type_snd.
       rewrite sublist.combine_snd
         by eauto using Forall3_length23.
       assumption.
@@ -214,7 +217,7 @@ Section TypeExp.
 
     Local Hint Resolve shift_couple_lexpr_ok_1 : core.
     Local Hint Resolve shift_couple_lexpr_ok_2 : core.
-    
+
     Lemma Lift_exp_lexpr_ok : forall e,
         lexpr_ok e -> forall e' es,
           Lift_exp e e' es -> lexpr_ok e'.
@@ -252,7 +255,7 @@ End TypeExp.
 
 Section TypeStm.
   Variable Δ : nat.
-  
+
   Local Hint Constructors type_stm : core.
   Local Hint Constructors SumForall : core.
 
@@ -275,9 +278,9 @@ Section TypeStm.
   Fail Local Hint Resolve shift_type_stm : core.
   Local Hint Constructors relop : core.
   Fail Local Hint Constructors ctx_cuttoff : core.
-  Fail Local Hint Resolve ctx_cuttoff_add : core.  
+  Fail Local Hint Resolve ctx_cuttoff_add : core.
 End TypeStm.
-(*          
+(*
 Lemma lift_e_list_type_exp : forall Δ Γ es τs,
     Forall (typ_ok Δ) Γ ->
     Forall2 (type_exp Δ Γ) es τs -> forall us les es',
@@ -393,7 +396,7 @@ Proof.
       exists []; unravel; split; auto.
       econstructor; eauto. rewrite <- H2. auto.
 Qed.
-  
+
 Local Hint Resolve type_fun_kind_lift : core.
 Local Hint Constructors type_stm : core.
 
@@ -468,6 +471,6 @@ Proof.
   - admit.
   - destruct exp as [t | e].
     + destruct H4 as [? H]; subst. econstructor; eauto.*)
-      
-      
+
+
 Admitted.*)

@@ -47,7 +47,7 @@
    js_of_ocaml-lwt
    js_of_ocaml-ppx
    (p4pp (>= "0.1.11"))
-   (coq (and (<= "8.15.2" ) :build))))
+   (coq (and (>= "8.15.0" ) (< "8.17.0") :build))))
 
 (package
  (name poulet4)
@@ -70,7 +70,7 @@
  (depends
    bignum
   (dune :build)
-  (coq (and (<= "8.15.2") :build))
+  (coq (and (>= "8.15.0") (< "8.17.0") :build))
   (coq-equations :build)
   (coq-record-update :build)
   (coq-compcert :build)
@@ -93,5 +93,5 @@
    poulet4
    zarith
    coq-compcert
-   (coq :build)
+   (coq (and (>= "8.15.0") (< "8.17.0") :build))
    (coq-equations :build)))

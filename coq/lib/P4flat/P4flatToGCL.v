@@ -27,11 +27,20 @@ Definition var_env_init : var_env := GEN.init.
 
 Notation M := (state_monad var_env string).
 
-Definition freshen_name (s: string) (t: AST.Typ.t) : M string :=
+Definition freshen_vartyp (s: string) (t: vartyp) : M string :=
   let* e := get_state in
-  let (s, e') := GEN.freshen e s (LocalVar t) in
+  let (s, e') := GEN.freshen e s t in
   put_state e';;
   mret s.
+
+Definition freshen_name (s: string) (t: AST.Typ.t) : M string :=
+  freshen_vartyp s (LocalVar t).
+
+Definition freshen_tbl_name
+           (s: string)
+           (key_typ: list Typ.t)
+           (act_arg_typs: list Typ.t) : M string :=
+  freshen_vartyp s (TableFun key_typ act_arg_typs).
 
 Definition declare_var (name: string) (typ: AST.Typ.t) (m: idx_map) : M idx_map :=
   let* name' := freshen_name name typ in
@@ -116,8 +125,15 @@ Definition initial_p4sig : p4sig :=
                            else None;
     Sig.sig_rels := fun _ => None |}.
   
-Definition mk_action (name: string) : Spec.tm string p4funs :=
-  Spec.TFun (Sig.SSimple (inr (BAction name))) [].
+Definition mk_action (actions: list (string * Exp.args * Stm.t)) (name: string) : Spec.tm string p4funs :=
+  let act_names := List.map (fun '(name, args, stm) => name) actions in
+  match ListUtil.index_of strings.string_eq_dec name act_names with
+  | Some idx_nat =>
+      let idx_z := BinInt.Z.of_nat idx_nat in
+      Spec.TFun (Sig.SSimple (inl (BBitLit 8%N idx_z))) []
+  | None =>
+      Spec.TFun (Sig.SSimple (inl (BBitLit 8%N BinInt.Z.zero))) []
+  end.
 
 Definition lhs_to_var (m: idx_map) (e: Exp.t) : M string :=
   match e with
@@ -132,7 +148,8 @@ Definition e_to_tm (e: Exp.t) : M (Spec.tm string p4funs) :=
   | _ => error "e_to_tm unimplemented"
   end.
 
-Fixpoint s_to_stmt (m: idx_map) (s: Stm.t) : M (stmt string p4funs p4rels) :=
+Fixpoint s_to_stmt (m: idx_map) (s: Stm.t)
+  : M (stmt string p4funs p4rels) :=
   match s with
   | Stm.Skip => mret (GSkip _ _ _)
   | Stm.Ret e => (error "return unimplemented")
@@ -145,6 +162,7 @@ Fixpoint s_to_stmt (m: idx_map) (s: Stm.t) : M (stmt string p4funs p4rels) :=
       (error "extern call unimplemented")
   | Stm.Invoke lhs ctrl_plane_name key actions =>
       let* key' := sequence (List.map e_to_tm key) in
+      let keytyps := List.map typ_of_exp key in
       (* XXX generate an actually fresh variable here *)
       let result_var := ctrl_plane_name ++ "__res" in
       let call_tm := Spec.TFun (Sig.SSimple (inr (BTable ctrl_plane_name))) key' in
@@ -153,10 +171,11 @@ Fixpoint s_to_stmt (m: idx_map) (s: Stm.t) : M (stmt string p4funs p4rels) :=
       let* actions_stmts :=
         sequence (List.map (fun '(name, params, stmt) =>
                               let* stmt' := s_to_stmt m stmt in  
-                              mret (GSeq (GAssume (Spec.FEq act_choice (mk_action name)))
+                              mret (GSeq (GAssume (Spec.FEq act_choice (mk_action actions name)))
                                          stmt'))
                            actions) in
       let actions_stmt := List.fold_right GChoice (GSkip _ _ _) actions_stmts in
+      freshen_tbl_name ctrl_plane_name keytyps [Typ.Bit 1; Typ.Bit 1];;
       mret (GSeq call_stmt actions_stmt)
   | Stm.LetIn original_name (inl typ) tail =>
       let* m' := declare_var original_name typ m in

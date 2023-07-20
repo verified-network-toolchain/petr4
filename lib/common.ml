@@ -377,7 +377,7 @@ let rec print_sort (s: p4sorts) =
 
 let print_fn_decl (f: (p4funs_prog, p4funs_prog) P4light.sum * (p4sorts Poulet4.Sig.rank * p4sorts Poulet4.Sig.ident)) =
   let symb, (args, ret) = f in
-  Printf.sprintf "(declare_fun %s (%s) %s)"
+  Printf.sprintf "(declare-fun %s (%s) %s)"
     (print_fun (Coq_inr symb))
     (List.map ~f:(print_ident print_sort) args
      |> String.concat ~sep:" ")

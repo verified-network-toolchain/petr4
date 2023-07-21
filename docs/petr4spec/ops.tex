@@ -42,6 +42,8 @@
 \newcommand*{\varbitExpT}{\rn{Varbit}\rSep\rn{Exp}\rT}
 \newcommand*{\errT}{\rn{Error}\rT}
 \newcommand*{\voidT}{\rn{Void}\rT}
+\newcommand*{\dontcareT}{\rn{Dontcare}\rT}
+\newcommand*{\notInstantiatedT}{\rn{NotInstantiated}\rT}
 \newcommand*{\matchKindT}{\rn{MatchKind}\rT}
 \newcommand*{\enumOneT}{\rn{Enum}\rT}
 \newcommand*{\intWidthExpT}{\rn{SignedInt}\rSep\rn{Exp}\rT}
@@ -174,9 +176,10 @@
 \newcommand*{\serEnumD}{\rn{SerializableEnum}\rD}
 \newcommand*{\serEnumTypdefD}{\rn{SerializableEnum}\rSep\rn{Typedef}\rD}
 \newcommand*{\externObjD}{\rn{ExternObject}\rD}
-\newcommand*{\typdefNameD}{\rn{Typedef}\rD}
+\newcommand*{\typdefD}{\rn{Typedef}\rD}
 \newcommand*{\typdefDclD}{\rn{Typedef}\rSep\rn{Declared}\rD}
-\newcommand*{\newtypD}{\rn{NewType}\rD}
+\newcommand*{\newtypeD}{\rn{NewType}\rD}
+\newcommand*{\newtypeDclD}{\rn{NewType}\rSep\rn{Declared}\rD}
 \newcommand*{\controlTypD}{\rn{ControlType}\rD}
 \newcommand*{\parserTypD}{\rn{ParserType}\rD}
 \newcommand*{\packageTypD}{\rn{PackageType}\rD}
@@ -200,11 +203,14 @@
 \newcommand{\lookupExternEnv}[1]{\externEnv({#1})}
 \newcommand{\lookupTypEnv}[1]{\typEnv({#1})}
 \newcommand{\lookupTypSynEnv}[1]{\typSynEnv({#1})}
+\newcommand{\lookupEnv}[3]{{#1}.{#2}({#3})}
 \newcommand{\emp}{[\ ]}
 \newcommand{\updateEnv}[1]{\env \ \mathsf{with}\ {#1}}
+\newcommand{\updateEnvWithEnv}[2]{{#1} \ \mathsf{with}\ {#2}}
 \newcommand{\insertToVarEnv}[3]{\varEnv[{#1} : ({#2}, {#3}) ]}
 \newcommand{\insertsToVarEnv}[3]{\varEnv[\overline{{#1} : ({#2}, {#3}) }]}
 \newcommand{\insertToTypEnv}[2]{\typEnv[{#1} = {#2}]}
+\newcommand{\insertToTypSynEnv}[2]{\typSynEnv[{#1} = {#2}]}
 \newcommand{\insertToTypParEnv}[1]{\typParEnv[{#1}]}
 \newcommand{\insertsToTypEnv}[2]{\typEnv[\overline{{#1} = {#2}}]}
 \newcommand{\insertsToConstEnv}[2]{\constEnv[\overline{{#1} = {#2}}]}
@@ -540,9 +546,9 @@
 \newcommand{\enumDcl}[2]{\mathsf{enum}\ {#1}\, \{\overline{#2} \}}
 \newcommand{\serEnumDcl}[4]{\mathsf{enum}\ {#1}\ {#2}\, \{\overline {{#3}={#4}} \}}
 \newcommand{\externObjDcl}[3]{\mathsf{extern}\ {#1}\, \langle \overline {#2}\rangle\, \{\overline {#3} \}}
-%type \rho \typename
+%type \typ \typename
 \newcommand{\newtypeDcl}[2]{\mathsf{type} \ {#1}\ {#2}}
-\newcommand{\typdefDcl}[2]{\mathsf{typedef}\ {#2}\ {#1}}
+\newcommand{\typdefDcl}[2]{\mathsf{typedef}\ {#1}\ {#2}}
 \newcommand{\controlTypDcl}[3]{\mathsf{control}\ {#1}\, \langle\overline{#2}\rangle\, (\overline{#3})}
 \newcommand{\parserTypDcl}[3]{\mathsf{parser}\ {#1}\, \langle\overline{#2}\rangle\, (\overline{#3})}
 \newcommand{\packageTypDcl}[3]{\mathsf{package}\ {#1}\, \langle\overline{#2}\rangle\, (\overline{#3})}
@@ -550,6 +556,7 @@
 \newcommand{\prog}{\mathit{prog}}
 
 %function helpers
+\newcommand{\dclName}[1]{\mathit{name\_from\_dcl}({#1})}
 \newcommand{\distinct}[1]{\mathit{are\_distinct}({#1})}
 \newcommand{\noFreeTypVar}[1]{\mathit{no\_free\_type\_var}({#1})}
 \newcommand{\types}[1]{\mathit{types\_of}({#1})}

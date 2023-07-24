@@ -479,7 +479,7 @@ The surface IR has a single syntactic category for types, however, this syntacti
 |~~~~:|:~~~~:|:~~~~|:~~~~|
 | $\typ $ | $::=$ | $\boolTyp$ | $\qquad \text{booleans}$ |
 |   | $\vert$ | $\errTyp$ | $\qquad \text{errors}$ |
-|   | $\vert$ | $\matchKindTyp$ | $\qquad \text{match kinds}$ |
+|   | $\vert$ | $\matchkindTyp$ | $\qquad \text{match kinds}$ |
 |   | $\vert$ | $\integerTyp$ | $\qquad \text{infinite-precision integers}$ |
 |   | $\vert$ | $\stringTyp$ | $\qquad \text{strings}$ |
 |   | $\vert$ | $\intWidthTyp \exp$ | $\qquad \text{fixed-width signed integers}$ |
@@ -1165,9 +1165,21 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ###### - $\dclName \dcl$ is a function that takes a declaration and returns the name used in the declaration if it exists. For example, $\dclName {\parserDcl  \var \typVar { { {\prmDef}}} { {\VVal {\prmDef}}} \dcl \state} = \name$. { -; font-weight: "normal"; id: dclName; label: "name_from_dcl" }
 
-- $\isSurface \typ$ is a predicate that returns $\tru$ if type $\typ$ is one of the cases of [surface types][#sec-ast-surface-type].
-- An underscore (that is, $\whatevs$) is used when we do not need to use some specific information returned to us in a rule. For example, $\mathit{getLength}(\A)= \whatevs$ takes the length of $\A$, however, it actually does not care what the length is. Instead it just cares if $\A$ is a structure that has length.
+###### - An underscore (that is, $\whatevs$) is used when we do not need to use some specific information returned to us in a rule. For example, $\lookupTypEnv \typName= \whatevs$ looks up the type name $\typName$ in the type environment $\typEnv$ but does not care about the type that is assigned to $\typName. Instead, it just cares if $\typName$ exists in the type environment. { -; font-weight: "normal"; id: whatevs; label: "whatevs" }
 
+###### - $getTypParams \typ$ is a function that returns the type parameters of a generic type $\typ$. The type $\typ$ can be one of the followings and in case of an extern the type parameters are looked up from the extern environment $\externEnv$ whereas for the rest of them the type parameters are part of the type declaration: { -; font-weight: "normal"; id: getTypParams; label: "get_type_params" }
+
+- package
+- control
+- parser
+- constructor
+- function
+- header
+- struct
+- header union
+- extern
+
+###### - $\getLength {\overline \synCat}$ is a function that returns the length of the list $ {\overline \synCat}$.  { -; font-weight: "normal"; id: getLength; label: "getLength" }
 
 ## Types { #sec-type-type-checker }
 
@@ -1210,15 +1222,15 @@ $\errTyp$
 
 Match kind types are always well-formed.
 
-$\matchKindTyp$ 
+$\matchkindTyp$ 
 
 - The match kind is well-formed.
 
 ~ Begin InfRule
   \inferrule
      { }
-     { \typWellFormedNoEnv \matchKindTyp}
-     \quad (\matchKindT)
+     { \typWellFormedNoEnv \matchkindTyp}
+     \quad (\matchkindT)
 ~ End InfRule
 
 ### Integer Type { #sec-integer-t }
@@ -1310,6 +1322,7 @@ $\varbitTyp \exp$
 
 $\typName$
 
+- [whatevs]
 - Then, *todo*
 
 ~ Begin InfRule
@@ -1321,6 +1334,24 @@ $\typName$
 
 
 ### Specialized Types { #sec-specialized-t }
+
+P4 allows declaring some types as generic types. Such a type can be instantiated by a speciliazed type $\spcTyp \typName {\typ}$. Since all generic types in P4 are declared first and stored in the type environment, $\typName$ represents the generic type. The type being specialized must have type parameters. The type parameters are either extracted from the type or they can be looked up in the environment.
+
+$\spcTyp \typName {\typ}$
+
+- Then, *todo*
+
+~ Begin InfRule
+  \mprset {vskip=0.7ex}
+  {\inferrule
+     {\lookupTypEnv \typName = \VVal \typ\\
+       \getTypParams {\VVal\typ} = \typParams\\\\
+        \typWellFormed { {\typs}} \\
+        \getLength\typParams = \getLength { { \typ}}}
+     { \typWellFormed {\spcTyp \typName {\typ}} }
+     \quad (\specializedT)}
+
+~ End InfRule
 
 ### Header Stack Types { #sec-stack-t }
 Header stack (array) types are represented by a type and a size. Their type may be expressed either as a type name or a type specialization.
@@ -1672,6 +1703,19 @@ $\setTyp \typ$
 
 ### Extern Types { #sec-extern-t }
 
+$\externTyp \name$
+
+- Then, *todo*
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {\lookupExternEnv \name = \whatevs}
+    {\typWellFormed {\externTyp \name}}
+  }
+  \quad (\externT)
+~ End InfRule
+
 ### Type Reference { #sec-type-ref-t }
 
 *discuss: with Ryan, why do we need this to be included in type syntactic category? My investigation resulted in petr4 does this because it doesn't have a separate type env for type defs and newtypes so it has to wrap the type name defined through newtype in a constructor when storing it. But since we have two separate envs for them here we can drop this type case.*
@@ -1694,6 +1738,19 @@ $\newTypeTyp \typName \typ$
 ### Constructor Types { #sec-constructor-t }
 
 ### Table Types { #sec-table-t }
+
+$\tableTyp \name$
+
+- Then, *todo*
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+  {\inferrule
+    {\lookupTypEnv \name = \whatevs}
+    {\typWellFormed {\tableTyp \name}}
+  }
+  \quad (\tableT)
+~ End InfRule
 
 ### Void Type { #sec-void-t }
 The void type is always well-formed.
@@ -2666,20 +2723,34 @@ $\errDcl \field$
 - Then, the declared error type is well-formed and it updates the environment to $\VVal \env$. [($\updateEnv {\VVal \typEnv, \cdots}$)][#update-envs]
 
 ~ Begin InfRule
-% \errDcl \field
-
   \mprset {vskip = 0.9ex}
   {\inferrule
-    {\lookupTypEnv {\overline {\errMem \field}} == \emp \\\\
+    {\lookupVarEnv {\overline {\errMem \field}} == \emp \\\\
         \insertsToVarEnv {\errMem  \field} \errTyp \less= \VVal \varEnv\\\\
         \insertsToConstEnv {\errMem \field} {\errVal  \field} = \VVal \constEnv
        }
     {\dclCheck {\errDcl \field} {\updateEnv {\VVal \varEnv, \VVal \constEnv}}}}
   \quad (\errD)
-
 ~ End InfRule 
 
 ### Match Kind Type Declaration { #sec-matchkind-typ-decl-type-checker }
+
+*discuss: petr4 never checks scoping of whether a name has already been introduced in a scope or not.*
+
+$\matchkindDcl \field$
+
+- Then, *todo*
+
+~ Begin InfRule
+  \mprset {vskip = 0.9ex}
+  {\inferrule
+    {\lookupVarEnv {\fields} == \emp \\\\
+        \insertsToVarEnv {  \field} \matchkindTyp \less = \VVal \varEnv\\\\
+        \insertsToConstEnv {\field} {\matchkindVal \field} = \VVal \constEnv
+       }
+    {\dclCheck {\matchkindDcl \field} {\updateEnv {\VVal \varEnv, \VVal \constEnv}}}}
+  \quad (\matchkindD)
+~ End InfRule
 
 ### Enumeration Type Declaration { #sec-enum-typ-decl-type-checker }
 

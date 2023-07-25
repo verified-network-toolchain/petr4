@@ -1686,6 +1686,20 @@ $\packageTyp  \typVar \singleprm $
 
 ### Function Types { #sec-func-t }
 
+$\funcType \kind \typParam {\prmDef } {\typ}$
+
+- Then, *todo*
+
+~ Begin InfRule
+  \mprset {vskip = 0.7 ex}
+  {\inferrule
+     {\updateEnv {\insertToTypParEnv \typParams} = \VVal \env\\\\
+     \typWellFormedUpdatedEnv {\VVal \env} {\VVal \typ}\\
+     \typWellFormedUpdatedEnv {\VVal \env} {\typs}}
+     {\typWellFormed {\funcType \kind \typParam {\singleprm } {\VVal\typ}}}
+  }
+  \quad (\functionT)
+~ End InfRule
 ### Set Types { #sec-set-t }
 
 $\setTyp \typ$
@@ -1734,8 +1748,40 @@ $\newTypeTyp \typName \typ$
 ~ End InfRule
 
 ### Action Types { #sec-action-t }
+*reminder: the well-formedness follows Petr4. note that petr4 does some of the well-formed stuff in declaration so when you get to declaration this might change.*
+
+$\actionTyp {\prmDef} {\VVal {\prmDef}}$
+
+- Then, *todo*
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+      {\typWellFormed \typs \\
+       \typWellFormed {\overline {\VVal \typ}}\\
+       \isDirectionless {\overline {\VVal \dir}}}
+      {\typWellFormed {\actionTyp \singleprm {\singleprmm}}}
+    }
+  \quad (\actionT)
+~ End InfRule
 
 ### Constructor Types { #sec-constructor-t }
+
+$\constructorTyp \typParam {\prmDef} \typ$
+
+- Then, *todo*
+
+~ Begin InfRule
+  \mprset {vskip = 0.7 ex}
+  {\inferrule
+    {\updateEnv {\insertToTypParEnv \typParams} = \VVal \env\\\\
+     \typWellFormedUpdatedEnv {\VVal \env} {\VVal \typ}\\
+     \typWellFormedUpdatedEnv {\VVal \env} \typs\\
+       \isDirectionless  \dirs}
+    {\typWellFormed {\constructorTyp \typParam {\singleprm} {\VVal\typ}}}
+  }
+  \quad (\constructorT)
+~ End InfRule
 
 ### Table Types { #sec-table-t }
 

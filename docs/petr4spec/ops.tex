@@ -434,7 +434,7 @@
 \newcommand{\prm}[1]{\dir_{#1}\,  \typ_{#1}\, \param_{#1}}
 \newcommand{\singleprm}{\dir \, \typ \, \param }
 \newcommand{\prms}{\overline {\singleprm}}
-\newcommand{\prmss}{\overline {\VVal \dir \,  \VVal \typ \, \VVal \param}}
+\newcommand{\singleprmm}{ {\VVal \dir \,  \VVal \typ \, \VVal \param}}
 \newcommand{\typParam}{\typVar}
 \newcommand{\typParams}{\overline \typParam}
 \newcommand{\pari}[1]{\dir_{#1}\, \typ_{#1}\, \param_{#1} }
@@ -734,7 +734,7 @@
 %% \newcommand{\structTyp}[2]{\mathit{struct}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
 %% \newcommand{\structTypp}[2]{\mathit{struct}\{\VVal {\field_{#1}}:\VVal {\typ_{#1}};\ldots;\VVal {\field_{#2}}:\VVal {\typ_{#2}}\}}
 \newcommand{\newTypeTyp}[2]{\newtypKey \ {#1}\ {#2}}
-\newcommand{\funcTyp}[3]{\mathsf{function}\ {#1}\ \langle{#2}\rangle ({#3})}
+%% \newcommand{\funcTyp}[3]{\mathsf{function}\ {#1}\ \langle{#2}\rangle ({#3})}
 \newcommand{\simpFuncTyp}[2]{{#1} \rightarrow {#2}}
 %kind.type param. param. return type. 
 \newcommand{\funcType}[4]{\mathsf{function}\ {#1}\ \langle\overline{#2}\rangle (\overline{#3})\rightarrow {#4}}

@@ -1322,8 +1322,7 @@ $\varbitTyp \exp$
 
 $\typName$
 
-- [whatevs]
-- Then, *todo*
+- The type name $\typName$ must exist in the type environment $\typEnv$ so that it is well-formed. ([$\_\!\_\!\_$][#whatevs], [$\lookupTypEnv \typName$][#lookup-env])
 
 ~ Begin InfRule
   \inferrule
@@ -1339,7 +1338,11 @@ P4 allows declaring some types as generic types. Such a type can be instantiated
 
 $\spcTyp \typName {\typ}$
 
-- Then, *todo*
+- The type name $\typName$ must exists in the type environment $\typEnv$ and let it correspond to the type $\VVal\typ$. [($\lookupTypEnv \typName$)][#lookup-env]
+- Let $\typParams$ be the parameters of the type $\VVal \typ$. [(*get_type_params*)][#getTypParams]
+- The type arguments $\typs$ passed to the type specialization must be well-formed.
+- The number of the parameters $\typParams$ of the generic type and the number of type arguments $\typs$ must be the same. [($\getLength {\overline \synCat}$)][#getLength]
+- Then, the type specialization $\spcTyp \typName \typ$ is well-formed. 
 
 ~ Begin InfRule
   \mprset {vskip=0.7ex}
@@ -1688,7 +1691,10 @@ $\packageTyp  \typVar \singleprm $
 
 $\funcType \kind \typParam {\prmDef } {\typ}$
 
-- Then, *todo*
+- Let environment $\env$ represent an enironment the same as $\env$ except that its type variable environment has been extended with type parameters $\typVars$. [($\updateEnv {\insertToTypParEnv \typParams}$)][#update-envs]
+- The return type $\VVal \typ$ of the function must be well-formed.
+- The types $\typs$ of the funtion parameters must be well-formed. [($\typs$)][#projection]
+- Then, the function type $\funcType \kind \typParam {\prmDef } {\typ}$ is well-formed.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7 ex}
@@ -1700,11 +1706,12 @@ $\funcType \kind \typParam {\prmDef } {\typ}$
   }
   \quad (\functionT)
 ~ End InfRule
+
 ### Set Types { #sec-set-t }
 
 $\setTyp \typ$
 
-- Then, *todo*
+- The type $\typ$ must be well-formed so that the set type $\setTyp \typ$ is well-formed.
 
 ~ Begin InfRule
   {\inferrule
@@ -1719,7 +1726,7 @@ $\setTyp \typ$
 
 $\externTyp \name$
 
-- Then, *todo*
+- The extern $\name$ must exist in the extern environment $\externEnv$ so that the extern type $\externTyp \name$ is well-formed. ([$\_\!\_\!\_$][#whatevs], [\lookupExternEnv \name$][#lookup-env])
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1736,7 +1743,7 @@ $\externTyp \name$
 
 $\newTypeTyp \typName \typ$
 
-- Then, *todo*
+- The type reference $\newTypeTyp \typName \typ$ is well-formed if the type $\typ$ is well-formed.
 
 ~ Begin InfRule
   {\inferrule
@@ -1752,7 +1759,9 @@ $\newTypeTyp \typName \typ$
 
 $\actionTyp {\prmDef} {\VVal {\prmDef}}$
 
-- Then, *todo*
+- The type of the data and control parameters must all be well-formed. [$\typs$][#projection]
+- All the directions of the control parameters must be $\less$. [(*is_directionless*)][#isDirectionless]
+- Then, the action type $\actionTyp \singleprm \singleprmm$ is well-formed. 
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1769,7 +1778,11 @@ $\actionTyp {\prmDef} {\VVal {\prmDef}}$
 
 $\constructorTyp \typParam {\prmDef} \typ$
 
-- Then, *todo*
+- Let environment $\env$ represent an enironment the same as $\env$ except that its type variable environment has been extended with type parameters $\typVars$. [($\updateEnv {\insertToTypParEnv \typParams}$)][#update-envs]
+- The returned type $\VVal \typ$ of the constructor must be well-formed.
+- The types $\typs$ of the parameters must be well-formed. [($\typs$)][#projection]
+- The directions $\dirs$ of the parameters must be $\less$. [(*is_directionless*)][#isDirectionless]
+- Then, the constructor type $\constructorTyp \typParam {\singleprm} {\VVal\typ}$ is well-formed.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7 ex}
@@ -1787,7 +1800,7 @@ $\constructorTyp \typParam {\prmDef} \typ$
 
 $\tableTyp \name$
 
-- Then, *todo*
+- The name $\name$ must exist in the type environment $\typEnv$ so that the table type $\tableTyp \name$ is well-formed. ([$\_\!\_\!\_$][#whatevs], [$\lookupTypEnv \typName$][#lookup-env])
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1812,7 +1825,8 @@ $\voidTyp$
 
 ### Type Variables { #sec-type-var-t }
 
-*todo*
+Type variables are never checked for well-formedness since they are added to the type parameter environment $\typParEnv$ in declarations. 
+
 
 ### Don't Care Type { #sec-dontcare-t }
 
@@ -2662,7 +2676,10 @@ $\ternary {\exp_1} {\exp_2} {\exp_3}$
 
 $\mask {\exp_1} {\exp_2}$
 
-- Then, *todo*
+- The operand expressions $\exp_1$ and $\exp_2$ must be [well-formed][#sec-exp-type-checker] and let types $\typ_1$ and $\typ_2$ represent their types, respectively.
+- The types $\typ_1$ and $\typ_2$ must be the same. [($==$)][#sec-type-eq-type-checker]
+- The type of the operand expressions must be either a numeric type or an enumeration type. [(*is_num_or_enum*)][#isNumOrEnum]
+- Then, the bit mask expression $\mask {\exp_1} {\exp_2}$ is well-formed with the type $\setTyp {\typ_1}$.
 
 ~ Begin InfRule
   \inferrule
@@ -2679,7 +2696,7 @@ $\mask {\exp_1} {\exp_2}$
 
 $\range {\exp_1} {\exp_2}$
 
-- The operand expressions both must be [well-formed][#sec-exp-type-checker] and let types $\typ_1$ and $\typ_2$ represent their types. 
+- The operand expressions $\exp_1$ and $\exp_2$ must be [well-formed][#sec-exp-type-checker] and let types $\typ_1$ and $\typ_2$ represent their types, respectively. 
 - $\typ_1$ and $\typ_2$ must be [the same][#sec-type-eq-type-checker].
 - $\typ_1$ and $\typ_2$ must be a fixed-width integer types. [(*is_width_int*)][#isWidthInt]
 - Then, ranging from expression $\exp_1$ to $\exp_2$ is well-formed with the type $\setTyp {\typ_1}$.
@@ -2744,7 +2761,7 @@ $\headerUnionDcl \typName \typParam \field  \typ$
 $\structDcl \typName \typParam \field \typ$
 
 - The type of the declared struct type must be [well-formed][#sec-struct-t].
-- Let $\VVal \env$ be the same environment as $\env$, but witt the type environment $ \typEnv$ extended with the assignment of type $\structTyps \typParam \field {\typ }$ to $\typName$. [($\insertToTypEnv \typName \typ $)][#extend-env]
+- Let $\VVal \env$ be the same environment as $\env$, but with the type environment $ \typEnv$ extended with the assignment of type $\structTyps \typParam \field {\typ }$ to $\typName$. [($\insertToTypEnv \typName \typ $)][#extend-env]
 - Then, the declared struct type is well-formed and it updates the environment to $\VVal \env$. [($\updateEnv {\VVal \typEnv, \cdots}$)][#update-envs]
 
 ~ Begin InfRule
@@ -2762,7 +2779,7 @@ $\structDcl \typName \typParam \field \typ$
 
 $\errDcl \field$
 
-- The declared error fields must not already exists in the type environment $\typEnv$. [($\lookupTypEnv \typName$)][#lookup-env]
+- The declared error fields must not already exists in the type environment $\typEnv$. [($\lookupVarEnv \name$)][#lookup-env]
 - Let $\VVal \env$ be the same environment as $\env$, but with
    + The variable environment $ \varEnv$ extended with the assignments of the error type $\errTyp$ and $\less$ direction to error field names prefixed with the error, that is, $\overline {\errMem \field}$. [($\insertToVarEnv \var  \typ \dir $)][#extend-env]
    + The constant environment $ \constEnv$ extended with the assignments of the error field names prefixed with the error type $\overline {\errMem \field}$ to themselves, that is, $\overline {\errMem \field}$. [($\insertToConstEnv \var \val $)][#extend-env]
@@ -2785,7 +2802,11 @@ $\errDcl \field$
 
 $\matchkindDcl \field$
 
-- Then, *todo*
+- The declared match kind fields must not already exists in the type environment $\typEnv$. [($\lookupVarEnv \name$)][#lookup-env]
+- Let $\VVal \env$ be the same environment as $\env$, but with
+   + The variable environment $ \varEnv$ extended with the assignments of the match kind type $\matchkindTyp$ and $\less$ direction to match kind field names. [($\insertToVarEnv \var  \typ \dir $)][#extend-env]
+   + The constant environment $ \constEnv$ extended with the assignments of the match kind field names to themselves prefixed with $\mathsf{match\_kind}$. [($\insertToConstEnv \var \val $)][#extend-env]
+- Then, the declared match kind is well-formed and it updates the environment to $\VVal \env$. [($\updateEnv {\VVal \typEnv, \cdots}$)][#update-envs]
 
 ~ Begin InfRule
   \mprset {vskip = 0.9ex}
@@ -2874,7 +2895,9 @@ $\serEnumDcl {\typ} \typName \field \exp$
 
 $\typdefDcl \typ \typName$
 
-- Then, *todo*
+- The type $\typ$ must be well-formed.
+- Let the environment $\VVal \env$ be the same environment as $\env$, but with the type environment $ \typEnv$ extended with the assignment of type $\typ$ to $\typName$. [($\insertToTypEnv \typName \typ $)][#extend-env] 
+- Then, the type definition $\typdefDcl \typ \typName$ is well-formed and it updates the environment to $\VVal \env$. [($\updateEnv {\VVal \typEnv, \cdots}$)][#update-envs]
 
 ~ Begin InfRule
   % \mprset{vskip=0.9ex}
@@ -2888,7 +2911,11 @@ $\typdefDcl \typ \typName$
 
 $\typdefDcl \dcl \typName$
 
-- Then, *todo*
+- The declaration $\dcl$ must be well-formed and it updates the environment to $\VVal \env$.
+- Let $\name$ be the name used when declaring the declaration $\dcl$. [(*dcl_name*)][#dclName]
+- The type $\name$ must exist in the type environment $\VVal \env.\typEnv$. [($\lookupEnv {\VVal \env} \typEnv \name$)][#lookup-env]
+- Let the environment $\VVVal \env$ be the same environment as $\VVal\env$, but with the type environment $ \typEnv$ extended with the assignment of type $\typ$ to $\typName$. [($\insertToEnv {\VVal \env} \typEnv {\typName =\typ} $)][#extend-env] 
+- Then, the type definition $\typdefDcl \dcl \typName$ is well-formed and it updates the environment to $\VVVal \env$. [($\updateEnv {\VVal \typEnv, \cdots}$)][#update-envs]
 
 ~ Begin InfRule
   \mprset{vskip=0.7ex}
@@ -2896,7 +2923,7 @@ $\typdefDcl \dcl \typName$
      { \dclCheck \dcl {\VVal \env}\\\\
       \dclName \dcl = \name\\
       \lookupEnv {\VVal \env} \typEnv \name = \typ\\\\
-        \insertToTypEnv \typName {\typ} = \VVal \typEnv
+        \insertToEnv {\VVal \env} \typEnv {\typName =\typ} = \VVal \typEnv
        }
      { \dclCheck {\typdefDcl \dcl \typName} {\updateEnvWithEnv {\VVal \env} { \VVal \typEnv}}}}
      \quad (\typdefDclD)
@@ -2908,7 +2935,9 @@ $\newtypeDcl \typ \typName$
 
 *discuss: petr4 inserts newtyp t typ into the type env. however, here we have type syn env. so theorethically speaking we don't need to insert the newtype and we can just insert the type. the same goes for the next rule.*
 
-- Then, *todo*
+- The type $\typ$ must be well-formed.
+- Let the environment $\VVal \env$ be the same environment as $\env$, but with the type environment $ \typSynEnv$ extended with the assignment of type $\newTypeTyp \typ \typName$ to $\typName$. [($\insertToTypSynEnv \typName \typ $)][#extend-env] 
+- Then, the generative type definition $\newtypeDcl \typ \typName$ is well-formed and it updates the environment to $\VVal \env$. [($\updateEnv {\VVal \typEnv, \cdots}$)][#update-envs]
 
 ~ Begin InfRule
   % \mprset{vskip=0.9ex}
@@ -2924,7 +2953,12 @@ $\newtypeDcl \dcl \typName$
 
 *discuss: P4's syntax doesn't allow this. sec 7.6*
 
-- Then, *todo*
+- The declaration $\dcl$ must be well-formed and it updates the environment to $\VVal \env$.
+- Let $\name$ be the name used when declaring the declaration $\dcl$. [(*dcl_name*)][#dclName]
+- The type $\name$ must exist in the type environment $\VVal \env.\typEnv$. [($\lookupEnv {\VVal \env} \typEnv \name$)][#lookup-env]
+- Let the environment $\VVVal \env$ be the same environment as $\VVal\env$, but with the type environment $ \typSynEnv$ extended with the assignment of type $\newTypeTyp \typ \typName$ to $\typName$. [($\insertToEnv {\VVal \env} \typSynEnv {\typName =\newTypeTyp \typ \typName} $)][#extend-env] 
+- Then, the type definition $\typdefDcl \dcl \typName$ is well-formed and it updates the environment to $\VVVal \env$. [($\updateEnv {\VVal \typEnv, \cdots}$)][#update-envs]
+
 
 ~ Begin InfRule
   \mprset{vskip=0.7ex}
@@ -2932,7 +2966,7 @@ $\newtypeDcl \dcl \typName$
      { \dclCheck \dcl {\VVal \env}\\\\
       \dclName \dcl = \name\\
       \lookupEnv {\VVal \env} \typEnv \name = \typ\\\\
-        \insertToTypSynEnv \typName {\newTypeTyp \typ \typName} = \VVal \typSynEnv
+        \insertToEnv {\VVal \env} \typSynEnv \typName {\newTypeTyp \typ \typName} = \VVal \typSynEnv
        }
      { \dclCheck {\newtypeDcl \dcl \typName} {\updateEnvWithEnv {\VVal \env} { \VVal \typEnv}}}}
      \quad (\newtypeDclD)

@@ -219,6 +219,7 @@
 \newcommand{\envWhereCtxt}[1]{\envWhere {\ctxt = {#1}}}
 %% \newcommand{\insertToTypEnv}[1]{\typEnv[{#1} \ \mathsf{var}]}
 %% \newcommand{\insertToTypsEnv}[1]{\typEnv[\overline{{#1} \ \mathsf{var}}]}
+\newcommand{\insertToEnv}[3]{{#1}.{#2}[{#3}]}
 \newcommand{\suchThat}[2]{{#1}\ . \ {#2}}
 \newcommand{\tr}{\mathsf{true}}
 \newcommand{\fl}{\mathsf{false}}
@@ -382,6 +383,7 @@
 \newcommand{\constEnv}{\mathit{constantEnv}}%{\Sigma}
 \newcommand{\externEnv}{\mathit{externEnv}}%{\Xi}
 \newcommand{\env}{\mathit{env}}%{\Omega}
+\newcommand{\envDotEnv}[2]{{#1}.{#2}}
 %% \newcommand{\typEnv}{\Gamma}
 %% \newcommand{\constEnv}{\Sigma}
 \newcommand{\typ}{\tau}

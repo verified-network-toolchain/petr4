@@ -510,7 +510,7 @@ The surface IR has a single syntactic category for types, however, this syntacti
 |   | $\vert$ | $\parserTyp \typParam {\singleprm}$ | $\qquad \text{parsers}$ |
 |   | $\vert$ | $\controlTyp \typParam {\singleprm}$ | $\qquad \text{controls}$ |
 |   | $\vert$ | $\packageTyp \typParam {\singleprm}$ | $\qquad \text{packages}$ |
-|   | $\vert$ | $\newTypeTyp \typName {\typ}$ | $\qquad \text{reference}$ |
+|   | $\vert$ | $\newTypeTyp \typ \typName$ | $\qquad \text{reference}$ |
 |   | $\vert$ | $\cdots$ | |
 { .booktable }
 
@@ -1687,6 +1687,23 @@ $\packageTyp  \typVar \singleprm $
     \quad (\controlTypWellT)
 ~ End InfRule
 
+### Type Reference { #sec-type-ref-t }
+
+*discuss: with Ryan, why do we need this to be included in type syntactic category? My investigation resulted in petr4 does this because it doesn't have a separate type env for type defs and newtypes so it has to wrap the type name defined through newtype in a constructor when storing it. But since we have two separate envs for them here we can drop this type case.*
+
+$\newTypeTyp \typ \typName$
+
+- The type reference $\newTypeTyp \typ \typName$ is well-formed if the type $\typ$ is well-formed.
+
+~ Begin InfRule
+  {\inferrule
+    {\typWellFormed \typ
+      }
+    {\typWellFormed { \newTypeTyp \typ \typName}}
+  }
+    \quad (\newTypeT)
+~ End InfRule
+
 ### Function Types { #sec-func-t }
 
 $\funcType \kind \typParam {\prmDef } {\typ}$
@@ -1726,7 +1743,7 @@ $\setTyp \typ$
 
 $\externTyp \name$
 
-- The extern $\name$ must exist in the extern environment $\externEnv$ so that the extern type $\externTyp \name$ is well-formed. ([$\_\!\_\!\_$][#whatevs], [\lookupExternEnv \name$][#lookup-env])
+- The extern $\name$ must exist in the extern environment $\externEnv$ so that the extern type $\externTyp \name$ is well-formed. ([$\_\!\_\!\_$][#whatevs], [$\lookupExternEnv \name$][#lookup-env])
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -1737,29 +1754,12 @@ $\externTyp \name$
   \quad (\externT)
 ~ End InfRule
 
-### Type Reference { #sec-type-ref-t }
-
-*discuss: with Ryan, why do we need this to be included in type syntactic category? My investigation resulted in petr4 does this because it doesn't have a separate type env for type defs and newtypes so it has to wrap the type name defined through newtype in a constructor when storing it. But since we have two separate envs for them here we can drop this type case.*
-
-$\newTypeTyp \typName \typ$
-
-- The type reference $\newTypeTyp \typName \typ$ is well-formed if the type $\typ$ is well-formed.
-
-~ Begin InfRule
-  {\inferrule
-    {\typWellFormed \typ
-      }
-    {\typWellFormed { \newTypeTyp \typName \typ}}
-  }
-    \quad (\newTypeT)
-~ End InfRule
-
 ### Action Types { #sec-action-t }
 *reminder: the well-formedness follows Petr4. note that petr4 does some of the well-formed stuff in declaration so when you get to declaration this might change.*
 
 $\actionTyp {\prmDef} {\VVal {\prmDef}}$
 
-- The type of the data and control parameters must all be well-formed. [$\typs$][#projection]
+- The type of the data and control parameters must all be well-formed. [($\typs$)][#projection]
 - All the directions of the control parameters must be $\less$. [(*is_directionless*)][#isDirectionless]
 - Then, the action type $\actionTyp \singleprm \singleprmm$ is well-formed. 
 
@@ -2254,6 +2254,9 @@ $\bitWidth \int \width$
 
 ### Variables { #sec-var-type-checker }
 
+$\name$
+
+- Then, *todo*
 
 ### Array Access { #sec-array-access-type-checker }
 
@@ -2641,9 +2644,21 @@ $\cast {\typ} \exp$
 
 ### Type Member Operation { #sec-type-mem-type-checker }
 
+$\typMem \typName \field$
+
+- Then, *todo*
+
 ### Error Member Operation { #sec-err-mem-type-checker }
 
+$\errMem \field$
+
+- Then, *todo*
+
 ### Expression Member Operation { #sec-exp-mem-type-checker }
+
+$\expMem \exp \field$
+
+- Then, *todo*
 
 ### Conditional Operation { #sec-cond-type-checker }
 
@@ -2670,7 +2685,15 @@ $\ternary {\exp_1} {\exp_2} {\exp_3}$
 
 ### Function Call { #sec-func-call-type-checker }
 
+$\funcCall \exp {\typs} \args$
+
+- Then, *todo*
+
 ### Anonymous Instantiation { #sec-ano-inst-type-checker }
+
+$\instantiation {\typ} {\args}$
+
+- Then, *todo*
 
 ### Bit Mask Operation { #sec-bit-mask-type-checker }
 
@@ -3043,3 +3066,56 @@ $\packageTypDcl \typName \typVar \prmDef$
   \quad (\packageTypD)
 ~ End InfRule
 
+### Parser Declaration { #sec-parser-decl-type-checker }
+
+$\parserDcl \var \typVar { { {\prmDef}}} { {\VVal {\prmDef}}} \dcl \state$
+
+- Then, *todo*
+
+### Control Declaration { #sec-control-decl-type-checker }
+
+$\controlDcl \var \typVar { { {\prmDef}}} { {\VVal {\prmDef}}} \dcl \stmt$
+
+- Then, *todo*
+
+### Function Declaration { #sec-func-decl-type-checker }
+
+$\funcDcl {\typ}\var \typVar {\prmDef} \stmt$
+
+- Then, *todo*
+
+### Extern Function Declaration { #sec-extern-func-decl-type-checker }
+
+$\externFuncDcl {\typ}\var \typVar {\prmDef}$
+
+- Then, *todo*
+
+### Action Declaration { #sec-action-decl-type-checker }
+
+$\actionDcl \var {\prmDef} \stmt$
+
+- Then, *todo*
+
+### Table Declaration { #sec-table-decl-type-checker }
+
+$\tableDcl \var \prop$
+
+- Then, *todo*
+
+### Extern Object Declaration { #sec-extern-obj-decl-type-checker }
+
+$\externObjDcl \var \typVar \extMethod$
+
+- Then, *todo*
+
+### Constant Declaration { #sec-constant-decl-type-checker }
+
+### Initialized Instantiation Declaration { #sec-init-instantiate-decl-type-checker }
+
+### Instantiation Declaration { #sec-instantiate-decl-type-checker }
+
+### Initialized Local Variable Declaration { #sec-init-var-decl-type-checker }
+
+### Local Variable Declaration { #sec-var-decl-type-checker }
+
+### Parser Value Set Declaration { #sec-parser-value-set-decl-type-checker }

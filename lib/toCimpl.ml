@@ -4,17 +4,6 @@ open GCL
 open Cimpl
 open Form
 
-(*| GAssign (type : Typ.t) (lhs : lvalue) (rhs : rvalue)
-  | GSeq (g1 g2 : t)
-  | GChoice (g1 g2 : t)
-  | GAssume (phi : form)
-  | GAssert (phi : form)
-  | GExternVoid (e : string) (args : list (form + rvalue))
-  | GExternAssn (x : lvalue) (e : string) (args : list (form + rvalue))
-  | GTable (tbl : string)
-           (keys : list (rvalue * string))
-           (actions : list (string * ((list BitVec.t) * t))).
-*)
 let compile_lhs (l:string) : Cimpl.cvar =
   l
 
@@ -40,8 +29,8 @@ let rec compile_form (f : Form.t) : cexpr =
       let c2 = compile_form t2 in 
       begin 
          match lbop with 
-         | LOr -> CCompExpr (Or, c1, c2)
-         | LAnd -> CCompExpr (And, c1, c2)
+         | LOr -> CECompExpr (CBOr, c1, c2)
+         | LAnd -> CECompExpr (CBAnd, c1, c2)
          | LImp -> failwith "unimplemented"
          | LIff -> failwith "unimplemented"
       end 
@@ -92,7 +81,5 @@ let rec compile_gcl g : Cimpl.cstmt list =
 
 let compile_program (prsr,pipe) =
   let stmts = compile_gcl pipe in
-  let cdecl = Cimpl.(CDFunction(CTInt, "main", CBlock stmts))in
+  let cdecl = Cimpl.(CDFunction(CTInt, "main", CKBlock stmts))in
   Ok (Cimpl.CProgram [cdecl])
-
-    (* use STF and start with P4 program for testing *)

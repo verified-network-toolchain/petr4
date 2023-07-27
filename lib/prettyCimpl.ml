@@ -13,19 +13,19 @@ let format_cvar x =
 
 let format_bop (x : Cimpl.bop) =
   match x with 
-  | Cimpl.EQ -> text "="
-  | Cimpl.NE -> text "!="
-  | Cimpl.LT -> text "<"
-  | Cimpl.GT -> text ">"
-  | Cimpl.GTE -> text ">="
-  | Cimpl.LTE -> text "<="
-  | Cimpl.And -> text "&&"
-  | Cimpl.Or -> text "||"
-  | Cimpl.Add -> text "+"
-  | Cimpl.Sub -> text "-"
-  | Cimpl.Mul -> text "*"
-  | Cimpl.Div -> text "/"
-  | Cimpl.Mod -> text "%"
+  | Cimpl.CBEq -> text "="
+  | Cimpl.CBNe -> text "!="
+  | Cimpl.CBLt -> text "<"
+  | Cimpl.CBGt -> text ">"
+  | Cimpl.CBGte -> text ">="
+  | Cimpl.CBLte -> text "<="
+  | Cimpl.CBAnd -> text "&&"
+  | Cimpl.CBOr -> text "||"
+  | Cimpl.CBAdd -> text "+"
+  | Cimpl.CBSub -> text "-"
+  | Cimpl.CBMul -> text "*"
+  | Cimpl.CBDiv -> text "/"
+  | Cimpl.CBMod -> text "%"
   
 let format_uop (x : Cimpl.uop) = 
   match x with 
@@ -37,9 +37,9 @@ let rec format_cexp e =
      format_cvar x
   | Cimpl.CEInt n ->
      Int.to_string n |> text
-  | Cimpl.CCompExpr (b, c1, c2) -> 
+  | Cimpl.CECompExpr (b, c1, c2) -> 
     format_cexp c1  ++ space ++ format_bop b ++ space ++ format_cexp c2 ++ semi
-  | Cimpl.CUniExpr (u, c) -> 
+  | Cimpl.CEUniExpr (u, c) -> 
     format_uop u ++ space++ format_cexp c ++ semi
 
 let rec format_list s = 
@@ -64,7 +64,7 @@ and format_stmt s =
            
 let format_cblk b =
   match b with
-  | Cimpl.CBlock ss ->
+  | Cimpl.CKBlock ss ->
      text "{" ++
      newline ++
      text "    " ++  

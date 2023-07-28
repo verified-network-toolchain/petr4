@@ -1,0 +1,5 @@
+(library
+  (name test_gcl)
+  (libraries ANSITerminal core core_unix core_unix.sys_unix p4pp petr4 alcotest)
+  (inline_tests)
+  (preprocess (pps ppx_inline_test)))

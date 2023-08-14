@@ -2286,26 +2286,6 @@ and casts_ok ?(explicit = false) env original_types new_types =
      false
 
 (* Section 8.9 *)
-(*
-   NOTE: trans(t)_e,[vars] translate Surface.type.t to Typed.type.t.
-         I haven't decided if we want to mention that these are
-         even different. [CAN ASK NATE IN REPORT!]
-         e |- typ is type_well_formed judgement.
-         e |- typ1, typ2 is judgment form for explicit cast ok.
-
-   DISCUSS: saturating types twice. once in this function and another
-            time in the cast_ok but this function doesn't reaLLY need them
-            to be sat except for cast_ok. TODO after doc. 
-
-   e, c | exp ~~> exp', t', d
-   t'' = saturate(t')_e
-   t''' = trans(t'')_e,[]
-   t'''' = saturate(t''')_e
-   e |- t'''
-   e |- t', t'''
-   ------------------------------------------------------
-   e, c | (t) exp ~~>  (t''') exp', t''', directionless
-*)
 and type_cast env ctx tags typ expr : coq_Expression =
   let expr_typed = type_expression env ctx expr in
   let expr_type = saturate_type env (type_of_expr expr_typed) in
@@ -2433,9 +2413,8 @@ and type_expression_member_function_builtin env info typ (name: P4string.t) : co
   | _ -> None
 
 (* Sections 6.6, 8.14 *)
-(* look at spec. *)
 (* In cases where the field is being looked up and it is not found (i.e., None)
-   the builtin helper is called for ease maintanance of the code in case we
+   the builtin helper is called for easy maintanance of the code in case we
    need to extend builtin fields. *)
 and type_expression_member env ctx tags expr name : coq_Expression =
   let typed_expr = type_expression env ctx expr in

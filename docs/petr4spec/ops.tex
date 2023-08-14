@@ -85,7 +85,7 @@
 \newcommand*{\integerE}{\rn{Integer}\rE}
 \newcommand*{\bitStringE}{\rn{FixedLengthInt}\rE}
 \newcommand*{\signedIntE}{\rn{SignedInt}\rE}
-\newcommand*{\nameE}{\rn{Name}\rE}
+\newcommand*{\variableE}{\rn{Variable}\rE}
 \newcommand*{\arrayAccessE}{\rn{ArrayAccess}\rE}
 \newcommand{\headerStackIndexE}{\rn{HeaderStackIndex}\rE}
 %% \newcommand{\headerStackIndexE}{\rn{HeaderStackIndex}\rSep\rn{bit}\rE}
@@ -247,6 +247,7 @@
 %checker
 \newcommand{\expCheck}[2]{\env \vdash {#1} : {#2}}
 \newcommand{\expCheckEnv}[3]{{#1} \vdash {#2} : {#3}}
+\newcommand{\expCheckCtxt}[3]{\envWhereCtxt {#1} \vdash {#2} : {#3}}
 \newcommand{\prmCheck}[2]{{#1} \vdash {#2}}
 \newcommand{\dclCheck}[2]{\env \vdash {#1} \dashv {#2}}
 \newcommand{\allcastenv}[2]{\env \vdash {#1} \rightarrow {#2}}

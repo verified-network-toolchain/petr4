@@ -2258,6 +2258,15 @@ $\name$
 
 - Then, *todo*
 
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+       {\lookupVarEnv \name = (\typ, \whatevs)}
+       {\expCheck {\name} \typ}
+    }
+    \quad (\variableE)
+~ End InfRule
+
 ### Array Access { #sec-array-access-type-checker }
 
 Array access may take two forms, it can either access a header stack or a tuple. 
@@ -2648,17 +2657,139 @@ $\typMem \typName \field$
 
 - Then, *todo*
 
+~ Begin InfRule
+  \inferrule
+     {\lookupVarEnv {\typMem \typName \field} = (\typ, \whatevs)  }
+     {\expCheck {\typMem \typName \field}\typ  }
+     \quad (\typeMemE)
+~ End InfRule
+
+
 ### Error Member Operation { #sec-err-mem-type-checker }
 
 $\errMem \field$
 
 - Then, *todo*
 
+~ Begin InfRule
+  \inferrule
+     {\lookupVarEnv {\errMem \name} = (\errTyp, \whatevs)  }
+     {\expCheck {\errMem \name} \errTyp  }
+     \quad (\errMemE)
+~ End InfRule
+
 ### Expression Member Operation { #sec-exp-mem-type-checker }
 
 $\expMem \exp \field$
 
 - Then, *todo*
+- $\getFieldTyp \typ$ returns the fields and their types for a type that has some sort of fields in its declaration which includes the following types:
+  + struct
+  + header
+  + header union
+- *todo : add in*
+
+~ Begin InfRule
+  \mprset {vskip = 0.7 ex}
+    {\inferrule
+       { %\constEnv, \varEnv, \typEnv, \ctxt \vdash \\
+         \expCheck \exp \typ\\
+         \getFieldTyp \typ = \overline {\VVal\field:\VVal\typ}\\
+         (\field : {\VVVal\typ} ) \in (\overline{\VVal \field:\VVal \typ})
+       }
+     { \expCheck {\expMem \exp \field}  {\VVVal\typ} }}
+     \quad (\structMemE)
+~ End InfRule
+
+$\expMem \exp \field$
+
+- type specialization case
+- Then, *todo*
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+       {\expCheck \exp {\spcTyp {\typName} \typ}\\
+        \isExtern \typName\\\\
+        \lookupExternEnv \typName = }
+       {\expCheck {\expMem \exp \field} {blah}}
+    }
+    \quad (blah)
+~ End InfRule
+
+$\expMem \exp \field$
+
+- type extern case
+- Then, *todo*
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+    {\inferrule
+       {\expCheck \exp {\externTyp \name}\\
+        }
+       {\expCheck {\expMem \exp \field} {blah}}
+    }
+    \quad (blah)
+~ End InfRule
+
+
+$\expMem \exp \sizeMem$
+
+- Then, *todo*
+
+~ Begin InfRule
+  \mprset {vskip = 0.7 ex}
+  {\inferrule
+     {\expCheck \exp {\headerStackTyp \typ \size} }
+     {\expCheck {\expMem \exp \sizeMem} {\bitWidthTyp {32}}}
+  }
+  \quad (\sizeMemHeaderStackE)
+~ End InfRule
+
+$\expMem \exp \nextIndex$
+
+- *reminder: Petr4 doesn't have this*
+- Then, *todo*
+
+~ Begin InfRule
+  \mprset {vskip = 0.7 ex}
+  {\inferrule
+     {\expCheck \exp {\headerStackTyp \typ \size} }
+     {\expCheck {\expMem \exp \nextIndex}  {\bitWidthTyp {32}}}
+  }
+  \quad (\lastIndexMemHeaderStackE)
+~ End InfRule
+
+$\expMem \exp \nextOrLast$
+
+- *todo: helper next or last*
+- $\nextOrLast$ stands for either $\next$ or $\last$.
+- Then, *todo*
+
+
+~ Begin InfRule
+  \mprset {vskip = 0.7 ex}
+  {\inferrule
+     {\expCheck \exp {\headerStackTyp \typ \size}}
+     {\expCheckCtxt \expParserStateCtxt {\expMem \exp \nextOrLast} {\typ}}
+  }
+  \quad (\nextIndexMemHeaderStackE)
+~ End InfRule
+
+$\expMem \exp \lastIndex$
+
+- Then, *todo*
+
+
+~ Begin InfRule
+  \mprset {vskip = 0.7 ex}
+  {\inferrule
+     {\expCheck \exp {\headerStackTyp \typ \size} }
+     {\expCheckCtxt \expParserStateCtxt {\expMem \exp \lastIndex}{\bitWidthTyp {32}}}
+  }
+  \quad (\lastIndexMemHeaderStackE)
+~ End InfRule
+
 
 ### Conditional Operation { #sec-cond-type-checker }
 

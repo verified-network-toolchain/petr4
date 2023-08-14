@@ -6,9 +6,9 @@ Require Import Poulet4.Utils.AList.
 
 Section TRAFFIC_MANAGER.
 
-  Parameter Port: Type.
-  Parameter Header: Type.
-  Parameter port_eq_dec: EqDec Port eq.
+  Variable Port: Type.
+  Variable Header: Type.
+  Variable port_eq_dec: EqDec Port eq.
 
   Open Scope bool_scope.
   Open Scope Z_scope.
@@ -24,14 +24,14 @@ Section TRAFFIC_MANAGER.
       in_meta_level2_exclusion_id: Z;
     }.
 
-  Definition IngressPacket := (InputMetadata * Header)%type.
+  Definition IngressPacketDescriptor := (InputMetadata * Header)%type.
 
   Record OutputMetadata := {
       out_meta_egress_port: Port;
       out_meta_egress_rid: Z;
     }.
 
-  Definition EgressPacket := (OutputMetadata * Header)%type.
+  Definition EgressPacketDescriptor := (OutputMetadata * Header)%type.
 
   Record MulticastLevel1Node := {
       mcast_n1_rid: Z; (* A 16-bit replication id *)
@@ -56,8 +56,8 @@ Section TRAFFIC_MANAGER.
   Definition packet_replication
     (mcast_group: multicast_group)
     (excl_table: L2_exclusion_table)
-    (input: IngressPacket):
-    list EgressPacket :=
+    (input: IngressPacketDescriptor):
+    list EgressPacketDescriptor :=
     let (meta, header) := input in
     flat_map
       (fun n1 =>
@@ -81,10 +81,10 @@ Section TRAFFIC_MANAGER.
   Definition multicast_engine
     (mc_tbl: AList Z multicast_group (@eq Z))
     (excl_table: L2_exclusion_table)
-    (input: IngressPacket):
-    list EgressPacket :=
+    (input: IngressPacketDescriptor):
+    list EgressPacketDescriptor :=
     let (meta, header) := input in
-    let dup_packet (grp_idx: option Z): list EgressPacket :=
+    let dup_packet (grp_idx: option Z): list EgressPacketDescriptor :=
       match grp_idx with
       | None => nil
       | Some grp =>
@@ -96,7 +96,8 @@ Section TRAFFIC_MANAGER.
     (dup_packet meta.(in_meta_mcast_grp_a)) ++
       dup_packet meta.(in_meta_mcast_grp_b).
 
-  Definition unicast_engine (input: IngressPacket): option EgressPacket :=
+  Definition unicast_engine (input: IngressPacketDescriptor):
+    option EgressPacketDescriptor :=
     let (meta, header) := input in
     match meta.(in_meta_ucast_egress_port) with
     | None => None
@@ -108,8 +109,8 @@ Section TRAFFIC_MANAGER.
   Definition traffic_manager
     (mc_tbl: multicast_table)
     (excl_table: L2_exclusion_table)
-    (input: IngressPacket):
-    list EgressPacket :=
+    (input: IngressPacketDescriptor):
+    list EgressPacketDescriptor :=
     match unicast_engine input with
     | None => multicast_engine mc_tbl excl_table input
     | Some p => p :: multicast_engine mc_tbl excl_table input

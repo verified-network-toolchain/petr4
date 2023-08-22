@@ -34,9 +34,6 @@ run: build
 install: build
 	dune install
 
-ctest: build install
-	cd ccomp && dune exec -- petr4 c && gcc -o helloworld.o ccompiled.c -lgmp -lm
-
 claims: build
 	@test/claims.py
 
@@ -52,6 +49,7 @@ test: build
 
 clean:
 	dune clean
+	rm -f petr4.opam poulet4.opam poulet4_Ccomp.opam
 
 web:
 	dune build _build/default/web/web.bc.js --profile release && cp _build/default/web/web.bc.js web/html_build/

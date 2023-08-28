@@ -877,7 +877,7 @@ To be concrete, environments are all accumulated in one place and they are defin
 |   |  | $\typParEnv :  \typName \rightarrow \typ$ | $\qquad \text{type variables}$ | 
 |   |  | $\varEnv :  \name \rightarrow (\typ, \dir)$ | $\qquad \text{variables}$ |
 |   |  | $\constEnv :  \name \rightarrow \val$ | $\qquad \text{constants}$ | 
-|   |  | $\externEnv :  \name \rightarrow \externmethod$ | $\qquad \text{externs}$ | 
+|   |  | $\externEnv :  \name \rightarrow \externLookupRes$ | $\qquad \text{externs}$ | 
 |   |  | $\ctxt : \ctxtTyp\}$ | $\qquad \text{context}$ | 
 { .booktable }
 
@@ -1127,7 +1127,7 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ###### - $\hasPacketIn \typs$ is a predicate that returns true if there is at least one extern type $\externTyp \packetIn$. { -; font-weight: "normal"; id: hasPacketIn; label: "has_packet_in" }
 
-###### $\validParam \dir \typ \env$ is a predicate that returns true if under environment $\env$ a parameter with direction $\dir$ and type $\typ$ does not violate any of the conditions: { -; font-weight: "normal"; id: validParam; label: "valid_param" }
+###### - $\validParam \dir \typ \env$ is a predicate that returns true if under environment $\env$ a parameter with direction $\dir$ and type $\typ$ does not violate any of the conditions: { -; font-weight: "normal"; id: validParam; label: "valid_param" }
 
 + $\typ$ is well-formed under environment $\env$
 + if $\typ$ is an extern type then the direction must be $\less$
@@ -1167,7 +1167,7 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ###### - An underscore (that is, $\whatevs$) is used when we do not need to use some specific information returned to us in a rule. For example, $\lookupTypEnv \typName= \whatevs$ looks up the type name $\typName$ in the type environment $\typEnv$ but does not care about the type that is assigned to $\typName. Instead, it just cares if $\typName$ exists in the type environment. { -; font-weight: "normal"; id: whatevs; label: "whatevs" }
 
-###### - $getTypParams \typ$ is a function that returns the type parameters of a generic type $\typ$. The type $\typ$ can be one of the followings and in case of an extern the type parameters are looked up from the extern environment $\externEnv$ whereas for the rest of them the type parameters are part of the type declaration: { -; font-weight: "normal"; id: getTypParams; label: "get_type_params" }
+###### - $\getTypParams \typ$ is a function that returns the type parameters of a generic type $\typ$. The type $\typ$ can be one of the followings and in case of an extern the type parameters are looked up from the extern environment $\externEnv$ whereas for the rest of them the type parameters are part of the type declaration: { -; font-weight: "normal"; id: getTypParams; label: "get_type_params" }
 
 - package
 - control
@@ -1180,6 +1180,14 @@ The following notations are used in the definitions of the rules in the rest of 
 - extern
 
 ###### - $\getLength {\overline \synCat}$ is a function that returns the length of the list $ {\overline \synCat}$.  { -; font-weight: "normal"; id: getLength; label: "getLength" }
+
+###### - $\getFieldTyp \typ$ is a function that returns the fields and their types for struct, header, or header union type. { -; font-weight: "normal"; id: getFieldTyp; label: "getFieldTyp" }
+
+###### - The notation $(\name:\typ) \in (\overline {\VVal \name: \VVal \typ})$ states that $\name$ must exist in $\overline \name$ and it has the type $\typ$. { -; font-weight: "normal"; id: in; label: "in" }
+
+###### - $\isExtern \typName$ is a predicate that returns true only if the type $\typName$ is an extern. { -; font-weight: "normal"; id: isExtern; label: "isExtern" }
+
+###### - $\fullyInstantiated \typ$ is a predicate that returns true if the type $\typ$ is non-generic or if it is generic and is fully instantiated, that is, a type has been assigned to each and every one of its type variables. { -; font-weight: "normal"; id: fullyInstantiated; label: "fullyInstantiated" }
 
 ## Types { #sec-type-type-checker }
 
@@ -2256,7 +2264,7 @@ $\bitWidth \int \width$
 
 $\name$
 
-- Then, *todo*
+- Variable $\name$ is well-formed only if it exists in the environment $\varEnv$ and it has type $\typ$.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -2653,9 +2661,12 @@ $\cast {\typ} \exp$
 
 ### Type Member Operation { #sec-type-mem-type-checker }
 
+The membership operation can be used to access fields of types that contain feilds such as enums, struct, and headers.
+
 $\typMem \typName \field$
 
-- Then, *todo*
+- The $\typMem \typName \field$ must exists in the environment $\varEnv$ and let it have type $\typ$. [($\lookupVarEnv {\typMem \typName \field}$)][#lookup-env]
+- Then, the type memeber expression $\typMem \typName \field$ is well-formed with type $\typ$.
 
 ~ Begin InfRule
   \inferrule
@@ -2669,7 +2680,8 @@ $\typMem \typName \field$
 
 $\errMem \field$
 
-- Then, *todo*
+- The $\errMem \name$ must exists in the environment $\varEnv$ and it has error type. [($\lookupVarEnv {\errMem \name}$)][#lookup-env]
+- Then, the error memeber expression $\errMem \name$ is well-formed with error type.
 
 ~ Begin InfRule
   \inferrule
@@ -2682,17 +2694,15 @@ $\errMem \field$
 
 $\expMem \exp \field$
 
-- Then, *todo*
-- $\getFieldTyp \typ$ returns the fields and their types for a type that has some sort of fields in its declaration which includes the following types:
-  + struct
-  + header
-  + header union
-- *todo : add in*
+- The expression $\exp$ must be [well-formed][#sec-exp-type-checker] and let it have type $\typ$.
+- The type $\typ$ must be one of type struct, header, or header union and it has the fields $\overline {\VVal \field}$ with associating types $\overline {\VVal \typ}$. [(_getFieldTyp_)][#getFieldTyp]
+- The field $\field$ must exist in $\overline{\VVal \field:\VVal \typ}$ and let it have type $\VVVal \typ$. [($(\field : {\VVVal\typ} ) \in (\overline{\VVal \field:\VVal \typ})$)][#in]
+- Then, the membership expression $\expMem \exp \field$ is well-formed with type $\VVVal \typ$.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7 ex}
     {\inferrule
-       { %\constEnv, \varEnv, \typEnv, \ctxt \vdash \\
+       { 
          \expCheck \exp \typ\\
          \getFieldTyp \typ = \overline {\VVal\field:\VVal\typ}\\
          (\field : {\VVVal\typ} ) \in (\overline{\VVal \field:\VVal \typ})
@@ -2701,41 +2711,35 @@ $\expMem \exp \field$
      \quad (\structMemE)
 ~ End InfRule
 
-$\expMem \exp \field$
+$\expMem \exp \name$
 
-- type specialization case
-- Then, *todo*
+- The expression $\exp$ must be [well-formed][#sec-exp-type-checker] and let it have the specialized type $\spcTyp \typName \typ$.
+- The type specialization $\spcTyp \typName \typ$ must instantiate all type variabes defined for the generic type $\typName$. [(_fullyInstantiated_)][#fullyInstantiated]
+- The type $\typName$ must be an extern. [(_isExtern_)][#isExtern]
+- The extern $\typName$ must exist in the environment $\externEnv$ and let it have methods $\overline {\VVal \name}$ with types $\overline {\VVal \typ}$ and type variables $\typVars$.
+- *todo: updating the env should be reflected in finding the method in methods*
+- Then, the membership expression $\expMem \exp \name$ is well-formed with type $\VVVal \typ$.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
     {\inferrule
        {\expCheck \exp {\spcTyp {\typName} \typ}\\
+        \fullyInstantiated {\spcTyp {\typName} \typ}\\\\
         \isExtern \typName\\\\
-        \lookupExternEnv \typName = }
-       {\expCheck {\expMem \exp \field} {blah}}
-    }
-    \quad (blah)
-~ End InfRule
-
-$\expMem \exp \field$
-
-- type extern case
-- Then, *todo*
-
-~ Begin InfRule
-  \mprset {vskip = 0.7ex}
-    {\inferrule
-       {\expCheck \exp {\externTyp \name}\\
+        \lookupExternEnv \typName = \externLookupResGeneral {\VVal \name} {\VVal \typ} \typVars\\\\
+        \insertToTypParEnv {\typVars: \typs}\\
+        (\externMethodGeneral \name {\VVVal \typ}) \in (\externMethodsGeneral {\VVal \name} {\VVal \typ})
         }
-       {\expCheck {\expMem \exp \field} {blah}}
+       {\expCheck {\expMem \exp \name} {\VVVal \typ}}
     }
-    \quad (blah)
+    \quad (\externMemE)
 ~ End InfRule
 
 
 $\expMem \exp \sizeMem$
 
-- Then, *todo*
+- The expression $\exp$ must be [well-formed][#sec-exp-type-checker] and it has the header stack type $\headerStackTyp \typ \size$. 
+- Then, the membership expression $\expMem \exp \sizeMem$ is well-formed with type ${\bitWidthTyp {32}}$.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7 ex}
@@ -2749,7 +2753,8 @@ $\expMem \exp \sizeMem$
 $\expMem \exp \nextIndex$
 
 - *reminder: Petr4 doesn't have this*
-- Then, *todo*
+- The expression $\exp$ must be [well-formed][#sec-exp-type-checker] and it has the header stack type $\headerStackTyp \typ \size$. 
+- Then, the membership expression $\expMem \exp \nextIndex$ is well-formed with type ${\bitWidthTyp {32}}$.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7 ex}
@@ -2757,29 +2762,41 @@ $\expMem \exp \nextIndex$
      {\expCheck \exp {\headerStackTyp \typ \size} }
      {\expCheck {\expMem \exp \nextIndex}  {\bitWidthTyp {32}}}
   }
-  \quad (\lastIndexMemHeaderStackE)
+  \quad (\nextIndexMemHeaderStackE)
 ~ End InfRule
 
-$\expMem \exp \nextOrLast$
+$\expMem \exp \next$
 
-- *todo: helper next or last*
-- $\nextOrLast$ stands for either $\next$ or $\last$.
-- Then, *todo*
-
+- The expression $\exp$ must be [well-formed][#sec-exp-type-checker] and it has the header stack type $\headerStackTyp \typ \size$.
+- Then, under environment $\env$ with $\expParserStateCtxt$ context, the membership expression $\expMem \exp \next$ is well-formed with type $\typ$.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7 ex}
   {\inferrule
      {\expCheck \exp {\headerStackTyp \typ \size}}
-     {\expCheckCtxt \expParserStateCtxt {\expMem \exp \nextOrLast} {\typ}}
+     {\expCheckCtxt \expParserStateCtxt {\expMem \exp \next} {\typ}}
   }
-  \quad (\nextIndexMemHeaderStackE)
+  \quad (\nextMemHeaderStackE)
+~ End InfRule
+
+$\expMem \exp \last$
+
+- The expression $\exp$ must be [well-formed][#sec-exp-type-checker] and it has the header stack type $\headerStackTyp \typ \size$.
+- Then, under environment $\env$ with $\expParserStateCtxt$ context, the membership expression $\expMem \exp \last$ is well-formed with type $\typ$.
+
+~ Begin InfRule
+  \mprset {vskip = 0.7 ex}
+  {\inferrule
+     {\expCheck \exp {\headerStackTyp \typ \size}}
+     {\expCheckCtxt \expParserStateCtxt {\expMem \exp \last} {\typ}}
+  }
+  \quad (\lastMemHeaderStackE)
 ~ End InfRule
 
 $\expMem \exp \lastIndex$
 
-- Then, *todo*
-
+- The expression $\exp$ must be [well-formed][#sec-exp-type-checker] and it has the header stack type $\headerStackTyp \typ \size$.
+- Then, under environment $\env$ with $\expParserStateCtxt$ context, the membership expression $\expMem \exp \lastIndex$ is well-formed with type $\bitWidthTyp {32}$.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7 ex}
@@ -2822,9 +2839,33 @@ $\funcCall \exp {\typs} \args$
 
 ### Anonymous Instantiation { #sec-ano-inst-type-checker }
 
-$\instantiation {\typ} {\args}$
+An anonymous instantiation may occur over a generic or non-generic type. In the case of a generic type, all type variables must already be inferred when the expression is being passed to the type checker. 
+
+$\instantiation {\spcTyp {\typName} {\typ}} {\args}$
 
 - Then, *todo*
+
+~ Begin InfRule
+\mprset {vskip=0.7ex}
+   {\inferrule
+      % {\lookup}
+      {\expCheck {\instantiation {\spcTyp {\typName} {\typ}} {\args}} {someType}}
+      \quad (\instGenE)
+   }
+~ End InfRule
+
+$\instantiation {\typName} {\args}$
+
+- Then, *todo*
+
+~ Begin InfRule
+\mprset {vskip=0.7ex}
+   {\inferrule
+      {}
+      {\expCheck {\instantiation {\typName} {\args}} {someType}}
+      \quad (\instE)
+   }
+~ End InfRule
 
 ### Bit Mask Operation { #sec-bit-mask-type-checker }
 

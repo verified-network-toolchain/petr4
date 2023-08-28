@@ -2897,9 +2897,6 @@ and type_constructor_invocation env ctx info decl_name type_args args : P4light.
   args_typed, List.map ~f:snd type_params_args, ret
 
 (* Section 14.1 *)
-(*
-   look at spec
-*)
 and type_nameless_instantiation env ctx tags typ args : coq_Expression =
   match typ with
   | Type.SpecializedType { base; args = type_args; tags } ->

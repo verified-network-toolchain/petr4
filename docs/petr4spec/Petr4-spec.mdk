@@ -2835,42 +2835,6 @@ $\ternary {\exp_1} {\exp_2} {\exp_3}$
 ~ End InfRule
 
 
-### Function Call { #sec-func-call-type-checker }
-
-$\funcCall \exp {\typs} \args$
-
-- Then, *todo*
-
-### Anonymous Instantiation { #sec-ano-inst-type-checker }
-
-An anonymous instantiation may occur over a generic or non-generic type. In the case of a generic type, all type variables must already be inferred when the expression is being passed to the type checker. 
-
-$\instantiation {\spcTyp {\typName} {\typ}} {\args}$
-
-- Then, *todo*
-
-~ Begin InfRule
-\mprset {vskip=0.7ex}
-   {\inferrule
-      % {\lookup}
-      {\expCheck {\instantiation {\spcTyp {\typName} {\typ}} {\args}} {someType}}
-      \quad (\instGenE)
-   }
-~ End InfRule
-
-$\instantiation {\typName} {\args}$
-
-- Then, *todo*
-
-~ Begin InfRule
-\mprset {vskip=0.7ex}
-   {\inferrule
-      {}
-      {\expCheck {\instantiation {\typName} {\args}} {someType}}
-      \quad (\instE)
-   }
-~ End InfRule
-
 ### Bit Mask Operation { #sec-bit-mask-type-checker }
 
 $\mask {\exp_1} {\exp_2}$
@@ -3242,56 +3206,3 @@ $\packageTypDcl \typName \typVar \prmDef$
   \quad (\packageTypD)
 ~ End InfRule
 
-### Parser Declaration { #sec-parser-decl-type-checker }
-
-$\parserDcl \var \typVar { { {\prmDef}}} { {\VVal {\prmDef}}} \dcl \state$
-
-- Then, *todo*
-
-### Control Declaration { #sec-control-decl-type-checker }
-
-$\controlDcl \var \typVar { { {\prmDef}}} { {\VVal {\prmDef}}} \dcl \stmt$
-
-- Then, *todo*
-
-### Function Declaration { #sec-func-decl-type-checker }
-
-$\funcDcl {\typ}\var \typVar {\prmDef} \stmt$
-
-- Then, *todo*
-
-### Extern Function Declaration { #sec-extern-func-decl-type-checker }
-
-$\externFuncDcl {\typ}\var \typVar {\prmDef}$
-
-- Then, *todo*
-
-### Action Declaration { #sec-action-decl-type-checker }
-
-$\actionDcl \var {\prmDef} \stmt$
-
-- Then, *todo*
-
-### Table Declaration { #sec-table-decl-type-checker }
-
-$\tableDcl \var \prop$
-
-- Then, *todo*
-
-### Extern Object Declaration { #sec-extern-obj-decl-type-checker }
-
-$\externObjDcl \var \typVar \extMethod$
-
-- Then, *todo*
-
-### Constant Declaration { #sec-constant-decl-type-checker }
-
-### Initialized Instantiation Declaration { #sec-init-instantiate-decl-type-checker }
-
-### Instantiation Declaration { #sec-instantiate-decl-type-checker }
-
-### Initialized Local Variable Declaration { #sec-init-var-decl-type-checker }
-
-### Local Variable Declaration { #sec-var-decl-type-checker }
-
-### Parser Value Set Declaration { #sec-parser-value-set-decl-type-checker }

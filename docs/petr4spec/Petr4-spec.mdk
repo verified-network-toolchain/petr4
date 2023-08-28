@@ -1185,9 +1185,11 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ###### - The notation $(\name:\typ) \in (\overline {\VVal \name: \VVal \typ})$ states that $\name$ must exist in $\overline \name$ and it has the type $\typ$. { -; font-weight: "normal"; id: in; label: "in" }
 
-###### - $\isExtern \typName$ is a predicate that returns true only if the type $\typName$ is an extern. { -; font-weight: "normal"; id: isExtern; label: "isExtern" }
+###### - $\isExtern \typName$ is a predicate that returns true only if the type $\typName$ is an extern. { -; font-weight: "normal"; id: isExtern; label: "is_extern" }
 
-###### - $\fullyInstantiated \typ$ is a predicate that returns true if the type $\typ$ is non-generic or if it is generic and is fully instantiated, that is, a type has been assigned to each and every one of its type variables. { -; font-weight: "normal"; id: fullyInstantiated; label: "fullyInstantiated" }
+###### - $\fullyInstantiated \typ$ is a predicate that returns true if the type $\typ$ is non-generic or if it is generic and is fully instantiated, that is, a type has been assigned to each and every one of its type variables. { -; font-weight: "normal"; id: fullyInstantiated; label: "fully_instantiated" }
+
+###### - $\subTypVars \typ \env$ is a function that takes type $\typ$ and substitutes its type variabes with the types assigned to them in environment $\env$. { -; font-weight: "normal"; id: subTypVars; label: "sub_type_vars" }
 
 ## Types { #sec-type-type-checker }
 
@@ -2714,11 +2716,13 @@ $\expMem \exp \field$
 $\expMem \exp \name$
 
 - The expression $\exp$ must be [well-formed][#sec-exp-type-checker] and let it have the specialized type $\spcTyp \typName \typ$.
-- The type specialization $\spcTyp \typName \typ$ must instantiate all type variabes defined for the generic type $\typName$. [(_fullyInstantiated_)][#fullyInstantiated]
-- The type $\typName$ must be an extern. [(_isExtern_)][#isExtern]
+- The type specialization $\spcTyp \typName \typ$ must instantiate all type variabes defined for the generic type $\typName$. [(_fullyInstantiated_)][#fully\_instantiated]
+- The type $\typName$ must be an extern. [(_is\_extern_)][#isExtern]
 - The extern $\typName$ must exist in the environment $\externEnv$ and let it have methods $\overline {\VVal \name}$ with types $\overline {\VVal \typ}$ and type variables $\typVars$.
-- *todo: updating the env should be reflected in finding the method in methods*
-- Then, the membership expression $\expMem \exp \name$ is well-formed with type $\VVVal \typ$.
+- The method $\name$ must exist in $\externMethodsGeneral {\VVal \name} {\VVal \typ}$ and let it have type $\VVal \typ$. [($(\externMethodGeneral \name {\VVVal \typ}) \in (\externMethodsGeneral {\VVal \name} {\VVal \typ})$)][#in]
+- Let $\VVal \env$ be the same environment as $\env$, but with the type parameter environment extended with the assignment of types $\typs$ to type variables $\typVars$. [($\insertToTypParEnv {\typVars: \typs}$)][#extend-env]
+- Let $\VVVVal \typ$ be the result of substituting types for type variables in $\VVVal \typ$ under environment $\VVal \env$. [(_sub\_type\_vars_)][#subTypVars]
+- Then, the membership expression $\expMem \exp \name$ is well-formed with type $\VVVVal \typ$.
 
 ~ Begin InfRule
   \mprset {vskip = 0.7ex}
@@ -2727,10 +2731,10 @@ $\expMem \exp \name$
         \fullyInstantiated {\spcTyp {\typName} \typ}\\\\
         \isExtern \typName\\\\
         \lookupExternEnv \typName = \externLookupResGeneral {\VVal \name} {\VVal \typ} \typVars\\\\
-        \insertToTypParEnv {\typVars: \typs}\\
-        (\externMethodGeneral \name {\VVVal \typ}) \in (\externMethodsGeneral {\VVal \name} {\VVal \typ})
+        (\externMethodGeneral \name {\VVVal \typ}) \in (\externMethodsGeneral {\VVal \name} {\VVal \typ})\\
+        \subTypVars {\VVVal \typ} {\updateEnv {\insertToTypParEnv {\typVars: \typs}}} = \VVVVal \typ
         }
-       {\expCheck {\expMem \exp \name} {\VVVal \typ}}
+       {\expCheck {\expMem \exp \name} {\VVVVal \typ}}
     }
     \quad (\externMemE)
 ~ End InfRule

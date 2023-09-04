@@ -33,7 +33,6 @@ type error =
   | GenLocError
   | ToP4CubError of string
   | ToGCLError of string
-  | ToCLightError of string
   | ToCimplError of string
   (* not an error but an indicator to stop processing data *)
   | Finished
@@ -54,8 +53,6 @@ let error_to_string (e : error) : string =
     Printf.sprintf "top4cub error: %s" s
   | ToGCLError s ->
     Printf.sprintf "togcl error: %s" s
-  | ToCLightError s ->
-    Printf.sprintf "toclight error: %s" s
   | ToCimplError s ->
     Printf.sprintf "tocimpl error: %s" s
   | Finished ->
@@ -188,19 +185,7 @@ module MakeDriver (IO: DriverIO) = struct
        Format.eprintf "TODO: implement p4flat pretty printing.\n";
        Ok prog
 
- let ccompile cub =
-   match Poulet4_Ccomp.CCompSel.coq_Compile cub with
-   | Poulet4_Ccomp.Errors.OK c ->     
-     c
-   | Poulet4_Ccomp.Errors.Error (m) ->
-     match m with
-     | (Poulet4_Ccomp.Errors.MSG msg) ::[] ->
-       failwith (Base.String.of_char_list msg)
-     | _ ->
-       failwith ("unknown failure from Ccomp") 
-
  let to_gcl depth prog =
-   (*Poulet4.ToGCL.target,Poulet4.ToGCL.target*)
     let open Poulet4 in
     let gas = 100000 in
     let coq_gcl =
@@ -217,27 +202,7 @@ module MakeDriver (IO: DriverIO) = struct
   
   let flatten_declctx cub_ctx =
     Ok (Poulet4.ToP4cub.flatten_DeclCtx cub_ctx)
-  
-  let hoist_clight_effects prog =
-    Ok (Poulet4.Statementize.lift_program prog)
-
-  let to_clight prog =
-    let certd = List.map ~f:Compcertalize.topdecl_convert prog in
-    match Poulet4_Ccomp.CCompSel.coq_Compile certd with
-    | Poulet4_Ccomp.Errors.OK clight -> Ok clight
-    | Poulet4_Ccomp.Errors.Error m ->
-       match m with
-       | Poulet4_Ccomp.Errors.MSG msg :: [] ->
-          Error (ToCLightError (Base.String.of_char_list msg))
-       | _ ->
-          Error (ToCLightError ("Unknown failure in Ccomp"))
-  
-  let print_clight (out: Pass.output) prog = 
-    let (clight,_),_ = prog in
-    Poulet4_Ccomp.PrintClight.change_destination out.out_file;
-    Poulet4_Ccomp.PrintClight.print_if clight;    
-    Ok prog
-  
+    
   let to_gcl depth prog =
     let open Poulet4 in
     let gas = 100000 in
@@ -276,25 +241,10 @@ module MakeDriver (IO: DriverIO) = struct
     >>= print_p4light cfg
 
   let run_compiler (cfg: Pass.compiler_cfg) =
-    let size (prsr,pipe) =
-      (* tail recursive to avoid StackOverflow *)
-      let rec loop g acc = 
-        let open Poulet4.GCL.GCL in
-        match g with
-        | GSkip -> 1
-        | GSeq(g1,g2) | GChoice(g1,g2) -> loop g2 (loop g1 (acc + 1))
-        | GAssign _ -> 1
-        | GAssume _ | GAssert _ -> 1
-        | GExternVoid _ | GExternAssn _ -> 1
-        | GTable _ -> 1 in
-      loop pipe 0 in 
-    
     run_checker cfg.cfg_checker
     >>= to_p4cub cfg
-
     >>= to_p4flat cfg
     >>= print_p4flat cfg
-
     >>= begin fun prog ->
         match cfg.cfg_backend with
         | Skip -> Ok ()
@@ -303,22 +253,8 @@ module MakeDriver (IO: DriverIO) = struct
            >>= print_gcl gcl_output
            >>= fun x -> Ok ()
         | Run (CBackend {depth; c_output}) ->
-           let debug msg x =
-             Printf.eprintf "[cimpl] ";
-             Printf.eprintf "%s" msg;
-             Printf.eprintf "\n%!";
-             return x in
-           Ok prog 
-           >>= debug "Starting..." 
-           >>= debug "Converting to GCL..." 
-           >>= to_gcl depth
-           >>= fun gcl -> debug ("Converting GCL[" ^ (size gcl |> string_of_int) ^ "] to Cimpl...") gcl
-           >>= fun gcl -> debug ("GCL: " ^ PrettyGCL.to_string gcl ^ "\n\n") gcl
-
-           >>= to_cimpl
-           >>= debug "Pretty-printing Cimpl..."
+           to_cimpl prog
            >>= print_cimpl c_output
-           >>= debug "All done!"
            >>= fun x -> Ok ()
         end
 

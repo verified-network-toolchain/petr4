@@ -1,4 +1,3 @@
-
 Require Import Coq.Program.Basics.
 From Poulet4 Require Export P4cub.Syntax.AST
      Utils.P4Arith Utils.Envn

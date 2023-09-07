@@ -32,7 +32,6 @@ type error =
   | GenLocError
   | ToP4CubError of string
   | ToGCLError of string
-  | ToCLightError of string
   (* not an error but an indicator to stop processing data *)
   | Finished
 
@@ -52,8 +51,6 @@ let error_to_string (e : error) : string =
     Printf.sprintf "top4cub error: %s" s
   | ToGCLError s ->
     Printf.sprintf "togcl error: %s" s
-  | ToCLightError s ->
-    Printf.sprintf "toclight error: %s" s
   | Finished ->
     Printf.sprintf "error [Finished] (not actually an error)"
 
@@ -213,26 +210,6 @@ module MakeDriver (IO: DriverIO) = struct
   let flatten_declctx cub_ctx =
     Ok (Poulet4.ToP4cub.flatten_DeclCtx cub_ctx)
   
-  let hoist_clight_effects prog =
-    Ok (Poulet4.Statementize.lift_program prog)
-
-  let to_clight prog =
-    let certd = List.map ~f:Compcertalize.topdecl_convert prog in
-    match Poulet4_Ccomp.CCompSel.coq_Compile certd with
-    | Poulet4_Ccomp.Errors.OK clight -> Ok clight
-    | Poulet4_Ccomp.Errors.Error m ->
-       match m with
-       | Poulet4_Ccomp.Errors.MSG msg :: [] ->
-          Error (ToCLightError (Base.String.of_char_list msg))
-       | _ ->
-          Error (ToCLightError ("Unknown failure in Ccomp"))
-  
-  let print_clight (out: Pass.output) prog = 
-    let (clight,_),_ = prog in
-    Poulet4_Ccomp.PrintClight.change_destination out.out_file;
-    Poulet4_Ccomp.PrintClight.print_if clight;    
-    Ok prog
-
   let run_parser (cfg: Pass.parser_cfg) =
     preprocess cfg
     >>= lex cfg
@@ -262,12 +239,7 @@ module MakeDriver (IO: DriverIO) = struct
            >>= print_gcl gcl_output
            >>= fun x -> Ok ()
         | Run (CBackend cfg_ccomp) ->
-           flatten_declctx prog
-           >>= hoist_clight_effects
-           >>= print_p4cub cfg
-           >>= to_clight
-           >>= print_clight cfg_ccomp
-           >>= fun x -> Ok ()
+           Error (ToGCLError "CLight backend unsupported")
         end
 
   let run_interpreter (cfg: Pass.interpreter_cfg) =

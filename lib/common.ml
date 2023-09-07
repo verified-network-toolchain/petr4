@@ -16,6 +16,7 @@ module P4P4info = P4info
 open Core
 module P4info = P4P4info
 
+
 module type DriverIO = sig
   val red: string -> string
   val green: string -> string
@@ -32,6 +33,7 @@ type error =
   | GenLocError
   | ToP4CubError of string
   | ToGCLError of string
+  | ToCimplError of string
   (* not an error but an indicator to stop processing data *)
   | Finished
 
@@ -51,6 +53,8 @@ let error_to_string (e : error) : string =
     Printf.sprintf "top4cub error: %s" s
   | ToGCLError s ->
     Printf.sprintf "togcl error: %s" s
+  | ToCimplError s ->
+    Printf.sprintf "tocimpl error: %s" s
   | Finished ->
     Printf.sprintf "error [Finished] (not actually an error)"
 
@@ -181,17 +185,6 @@ module MakeDriver (IO: DriverIO) = struct
        Format.eprintf "TODO: implement p4flat pretty printing.\n";
        Ok prog
 
- let ccompile cub =
-   match Poulet4_Ccomp.CCompSel.coq_Compile cub with
-   | Poulet4_Ccomp.Errors.OK c ->     
-     c
-   | Poulet4_Ccomp.Errors.Error (m) ->
-     match m with
-     | (Poulet4_Ccomp.Errors.MSG msg) ::[] ->
-       failwith (Base.String.of_char_list msg)
-     | _ ->
-       failwith ("unknown failure from Ccomp") 
-
  let to_gcl depth prog =
     let open Poulet4 in
     let gas = 100000 in
@@ -209,7 +202,30 @@ module MakeDriver (IO: DriverIO) = struct
   
   let flatten_declctx cub_ctx =
     Ok (Poulet4.ToP4cub.flatten_DeclCtx cub_ctx)
-  
+
+  let to_gcl depth prog =
+    let open Poulet4 in
+    let gas = 100000 in
+    let coq_gcl =
+      V1model.gcl_from_p4cub TableInstr.instr true gas depth prog
+    in
+    begin match coq_gcl with
+    | Result.Error msg -> Error (ToGCLError msg)
+    | Result.Ok gcl    -> Ok gcl
+    end
+
+  let to_cimpl gcl = 
+    (* TODO: handle parser *)
+    let cimpl = ToCimpl.compile_program gcl in
+    match cimpl with 
+    | Ok x -> Ok x
+    | Error msg -> Error (ToCimplError ("Unexpected failure: " ^ msg))
+                   
+  let print_cimpl (out: Pass.output) prog =
+    Format.fprintf Format.str_formatter "%a" Pp.to_fmt (PrettyCimpl.format_program prog);
+    Out_channel.write_all out.out_file ~data:(Format.flush_str_formatter ());
+    Ok prog    
+
   let run_parser (cfg: Pass.parser_cfg) =
     preprocess cfg
     >>= lex cfg
@@ -227,10 +243,8 @@ module MakeDriver (IO: DriverIO) = struct
   let run_compiler (cfg: Pass.compiler_cfg) =
     run_checker cfg.cfg_checker
     >>= to_p4cub cfg
-
     >>= to_p4flat cfg
     >>= print_p4flat cfg
-
     >>= begin fun prog ->
         match cfg.cfg_backend with
         | Skip -> Ok ()
@@ -238,8 +252,10 @@ module MakeDriver (IO: DriverIO) = struct
            to_gcl depth prog
            >>= print_gcl gcl_output
            >>= fun x -> Ok ()
-        | Run (CBackend cfg_ccomp) ->
-           Error (ToGCLError "CLight backend unsupported")
+        | Run (CBackend {depth; c_output}) ->
+           to_cimpl prog
+           >>= print_cimpl c_output
+           >>= fun x -> Ok ()
         end
 
   let run_interpreter (cfg: Pass.interpreter_cfg) =
@@ -253,6 +269,7 @@ module MakeDriver (IO: DriverIO) = struct
                      input_port } ->
       let _ = Stf.evaler p4prog input_pkt_hex input_port (fun _ -> None) in
       Ok ()
+
 
   let run (cfg: Pass.cmd_cfg) =
     let open Pass in

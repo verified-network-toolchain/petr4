@@ -25,9 +25,11 @@ let parse_backend unroll_parsers output_gcl output_clight =
     let depth = Option.value_exn unroll_parsers ~message in
     let gcl_output = Pass.parse_output_exn gcl in
     Pass.Run (Pass.GCLBackend {depth; gcl_output})
-  | None, Some clight ->
-    let clight_output = Pass.parse_output_exn clight in
-    Pass.Run (Pass.CBackend clight_output)
+  | None, Some c ->
+    let message = "please provide a depth with -unroll-parsers when compiling to C" in
+    let depth = Option.value_exn unroll_parsers ~message in
+    let c_output = Pass.parse_output_exn c in
+    Pass.Run (Pass.CBackend {depth; c_output})
   | Some _, Some _ ->
     failwith "Can produce either C or GCL but not both."
   | None, None ->
@@ -84,7 +86,8 @@ let compiler_flags : Pass.compiler_cfg Command.Param.t =
     Pass.{ cfg_checker;
            cfg_p4cub   = parse_ext_flag output_p4cub;
            cfg_p4flat  = parse_ext_flag output_p4flat;
-           cfg_backend = parse_backend unroll_parsers output_gcl output_c; }
+           cfg_backend = parse_backend unroll_parsers output_gcl output_c;
+           }
   ]
 
 let interp_flags : Pass.interpreter_cfg Command.Param.t =

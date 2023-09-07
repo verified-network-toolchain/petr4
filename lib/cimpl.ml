@@ -20,12 +20,7 @@ type bop =
   | CBMod 
   
 type uop = 
-  | Neg
-
-type cvar = string
-  
-type uop = 
-  | Neg
+  | CUNeg
 
 type cexpr =
   | CEVar of cvar

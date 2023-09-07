@@ -37,10 +37,7 @@ type bop =
   | CBMod 
   
 type uop = 
-  | Neg
-
-type cvar =
-  string
+  | CUNeg
   
 type cexpr =
   | CEVar of cvar

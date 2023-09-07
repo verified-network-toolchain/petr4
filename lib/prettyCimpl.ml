@@ -29,7 +29,7 @@ let format_bop (x : Cimpl.bop) =
   
 let format_uop (x : Cimpl.uop) = 
   match x with 
-  | Cimpl.Neg -> text ""
+  | Cimpl.CUNeg -> text "-"
 
 let rec format_cexp e =
   match e with
@@ -61,18 +61,6 @@ and format_stmt s =
       ++ format_list cs1 ++ newline ++ text "}" ++ space ++ text "else" ++ 
       space ++ text "{" ++ newline ++ text "    " ++ format_list cs2 ++
       newline ++ text "}"++ semi)
-  | Cimpl.CAssign(x,e) -> box(format_cvar x ++
-                              space ++
-                              text "=" ++
-                              space ++
-                              format_cexp e ++
-                              semi)
-  | Cimpl.CSAssign(x,e) -> box(format_cvar x ++
-                               space ++
-                               text "=" ++
-                               space ++
-                               format_cexp e ++
-                               semi)
            
 let format_cblk b =
   match b with

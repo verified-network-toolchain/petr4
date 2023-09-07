@@ -24,9 +24,9 @@ let get_v1model_instances (prog:ToP4cub.coq_DeclCtx) =
   | Some Instantiate(_,_,_,_,[p;v;i;e;u;d]) ->
      (p,v,i,e,u,d)
   | Some _ ->
-     failwith "Unexpected error: main has wrong number of arguments"
+     failwith "Unexpected error: wrong number of arguments to 'main'"
   | None ->
-     failwith "Unexpected error: main not found"
+     failwith "Unexpected error: 'main' not found"
    
 let compile_program (prog:ToP4cub.coq_DeclCtx) : (cprog,string) result = 
   let p,v,i,e,u,d = get_v1model_instances prog in

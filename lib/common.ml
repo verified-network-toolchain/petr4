@@ -12,10 +12,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
 *)
-module P4P4info = P4info
 open Core
-module P4info = P4P4info
-
 
 module type DriverIO = sig
   val red: string -> string
@@ -219,7 +216,9 @@ module MakeDriver (IO: DriverIO) = struct
     let cimpl = ToCimpl.compile_program gcl in
     match cimpl with 
     | Ok x -> Ok x
-    | Error msg -> Error (ToCimplError ("Unexpected failure: " ^ msg))
+    | Error e ->
+      let msg = ToCimpl.string_of_error e in
+      Error (ToCimplError msg)
                    
   let print_cimpl (out: Pass.output) prog =
     Format.fprintf Format.str_formatter "%a" Pp.to_fmt (PrettyCimpl.format_program prog);

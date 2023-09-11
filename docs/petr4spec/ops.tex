@@ -124,8 +124,7 @@
 %% \newcommand*{\ternaryIntE}{\rn{Conditional}\rSep\rn{Int}\rE}
 \newcommand*{\funcCallE}{\rn{FunctionCall}\rE\rSep\rn{1}}
 \newcommand*{\funcCallNoTypeArgE}{\rn{FunctionCall}\rE\rSep\rn{2}}
-\newcommand*{\instGenE}{\rn{Instantiation}\rSep\rn{Generic}\rE}
-\newcommand*{\instE}{\rn{Instantiation}\rSep\rn{Non}\rSep\rn{Generic}\rE}
+\newcommand*{\instE}{\rn{Instantiation}\rE}
 \newcommand*{\maskE}{\rn{Mask}\rE}
 \newcommand*{\rangeE}{\rn{Range}\rE}
 
@@ -633,15 +632,17 @@
 \newcommand{\ifVoidTyp}[1]{\mathit{if\_void\_type}({#1})}
 \newcommand{\allowedTypeForVar}[1]{\mathit{is\_allowed\_type\_for\_variable}({#1})}
 \newcommand{\checkParamShadow}[2]{\mathit{check\_parameter\_shadowing}({#1}, {#2})}
-\newcommand{\match}[2]{\mathit{match}({#1},{#2})}
+%% \newcommand{\match}[2]{\mathit{match}({#1},{#2})}
 %% \newcommand{\zip}[2]{\mathit{zip} ({#1},{#2})}
-\newcommand{\matchParArg}[2]{\mathit{macth\_parameter\_argument}({#1},{#2})}
-\newcommand{\validatePars}[3]{\mathit{validate\_parameter}({#1})_{{#2},{#3}}}
-\newcommand{\validateParArg}[1]{\mathit{validate\_parmeter\_argument}({#1})}
-\newcommand{\maybe}[1]{{#1}_{\bot}}
-\newcommand{\castParArg}[1]{\mathit{cast\_parameter\_argument}({#1})}
-\newcommand{\callOK}[2]{\mathit{call\_ok}({#1},{#2})}
-\newcommand{\removeOptionalPars}[1]{\mathit{remove\_optional\_parameteres}({#1})}
+\newcommand{\matchParamsArgs}[2]{\mathit{macth\_parameters\_arguments}(\overline {#1}, \overline{#2})}
+\newcommand{\resolveOverload}[2]{\mathit{resolve\_overload}(\overline {#1}, \overline {#2})}
+\newcommand{\validParamsArgs}[2]{\mathit{valid\_parameters\_arguments}(\overline{#1})_{#2}}
+%% \newcommand{\validatePars}[3]{\mathit{validate\_parameter}({#1})_{{#2},{#3}}}
+%% \newcommand{\validateParArg}[1]{\mathit{validate\_parmeter\_argument}({#1})}
+%% \newcommand{\maybe}[1]{{#1}_{\bot}}
+%% \newcommand{\castParArg}[1]{\mathit{cast\_parameter\_argument}({#1})}
+%% \newcommand{\callOK}[2]{\mathit{call\_ok}({#1},{#2})}
+%% \newcommand{\removeOptionalPars}[1]{\mathit{remove\_optional\_parameteres}({#1})}
 \newcommand{\concatList}[2]{{#1}\ +\!+\ {#2}}
 \newcommand{\isDirectionless}[1]{\mathit{is\_directionless}({#1})}
 \newcommand{\whatevs}{\_\!\_}

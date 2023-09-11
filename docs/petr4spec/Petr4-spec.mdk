@@ -825,8 +825,6 @@ The type checker is defined over an _environment_, which collects relevant infor
 
 To be concrete, environments are all accumulated in one place and they are defined as the [record][#sec-aux-notation-ast] $\env$. 
 
-*discuss: context with ryan.*
-
 ~ Begin P4Syntax
 
 **Context:**
@@ -973,7 +971,7 @@ The typing rule introduced in the [formal notation section][#sec-formal-notation
 
 This document provides the type system defined in a declarative manner. That is, it only defines the constraints and not an algorithm. However, to implement an algorithm of such a type system one needs to understand how to stitch the rules of the type system together. 
 
-To illustrate this consider type checking the type $\enumTyp {\mathit{EtherType}} {\bitWidthTyp {16}} {\mathit{VLAN}, \mathit{MPLS}}$. In order for an algorithm to check if this type is well-formed or not it must implement the following steps:
+To illustrate this consider type checking the type $\enumTyp {\bitWidthTyp {16}} {\mathit{EtherType}}  {\mathit{VLAN}, \mathit{MPLS}}$. In order for an algorithm to check if this type is well-formed or not it must implement the following steps:
 
 1. Search the space of the judgments to find the one for the abstract syntax of the phrase. In our example, that is the judgment defined for the [types][#sec-ast-type] syntactic category.
 2. Next, search the rules to find the one that matches the constructor case of the phrase. In our example, the constructor case is a serializable enumeration type. Thus, the search is narrowed down to the rules defined for the [serializable enumeration types][#sec-ser-enum-t].
@@ -1005,7 +1003,7 @@ The $\serenumTypedefWellT$ excludes some of the phrases that $\serenumWellT$ wou
   \mprset {vskip = 0.7ex}
     {\inferrule
       {\mathit{type\_is\_name} (\typ) \\
-       \lookupTypSynEnv {\VVal \typName} = \VVal \typ \\
+       \lookupTypSynEnv {\VVal \typName} = \VVal \typ \\\\
        \typWellFormed {\enumTyp {\VVal \typ} \typName \fields}
       }
       {\typWellFormed {\enumTyp {\typ} \typName \fields}}
@@ -1028,7 +1026,7 @@ In this document, we use the first approach, that is, using pattern matching in 
 
 Back to our example, first, the $\serenumTypedefWellT$ rule is checked against our phrase but it does not match since our phrase's underlying type is $\bitWidthTyp {16}$ and not a name. Then, the $\serenumWellT$ rule is checked against our phrase and it matches. So this rule is picked and the algorithm continues.
 
-4. Now that a rule has been picked, the premises of it must be checked. If all the premises hold then the phrase is well-formed, otherwise it is not. In our example, the predicates $\isWidthInt {\bitWidthTyp {16}}$ and $\distinct {\mathit{VLAN}, \mathit{MPLS}}$ hold. In order to check if the premise $\typWellFormed {\bitWidthTyp {16}}$ holds or not, we need to do all the previous steps for the phrase $\bitWidthTyp {16}$. It is easy to see that the [$\bitWidthT$ rule][#sec-unsigned-int-t] matches this phrase and that all the premises hold: $\expCheck {16} {\integerTyp}$, $\compileTimeEval {16} = 16$, and $0 \leq 16$. Thus, the predicate $\typWellFormed {\bitWidthTyp {16}}$ also holds. Hence, the phrase $\enumTyp {\mathit{EtherType}} {\bitWidthTyp {16}} {\mathit{VLAN}, \mathit{MPLS}}$ is well-formed. The successful process of this step can be demonstrated in a _derivation tree_. The derivation tree of our example phrase is shown below:
+4. Now that a rule has been picked, the premises of it must be checked. If all the premises hold then the phrase is well-formed, otherwise it is not. In our example, the predicates $\isWidthInt {\bitWidthTyp {16}}$ and $\distinct {\mathit{VLAN}, \mathit{MPLS}}$ hold. In order to check if the premise $\typWellFormed {\bitWidthTyp {16}}$ holds or not, we need to do all the previous steps for the phrase $\bitWidthTyp {16}$. It is easy to see that the [$\bitWidthT$ rule][#sec-unsigned-int-t] matches this phrase and that all the premises hold: $\expCheck {16} {\integerTyp}$, $\compileTimeEval {16} = 16$, and $0 \leq 16$. Thus, the predicate $\typWellFormed {\bitWidthTyp {16}}$ also holds. Hence, the phrase $\enumTyp  {\bitWidthTyp {16}} {\mathit{EtherType}} {\mathit{VLAN}, \mathit{MPLS}}$ is well-formed. The successful process of this step can be demonstrated in a _derivation tree_. The derivation tree of our example phrase is shown below:
 
 ~ Begin InfRule
 \mprset {vskip = 0.9ex}
@@ -1040,7 +1038,7 @@ Back to our example, first, the $\serenumTypedefWellT$ rule is checked against o
     \\\\ \isWidthInt {\bitWidthTyp {16}}
     \\\\ \distinct {\mathit{VLAN}, \mathit{MPLS}}
     }
-   {\typWellFormed {\enumTyp {\mathit{EtherType}} {\bitWidthTyp {16}} {\mathit{VLAN}, \mathit{MPLS}}}} (\serenumWellAltT)
+   {\typWellFormed {\enumTyp {\bitWidthTyp {16}} {\mathit{EtherType}} {\mathit{VLAN}, \mathit{MPLS}}}} (\serenumWellAltT)
 ~ End InfRule
 
 5. At any point, if no match is found or if a premise does not hold then the search fails which concludes that the phrase is not well-formed.
@@ -1099,8 +1097,8 @@ The following notations are used in the definitions of the rules in the rest of 
    * $\integerTyp$
    * $\enumTypDef$
    * $\enumTypNoTypDef$
-   * $\headerTyps \typParam \field {\surfaceTyp}$
-   * $\headerUnionTyps \typParam \field {\surfaceTyp}$
+   * $\headerTyps \typParam \field {\typ}$
+   * $\headerUnionTyps \typParam \field {\typ}$
    * $\structTyps \typParam \field \typ$
 
 ###### - $\concatCond {\typ_1} {\typ_2}$ is a function that determines the type of a concatenation expression based on the type of its left operand: { -; font-weight: "normal"; id: concatCond; label: "concat_type" }
@@ -1187,9 +1185,15 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ###### - $\isExtern \typName$ is a predicate that returns true only if the type $\typName$ is an extern. { -; font-weight: "normal"; id: isExtern; label: "is_extern" }
 
-###### - $\fullyInstantiated \typ$ is a predicate that returns true if the type $\typ$ is non-generic or if it is generic and is fully instantiated, that is, a type has been assigned to each and every one of its type variables. { -; font-weight: "normal"; id: fullyInstantiated; label: "fully_instantiated" }
+###### - $\fullyInstantiated \typ$ is a predicate that returns true if the type $\typ$ is non-generic or if it is generic and is fully instantiated, that is, a type has been assigned to each of its type variables. { -; font-weight: "normal"; id: fullyInstantiated; label: "fully_instantiated" }
 
-###### - $\subTypVars \typ \env$ is a function that takes type $\typ$ and substitutes its type variabes with the types assigned to them in environment $\env$. { -; font-weight: "normal"; id: subTypVars; label: "sub_type_vars" }
+###### - $\subTypVars \typ \env$ is a function that takes type $\typ$ and substitutes its type variabes with the types assigned to them in environment $\env$. If $\typ$ does not contain any type variables, that is, it is not generic, $\subTypVars \typ \env$ will return $\typ$ itself. { -; font-weight: "normal"; id: subTypVars; label: "sub_type_vars" }
+
+###### - P4 allows for overloading of functions and constructors. Thus, $\resolveOverload \typ \arg$ is a function resolves the overload by taking a list of types $\typs$ and a list of arguments $\args$. It returns the type that its parameters successfully match arguments $\args$ either by count or name. { -; font-weight: "normal"; id: resolveOverload; label: "resolve_overload" }
+
+###### - $\matchParamsArgs \prmDef \arg$ is a function that tries to match parameters $\prmDefs$ and arguments $\args$ either based on their positions or names. Note that P4 does not allow for mix and match of passing arguments by names and positions. If successful, this function returns a list of pairs of parameter and argument. { -; font-weight: "normal"; id: matchParamsArgs; label: "match_parameters_arguments" }
+
+###### - $\validParamsArgs {\prmDef, \arg} \env$ is a predicate that returns true if all the following conditions hold: { -; font-weight: "normal"; id: validParamsArgs; label: "valid_parameters_arguments" }
 
 ## Types { #sec-type-type-checker }
 
@@ -2716,7 +2720,7 @@ $\expMem \exp \field$
 $\expMem \exp \name$
 
 - The expression $\exp$ must be [well-formed][#sec-exp-type-checker] and let it have the specialized type $\spcTyp \typName \typ$.
-- The type specialization $\spcTyp \typName \typ$ must instantiate all type variabes defined for the generic type $\typName$. [(_fullyInstantiated_)][#fully\_instantiated]
+- The type specialization $\spcTyp \typName \typ$ must instantiate all type variabes defined for the generic type $\typName$. [(_fully\_instantiated_)][#fullyInstantiated]
 - The type $\typName$ must be an extern. [(_is\_extern_)][#isExtern]
 - The extern $\typName$ must exist in the environment $\externEnv$ and let it have methods $\overline {\VVal \name}$ with types $\overline {\VVal \typ}$ and type variables $\typVars$.
 - The method $\name$ must exist in $\externMethodsGeneral {\VVal \name} {\VVal \typ}$ and let it have type $\VVal \typ$. [($(\externMethodGeneral \name {\VVVal \typ}) \in (\externMethodsGeneral {\VVal \name} {\VVal \typ})$)][#in]
@@ -2834,6 +2838,37 @@ $\ternary {\exp_1} {\exp_2} {\exp_3}$
      \quad (\ternaryE)}
 ~ End InfRule
 
+### Anonymous Instantiation { #sec-ano-inst-type-checker }
+
+An anonymous instantiation may occur over a generic or non-generic type. In the case of a generic type, all type variables must already be inferred when the expression is being passed to the type checker. However, note that since type inference has already occured, the type checker uses the same set of conditions to ensure such an expression is well-formed.
+
+$\instantiation {\spcTyp {\typName} {\typ}} {\args}$
+
+- The type specialization $\spcTyp \typName \typ$ must instantiate all type variabes defined for the generic type $\typName$[(_fully\_instantiated_)][#fullyInstantiated]
+- All arguments of the instantiation must be compile-time-known. [(_compile\_time\_known_)][#compTimeKnown]
+- The type name $\typName$ must exist in the type environment and it must be a constructor type. Let $\overline {\constructorTyp  \typParam {\prmDef} {\VVal\typ}}$ be the list of constructor types that are assigned to $\typName$ in the type environment. [($\lookupTypEnv \typName$)][#lookup-env]
+- Let $\constructorTyp  {\VVal \typParam} {\VVal \prmDef} {\VVVal \typ}$ be the constructor type that matches the passed arguments $\args$. [(_resolve\_overload_)][#resolveOverload]
+- Let $(\overline {\VVVal \prmDef, \VVal \arg})$ be the list of pairs of parameters and their corresponding arguments. [(_match\_parameters\_arguments_)][#matchParamsArgs]
+- Let $\VVal \env$ be the same environment as $\env$, but with the type parameter environment extended with the assignment of types $\typs$ to type variables $\overline {\VVal\typVar}$. [($\insertToTypParEnv {\overline {\VVal \typVar}: \typs}$)][#extend-env]
+- The parameters and their assigned arguments must be valid. [(_valid\_parameters\_arguments_)][#validParamsArgs]
+- Let $\VVVVal \typ$ be the result of substituting types for type variables in $\VVVal \typ$ under environment $\VVal \env$. [(_sub\_type\_vars_)][#subTypVars]
+- Then, the anonymous instantiation $\instantiation {\spcTyp {\typName} {\typ}} {\args}$ is well-formed with type $\VVVVal \typ$.
+
+~ Begin InfRule
+\mprset {vskip=1ex}
+   {\inferrule [\instE] 
+      {\fullyInstantiated {\spcTyp \typName \typ}\\\\
+       \compTimeKnown \args\\\\
+       \lookupTypEnv \typName = \overline {\constructorTyp  \typParam {\prmDef} {\VVal\typ}}\\
+       \resolveOverload  {\constructorTyp  \typParam {\prmDef} \typ} \arg = \constructorTyp  {\VVal \typParam} {\VVal \prmDef} {\VVVal \typ}\\
+       \matchParamsArgs {\VVal \prmDef} \arg = (\overline {\VVVal \prmDef, \VVal \arg})\\
+       \updateEnv {\insertToTypParEnv {\overline {\VVal \typVar}: \typs}} = \VVal \env\\\\
+       \validParamsArgs {\VVVal \prmDef, \VVal \arg} {\VVal \env}\\\\
+       \subTypVars {\VVVal \typ} {\VVal \env} = \VVVVal \typ
+      }
+      {\expCheck {\instantiation {\spcTyp {\typName} {\typ}} {\args}} {\VVVVal \typ}}
+   }
+~ End InfRule
 
 ### Bit Mask Operation { #sec-bit-mask-type-checker }
 

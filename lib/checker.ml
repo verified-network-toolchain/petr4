@@ -871,20 +871,12 @@ and compile_time_known_expr (env: Checker_env.t) (expr: P4light.coq_Expression) 
     | _ -> false
 
 (*
-  judgment rule is as follows. it type check exp under environment e and context c.
-  it also infers type as well as doing a pass from types to prog. 
+  judgment rule of expression typing is:
 
-   e, c |- exp ~~> prog_exp
+  env, ctx |- exp ~~> ss_exp, type, dir 
 
-   Note: prog_exp is a record with three fields: expr, typ, dir.
-   For simplicity, I omitted the name of the fields but the order is kept.
-   Also, for simplicity, I omitted tags.
-   Data constructors start with a capital letter.
-   Where possible data constructors are omitted and instead the name of the
-   expression implies the data constructor, e.g., str indicates an expression
-   that is a string.
-
-   e, c |- True {tags} ~~> {True {tags}; Bool; Directionless; tags}
+  It does type checking and type inference. generates an expression in surface syntax
+  written in Coq. 
 
 *)
 

@@ -4,7 +4,7 @@ Section Util.
   Context {K V: Type}
           {R : Relation_Definitions.relation K}
           `{HKR: EqDec K R}.
-  
+
   Lemma get_equiv : forall (kvs : list (K * V)) k₁ k₂,
       k₁ === k₂ -> get kvs k₁ = get kvs k₂.
   Proof.
@@ -47,7 +47,7 @@ Section Util.
     destruct hget as (n & k & hxk & hnth).
     exists k; split; eauto using nth_error_In.
   Qed.
-  
+
   Lemma AList_get_some_split : forall l (x : K) (v : V),
       AList.get l x = Some v -> exists k l₁ l₂,
         x === k /\ l = l₁ ++ (k, v) :: l₂ /\ AList.get l₁ x = None.
@@ -64,7 +64,7 @@ Section Util.
       rewrite get_neq_cons by assumption.
       repeat split; auto.
   Qed.
-  
+
   Lemma AList_set_some_split : forall l l' (x : K) (v' : V),
       AList.set l x v' = Some l' -> exists k v l₁ l₂,
         x === k /\ l = l₁ ++ (k, v) :: l₂ /\ l' = l₁ ++ (x, v') :: l₂ /\ AList.get l₁ x = None.
@@ -83,6 +83,18 @@ Section Util.
         exists c, v, ((z, b) :: l1), l2; cbn.
         rewrite get_neq_cons by assumption.
         repeat split; auto.
+  Qed.
+
+  Lemma AList_set_app_cons_some: forall l1 (k1 k2: K) (v1 v2: V) l2,
+      k2 === k1 ->
+      AList.get l1 k1 = None ->
+      AList.set (l1 ++ (k1, v1) :: l2) k2 v2 = Some (l1 ++ (k2, v2) :: l2).
+  Proof.
+    induction l1; intros; simpl.
+    - destruct (HKR k2 k1); auto. contradiction.
+    - destruct a as [k' v']. destruct (HKR k2 k').
+      + rewrite H in e. rewrite get_eq_cons in H0; auto. discriminate.
+      + rewrite H in c. rewrite get_neq_cons in H0; auto. rewrite IHl1; auto.
   Qed.
 
   (*Lemma set_some_get : forall l l' (k : K) (v : V),
@@ -188,6 +200,12 @@ Section ALL.
     unfold all_values in *.
     auto using Forall2_length_eq_app.
   Qed.
+
+  Lemma all_values_app_inv: forall us1 us2 ws1 ws2,
+      all_values P us1 ws1 -> all_values P us2 ws2 ->
+      all_values P (us1 ++ us2) (ws1 ++ ws2).
+  Proof. intros. apply Forall2_app; assumption. Qed.
+
 End ALL.
 
 Section Rel.
@@ -284,7 +302,7 @@ Section Rel.
     generalize dependent entries'. induction entries; intros.
     - inv H0. reflexivity.
     - inv H0. destruct a, y. cbn. inv H3. f_equal. auto.
-  Qed.  
+  Qed.
 
   Section Relate.
     Variable Q : A -> B -> Prop.
@@ -322,7 +340,7 @@ Section Rel.
       rewrite Forall2_map_both,Forall2_eq in h.
       auto using map_fst_key_unique.
     Qed.
-    
+
     Lemma key_unique_all_values_split :
       forall kas1 kas2 kbs1 kbs2 (ka kb : K) (a : A) (b : B),
         ka === kb ->

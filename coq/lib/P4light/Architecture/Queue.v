@@ -1,164 +1,155 @@
 Require Import Coq.Lists.List.
+Require Import Coq.micromega.Lia.
 Import ListNotations.
 
 Section Queue.
 
   Context {A : Type}.
 
-  Definition double_stack := (list A * list A)%type.
+  Inductive queue := empty_queue | nonempty_queue: list A -> A -> list A -> queue.
 
-  Definition wf_queue (ds: double_stack): Prop :=
-    match ds with
-    | ([], []) => True
-    | (_, []) => False
-    | (_, _) => True
+  Definition enque (x: A) (que: queue): queue :=
+    match que with
+    | empty_queue => nonempty_queue [] x []
+    | nonempty_queue front mid rear => nonempty_queue front mid (x :: rear)
     end.
-
-  Definition queue := {x: double_stack | wf_queue x}.
-
-  Definition empty_queue: queue := exist _ ([], []) I.
-
-  Definition enque' (x: A) (ds: double_stack) :=
-    match ds with
-    | ([], []) => ([], [x])
-    | (s1, s2) => (x :: s1, s2)
-    end.
-
-  Ltac break_match :=
-    match goal with
-    | [ H : context [ match ?X with _ => _ end ] |- _ ] => destruct X eqn:?; simpl
-    | [ |- context [ match ?X with _ => _ end ] ] => destruct X eqn:?; simpl
-    end.
-
-  Lemma wf_enque': forall x q, wf_queue q -> wf_queue (enque' x q).
-  Proof.
-    intros. destruct q as [s1 s2]. simpl.
-    repeat break_match; try reflexivity. inversion H.
-  Qed.
-
-  Definition enque (x: A) (que: queue): queue.
-  Proof.
-    destruct que as [q wfq].
-    exists (enque' x q).
-    apply wf_enque'. exact wfq.
-  Defined.
 
   Definition front (que: queue): option A :=
     match que with
-    | exist _ (_, []) _ => None
-    | exist _ (_, x :: s) _ => Some x
+    | empty_queue => None
+    | nonempty_queue [] mid _ => Some mid
+    | nonempty_queue (v :: _) _ _ => Some v
+    end.
+
+  Fixpoint rev_aux (l: list A) (result: list A): list A :=
+    match l with
+    | [] => result
+    | v :: rest => rev_aux rest (v :: result)
+    end.
+
+  (** A faster implementation of rev *)
+  Definition rev' (l: list A) : list A := rev_aux l [].
+
+  Definition deque (que: queue): queue :=
+    match que with
+    | empty_queue => empty_queue
+    | nonempty_queue [] _ [] => empty_queue
+    | nonempty_queue [] _ (v :: rear) => nonempty_queue (rev' rear) v []
+    | nonempty_queue (_ :: front) mid rear => nonempty_queue front mid rear
     end.
 
   Definition is_empty (que: queue): bool :=
     match que with
-    | exist _ (_, []) _ => true
+    | empty_queue => true
     | _ => false
     end.
 
-  Definition queue_rep_eq (que: queue) (l: list A) : Prop :=
+  Definition list_rep (que: queue): list A :=
     match que with
-    | exist _ (s1, s2) _ => s2 ++ rev s1 = l
+    | empty_queue => nil
+    | nonempty_queue front mid rear => front ++ mid :: rev' rear
     end.
 
-  Notation "q =ₖ l" := (queue_rep_eq q l) (at level 80, no associativity).
-
-  Definition deque' (que: double_stack): double_stack :=
-    match que with
-    | (_, []) => ([], [])
-    | (s, [x]) => ([], rev s)
-    | (s1, x :: s2) => (s1, s2)
-    end.
-
-  Lemma wf_deque': forall q, wf_queue q -> wf_queue (deque' q).
-  Proof.
-    intros. destruct q as [s1 s2]. simpl.
-    repeat break_match; try reflexivity.
-  Qed.
-
-  Definition deque (que: queue): queue.
-  Proof.
-    destruct que as [q wfq].
-    exists (deque' q).
-    apply wf_deque'. assumption.
-  Defined.
-
-  Lemma empty_queue_nil: empty_queue =ₖ [].
+  Lemma empty_queue_rep_nil: list_rep empty_queue = [].
   Proof. reflexivity. Qed.
 
-  Lemma queue_front_none: forall q, q =ₖ [] <-> front q = None.
-  Proof.
-    intros. destruct q as [[s1 s2] wfq]. simpl. split; intros.
-    - apply app_eq_nil in H. destruct H. subst s2. reflexivity.
-    - simpl in *. repeat break_match; try reflexivity; inversion H.
-      exfalso; assumption.
-  Qed.
-
-  Lemma queue_front_some: forall q x l, q =ₖ x :: l -> front q = Some x.
-  Proof.
-    intros. destruct q as [[s1 s2] wfq]. simpl. red in H.
-    destruct s1, s2; simpl in *.
-    - inversion H.
-    - inversion H. reflexivity.
-    - exfalso; assumption.
-    - inversion H. reflexivity.
-  Qed.
-
-  Lemma queue_front_some_iff: forall q x, front q = Some x <-> exists l, q =ₖ x :: l.
+  Lemma is_empty_true_iff: forall q, is_empty q = true <-> q = empty_queue.
   Proof.
     intros; split; intros.
-    - destruct q as [[s1 s2] wfq]. destruct s1, s2; simpl in *; inversion H.
-      + exists s2. rewrite app_nil_r. reflexivity.
-      + exists (s2 ++ rev s1 ++ [a]). reflexivity.
+    - destruct q; auto. simpl in H. discriminate.
+    - subst. reflexivity.
+  Qed.
+
+  Lemma queue_rep_nil_iff: forall q, list_rep q = [] <-> q = empty_queue.
+  Proof.
+    intros; split; intros.
+    - destruct q; auto. simpl in H. symmetry in H.
+      apply app_cons_not_nil in H. contradiction.
+    - subst. reflexivity.
+  Qed.
+
+  Lemma queue_rep_is_empty_iff: forall q, is_empty q = true <-> list_rep q = [].
+  Proof. intros. rewrite is_empty_true_iff. symmetry. apply queue_rep_nil_iff. Qed.
+
+  Lemma queue_front_none: forall q, list_rep q = [] <-> front q = None.
+  Proof.
+    intros. rewrite queue_rep_nil_iff. split; intros.
+    - subst. reflexivity.
+    - destruct q as [|front mid rear]; auto. simpl in H.
+      destruct front; discriminate.
+  Qed.
+
+  Lemma queue_front_some: forall q x l, list_rep q = x :: l -> front q = Some x.
+  Proof.
+    intros. destruct q as [|front mid rear]; simpl in H. discriminate. simpl.
+    destruct front; simpl in H; inversion H; reflexivity.
+  Qed.
+
+  Lemma queue_front_some_iff: forall q x, front q = Some x <-> exists l, list_rep q = x :: l.
+  Proof.
+    intros; split; intros.
+    - destruct q as [|front mid rear]; simpl in H. discriminate.
+      destruct front as [|a front]; inversion H.
+      + exists (rev' rear). reflexivity.
+      + exists (front ++ mid :: rev' rear). reflexivity.
     - destruct H as [l H]. apply queue_front_some in H. assumption.
   Qed.
 
-  Lemma enque_eq: forall q x l, q =ₖ l -> enque x q =ₖ l ++ [x].
+  Lemma rev_aux_inv: forall l1 l2, rev_aux l1 l2 = rev l1 ++ l2.
   Proof.
-    intros. destruct q as [[s1 s2] wfq]. destruct s1, s2; simpl in *.
-    - subst. reflexivity.
-    - subst. simpl. rewrite app_nil_r. reflexivity.
-    - exfalso. assumption.
-    - subst. simpl. rewrite app_assoc. reflexivity.
+    induction l1; intros; simpl; auto.
+    rewrite IHl1. rewrite <- app_assoc. simpl. reflexivity.
   Qed.
 
-  Lemma deque_eq_nil: forall q, q =ₖ [] -> deque q =ₖ [].
+  Lemma rev'_eq_rev: forall l, rev' l = rev l.
+  Proof. intros. unfold rev'. rewrite rev_aux_inv, app_nil_r. reflexivity. Qed.
+
+  Lemma enque_eq: forall q x l, list_rep q = l -> list_rep (enque x q) = l ++ [x].
   Proof.
-    intros. destruct q as [[s1 s2] wfq]. simpl in H.
-    apply app_eq_nil in H. destruct H.
-    subst s2. reflexivity.
+    intros. destruct q; simpl in *; subst.
+    - reflexivity.
+    - rewrite <- app_assoc, <- app_comm_cons, !rev'_eq_rev. reflexivity.
   Qed.
 
-  Lemma deque_eq_cons: forall q x l, q =ₖ x :: l -> deque q =ₖ l.
+  Lemma deque_eq_nil: forall q, list_rep q = [] -> list_rep (deque q) = [].
+  Proof. intros. rewrite queue_rep_nil_iff in H. subst. reflexivity. Qed.
+
+  Lemma deque_eq_cons: forall q x l, list_rep q = x :: l -> list_rep (deque q) = l.
   Proof.
-    intros. destruct q as [[s1 s2] wfq]. destruct s1, s2; simpl in *.
-    - inversion H.
-    - rewrite app_nil_r in H. inversion H. destruct l; simpl; try reflexivity.
-      rewrite app_nil_r. reflexivity.
-    - exfalso; assumption.
-    - inversion H. subst. repeat break_match; inversion Heqd; simpl.
-      + rewrite app_nil_r. reflexivity.
-      + reflexivity.
+    intros. destruct q as [|front mid rear]; simpl in H. discriminate. simpl.
+    destruct front, rear; simpl in H; inversion H;
+      simpl in H; inversion H; rewrite !rev'_eq_rev; simpl;
+      rewrite ?rev'_eq_rev; reflexivity.
   Qed.
 
-  Lemma is_empty_eq: forall q, is_empty q = true <-> q = empty_queue.
+  Lemma enque_preserves_list_rep: forall x q1 q2,
+      list_rep q1 = list_rep q2 -> list_rep (enque x q1) = list_rep (enque x q2).
   Proof.
-    intros; split; intros.
-    - destruct q as [[s1 s2] wfq]. destruct s1, s2; simpl in *.
-      + destruct wfq. reflexivity.
-      + inversion H.
-      + exfalso; assumption.
-      + inversion H.
-    - subst. reflexivity.
+    intros. remember (list_rep q1) as l. remember (list_rep q2) as l2.
+    subst l2. symmetry in Heql, H. erewrite !enque_eq; eauto.
   Qed.
 
-  Lemma empty_is_empty: is_empty empty_queue = true.
-  Proof. reflexivity. Qed.
-
-  Lemma empty_eq_nil: empty_queue =ₖ nil.
-  Proof. reflexivity. Qed.
+  Lemma deque_preserves_list_rep: forall q1 q2,
+      list_rep q1 = list_rep q2 -> list_rep (deque q1) = list_rep (deque q2).
+  Proof.
+    intros. remember (list_rep q1) as l. remember (list_rep q2) as l2.
+    subst l2. symmetry in Heql, H. destruct l.
+    - rewrite !deque_eq_nil; auto.
+    - apply deque_eq_cons in Heql, H. rewrite Heql, H. reflexivity.
+  Qed.
 
 End Queue.
 
-Arguments queue _ : clear implicits.
+(** Test Begin
 
-Notation "q =ₖ l" := (queue_rep_eq q l) (at level 80, no associativity).
+Definition test := Eval cbv in repeat 0 30000.
+
+Time Compute (let s := (rev' test) in length s).
+(* Finished transaction in 0.137 secs (0.135u,0.001s) (successful) *)
+
+Time Compute (let s := (rev test) in length s).
+(* Finished transaction in 8.533 secs (8.518u,0.015s) (successful) *)
+
+Test End *)
+
+Arguments queue _ : clear implicits.

@@ -323,6 +323,15 @@ Section AList.
       + rewrite get_neq_cons in *; auto.
   Qed.
 
+  Lemma get_app_none: forall l1 l2 k,
+      get l1 k = None -> get (l1 ++ l2) k = get l2 k.
+  Proof.
+    induction l1; intros; simpl; auto.
+    destruct a as [k' v]. destruct (KEqDec k k').
+    - rewrite get_eq_cons in H0; auto. discriminate.
+    - rewrite get_neq_cons in *; auto.
+  Qed.
+
   Lemma key_unique_sublist_true: forall l1 l2,
       sublist l1 l2 -> key_unique l2 = true -> key_unique l1 = true.
   Proof.

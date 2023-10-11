@@ -128,6 +128,16 @@ Definition kv_map_func {K A B} (f: A -> B) (kv : K * A): K * B :=
 Definition kv_map {K A B} (f: A -> B) (kvs : list (K * A)): list (K * B) :=
   List.map (kv_map_func f) kvs.
 
+Lemma kv_map_app: forall {K A B: Type} (f: A -> B) (l1 l2: list (K * A)),
+    kv_map f (l1 ++ l2) = kv_map f l1 ++ kv_map f l2.
+Proof. intros. unfold kv_map. rewrite map_app. reflexivity. Qed.
+
+Lemma kv_map_fst: forall {K A B: Type} (f: A -> B) (l: list (K * A)),
+    map fst (kv_map f l) = map fst l.
+Proof.
+  intros. induction l; simpl; intros; auto. rewrite IHl. destruct a. reflexivity.
+Qed.
+
 End SyntaxUtil.
 
 Inductive OptForall {A: Type} (P: A -> Prop): list (option A) -> Prop :=

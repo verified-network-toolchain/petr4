@@ -938,6 +938,30 @@ Proof.
     specialize (IHn _ _ Hl). rewrite IHn, H0. reflexivity.
 Qed.
 
+Lemma mul_add_less_eq: forall (n a1 a2 r1 r2: Z),
+    0 <= r1 < n -> 0 <= r2 < n -> a1 * n + r1 = a2 * n + r2 -> a1 = a2 /\ r1 = r2.
+Proof.
+  intros. rewrite (Z.mul_comm a1) in H1. rewrite (Z.mul_comm a2) in H1.
+  pose proof H1. apply Z.mod_unique_pos in H1; auto. rewrite Z.add_comm in H1.
+  rewrite Z.mul_comm, Z_mod_plus_full, Z.mod_small in H1; auto. subst.
+  split; auto. rewrite Z.add_cancel_r, Z.mul_cancel_l in H2; auto. lia.
+Qed.
+
+Lemma bit_mod_inj_to_lbool: forall w v1 v2,
+    BitArith.mod_bound w v1 = BitArith.mod_bound w v2 ->
+    to_lbool w v1 = to_lbool w v2.
+Proof.
+  intro w. unfold to_lbool, BitArith.mod_bound, BitArith.upper_bound.
+  rewrite <- N_nat_Z. remember (N.to_nat w). clear dependent w.
+  induction n; intros v1 v2 H; auto. simpl.
+  rewrite to_lbool'_app with (res := [Z.odd v1]).
+  rewrite to_lbool'_app with (res := [Z.odd v2]).
+  rewrite Nat2Z.inj_succ, Z.pow_succ_r, <- !div_2_mod_2_pow in H by lia.
+  apply mul_add_less_eq in H; [|destruct (Z.odd v1); lia|destruct (Z.odd v2); lia].
+  destruct H. apply IHn in H. rewrite H. f_equal.
+  destruct (Z.odd v1), (Z.odd v2); auto; discriminate.
+Qed.
+
 Lemma le_to_lbool_bit_plus: forall w v1 v2,
     le_to_lbool w (BitArith.plus_mod w v1 v2) = le_to_lbool w (v1 + v2).
 Proof. intros. unfold BitArith.plus_mod. now rewrite le_to_lbool_bit_mod. Qed.

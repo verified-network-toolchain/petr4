@@ -3019,8 +3019,6 @@ and type_method_call env ctx call_info func type_args args =
     env
   | _ -> failwith "function call not typed as FunctionCall?"
 
-(* Question: Can Assignment statement update env? *)
-(* Typecheck LHS and RHS respectively and check if they have the same type. *)
 (* Section 11.1
  *
  *          Δ, T, Γ |- e1 : t1
@@ -3062,7 +3060,6 @@ and type_direct_application env ctx stmt_tags typ args =
     env
   | _ -> failwith "function call not typed as FunctionCall?"
 
-(* Question: Can Conditional statement update env? *)
 (* Section 11.6 The condition is required to be a Boolean
  *
  *          Δ, T, Γ |- e1 : bool

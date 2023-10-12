@@ -1193,7 +1193,45 @@ The following notations are used in the definitions of the rules in the rest of 
 
 ###### - $\matchParamsArgs \prmDef \arg$ is a function that tries to match parameters $\prmDefs$ and arguments $\args$ either based on their positions or names. Note that P4 does not allow for mix and match of passing arguments by names and positions. If successful, this function returns a list of pairs of parameter and argument. { -; font-weight: "normal"; id: matchParamsArgs; label: "match_parameters_arguments" }
 
-###### - $\validParamsArgs {\prmDef, \arg} \env$ is a predicate that returns true if all the following conditions hold: { -; font-weight: "normal"; id: validParamsArgs; label: "valid_parameters_arguments" }
+###### - $\validParamsArgs {\prmDef, \arg} \env$ is a predicate that returns true if all the following conditions hold: *todo* { -; font-weight: "normal"; id: validParamsArgs; label: "valid_parameters_arguments" }
+
+###### - $\isLval {\exp, \typ}$ is a predicate that returns $\tru$ only if expression $\exp$ with type $\typ$ is an l-value. { -; font-weight: "normal"; id: isLval; label: "is_lvalue" }
+
+###### - $\validStmtCtxt \ctxt$ is a predicate that returns $\tru$ only if the context is a statement context, that is, if it is one of the following: { -; font-weight: "normal"; id: validStmtCtxt; label: "valid_statement_ctxt" }
+
++ $\stmtMethodCtxt \typ$
++ $\stmtFuncCtxt \typ$
++ $\stmtParserStateCtxt$
++ $\stmtApplyBlockCtxt$
++ $\stmtActionCtxt$
+
+###### - $\isntParserOrFunc \ctxt$ is a predicate that returns $\tru$ only if the context $\ctxt$ is neither $\stmtParserStateCtxt$ nor $\stmtFuncCtxt \typ$.  { -; font-weight: "normal"; id: isntParserOrFunc; label: "isnt_parser_or_func" }
+
+###### - $\isntParser \ctxt$ is a predicate that returns $\tru$ only if the context $\ctxt$ is not $\stmtParserStateCtxt$.  { -; font-weight: "normal"; id: isntParser; label: "isnt_parser" }
+
+###### - $\typCtxt \ctxt$ is a function that returns the type embedded in a context. Thus, the context must have a type embedded in it, that is, the context can only be one of the followings in which case $\typCtxt \ctxt$ returns the type $\typ$ for the following context: { -; font-weight: "normal"; id: typCtxt; label: "type_of_context" }
+
++ $\stmtMethodCtxt \typ$
++ $\stmtFuncCtxt \typ$
+
+###### - $\isTableAction \typName \lbl$ is a predicate that returns $\tru$ only if the label $\lbl$ is one of the actions in table $\typName$.  { -; font-weight: "normal"; id: isTableAction; label: "is_table_action" }
+
+###### - $\defaultLast \switchCases$ is a predicate that returns $\tru$ only if the switch cases $\switchCases$ does not have a $\defLbl$ lable or if it does it is the last label of $\switchCases$.  { -; font-weight: "normal"; id: defaultLast; label: "default_is_last" }
+
+###### - $\labels \switchCases$ is a function that returns the labels of the switch cases $\switchCases$.  { -; font-weight: "normal"; id: labels; label: "labels" }
+
+###### - $\isEnumOrIntOrErr \typ$ is a predicate that returns $\tru$ if $\typ$ is one of the following types: { -; font-weight: "normal"; id: isEnumOrIntOrErr; label: "is_enum_or_int_or_error" }
+
++ $\bitWidthTyp \exp$
++ $\intWidthTyp \exp$
++ $\enumTypDef$
++ $\enumTypNoTypDef$
++ $\errTyp$
+
+###### - $\labelMatchTyp \lbl \typ$ is a predicate that returns $\tru$ only if the label is a value of type $\typ$. { -; font-weight: "normal"; id: labelMatchTyp; label: "label_match_type" }
+
+###### - $\blockSwitch \switchCase$ is a function that returns the statement block of $\switchCase$. { -; font-weight: "normal"; id: block; label: "block" }
+
 
 ## Types { #sec-type-type-checker }
 
@@ -2838,6 +2876,30 @@ $\ternary {\exp_1} {\exp_2} {\exp_3}$
      \quad (\ternaryE)}
 ~ End InfRule
 
+### Function Call { #sec-func-call-type-checker }
+
+$\funcCall \exp {\typs} \args$
+
+- *todo: this is not complete..too sick to work on this so I'm doing some editing around*
+- Then, *todo*
+
+
+~ Begin InfRule
+\mprset {vskip=1ex}
+   {\inferrule [\funcCallE] 
+      {\fullyInstantiated {\spcTyp \typName \typ}\\\\
+       \compTimeKnown \args\\\\
+       \lookupTypEnv \typName = \overline {\constructorTyp  \typParam {\prmDef} {\VVal\typ}}\\
+       \resolveOverload  {\constructorTyp  \typParam {\prmDef} \typ} \arg = \constructorTyp  {\VVal \typParam} {\VVal \prmDef} {\VVVal \typ}\\
+       \matchParamsArgs {\VVal \prmDef} \arg = (\overline {\VVVal \prmDef, \VVal \arg})\\
+       \updateEnv {\insertToTypParEnv {\overline {\VVal \typVar}: \typs}} = \VVal \env\\\\
+       \validParamsArgs {\VVVal \prmDef, \VVal \arg} {\VVal \env}\\\\
+       \subTypVars {\VVVal \typ} {\VVal \env} = \VVVVal \typ
+      }
+      {\expCheck {\instantiation {\spcTyp {\typName} {\typ}} {\args}} {\VVVVal \typ}}
+   }
+~ End InfRule
+
 ### Anonymous Instantiation { #sec-ano-inst-type-checker }
 
 An anonymous instantiation may occur over a generic or non-generic type. In the case of a generic type, all type variables must already be inferred when the expression is being passed to the type checker. However, note that since type inference has already occured, the type checker uses the same set of conditions to ensure such an expression is well-formed.
@@ -2907,13 +2969,303 @@ $\range {\exp_1} {\exp_2}$
        \typEq {\typ_1} {\typ_2} \\
        \isWidthInt {\typ_1}}
        % \bothInt {\typ_1} {\typ_2}}
-       % \typ_1 = \typ_2 = \bitWidthTyp \width \textOr \intWidthTyp \width \textOr \integerTyp}
+       % \typ_1 = \typ_2 = \bitWidthTyp \width textOr \intWidthTyp \width textOr \integerTyp}
      { \expCheck {\range {\exp_1} {\exp_2}} {\setTyp {\typ_1}}  }
      \quad (\rangeE)}
 ~ End InfRule
 
 
 ## Statements { #sec-stmt-type-checker }
+
+The type checker judgment for statements has the form $\stmtCheck \env \stmt \typ {\VVal \env}$ and it reads "under the initial environment $\env$, the statement $\stmt$ is well-formed with type $\typ$ and it changes the environment to $\VVal \env$".
+
+### Method Call { #sec-method-call-type-checker }
+
+$\methodCall \exp \typ \arg$
+
+- The method call $\methodCall \exp \typ \arg$ is well-formed with type $\voidTyp$ if the expression $\methodCall \exp \typ \arg$ is [well-formed][#sec-func-call-type-checker].
+
+~ Begin InfRule
+  \mprset {vskip = 0.7ex}
+     {\inferrule
+        {\expCheck {\methodCall \exp \typ \arg} \whatevs}
+        {\stmtCheck \env {\methodCall \exp \typ \arg} \voidTyp {\env}}
+        \quad (\methodCallS) }
+~ End InfRule
+
+### Assignment { #sec-assignment-type-checker }
+
+$\assign {\exp_1} {\exp_2}$
+
+- Both the left-hand and right-hand expressions of an assignment must be well-formed and let them have types $\typ_1$ and $\typ_2$, respectively.
+- The types $\typ_1$ and $\typ_2$ must be [equal][#sec-type-eq-type-checker].
+- The left-hand expression $\exp_1$ must be a l-value. [(_is\_lvalue_)][#isLval]
+- Then, the assignment $\assign {\exp_1} {\exp_2}$ is well-formed with type $\voidTyp$.
+
+~ Begin InfRule
+  \mprset{vskip=0.7ex}
+    {\inferrule
+       { \expCheck {\exp_1} {\typ_1} \\
+         \expCheck {\exp_2} {\typ_2}\\\\
+         \isLval {{{\exp_1}}, {\typ_1}} \\
+         \typEq {\typ_1} {\typ_2}
+         % ({\prim {\exp_2}}, {\typ_2}, {\dir_2}) = \castExpression {\typ_1} {\exp_2}\\
+       }
+       { \stmtCheck \env {\assign {\exp_1} {\exp_2}} {\voidTyp} \env}
+     \quad (\assignmentS)}
+~ End InfRule
+
+### Direct Application { #sec-direct-app-type-checker }
+
+$\dirApp \typ \arg$
+
+- The direct application $\dirApp \typ \arg$ is well-formed with type $\voidTyp$ if the anonymous instantiation $\dirApp \typ \arg$ is [well-formed][#sec-ano-inst-type-checker].
+
+~ Begin InfRule
+   \mprset {vskip = 0.7ex}
+      {\inferrule
+         {\expCheck {\dirApp \typ \arg} \whatevs }
+         {\stmtCheck \env {\dirApp \typ \arg} {\voidTyp} {\env}}
+         \quad (\dirAppS)}
+~ End InfRule
+
+### If-Then { #sec-if-then-type-checker }
+
+$\ifthen \exp \stmt$
+
+- The condition expression $\exp$ must be [well-formed][#sec-exp-type-checker] with type $\boolTyp$.
+- The true statement branch $\stmt$ must be well-formed.
+- Then, the conditional statement $\ifthen \exp \stmt$ is well-formed with type $\voidTyp$.
+
+~ Begin InfRule
+   \mprset {vskip = 0.7 ex}
+      {\inferrule
+        {
+          % \ctxt \neq \parserCtxtPrm \\
+          \expCheck \exp \boolTyp\\
+          \stmtCheck \env {\stmt_1} {\whatevs} { \env} }
+         { \stmtCheck \env {\ifthen \exp {\stmt}} {\voidTyp} \env }
+        \quad (\ifthenS)}
+~ End InfRule
+
+### If-Then-Else { #sec-if-then-else-type-checker }
+
+$\ifthenelse \exp {\stmt_1} {\stmt_2}$
+
+- The condition expression $\exp$ must be [well-formed][#sec-exp-type-checker] with type $\boolTyp$.
+- The true and false branches $\stmt_1$ and $\stmt_2$, respectively, must be well-formed.
+- Then, the conditional statement $\ifthenelse \exp {\stmt_1} {\stmt_2}$ is well-formed with type $\voidTyp$.
+
+~ Begin InfRule
+   \mprset {vskip = 0.7 ex}
+      {\inferrule
+        {
+          % \ctxt \neq \parserCtxtPrm \\
+          \expCheck \exp \boolTyp\\\\
+          \stmtCheck \env {\stmt_1} {\whatevs} { \env} \\
+          \stmtCheck \env {\stmt_2} {\whatevs} { \env} }
+        { \stmtCheck \env {\ifthenelse \exp {\stmt_1} {\stmt_2}} {\voidTyp} {\env} }
+     \quad (\ifthenelseS)}
+~ End InfRule
+
+### Sequencing { #sec-seq-type-checker }
+
+$\block \stmt$
+
+- The first statement $\stmt_1$ of the block of statements must be well-formed and it updates the initial environment $\env$ to $\VVal \env$.
+- The rest of the statements $\stmts$ in the block must be well-formed with type $\typ$ and it updates the environment $\VVal \env$ to $\VVVal \env$.
+- Then, the sequence of statements $\blockOpened {\stmt_1; \stmts} $ is well-formed with type $\VVal \typ$ and it changes the initial environment $\env$ to $\VVVal \env$.
+
+~ Begin InfRule
+   \mprset {vskip = 0.7 ex}
+     {\inferrule
+        { \stmtCheck \env {\stmt_1} {\whatevs} {\VVal \env}\\
+          \stmtCheck {\VVal \env} {\stmts} { \typ} {\VVVal \env} }
+        { \stmtCheck \env {\blockOpened {\stmt_1; \stmts} } { \typ} {\VVVal \env} }
+        \quad (\blockS)}
+~ End InfRule
+
+### Exit { #sec-exit-type-checker }
+
+$\exit$
+
+- An $\exit$ statement is well-formed only if the statement is within a valid statement context that is not a parser or a function. ([_valid\_statement\_context_][#validStmtCtxt], [_isnt\_parser\_or\_function_][#isntParserOrFunc])
+
+~ Begin InfRule
+   \mprset {vskip = 0.7 ex}
+     {\inferrule
+        { \validStmtCtxt \ctxt\\
+          \isntParserOrFunc \ctxt }
+        { \stmtCheck \env \exit \voidTyp \env}
+        \quad (\exitS)}
+~ End InfRule
+
+### Noop { #sec-noop-type-checker }
+
+$\noop$
+
+- A $\noop$ statement is always well-formed.
+
+~ Begin InfRule
+   \mprset {vskip = 0.7 ex}
+      {\inferrule
+        { }
+        { \stmtCheck \env {\noop} {\voidTyp} \env}
+        \quad (\emptyS)}
+~ End InfRule
+
+### Return { #sec-return-type-checker }
+
+$\return \exp$
+
+- The return statement must exit within  a valid statement context that has a type and let it have type $\typ$. ([_valid\_statement\_context_][#validStmtCtxt], [_type\_of\_context_][#typCtxt])
+- The expression $\exp$ being returned must be [well-formed][#sec-exp-type-checker] and let it have type $\VVal \typ$.
+- The types of expression $\VVal \typ$ and context $\typ$ must be [equal][#sec-type-eq-type-checker].
+- Then, the return statement $\return \exp$ is well-formed with type $\typ$.
+
+~ Begin InfRule
+   \mprset {vskip = 0.7 ex}
+      {\inferrule
+        { \validStmtCtxt \ctxt\\
+          \typCtxt \ctxt= \typ \\\\
+          \expCheck \exp {\VVal \typ}\\
+          \typEq \typ {\VVal \typ}
+        }
+       {\stmtCheck \env {\return \exp} \typ \env}
+       \quad (\returnS)}
+~ End InfRule
+
+$\retNothing$
+
+- A return statement is well-formed only if the statement is within a valid statement context that is not a parser. ([_valid\_statement\_context_][#validStmtCtxt], [_isnt\_parser_][#isntParser])
+
+~ Begin InfRule
+   \mprset {vskip = 0.7 ex}
+      {\inferrule
+         {\validStmtCtxt \ctxt\\
+         \isntParser \ctxt\\
+         }
+     % { \stmtenv {\retNothing} {\return {}} \voidTyp  }
+         {\stmtCheck \env \retNothing \voidTyp \env}
+        \quad (\returnEmpS)}
+~ End InfRule
+
+### Switch { #sec-switch-type-checker }
+
+$\switch {\actionRun \typName } \switchCase$
+
+- The labels of the switch statements must be the actions of the table $\typName$. ([_is\_table\_action_][#isTableAction], [_labels_][#labels])
+- The default label if it exists must be the last label in the switch statement. [(_default\_is\_last_)][#defaultLast]
+- The lables of the switch statement must be distinct. ([_are\_distinct_][#distinct])
+- Then, the switch statement $\switch {\actionRun \typName } \switchCase$ is well-formed under the environment with $\stmtApplyBlockCtxt$ context.
+
+~ Begin InfRule
+   \mprset {vskip = 0.7ex}
+      {\inferrule [\switchActionS]
+         { \isTableAction \typName {\switchCases}\\\\
+           \distinct {\labels \switchCases}\\\\
+           \defaultLast \switchCases}
+         {\stmtCheck {\envWhereCtxt \stmtApplyBlockCtxt } {\switch {\actionRun \typName} {\switchCase} } \voidTyp { \env}}}
+         % \quad (\switchActionS)}
+~ End InfRule
+
+$\switch \exp \switchCase$
+
+- The switch expression $\exp$ must be [well-formed][#sec-exp-type-checker] and let it have type $\typ$.
+- The type $\typ$ must be either an enum or fixed-length integer or error. [(_is\_enum\_or\_int\_or\_err_)][#isEnumOrIntOrErr]
+- The switch labels must be values of type $\typ$. [(_label\_match\_type_)][#labelMatchTyp]
+- The lables of the switch statement must be distinct. ([_are\_distinct_][#distinct])
+- The statement block for each case of the switch statement must be well-formed with type $\voidTyp$. [(_block_)][#block]
+- The default label if it exists must be the last label in the switch statement. [(_default\_is\_last_)][#defaultLast]
+- Then, the switch statement $\switch \exp \switchCase$ is well-formed with type $\voidTyp$.
+
+~ Begin InfRule
+   \mprset {vskip = 0.7ex}
+      {\inferrule [\switchS]
+        { 
+          \expCheck \exp \typ\\\\
+          \isEnumOrIntOrErr \typ\\
+          \labelMatchTyp {\labels \switchCases} \typ\\
+          \distinct {\labels \switchCases}\\
+          \stmtCheck \env {\blockSwitch \switchCases} {\voidTyp} {\env}\\
+          \defaultLast \switchCases
+          }
+         { \stmtCheck {\envWhereCtxt \stmtApplyBlockCtxt } {\switch \exp {\switchCase} } \voidTyp {\env}}}
+     % \quad (\switchS)}
+~ End InfRule
+
+### Constant { #sec-constant-type-checker }
+
+$\constDcl \typ \var \exp$
+
+- The constant declaration $\constDcl \typ \var \exp$ must be [well-formed][#sec-constant-decl-type-checker] and it updates the environment from $\env$ to $\VVal \env$.
+- Then, the constant statement $\constDcl \typ \var \exp$ is well-formed with type $\voidTyp$ and it updates the environment from $\env$ to $\VVal \env$.
+
+~ Begin InfRule
+   \mprset {vskip = 0.7ex}
+      {\inferrule
+        { \dclCheck {\constDcl \typ \var \exp} {\VVal \env}}
+        {\stmtCheck \env {\constDcl \typ \var \exp} \voidTyp {\VVal \env}}
+        \quad (\constantS)}
+~ End InfRule
+
+### Instantiation { #sec-instantiation-type-checker }
+
+$\inst \typ \arg \var \stmt$ 
+
+- The instantiation declaration $\inst \typ \arg \var \stmt$ must be [well-formed][#sec-init-instantiate-decl-type-checker] and it updates the environment from $\env$ to $\VVal \env$.
+- Then, the instantiation statement $\inst \typ \arg \var \stmt$ is well-formed with type $\voidTyp$ and it updates the environment from $\env$ to $\VVal \env$. 
+
+~ Begin InfRule
+   \mprset {vskip = 0.7ex}
+      {\inferrule
+        { \dclCheck {\inst \typ \arg \var \stmt} {\VVal \env}}
+        {\stmtCheck \env {\inst \typ \arg \var \stmt} \voidTyp {\VVal \env}}
+        \quad (\instantiationS)}
+~ End InfRule
+
+$\instNoBlock \typ \arg \var$
+
+- The instantiation declaration $\instNoBlock \typ \arg \var$ must be [well-formed][#sec-instantiate-decl-type-checker] and it updates the environment from $\env$ to $\VVal \env$.
+- Then, the instantiation statement $\instNoBlock \typ \arg \var$ is well-formed with type $\voidTyp$ and it updates the environment from $\env$ to $\VVal \env$. 
+
+~ Begin InfRule
+   \mprset {vskip = 0.7ex}
+      {\inferrule
+        { \dclCheck {\instNoBlock \typ \arg \var} {\VVal \env}}
+        {\stmtCheck \env {\instNoBlock \typ \arg \var} \voidTyp {\VVal \env}}
+        \quad (\instantiationNoBlockS)}
+~ End InfRule
+
+### Local Variable { #sec-local-var-type-checker }
+
+$\varDclInit \typ \var \exp$
+
+- The variable declaration $\varDclInit \typ \var \exp$  must be [well-formed][#sec-init-var-decl-type-checker] and it updates the environment from $\env$ to $\VVal \env$.
+- Then, the variable statement $\varDclInit \typ \var \exp$ is well-formed with type $\voidTyp$ and it updates the environment from $\env$ to $\VVal \env$. 
+
+~ Begin InfRule
+   \mprset {vskip = 0.7 ex}
+      {\inferrule
+        {
+          \dclCheck {\varDclInit \typ \var \exp} {\VVal \env}}
+        {\stmtCheck \env {\varDclInit \typ \var \exp} \voidTyp {\VVal \env}}
+        \quad (\varS)}
+~ End InfRule
+
+$\varDcl \typ \var$
+
+- The variable declaration $\varDcl \typ \var$  must be [well-formed][#sec-var-decl-type-checker] and it updates the environment from $\env$ to $\VVal \env$.
+- Then, the variable statement $\varDcl \typ \var$ is well-formed with type $\voidTyp$ and it updates the environment from $\env$ to $\VVal \env$. 
+
+~ Begin InfRule
+   \mprset {vskip = 0.7 ex}
+      {\inferrule
+        {
+          \dclCheck {\varDcl \typ \var} {\VVal \env}}
+        {\stmtCheck \env {\varDcl \typ \var} \voidTyp {\VVal \env}}
+        \quad (\varInitS)}
+~ End InfRule
 
 ## Declarations { #sec-dcl-type-checker }
 
@@ -3241,3 +3593,55 @@ $\packageTypDcl \typName \typVar \prmDef$
   \quad (\packageTypD)
 ~ End InfRule
 
+
+### Parser Declaration { #sec-parser-decl-type-checker }
+
+$\parserDcl \var \typVar { { {\prmDef}}} { {\VVal {\prmDef}}} \dcl \state$
+
+### Control Declaration { #sec-control-decl-type-checker }
+
+$\controlDcl \var \typVar { { {\prmDef}}} { {\VVal {\prmDef}}} \dcl \stmt$
+
+### Function Declaration { #sec-func-decl-type-checker }
+
+$\funcDcl {\typ}\var \typVar {\prmDef} \stmt$
+
+### Extern Function Declaration { #sec-extern-func-decl-type-checker }
+
+$\externFuncDcl {\typ}\var \typVar {\prmDef}$
+
+### Action Declaration { #sec-action-decl-type-checker }
+
+$\actionDcl \var {\prmDef} \stmt$
+
+### Table Declaration { #sec-table-decl-type-checker }
+
+$\tableDcl \var \prop$
+
+### Extern Object Declaration { #sec-extern-obj-decl-type-checker }
+
+$\externObjDcl \var \typVar \extMethod$
+
+### Constant Declaration { #sec-constant-decl-type-checker }
+
+$\constDcl \typ \var \exp$
+
+### Initialized Instantiation Declaration { #sec-init-instantiate-decl-type-checker }
+
+$\inst \typ \arg \var \stmt$ 
+
+### Instantiation Declaration { #sec-instantiate-decl-type-checker }
+
+$\inst \typ \arg \var \stmt$
+
+### Initialized Local Variable Declaration { #sec-init-var-decl-type-checker }
+
+$\varDclInit \typ \var \exp$
+
+### Local Variable Declaration { #sec-var-decl-type-checker }
+
+$\varDcl \typ \var$
+
+### Parser Value Set Declaration { #sec-parser-value-set-decl-type-checker }
+
+$\valSetDcl {\typ}\exp \var$

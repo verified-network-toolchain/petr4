@@ -50,6 +50,11 @@ Section Queue.
     | nonempty_queue front mid rear => front ++ mid :: rev' rear
     end.
 
+  Definition list_enque (l: list A) (que: queue): queue :=
+    fold_left (Basics.flip enque) l que.
+
+  Definition list_to_queue (l: list A): queue := list_enque l empty_queue.
+
   Lemma empty_queue_rep_nil: list_rep empty_queue = [].
   Proof. reflexivity. Qed.
 
@@ -71,19 +76,8 @@ Section Queue.
   Lemma queue_rep_is_empty_iff: forall q, is_empty q = true <-> list_rep q = [].
   Proof. intros. rewrite is_empty_true_iff. symmetry. apply queue_rep_nil_iff. Qed.
 
-  Lemma queue_front_none: forall q, list_rep q = [] <-> front q = None.
-  Proof.
-    intros. rewrite queue_rep_nil_iff. split; intros.
-    - subst. reflexivity.
-    - destruct q as [|front mid rear]; auto. simpl in H.
-      destruct front; discriminate.
-  Qed.
-
-  Lemma queue_front_some: forall q x l, list_rep q = x :: l -> front q = Some x.
-  Proof.
-    intros. destruct q as [|front mid rear]; simpl in H. discriminate. simpl.
-    destruct front; simpl in H; inversion H; reflexivity.
-  Qed.
+  Lemma queue_front: forall q, front q = hd_error (list_rep q).
+  Proof. intros. destruct q; simpl; [|destruct l; simpl]; reflexivity. Qed.
 
   Lemma queue_front_some_iff: forall q x, front q = Some x <-> exists l, list_rep q = x :: l.
   Proof.
@@ -92,7 +86,7 @@ Section Queue.
       destruct front as [|a front]; inversion H.
       + exists (rev' rear). reflexivity.
       + exists (front ++ mid :: rev' rear). reflexivity.
-    - destruct H as [l H]. apply queue_front_some in H. assumption.
+    - destruct H as [l H]. rewrite queue_front, H. reflexivity.
   Qed.
 
   Lemma rev_aux_inv: forall l1 l2, rev_aux l1 l2 = rev l1 ++ l2.
@@ -101,42 +95,32 @@ Section Queue.
     rewrite IHl1. rewrite <- app_assoc. simpl. reflexivity.
   Qed.
 
-  Lemma rev'_eq_rev: forall l, rev' l = rev l.
+  Lemma rev'_eq: forall l, rev' l = rev l.
   Proof. intros. unfold rev'. rewrite rev_aux_inv, app_nil_r. reflexivity. Qed.
 
-  Lemma enque_eq: forall q x l, list_rep q = l -> list_rep (enque x q) = l ++ [x].
+  Lemma enque_eq: forall q x, list_rep (enque x q) = list_rep q ++ [x].
   Proof.
-    intros. destruct q; simpl in *; subst.
+    intros. destruct q; simpl in *.
     - reflexivity.
-    - rewrite <- app_assoc, <- app_comm_cons, !rev'_eq_rev. reflexivity.
+    - rewrite <- app_assoc, <- app_comm_cons, !rev'_eq. reflexivity.
   Qed.
 
-  Lemma deque_eq_nil: forall q, list_rep q = [] -> list_rep (deque q) = [].
-  Proof. intros. rewrite queue_rep_nil_iff in H. subst. reflexivity. Qed.
-
-  Lemma deque_eq_cons: forall q x l, list_rep q = x :: l -> list_rep (deque q) = l.
+  Lemma deque_eq: forall q, list_rep (deque q) = tl (list_rep q).
   Proof.
-    intros. destruct q as [|front mid rear]; simpl in H. discriminate. simpl.
-    destruct front, rear; simpl in H; inversion H;
-      simpl in H; inversion H; rewrite !rev'_eq_rev; simpl;
-      rewrite ?rev'_eq_rev; reflexivity.
+    intros. destruct q as [|front mid rear]; simpl; auto.
+    destruct front, rear; simpl; rewrite !rev'_eq; reflexivity.
   Qed.
 
-  Lemma enque_preserves_list_rep: forall x q1 q2,
-      list_rep q1 = list_rep q2 -> list_rep (enque x q1) = list_rep (enque x q2).
+  Lemma list_enque_eq: forall l q,
+      list_rep (list_enque l q) = list_rep q ++ l.
   Proof.
-    intros. remember (list_rep q1) as l. remember (list_rep q2) as l2.
-    subst l2. symmetry in Heql, H. erewrite !enque_eq; eauto.
+    induction l; intros; simpl.
+    - rewrite app_nil_r. reflexivity.
+    - rewrite IHl. unfold Basics.flip. rewrite enque_eq, <- app_assoc. reflexivity.
   Qed.
 
-  Lemma deque_preserves_list_rep: forall q1 q2,
-      list_rep q1 = list_rep q2 -> list_rep (deque q1) = list_rep (deque q2).
-  Proof.
-    intros. remember (list_rep q1) as l. remember (list_rep q2) as l2.
-    subst l2. symmetry in Heql, H. destruct l.
-    - rewrite !deque_eq_nil; auto.
-    - apply deque_eq_cons in Heql, H. rewrite Heql, H. reflexivity.
-  Qed.
+  Lemma list_to_queue_eq: forall l, list_rep (list_to_queue l) = l.
+  Proof. intros. unfold list_to_queue. rewrite list_enque_eq. reflexivity. Qed.
 
 End Queue.
 

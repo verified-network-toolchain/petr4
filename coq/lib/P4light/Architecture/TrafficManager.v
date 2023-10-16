@@ -3,6 +3,7 @@ Require Import Coq.Lists.List.
 Require Import Coq.Classes.EquivDec.
 Require Import Poulet4.Utils.Util.FunUtil.
 Require Import Poulet4.Utils.AList.
+Require Export Poulet4.P4light.Architecture.Queue.
 
 Section TRAFFIC_MANAGER.
 
@@ -79,10 +80,10 @@ Section TRAFFIC_MANAGER.
       mcast_group.
 
   Definition multicast_engine
-    (mc_tbl: AList Z multicast_group (@eq Z))
+    (mc_tbl: multicast_table)
     (excl_table: L2_exclusion_table)
     (input: IngressPacketDescriptor):
-    list EgressPacketDescriptor :=
+    queue EgressPacketDescriptor :=
     let (meta, header) := input in
     let dup_packet (grp_idx: option Z): list EgressPacketDescriptor :=
       match grp_idx with
@@ -93,8 +94,8 @@ Section TRAFFIC_MANAGER.
           | Some mcast_grp => packet_replication mcast_grp excl_table input
           end
       end in
-    (dup_packet meta.(in_meta_mcast_grp_a)) ++
-      dup_packet meta.(in_meta_mcast_grp_b).
+    list_enque (dup_packet meta.(in_meta_mcast_grp_b))
+      (list_to_queue (dup_packet meta.(in_meta_mcast_grp_a))).
 
   Definition unicast_engine (input: IngressPacketDescriptor):
     option EgressPacketDescriptor :=
@@ -110,10 +111,14 @@ Section TRAFFIC_MANAGER.
     (mc_tbl: multicast_table)
     (excl_table: L2_exclusion_table)
     (input: IngressPacketDescriptor):
-    list EgressPacketDescriptor :=
+    queue EgressPacketDescriptor :=
     match unicast_engine input with
     | None => multicast_engine mc_tbl excl_table input
-    | Some p => p :: multicast_engine mc_tbl excl_table input
+    | Some p => enque p (multicast_engine mc_tbl excl_table input)
     end.
 
 End TRAFFIC_MANAGER.
+
+Arguments Build_MulticastLevel1Node {_}.
+Arguments Build_InputMetadata {_}.
+Arguments traffic_manager {_ _ _}.

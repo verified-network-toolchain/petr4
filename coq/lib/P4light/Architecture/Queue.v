@@ -55,6 +55,12 @@ Section Queue.
 
   Definition list_to_queue (l: list A): queue := list_enque l empty_queue.
 
+  Definition qlength (que: queue): nat :=
+    match que with
+    | empty_queue => O
+    | nonempty_queue front _ rear => S (length front + length rear)
+    end.
+
   Lemma empty_queue_rep_nil: list_rep empty_queue = [].
   Proof. reflexivity. Qed.
 
@@ -121,6 +127,12 @@ Section Queue.
 
   Lemma list_to_queue_eq: forall l, list_rep (list_to_queue l) = l.
   Proof. intros. unfold list_to_queue. rewrite list_enque_eq. reflexivity. Qed.
+
+  Lemma qlength_eq: forall que, qlength que = length (list_rep que).
+  Proof.
+    intros. destruct que as [|front mid rear]; simpl; auto.
+    rewrite app_length. simpl. rewrite rev'_eq, rev_length. lia.
+  Qed.
 
 End Queue.
 

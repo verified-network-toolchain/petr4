@@ -138,6 +138,17 @@ Proof.
   intros. induction l; simpl; intros; auto. rewrite IHl. destruct a. reflexivity.
 Qed.
 
+Lemma AList_get_kv_map:
+  forall {K V : Type} {R : Relation_Definitions.relation K} {H : RelationClasses.Equivalence R}
+    {EQKR: EquivDec.EqDec K R} {B: Type} (l: AList.AList K V R) k v (f: V -> B),
+    AList.get l k = Some v -> AList.get (kv_map f l) k = Some (f v).
+Proof.
+  intros. apply AListUtil.AList_get_some_split in H0. destruct H0 as [k0 [l1 [l2 [? [? ?]]]]].
+  subst l. rewrite kv_map_app. simpl. pose proof (AListUtil.get_none_not_in_fst _ _ H2).
+  rewrite <- (kv_map_fst f) in H1. apply AListUtil.not_in_fst_get_none in H1.
+  rewrite AList.get_app_none by assumption. rewrite AList.get_eq_cons; easy.
+Qed.
+
 End SyntaxUtil.
 
 Inductive OptForall {A: Type} (P: A -> Prop): list (option A) -> Prop :=

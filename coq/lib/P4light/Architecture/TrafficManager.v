@@ -65,18 +65,19 @@ Section TRAFFIC_MANAGER.
          if n1.(mcast_l1_xid_valid) &&
               (n1.(mcast_l1_xid) =? meta.(in_meta_level1_exclusion_id))
          then nil
-         else prune_option $ map
-                (fun port =>
-                   if (meta.(in_meta_rid) =? n1.(mcast_n1_rid)) &&
-                        proj1_sig
-                          (Sumbool.bool_of_sumbool
-                             (in_dec port_eq_dec port
-                                (excl_table meta.(in_meta_level2_exclusion_id))))
-                   then None
-                   else Some ({| out_meta_egress_port := port;
-                                out_meta_egress_rid := n1.(mcast_n1_rid); |},
-                            header))
-                n1.(mcast_n1_dev_port_list))
+         else prune_option
+                (map
+                   (fun port =>
+                      if (meta.(in_meta_rid) =? n1.(mcast_n1_rid)) &&
+                           proj1_sig
+                             (Sumbool.bool_of_sumbool
+                                (in_dec port_eq_dec port
+                                   (excl_table meta.(in_meta_level2_exclusion_id))))
+                      then None
+                      else Some ({| out_meta_egress_port := port;
+                                   out_meta_egress_rid := n1.(mcast_n1_rid); |},
+                               header))
+                   n1.(mcast_n1_dev_port_list)))
       mcast_group.
 
   Definition multicast_engine
@@ -117,9 +118,54 @@ Section TRAFFIC_MANAGER.
     | Some p => enque p (multicast_engine mc_tbl excl_table input)
     end.
 
+  Ltac destruct_if H := match goal with
+                        | H: context [match ?p with | _ => _ end] |- _ => destruct p
+                        end.
+
+  Lemma packet_replication_output_snd:
+    forall (excl_table : L2_exclusion_table) (output : EgressPacketDescriptor)
+      (m : multicast_group) (input : InputMetadata * Header),
+      In output (packet_replication m excl_table input) -> snd output = snd input.
+  Proof.
+    intros. destruct input. simpl in *. induction m; simpl in *. 1: contradiction.
+    rewrite in_app_iff in H. destruct H; [clear IHm | apply IHm; assumption].
+    destruct_if H; [contradiction |]. remember (mcast_n1_dev_port_list a). clear Heql.
+    induction l; try contradiction. remember (fun port: Port => _) as f in H.
+    rewrite <- Heqf in IHl. simpl in H. destruct (f a0) eqn:?; [|apply IHl; assumption].
+    simpl in H. destruct H; [|apply IHl; assumption]. clear IHl. subst.
+    destruct_if Heqo; inversion Heqo. simpl. reflexivity.
+  Qed.
+
+  Lemma multicast_engine_output_snd:
+    forall (mc_tbl : multicast_table) (excl_table : L2_exclusion_table)
+      (input : IngressPacketDescriptor) (output : EgressPacketDescriptor),
+      In output (list_rep (multicast_engine mc_tbl excl_table input)) ->
+      snd output = snd input.
+  Proof.
+    intros. unfold multicast_engine in H. destruct input; simpl.
+    rewrite list_enque_eq, list_to_queue_eq, in_app_iff in H.
+    destruct H; [destruct (in_meta_mcast_grp_a i) | destruct (in_meta_mcast_grp_b i)];
+      try contradiction; destruct (get mc_tbl z); try contradiction;
+      change h with (snd (i, h)); eapply packet_replication_output_snd; eauto.
+  Qed.
+
+  Lemma traffic_manager_output_snd: forall mc_tbl excl_table input output,
+      In output (list_rep (traffic_manager mc_tbl excl_table input)) ->
+      snd output = snd input.
+  Proof.
+    intros. unfold traffic_manager in H. destruct (unicast_engine input) eqn:?.
+    - rewrite enque_eq, in_app_iff in H. destruct H.
+      + apply multicast_engine_output_snd in H. assumption.
+      + simpl in H. destruct H; try contradiction. subst e. unfold unicast_engine in Heqo.
+        destruct input, (in_meta_ucast_egress_port i); [|discriminate]. inversion Heqo.
+        simpl. reflexivity.
+    - apply multicast_engine_output_snd in H. assumption.
+  Qed.
+
 End TRAFFIC_MANAGER.
 
 Arguments Build_MulticastLevel1Node {_}.
 Arguments Build_InputMetadata {_}.
 Arguments traffic_manager {_ _ _}.
 Arguments out_meta_egress_port {_}.
+Arguments out_meta_egress_rid {_}.

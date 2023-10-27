@@ -149,3 +149,16 @@ Time Compute (let s := (rev test) in length s).
 Test End *)
 
 Arguments queue _ : clear implicits.
+
+Definition qmap {A B: Type} (f: A -> B) (que: queue A) : queue B :=
+  match que with
+  | empty_queue => empty_queue
+  | nonempty_queue front mid rear => nonempty_queue (map f front) (f mid) (map f rear)
+  end.
+
+Lemma qmap_map: forall {A B} (f: A -> B) (que: queue A),
+    list_rep (qmap f que) = map f (list_rep que).
+Proof.
+  intros. destruct que; simpl; auto. rewrite !rev'_eq, map_app. simpl.
+  rewrite map_rev. reflexivity.
+Qed.

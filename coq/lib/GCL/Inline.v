@@ -67,7 +67,7 @@ Fixpoint subst_e (η : expenv) (e : E.t) : E.t :=
   end.
 
 Inductive t : Type :=
-| ISkip                        (* skip, useful for
+| ISkip                       (* skip, useful for
                                                small-step semantics *)
 | IVardecl (type : Typ.t)
            (x : string)     (* Variable declaration. *)
@@ -87,10 +87,10 @@ Inductive t : Type :=
           (keys : list (Typ.t * E.t * string))
           (actions : list (string * (list (string * Typ.t) * t)))
 | IExternMethodCall (extn : string) (method : string)
-    (args : F.fs string (paramarg E.t E.t)) (ret : option Exp.t).
+    (args : Exp.args) (ret : option Exp.t).
 
-Definition assume b  :=
-  IExternMethodCall "_" "assume" [("check",PAIn b)] None .
+Definition assume b :=
+  IExternMethodCall "_" "assume" [PAIn b] None .
 
 Definition rename_string (table action x : string) (params : list string) :=
   if fold_right (fun y => orb (String.eqb x y)) false params
@@ -158,7 +158,7 @@ Fixpoint action_param_renamer (table action : string) (params : list string) (c 
     error "Invocations should not occur within actions"
   | IExternMethodCall extn method pargs ret =>
       let pargs' :=
-        F.map (paramarg_map_same (action_param_renamer_expr table action params)) pargs in
+        List.map (paramarg_map_same (action_param_renamer_expr table action params)) pargs in
       ok (IExternMethodCall extn method pargs' ret, params)
   end.
 
@@ -195,7 +195,7 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
     in
     (IInvoke x keys' actions', η)
   | IExternMethodCall extn method pas returns =>
-    let pas' := F.map (paramarg_map (subst_e η) (subst_e η)) pas in
+    let pas' := List.map (paramarg_map (subst_e η) (subst_e η)) pas in
     (IExternMethodCall extn method pas' returns, η)
   end.
 
@@ -253,13 +253,12 @@ Definition paramarg_map_union {A B : Set} (f : A -> F.fs string B) (pa : paramar
   | PAInOut a => F.map PAInOut (f a)
   end.
 
-Definition elaborate_argument (parg : F.f string (paramarg E.t E.t)) : F.fs string (paramarg E.t E.t) :=
-  let '(param, arg) := parg in
-  paramarg_map_union (elaborate_arg_expression param) arg.
+(* Definition elaborate_argument (parg : paramarg E.t E.t) : F.fs string (paramarg E.t E.t) := *)
+(*   let '(param, arg) := parg in *)
+(*   paramarg_map_union (elaborate_arg_expression param) arg. *)
 
-
-Definition elaborate_arguments (args : F.fs string (paramarg E.t E.t)) :  F.fs string (paramarg E.t E.t) :=
-  List.concat (List.map elaborate_argument args).
+(* Definition elaborate_arguments (args : list (paramarg E.t E.t)) : list (paramarg E.t E.t) := *)
+(*   List.concat (List.map elaborate_argument args). *)
 
 Definition realize_symbolic_key (symb_var : string) (key_type : Typ.t) (key : E.t) (mk : string) :=
   let symb_key := E.Var key_type symb_var 0 in (* TODO: what de bruijn var to use? *)
@@ -402,48 +401,16 @@ Program Fixpoint translate_pat e pat { struct pat } : result string E.t  :=
     matches
   end.
 
-Definition lookup_parser_state name states : option Stm.t :=
-  Field.get name (List.combine (List.map string_of_nat (seq 0 (List.length states))) states).
+Definition lookup_parser_state (n : nat) (states : list Stm.t) : result string Stm.t :=
+  let ok_states := List.map ok states in
+  let default := error (String.append "unknown parser state: " (string_of_nat n)) in
+  List.nth n ok_states default.
 
-Definition lookup_parser_states (names : list string) states :=
-  List.fold_right
-    (fun n acc =>
-       match lookup_parser_state n states with
-       | None => acc
-       | Some s => (n,s) :: acc
-       end) [] names.
-
-Definition init_parser (states : list string) :=
-  List.fold_right (fun f acc => if String.eqb f "start"
-                         then ISeq (set_state_flag f true ) acc 
-                         else ISeq (set_state_flag f false ) acc )
-    (ISeq (set_state_flag "accept" false ) (set_state_flag "reject" false )) states.
-
-Open Scope list_scope.
-
-Fixpoint inline_transition (gas : nat)
-                       (unroll : nat)
-                       (ctx : DeclCtx)
-                       (name : string)
-                       (trans : Trns.t)
-  : result string ((list string) * t)  :=
-       match gas with
-       | O => ok ([], ISkip )
-       | S gas =>
-         match trans with
-         | Trns.Direct state  =>
-           let name := get_state_name state in
-           ok ([name], set_state_flag name true )
-         | Trns.Select discriminee default states  =>
-           let default := inline_transition gas unroll ctx name (Trns.Direct default)  in
-           let inline_trans_loop := fun '(pat, trans) acc  =>
-                    let* (states, inln) := acc in
-                    let* cond := translate_pat  discriminee pat in
-                    let+ (new_states, trans) := inline_transition gas unroll ctx name (Trns.Direct trans) in
-                    (states ++ new_states, IConditional Typ.Bool cond trans inln ) in
-           List.fold_right inline_trans_loop default states
-         end
-       end.
+Definition init_parser :=
+  ISeq (ISeq
+          (set_state_flag "accept" false)
+          (set_state_flag "reject" false))
+       (set_state_flag "start" true).
 
 Fixpoint transition_of_state (s : Stm.t) : result string Trns.t :=
   match s with
@@ -453,116 +420,6 @@ Fixpoint transition_of_state (s : Stm.t) : result string Trns.t :=
   | _ => error "no parser transition"
   end.
 
-(*Fixpoint has_typ_var (t : Typ.t) : bool :=
-  match t with
-  | Typ.Var _ => true
-  | Typ.Bool
-  | Typ.Bit _
-  | Typ.Int _
-  | Typ.Error => false
-  | Typ.Array _ t => has_typ_var t
-  | Typ.Struct _ ts => List.existsb has_typ_var ts
-  end.*)
-
-(*Fixpoint e_has_typ_var (e : E.t) : bool :=
-  match e with
-  | E.Bool _
-  | E.Bit _ _
-  | E.Int _ _
-  | E.Error _ => false
-  | E.Var t _ _ => has_typ_var t
-  | E.Slice _ _ e => e_has_typ_var e
-  | E.Cast t e
-  | E.Uop t _ e
-  | E.Member t _ e => has_typ_var t || e_has_typ_var e
-  | E.Bop t _ e₁ e₂
-  | E.Index t e₁ e₂ => has_typ_var t || e_has_typ_var e₁ || e_has_typ_var e₂
-  | E.Lists (Lst.Array t) es => has_typ_var t || List.existsb e_has_typ_var es
-  | E.Lists _ es => List.existsb e_has_typ_var es
-  end.*)
-
-(*Definition p_has_typ_var (p : Parser.trns) : bool :=
-  match p with
-  | Parser.Direct _ => false
-  | Parser.Select e _ _ => e_has_typ_var e
-  end.*)
-
-(*Definition funkind_has_typ_var (fk : ST.fun_kind) : bool :=
-  match fk with
-  | ST.Method _ _ ts None
-  | ST.Funct _ ts None => List.existsb has_typ_var ts
-  | ST.Method _ _ ts (Some e)
-  | ST.Funct _ ts (Some e) => e_has_typ_var e || List.existsb has_typ_var ts
-  | ST.Action _ es => List.existsb e_has_typ_var es
-  end.*)
-
-(*Fixpoint s_has_typ_var (s : ST.s) : bool :=
-  match s with
-  | ST.Skip
-  | ST.Exit
-  | ST.Invoke _
-  | ST.Return None => false
-  | ST.Return (Some e) => e_has_typ_var e
-  | ST.Transition e => p_has_typ_var e
-  | ST.Assign e₁ e₂ => e_has_typ_var e₁ || e_has_typ_var e₂
-  | ST.Call fk args =>
-      funkind_has_typ_var fk
-      || List.existsb e_has_typ_var (List.map paramarg_elim args)
-  | ST.Apply _ _ args =>
-      List.existsb e_has_typ_var (List.map paramarg_elim args)
-  | ST.Var _ (inl t) s => has_typ_var t || s_has_typ_var s
-  | ST.Var _ (inr e) s => e_has_typ_var e || s_has_typ_var s
-  | ST.Seq s₁ s₂ => s_has_typ_var s₁ || s_has_typ_var s₂
-  | ST.Conditional e s₁ s₂ =>
-      e_has_typ_var e || s_has_typ_var s₁ || s_has_typ_var s₂
-  end.*)
-
-(*Fixpoint s_extern_has_typ_var (s : ST.s) : bool :=
-  match s with
-  | ST.Call _ args =>
-      List.existsb e_has_typ_var (List.map paramarg_elim args)
-  | ST.Var _ _ s => s_extern_has_typ_var s
-  | ST.Conditional _ s₁ s₂
-  | ST.Seq s₁ s₂ =>
-      s_extern_has_typ_var s₁ || s_extern_has_typ_var s₂
-  | _ => false
-  end.*)
-
-(*Fixpoint i_has_typ_var (i : t) : bool :=
-  match i with
-  | ISkip
-  | IExit
-  | IReturnVoid => false
-  | IVardecl t _ => has_typ_var t
-  | IReturnFruit t e => has_typ_var t || e_has_typ_var e
-  | IAssign t e₁ e₂ =>
-      has_typ_var t || e_has_typ_var e₁ || e_has_typ_var e₂
-  | IConditional t e i₁ i₂ =>
-      has_typ_var t || e_has_typ_var e
-      || i_has_typ_var i₁ || i_has_typ_var i₂
-  | ISeq i₁ i₂ => i_has_typ_var i₁ || i_has_typ_var i₂
-  | IBlock i => i_has_typ_var i
-  | IInvoke _ key tbl =>
-      List.existsb (fun '(t,e,_) => has_typ_var t || e_has_typ_var e) key
-      || List.existsb (i_has_typ_var ∘ snd) tbl
-  | IExternMethodCall _ _ args None =>
-      List.existsb e_has_typ_var (List.map (paramarg_elim ∘ snd) args)
-  | IExternMethodCall _ _ args (Some e) =>
-      e_has_typ_var e ||
-        List.existsb e_has_typ_var (List.map (paramarg_elim ∘ snd) args)
-  end.*)
-
-(*Fixpoint i_extern_has_typ_var (i : t) : bool :=
-  match i with
-  | IConditional _ _ i₁ i₂
-  | ISeq i₁ i₂ => i_extern_has_typ_var i₁ || i_extern_has_typ_var i₂
-  | IBlock i => i_extern_has_typ_var i
-  | IInvoke _ _ tbl =>
-      List.existsb (i_extern_has_typ_var ∘ snd) tbl
-  | IExternMethodCall _ _ args _ =>
-      List.existsb e_has_typ_var (List.map (paramarg_elim ∘ snd) args)
-  | _ => false
-  end.*)
 
 Definition get_type (type : paramarg Typ.t Typ.t) : Typ.t :=
   match type with
@@ -571,44 +428,96 @@ Definition get_type (type : paramarg Typ.t Typ.t) : Typ.t :=
   | PAInOut x => x
   end.
 
-Fixpoint inline_state
-         (gas : nat)
-         (unroll : nat)
-         (ctx : DeclCtx)
-         (name : string)
-         (state : Stm.t)
-         (states : list Stm.t)
-  : result string ((list (string * Stm.t)) * t) :=
-  match gas with
-  | O => ok ([], ISkip )
-  | S gas =>
-    let* stmt := inline gas unroll ctx state in
-    let* trns := transition_of_state state in
-    let+ (neighbor_names, trans) := inline_transition gas unroll ctx name trns  in
-    let neighbor_states := lookup_parser_states neighbor_names states in
-    (neighbor_states, construct_state name stmt trans )
-  end
-with inline_parser (gas : nat)
-                   (unroll : nat)   
+Fixpoint find_transition (stmt : Stm.t) : result string (option Trns.t) :=
+  match stmt with
+  | Stm.Trans trns => ok (Some trns)
+  | Stm.LetIn _ _ tail => find_transition tail
+  | Stm.Seq head tail =>
+    let* head_trns := find_transition head in
+    let* tail_trns := find_transition tail in
+    match head_trns, tail_trns with
+    | None, None => ok None
+    | None, Some trns => ok tail_trns
+    | Some _, _ => error "transition wasn't the last thing in a parser state"
+    end
+  | Stm.Cond _ tru fls =>
+    let* tru_trns := find_transition tru in
+    let* fls_trns := find_transition fls in
+    match tru_trns, fls_trns with
+    | None, None => ok None
+    | Some _, _ => error "unsure how to handle conditional transitions in parsers. found one in a true branch"
+    | _, Some _ =>  error "unsure how to handle conditional transitions in parsers. found one in a false branch"
+    end
+  | _ => ok None
+  end.
+
+Definition get_transition stmt :=
+  let+ trns_opt := find_transition stmt in
+  match trns_opt with
+  | None => Trns.Direct Lbl.Reject
+  | Some trns => trns
+  end.
+
+Definition accept := ISeq (set_state_flag "accept" true) (set_state_flag "reject" false).
+Definition reject := ISeq (set_state_flag "accept" false) (set_state_flag "reject" true).
+
+Fixpoint inline_parser (gas : nat)
+                   (unroll : nat)
                    (ctx : DeclCtx)
-                   (current_name : string)
+                   (model : string -> string -> Exp.args -> option Exp.t -> result string t)
+                   (seen : list nat)
                    (current : Stm.t)
                    (states : list Stm.t)
      : result string t :=
-       match gas with
-       | O => ok ISkip
-       | S gas =>
-         let* (neighbors, inline_current) := inline_state gas unroll ctx current_name current states  in
-         if orb (PeanoNat.Nat.eqb (length neighbors) 0) (PeanoNat.Nat.eqb unroll 0)
-         then ok (inline_current)
-         else List.fold_left (fun inln '(n, s) =>
-               let* inln := inln in
-               let+ prsr := inline_parser gas (unroll-1) ctx n s states in
-               ISeq inln prsr) neighbors (ok inline_current)
-       end
+  match gas with
+  | O => error "out of gas"
+  | S gas =>
+    let* stmt := inline gas unroll ctx model current in
+    let* trans_expr := get_transition current in
+    let+ trans := inline_transition gas unroll ctx model seen trans_expr states in
+    ISeq stmt trans
+  end
+with inline_transition
+         (gas : nat)
+         (unroll : nat)
+         (ctx : DeclCtx)
+         (model : string -> string -> Exp.args -> option Exp.t -> result string t)
+         (seen : list nat)
+         (trans : Trns.t)
+         (states : list Stm.t)
+  : result string t :=
+  match gas with
+  | O => error "out of gas"
+  | S gas =>
+    match trans with
+    | Trns.Direct state_label =>
+      match state_label with
+      | Lbl.Start =>
+        error "Cannot loop back to start state. please refactor parser"
+      | Lbl.Accept => ok accept
+      | Lbl.Reject => ok reject
+      | Lbl.Name next_state_id =>
+        let* next_state := lookup_parser_state next_state_id states in
+        let unroll := if List.find (Nat.eqb next_state_id) seen then unroll - 1 else unroll in
+        if Nat.eqb unroll 0
+        then ok reject
+        else inline_parser gas unroll ctx model (next_state_id::seen) next_state states
+      end
+    | Trns.Select discriminee default cases =>
+      let inline_default := inline_transition gas unroll ctx model seen (Trns.Direct default) states in
+      let f acc_r '(pat, lbl) :=
+        let* acc := acc_r in
+        let* cond := translate_pat discriminee pat in
+        let+ inln := inline_transition gas unroll ctx model seen (Trns.Direct lbl) states in
+        IConditional Typ.Bool cond inln acc
+      in
+      List.fold_left f (List.rev' cases) inline_default
+    end
+  end
 with inline (gas : nat)
             (unroll : nat)
             (ctx : DeclCtx)
+            (model : string -> string -> Exp.args -> option Exp.t -> result string t)
             (s : ST.t)
   : result string t :=
   match gas with
@@ -618,7 +527,7 @@ with inline (gas : nat)
     | ST.Skip =>
       ok ISkip
     | ST.LetIn x t_or_e s =>
-        let+ s := inline gas unroll ctx s in
+        let+ s := inline gas unroll ctx model s in
         match t_or_e with
         | inl t =>  ISeq (IVardecl t x) s
         | inr e =>
@@ -629,34 +538,26 @@ with inline (gas : nat)
         ok (IAssign (typ_of_exp rhs) lhs rhs)
     | ST.SetValidity b e => ok $ ISetValidity b e
     | ST.Cond guard tru_blk fls_blk =>
-      let* tru_blk' := inline gas unroll ctx tru_blk in
-      let+ fls_blk' := inline gas unroll ctx fls_blk in
+      let* tru_blk' := inline gas unroll ctx model tru_blk in
+      let+ fls_blk' := inline gas unroll ctx model fls_blk in
       IConditional (typ_of_exp guard) guard tru_blk' fls_blk'
 
     | ST.Seq s1 s2 =>
-      let* i1 := inline gas unroll ctx s1 in
-      let+ i2 := inline gas unroll ctx s2 in
+      let* i1 := inline gas unroll ctx model s1 in
+      let+ i2 := inline gas unroll ctx model s2 in
       ISeq i1 i2
 
     | ST.App (Call.Funct f _ ret) args =>
-(*if List.existsb e_has_typ_var (List.map paramarg_elim args)
-then error "args has typevar call funct" else  *)
       match find_function ctx f with
       | Some (TD.Funct _ _ {| paramargs:=params |} body) =>
-          (*if s_extern_has_typ_var body then error "funct body has type var" else*)
         (** TODO check copy-in/copy-out *)
-            let* rslt := inline gas unroll ctx body in
-            (*if i_extern_has_typ_var rslt then error "funct rslt has type var" else*)
+        let* rslt := inline gas unroll ctx model body in
         let args := List.combine (List.map fst params) args in
-        let (s,_) := subst_t (args_to_expenv args)
-                       rslt in
-        (*if i_extern_has_typ_var s then error "funct blk has type var" else*)
+        let (s,_) := subst_t (args_to_expenv args) rslt in
         ok $ IBlock s
       | Some _ =>
         error "[ERROR] Got a nonfunction when `find`ing a function"
       | None =>
-          (* let args := elaborate_arguments args in
-             ok (IExternMethodCall "_" f args ret) *)
           error
             ("[TODO] not sure what to do here... Could not find function " ++ f)%string
       end
@@ -665,27 +566,20 @@ then error "args has typevar call funct" else  *)
       let* adecl := from_opt (find_action ctx a) ("could not find action " ++ a ++ " in environment")%string in
       match adecl with
       | CD.Action _ ctrl_params data_params body =>
-          (*if s_extern_has_typ_var body then
-            error "body has type var" else*)
         (** TODO handle copy-in/copy-out *) (* TODO handle control args *)
         let data_args :=
           List.combine (List.map fst data_params) data_args in
         let ctrl_args :=
           List.combine (List.map fst ctrl_params) (List.map PAIn ctrl_args) in
-        let* rslt := inline gas unroll ctx body in
-        (*if i_extern_has_typ_var rslt then
-          error "rslt has type var" else*)
-        let η := args_to_expenv (ctrl_args ++ data_args) in
+        let* rslt := inline gas unroll ctx model body in
+        let η := args_to_expenv (List.app ctrl_args data_args) in
         let blk := fst (subst_t η rslt) in
-        (*if i_extern_has_typ_var blk then
-          error "action block has type var" else*)
         ok $ IBlock blk
       | _ =>
         error "[ERROR] got a nonaction when `find`-ing a function"
       end
 
     | ST.App (Call.Inst inst ext_args) args  =>
-        (*if (inst =? "h'3")%string then error "where is it applying h3?" else*)
       match find_control ctx inst with
       | None =>
         let parser := find_parser ctx inst in
@@ -696,10 +590,8 @@ then error "args has typevar call funct" else  *)
           let* pdecl := from_opt pdecl_opt ("could not find parser of type " ++ pname)%string in
           match pdecl with
           | TD.Parser _ _ _ _ _ start states  =>
-            let+ parser := inline_parser gas unroll  ctx "start" start states in
-            let init := init_parser ("start" :: List.map string_of_nat (seq 0 (List.length states)))  in
-            ISeq init  parser 
-          (* error ("found parser " ++ inst ++ " of type " ++ pname ++ " [TODO] translate the parser!") *)
+            let+ parser := inline_parser gas unroll ctx model [] start states in
+            ISeq init_parser parser
           | _ =>
             error ("expected `" ++ pname ++ "` to be a parser declaration, but it was something else")%string
           end
@@ -713,22 +605,13 @@ then error "args has typevar call funct" else  *)
           let* cdecl := from_opt cdecl_opt "could not find controller" in
           match cdecl with
           | TD.Control _ _ _ _ params body apply_blk =>
-              (*if s_extern_has_typ_var apply_blk then error "apply_blk has type var" else*)
             (* Context is begin extended with body, but why can't I find the controls? *)
             let ctx' := List.fold_left of_cdecl body ctx in
-            let* rslt := inline gas unroll ctx' apply_blk in
-            (*if i_extern_has_typ_var rslt then error "control rslt has type var" else*)
-              (** TODO check copy-in/copy-out *)
-            (*if List.existsb e_has_typ_var (List.map paramarg_elim args)
-              then error
-                     ("control " ++ cname ++ " instance " ++ iname ++ " args has type var")%string
-              else*)
+            let* rslt := inline gas unroll ctx' model apply_blk in
+            (** TODO check copy-in/copy-out *)
             let args := List.combine (List.map fst params) args in
             let η := copy args in
-            (*if List.existsb e_has_typ_var (List.map snd η)
-            then error "control η has type var" else*)
             let blk := (fst (subst_t η rslt)) in
-            (*if i_extern_has_typ_var blk then error "control blk as type var" else*)
             ok $ IBlock blk
           | _ =>
             error "Expected a control decl, got something else"
@@ -760,8 +643,7 @@ then error "args has typevar call funct" else  *)
           let* action_cmds := from_opt (find_action ctx action_name) ("could not find action " ++ action_name ++ " in environment")%string in
           match action_cmds with
           | CD.Action _ ctrl_params data_params body  =>
-            (* | Action : string -> list (string * Typ.t) -> Typ.params -> Stm.t -> CD.t             *)
-            let* s := inline gas unroll ctx body in
+            let* s := inline gas unroll ctx model body in
             let* (s', _) :=
               action_param_renamer tbl_name action_name
                 (List.map fst ctrl_params ++ string_list_of_params data_params) s in
@@ -787,31 +669,26 @@ then error "args has typevar call funct" else  *)
       end
 
     | ST.App (Call.Method ext method _ ret) args =>
-        (*if List.existsb e_has_typ_var (List.map paramarg_elim args)
-            then error "args has typevar call method" else*)
-        match find_extern ctx ext with
-        | Some (TD.Extern _ _ _ _ methods) =>
-            let* '((_, _, {|paramargs:=params|}) : nat * list string * Typ.arrowT) :=
-              Result.from_opt
-                (Field.get method methods)
-                ("[Error] couldn't find extern method "
-                   ++ method ++ " in extern " ++ ext)%string in
-            (*if List.existsb e_has_typ_var (List.map paramarg_elim args)
-            then error "args has typevar 1" else*)
-              let args := List.combine (List.map fst params) args in
-              (*if List.existsb e_has_typ_var (List.map (paramarg_elim ∘ snd) args)
-            then error "args has typevar 2" else*)
-            ok (IExternMethodCall ext method args ret)
-        | _ => error
-                ("[ERROR] expecting extern when getting extern, got something else for "
-                   ++ ext ++ " & method " ++ method)%string
+      match find_extern ctx ext with
+      | Some (TD.Extern _ _ _ _ methods) =>
+        let* '((_, _, {|paramargs:=params|}) : nat * list string * Typ.arrowT) :=
+          Result.from_opt
+            (Field.get method methods)
+            ("[Error] couldn't find extern method "
+               ++ method ++ " in extern " ++ ext)%string in
+        (* let args := List.combine (List.map fst params) args in *)
+        model ext method args ret
+      | _ =>
+          error
+            ("[ERROR] expecting extern when getting extern, got something else for "
+               ++ ext ++ " & method " ++ method)%string
         end
 
-    | ST.Trans _ =>  ok ISkip (*[TODO] how to hanlde parser transitions?*)
+    | ST.Trans _ =>
+      ok ISkip (*[TODO] how to handle parser transitions?*)
     end
   end.
 
-Open Scope string_scope.
 Definition seq_tuple_elem_assign
            (tuple_name : string)
            (n : nat)
@@ -829,6 +706,15 @@ Definition elim_tuple_assign (ltyp : Typ.t) (lhs rhs : E.t) : result string Inli
     fold_lefti (seq_tuple_elem_assign x) (Inline.ISkip) te
   | _,_ => ok (Inline.IAssign ltyp lhs rhs)
   end.
+
+Definition unexpected_method_error extern method args ret :=
+  if (extern =? "_")%string then
+    if List.find (String.eqb method) ["assert"; "assume"; "hopen"; "hclose"] then
+      ok (IExternMethodCall extern method args ret)
+    else
+      error ("method calls should be factored out by now, got " ++ extern ++ "." ++ method)
+  else
+    error ("method calls should be factored out by now, got " ++ extern ++ "." ++ method).
 
 Definition elaborate_tuple_literal
            (param : string)
@@ -869,9 +755,8 @@ Fixpoint elim_tuple (c : Inline.t) : result string t :=
                      let+ acc := acc in
                      (name, (params, act)) :: acc) (ok []) actions in
     IInvoke x keys actions
-  | IExternMethodCall extern method args ret  =>
-      let arrow := elaborate_arguments args in
-    ok (IExternMethodCall extern method arrow ret)
+  | IExternMethodCall extern method args ret =>
+    unexpected_method_error extern method args ret
   end.
 
 Definition header_fields  (e : E.t) (fields : list Typ.t) : list (E.t * Typ.t)  :=
@@ -919,33 +804,13 @@ Fixpoint elaborate_headers (c : Inline.t) : result string Inline.t :=
                    List.app actions [(name, (params, act))]) actions (ok []) in
   IInvoke x keys actions'
 | IExternMethodCall extern method args ret =>
-    let arrow := elaborate_arguments args in
-  ok (IExternMethodCall extern method arrow ret)
+  unexpected_method_error extern method args ret
 end.
 
 Fixpoint ifold {A : Type} (n : nat) (f : nat -> A -> A) (init : A) :=
   match n with
   | O => init
   | S n' => f n (ifold n' f init)
-  end.
-
-Definition elaborate_extract extern args ret  : result string Inline.t :=
-  match args with
-  | [(hdr, (PAOut arg))] =>
-    (*match arg with
-     TODO: what to do here now?
-      | E.ExprMember (Typ.HeaderStack fields num) mem header_stack  =>
-      if String.eqb mem "next"
-      then ok (extract_next extern fields num hdr header_stack )
-      else let arrow := elaborate_arrowE arrow in
-           ok (IExternMethodCall extern "extract" arrow )
-    | _ => *)
-      let arrow := elaborate_arguments args in
-      ok (IExternMethodCall extern "extract" arrow ret)
-    (*end*)
-  | _ =>
-    let arrow := (*elaborate_arguments*) args in
-    ok (IExternMethodCall extern "extract" arrow ret)
   end.
 
 Fixpoint elaborate_arrays (c : Inline.t) : result string Inline.t :=
@@ -1005,16 +870,12 @@ Fixpoint elaborate_arrays (c : Inline.t) : result string Inline.t :=
     let+ actions' := fold_left rec_act_call actions (ok []) in
     IInvoke x keys (rev actions')
   | IExternMethodCall extern method arrow ret =>
-      if String.eqb method "extract"
-      then elaborate_extract extern arrow ret else
-        let arrow := elaborate_arguments arrow in
-        ok (IExternMethodCall extern method arrow ret)
+    unexpected_method_error extern method arrow ret
   end.
 
 Definition struct_fields (s : string) (fields : list Typ.t) : list (string * Typ.t)  :=
   fold_righti (fun f typ acc => (s ++ "." ++ string_of_nat f, typ) :: acc ) [] fields.
 
-(** TODO: Compiler pass to elaborate structs *)
 Fixpoint elaborate_structs (c : Inline.t) : result string Inline.t :=
   match c with
   | ISkip => ok c
@@ -1080,8 +941,7 @@ Fixpoint elaborate_structs (c : Inline.t) : result string Inline.t :=
                    List.app actions [(name, (params, act))]) actions (ok []) in
     IInvoke x keys actions
   | IExternMethodCall extern method arrow ret =>
-      let arrow := elaborate_arguments arrow in
-    ok (IExternMethodCall extern method arrow ret)
+    unexpected_method_error extern method arrow ret
 end.
 
 Fixpoint eliminate_slice_assignments (c : t) : result string t :=
@@ -1128,7 +988,7 @@ Fixpoint eliminate_slice_assignments (c : t) : result string t :=
   end.
 
 Definition inline_assert (check : E.t)  : t :=
-  let args := [("check", PAIn check)] in
+  let args := [PAIn check] in
   IExternMethodCall "_" "assert" args None.
 
 Definition isValid (hdr : E.t) : E.t :=
@@ -1225,19 +1085,15 @@ Fixpoint assert_headers_valid_before_use (c : t) : result string t :=
                   let+ c' := assert_headers_valid_before_use c in
                   (a, (params, c'))) acts) in
     IInvoke t ks acts' 
-  | IExternMethodCall ext method paramargs ret =>
-    if String.eqb method "extract" then ok c else
-      let+ asserts :=
-        match List.fold_left
-                (fun acc_asserts '(param, arg)  =>
-                   let* acc_asserts := acc_asserts in
-                   let arg_exp := get_from_paramarg arg in
-                   let+ new_asserts := header_asserts arg_exp  in
-                   ISeq acc_asserts new_asserts ) paramargs (ok (ISkip )) with
-        | Ok o => ok o
-        | Error e => error ("methocall: " ++ e)
-        end in
-    ISeq asserts (IExternMethodCall ext method paramargs ret)
+  | IExternMethodCall ext method args ret =>
+    let+ asserts :=
+      List.fold_left (fun acc_asserts arg =>
+        let* acc_asserts := acc_asserts in
+        let arg_exp := get_from_paramarg arg in
+        let+ new_asserts := header_asserts arg_exp  in
+        ISeq acc_asserts new_asserts) args (ok (ISkip ))
+    in
+  ISeq asserts (IExternMethodCall ext method args ret)
   end.
 
 End Inline.

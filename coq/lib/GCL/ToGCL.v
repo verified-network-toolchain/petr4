@@ -1,4 +1,3 @@
-
 Require Import Coq.Program.Basics.
 From Poulet4 Require Export P4cub.Syntax.AST
      Utils.P4Arith Utils.Envn
@@ -28,6 +27,85 @@ Definition fold_right {A B : Type} (f : B -> A -> A) (a0 : A) (bs : list B ) :=
   List.fold_left (fun a b => f b a) (rev' bs) a0.
 
 Infix "@@" := String.append (right associativity, at level 60).
+
+Search (nat -> N).
+
+Section Simple.
+
+  Definition bit (w n : nat) :=
+    E.Bit (BinNat.N.of_nat w) (BinInt.Z.of_nat n).
+
+  Definition bit_t (w : nat) :=
+    Typ.Bit (BinNat.N.of_nat w).
+
+  Definition naive_extern (ext method : string) (args : Exp.args) (ret : option Exp.t) : result string (@GCL.t E.t E.t E.t) :=
+    let either_arg arg :=
+       match typ_of_exp arg with
+       | Typ.Bool => inl arg
+       | _ => inr arg
+       end
+    in
+    let extract_arg arg :=
+       match arg with
+       | PAIn x => either_arg x
+       | PAOut x => either_arg x
+       | PAInOut x => either_arg x
+       end
+    in
+    let gcl_args := List.map extract_arg args in
+    match ret with
+    | Some retexp =>
+      ok (GCL.GExternAssn retexp method gcl_args)
+    | None =>
+      ok (GCL.GExternVoid method gcl_args)
+    end
+  .
+
+  Fixpoint translate (inline : Inline.t) : result string (@GCL.t E.t E.t E.t) :=
+    match inline with
+    | ISkip => ok GCL.GSkip
+    | IVardecl type x => ok GCL.GSkip
+    | IAssign type lhs rhs => ok (GCL.GAssign type lhs rhs)
+    | ISetValidity validity hdr =>
+      (* TODO Fix *)
+      if validity then
+        ok (GCL.GAssign (bit_t 1) hdr (*IS VALID*) (bit 1 1))
+      else
+        ok (GCL.GAssign (bit_t 1) hdr (*IS VALID*) (bit 1 0))
+    | IConditional guard_type guard tru_blk fls_blk =>
+      let* tru_gcl := translate tru_blk in
+      let+ fls_gcl := translate fls_blk in
+      let not_guard := E.Uop Typ.Bool Una.Not guard in
+      GCL.GChoice
+        (GCL.GSeq (GCL.GAssume guard)     tru_gcl)
+        (GCL.GSeq (GCL.GAssume not_guard) fls_gcl)
+    | ISeq s1 s2 =>
+      let* g1 := translate s1 in
+      let+ g2 := translate s2 in
+      GCL.GSeq g1 g2
+    | IBlock blk => translate blk
+    | IInvoke x keys actions =>
+      let keys := List.map (fun '(t, e, mk) => (e, mk)) keys in
+      let translate_arg '(x, t) := E.Var t x 0 in
+      let translate_action '(name, (args, act)) :=
+         let+ gcl_act := translate act in
+         let gcl_args := List.map translate_arg args in
+         (name, (gcl_args, gcl_act))
+      in
+      let result_actions := List.map translate_action actions in
+      let+ actions := rred result_actions in
+      GCL.GTable x keys actions
+    | IExternMethodCall extn method args ret =>
+      naive_extern extn method args ret
+    | IReturnVoid => error "Do we need return-voids in Inline anymore?"
+    | IReturnFruit t e =>
+      error "Do we need return-fruits in Inline anymore?"
+    | IExit =>
+      ok (GCL.GExternVoid "_$EXIT$_" [])
+    end.
+
+End Simple.
+
 
 Section ToGCL.
   Record ctx : Type :=
@@ -127,15 +205,8 @@ Section ToGCL.
 
   Definition target := @GCL.t string BV.t Form.t.
 
-  Definition extern : Type := Env.t string target.
+  Definition extern : Type := Env.t string (list BV.t -> target).
   (* TODO :: Think about calling out to external functions for an interpreter*)
-  Definition model : Type := Env.t string extern.
-  Definition find (m : model) (e f : string) : result string (GCL.t) :=
-    let*~ ext := Env.find e m else "couldn't find extern " @@ e @@ " in model" in
-    let*~ fn := Env.find f ext else "couldn't find field " @@ f @@ " in extern " @@ e in
-    ok fn.
-  Definition empty : model := Env.empty string extern.
-
   Definition pipeline : Type := list Typ.t -> TD.constructor_args  -> result string (ST.t * ST.t).
 
   Section Instr.
@@ -551,50 +622,52 @@ Section ToGCL.
       let* phi := to_form guard in
       ok (iteb phi tg fg, ctx).
 
+    Definition get_expr pa : E.t :=
+      match pa with
+      | PAIn e
+      | PAOut e
+      | PAInOut e => e
+      end.
+
     Definition arrowE_to_arglist
-      : F.fs string (paramarg E.t E.t)
-        -> result string (list (string * (Form.t + BV.t))) :=
-      List.fold_right (fun '(name, pa) acc_res =>
+      : list (paramarg E.t E.t)
+        -> result string (list (Form.t + BV.t)) :=
+      List.fold_right (fun pa acc_res =>
                          let* res := acc_res in
-                         match pa with
-                         | PAIn e
-                         | PAOut e
-                         | PAInOut e =>
-                           match typ_of_exp e with
-                           | Typ.Bool =>
-                             let* phi := to_form e (*over "couldn't convert form in arrowE_to_arglist"*) in
-                             ok ((name, inl phi) :: res)
-                           | _ =>
-                             let* e' := to_rvalue e (*over "couldn't convert rvalue in arrowE_to_arglist"*) in
-                             ok ((name, inr e') :: res)
-                           end
+                         let e := get_expr pa in
+                         match typ_of_exp e with
+                         | Typ.Bool =>
+                           let* phi := to_form e (*over "couldn't convert form in arrowE_to_arglist"*) in
+                           ok (inl phi :: res)
+                         | _ =>
+                           let* e' := to_rvalue e (*over "couldn't convert rvalue in arrowE_to_arglist"*) in
+                           ok (inr e' :: res)
                          end)
                       (ok []).
 
+    (* Definition lvalue_subst param new old := *)
+    (*       if String.eqb param old then *)
+    (*         match new with *)
+    (*         | BV.BVVar new_string w => *)
+    (*           new_string *)
+    (*         | _ => *)
+    (*           (* Not sure how to substitute in anything else*) *)
+    (*           old *)
+    (*         end *)
+    (*       else *)
+    (*         param. *)
 
-    Definition lvalue_subst param new old :=
-          if String.eqb param old then
-            match new with
-            | BV.BVVar new_string w =>
-              new_string
-            | _ =>
-              (* Not sure how to substitute in anything else*)
-              old
-            end
-          else
-            old.
+    (* Definition subst_args (g : target) (s : list (string * (Form.t + BV.t))) : result string target := *)
+    (*   List.fold_right (fun '(param, arg) g_res' => *)
+    (*             let+ g' := g_res' in *)
+    (*             match arg with *)
+    (*             | inl phi => *)
+    (*               GCL.subst_form (fun _ _ x => x) (fun _ _ bv => bv) Form.subst_form param phi g' *)
+    (*             | inr bv_exp => *)
+    (*               GCL.subst_rvalue lvalue_subst BV.subst_bv Form.subst_bv param bv_exp g' *)
+    (*             end) (ok g) s. *)
 
-    Definition subst_args (g : target) (s : list (string * (Form.t + BV.t))) : result string target :=
-      List.fold_right (fun '(param, arg) g_res' =>
-                let+ g' := g_res' in
-                match arg with
-                | inl phi =>
-                  GCL.subst_form (fun _ _ x => x) (fun _ _ bv => bv) Form.subst_form param phi g'
-                | inr bv_exp =>
-                  GCL.subst_rvalue lvalue_subst BV.subst_bv Form.subst_bv param bv_exp g'
-                end) (ok g) s.
-
-    Fixpoint inline_to_gcl (c : ctx) (arch : model) (s : Inline.t ) : result string (target * ctx) :=
+    Fixpoint inline_to_gcl (c : ctx) (s : Inline.t ) : result string (target * ctx) :=
       match s with
       | Inline.ISkip =>
         ok (GCL.GSkip, c)
@@ -614,17 +687,17 @@ Section ToGCL.
           ok (GCL.GAssign Typ.Bool validity (BV.bit (Some 1) 1), c)
            
       | Inline.IConditional guard_type guard tru_blk fls_blk =>
-        let* tru_blk' := inline_to_gcl c arch tru_blk in
-        let* fls_blk' := inline_to_gcl c arch fls_blk in
+        let* tru_blk' := inline_to_gcl c tru_blk in
+        let* fls_blk' := inline_to_gcl c fls_blk in
         cond guard_type (scopify c guard) tru_blk' fls_blk'
 
       | Inline.ISeq s1 s2 =>
-        let* g1 := inline_to_gcl c arch s1 in
-        let+ g2 := inline_to_gcl (snd g1) arch s2 in
+        let* g1 := inline_to_gcl c s1 in
+        let+ g2 := inline_to_gcl (snd g1) s2 in
         seq g1 g2
 
       | Inline.IBlock s =>
-        let* (gcl, c') := inline_to_gcl (incr c) arch s in
+        let* (gcl, c') := inline_to_gcl (incr c) s in
         let+ c'' := decr c c' in
         (gcl, c'')
 
@@ -644,7 +717,7 @@ Section ToGCL.
                                       let* bv_params := rred (List.map (fun '(name, type) =>
                                                                           let+ w := width_of_type name type in
                                                                           BV.BVVar name w) params) in
-                                      let+ (gcl_act,_) := inline_to_gcl c arch act in
+                                      let+ (gcl_act,_) := inline_to_gcl c act in
                                       (name, (bv_params, gcl_act))) actions)
         in
         let* keys' := rred (map (fun '(t,e,mk) =>
@@ -654,21 +727,25 @@ Section ToGCL.
         let+ g := instr tbl keys' actions' in
         (g, c)
 
-      | Inline.IExternMethodCall ext method args ret =>
-        (** TODO handle copy-in/copy-out) *)
-          let* g := find arch ext method in
-          let* gcl_args :=
-            match arrowE_to_arglist args (*over "failed to convert arguments to " @@ ext @@ "." @@ method *)
-            with
-            | Ok o => ok o
-            | Error e => error ("for " ++ method ++ " arrowE_to_arglist sad: " ++ e)
-            end in
-          let+ g' :=
-            match subst_args g gcl_args with
-            | Ok o => ok o
-            | Error e => error "can't subst_args"
-            end in
-        (g', c)
+      | Inline.IExternMethodCall ext method args None =>
+          let* gcl_args := arrowE_to_arglist args in
+          match gcl_args with
+          | [inl phi] =>
+              if (method =? "assume")%string then
+                ok (GCL.GAssume phi, c)
+              else if (method =? "assert")%string then
+                ok (GCL.GAssert phi, c)
+              else
+                ok (GCL.GExternVoid method [inl phi], c)
+          | _ =>
+              ok (GCL.GExternVoid method gcl_args, c)
+          end
+      | Inline.IExternMethodCall ext method args (Some e) =>
+          match arrowE_to_arglist args with
+          | Error msg => error msg
+          | Ok gcl_args =>
+            ok $ (GCL.GExternVoid method gcl_args, c)
+          end
       end.
 
     (* use externs to specify inter-pipeline behavior.*)
@@ -681,8 +758,12 @@ Section ToGCL.
       end.
 
     Definition inlining_passes
-      (gas unroll : nat) (ext : model) (ctx : ToP4cub.DeclCtx) (s : ST.t) : result string Inline.t :=
-      let* inline_stm := Inline.inline gas unroll ctx s in
+      (gas unroll : nat)
+      (model : string -> string -> Exp.args -> option Exp.t -> result string Inline.t)
+      (ctx : ToP4cub.DeclCtx)
+      (s : ST.t)
+      : result string Inline.t :=
+      let* inline_stm := Inline.inline gas unroll ctx model s in
       let* no_stk := Inline.elaborate_arrays inline_stm in
       let* no_stk := Inline.elaborate_arrays no_stk in (*Do it twice, because extract might introduce more hss, but it wont after 2x *)
       let* no_tup := Inline.elim_tuple no_stk in
@@ -692,28 +773,38 @@ Section ToGCL.
       ok no_slice.
 
     Definition inline_from_p4cub (gas unroll : nat)
-               (ext : model) (pipeline : pipeline)
+               (model : string -> string -> Exp.args -> option Exp.t -> result string Inline.t ) (pipeline : pipeline)
                (ctx : ToP4cub.DeclCtx)  : result string (Inline.t * Inline.t) :=
       let* (prsr, pipe) := get_main ctx pipeline in
-      let* inline_prsr := inlining_passes gas unroll ext ctx prsr in
-      let+ inline_pipe := inlining_passes gas unroll ext ctx pipe in
+      let* inline_prsr := inlining_passes gas unroll model ctx prsr in
+      let+ inline_pipe := inlining_passes gas unroll model ctx pipe in
       (inline_prsr, inline_pipe).
 
     Definition p4cub_statement_to_gcl
                (hdrs : bool)
                (gas unroll : nat)
                (ctx : ToP4cub.DeclCtx)
-               (arch : model) (s : ST.t) : result string target :=
-      let* inlined := inlining_passes gas unroll arch ctx s in
+               (model : string -> string -> Exp.args -> option Exp.t -> result string Inline.t) (s : ST.t) : result string target :=
+      let* inlined := inlining_passes gas unroll model ctx s in
       let* instred := if hdrs then Inline.assert_headers_valid_before_use inlined else ok inlined in
-      let+ (gcl,_) := inline_to_gcl initial arch instred in
+      let+ (gcl,_) := inline_to_gcl initial instred in
       gcl.
 
-    Definition from_p4cub (hdrs : bool) (gas unroll : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx) : result string (target * target) :=
+    Definition from_p4cub (hdrs : bool) (gas unroll : nat) (model : string -> string -> Exp.args -> option Exp.t -> result string Inline.t) (pipe : pipeline) (ctx : ToP4cub.DeclCtx) : result string (target * target) :=
       let* (prsr, pipe) := get_main ctx pipe in
-      let* tgt_prsr := p4cub_statement_to_gcl hdrs gas unroll ctx ext prsr in
-      let+ tgt_pipe := p4cub_statement_to_gcl hdrs gas unroll ctx ext pipe in
+      let* tgt_prsr := p4cub_statement_to_gcl hdrs gas unroll ctx model prsr in
+      let+ tgt_pipe := p4cub_statement_to_gcl hdrs gas unroll ctx model pipe in
       (tgt_prsr, tgt_pipe).
+
+
+    Definition simple_gcl_from_p4cub (gas unroll : nat) (pipe : pipeline) (ctx : ToP4cub.DeclCtx) :=
+      let* '(prsr, pipe) := get_main ctx pipe in
+      let inline_extern_model ext meth args ret := ok (IExternMethodCall ext meth args ret) in
+      let* inline_prsr := Inline.inline gas unroll ctx inline_extern_model prsr in
+      let* inline_pipe := Inline.inline gas unroll ctx inline_extern_model pipe in
+      let* gcl_prsr := translate inline_prsr in
+      let+ gcl_pipe := translate inline_pipe in
+      (gcl_prsr, gcl_pipe).
 
   End Instr.
 End ToGCL.

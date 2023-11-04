@@ -10,32 +10,55 @@ Module BV := GCL.BitVec.
 Module E := GCL.E.
 Module ST := Stm.
 
-Definition externs : ToGCL.model :=
-  [("_", [("mark_to_drop",  G.GAssign (Typ.Bit (BinNat.N.of_nat 9)) "standard_metadata.egress_spec" (BV.bit (Some 9%nat) 511));
-         ("clone3", G.GSkip);
-         ("assert", G.GAssert (F.LVar "check"));
-         ("assume", G.GAssume (F.LVar "check"));
-         ("hash", G.GSkip);
-         ("truncate", G.GSkip);
-         ("random", G.GSkip);
-         ("crc_poly", G.GSkip);
-         ("digest", G.GSkip);
-         ("hopen", G.GAssume (F.LVar "check"));
-         ("hclose", G.GAssert (F.LVar "check"))
-   ]);
-  ("packet_in", [("extract", G.GAssign (Typ.Bit 1%N) "hdr.is_valid" (BV.bit (Some 1%nat) 1));
-                 ("lookahead", G.GSkip)]);
-  ("counter", [("count", G.GSkip)]);
-  ("direct_counter", [("count", G.GSkip)]);
-  ("register", [("read", G.GSkip); ("write", G.GSkip)]);
-  ("meter", [("meter", G.GSkip); ("execute_meter", G.GSkip)]);
-  ("direct_meter", [("direct_meter", G.GSkip); ("read", G.GSkip)])
-  ].
+Definition get_arg_expr (arg : Exp.arg) : E.t :=
+  match arg with
+  | PAIn e => e
+  | PAOut e => e
+  | PAInOut e => e
+  end.
+
+Definition externs extern method (args : Exp.args) (ret : option Exp.t)  : result string Inline.t :=
+  let args_expr := map get_arg_expr args in
+  if (extern =? "_")%string then
+      if (method =? "mark_to_drop")%string then
+          match args_expr with
+          | [stdmeta] =>
+            let t := Typ.Bit (BinNat.N.of_nat 9) in
+            ok $ Inline.IAssign t (Exp.Member t 1 stdmeta) (Exp.Bit 9 511%Z)
+          | _ =>
+            error "too many arguments passed to mark_to_drop"
+          end
+      else if orb (method =? "assert") (method =? "assume")%string then
+        ok $ Inline.IExternMethodCall extern method args None
+      else
+          match List.find (String.eqb method) ["hash"; "truncate"; "random"; "crc_poly"; "digest"] with
+          | None =>
+            error ("couldnt find extern " ++ extern ++ "." ++ method)
+          | Some _ => ok Inline.ISkip
+          end
+  else if (extern =? "packet_in")%string then
+         if (method =? "extract")%string then
+           match args_expr with
+           | nil => error "cannot extract 0 args "
+           | [hdr] =>
+             ok $ Inline.ISetValidity true hdr
+           | [hdr; _] =>
+             ok $ Inline.ISetValidity true hdr
+           | _ =>
+             error "cannot extract with more than 2 args"
+           end
+         else if (method =? "lookahead")%string then
+            (* this relies on SimplExpr assigning packet_in.lookahead a fresh
+            var for correctness *)
+            ok Inline.ISkip
+         else
+            error ("couldnt find extern " ++ extern ++ "." ++ method)
+  else ok Inline.ISkip.
 
 Definition cub_seq (statements : list ST.t): ST.t :=
   List.fold_right ST.Seq ST.Skip statements.
 
-Definition det_fwd_asst   :=
+Definition det_fwd_asst :=
   let assertion :=
       E.Bop Typ.Bool
              Bin.NotEq

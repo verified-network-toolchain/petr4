@@ -7,7 +7,7 @@ open Poulet4.AST
 let make_sexp name args = Sexp.List (Sexp.Atom name :: args)
 
 let sexp_of_strings = sexp_of_list sexp_of_string
-let sexp_of_bit_type width = make_sexp "Typ.Bool" [ Bigint.sexp_of_t width ]
+let sexp_of_bit_type width = make_sexp "Typ.Bit" [ Bigint.sexp_of_t width ]
 let sexp_of_int_type width = make_sexp "Typ.Int" [ Bigint.sexp_of_t width ]
 let sexp_of_type_var idx = make_sexp "Typ.Var" [ sexp_of_int idx ]
 

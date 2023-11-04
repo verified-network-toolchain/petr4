@@ -176,7 +176,7 @@ Section GCL.
   | GExternAssn (x : lvalue) (e : string) (args : list (form + rvalue))
   | GTable (tbl : string)
            (keys : list (rvalue * string))
-           (actions : list (string * ((list BitVec.t) * t))).
+           (actions : list (string * ((list rvalue) * t))).
 
   Definition g_sequence {L R F : Type} : list (@t L R F) -> @t L R F :=
     fold_right GSeq GSkip.

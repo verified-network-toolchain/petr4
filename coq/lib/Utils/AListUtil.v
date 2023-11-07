@@ -97,6 +97,20 @@ Section Util.
       + rewrite H in c. rewrite get_neq_cons in H0; auto. rewrite IHl1; auto.
   Qed.
 
+  Lemma AList_get_cons_none_inv: forall l (k1 k2: K) (v: V),
+      get ((k2, v) :: l) k1 = None -> k1 =/= k2 /\ get l k1 = None.
+  Proof.
+    unfold get. simpl. intros. destruct (HKR k1 k2); [ discriminate | split; auto ].
+  Qed.
+
+  Lemma AList_get_app_none_inv: forall (l1 l2: list (K * V)) k,
+      get (l1 ++ l2) k = None -> get l1 k = None /\ get l2 k = None.
+  Proof.
+    induction l1; simpl; intros. 1: split; auto.
+    destruct a as [k' v]. apply AList_get_cons_none_inv in H. destruct H.
+    rewrite get_neq_cons by assumption. apply IHl1. assumption.
+  Qed.
+
   (*Lemma set_some_get : forall l l' (k : K) (v : V),
       set l k v = Some l' -> exists a, get l k = a.*)
 

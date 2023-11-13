@@ -61,6 +61,17 @@ Section Queue.
     | nonempty_queue front _ rear => S (length front + length rear)
     end.
 
+  Definition concat_queue (q1 q2: queue): queue :=
+    match q1 with
+    | empty_queue => q2
+    | nonempty_queue front1 mid1 rear1 =>
+        match q2 with
+        | empty_queue => q1
+        | nonempty_queue front2 mid2 rear2 =>
+            nonempty_queue front1 mid1 (rear2 ++ mid2 :: rev' front2 ++ rear1)
+        end
+    end.
+
   Lemma empty_queue_rep_nil: list_rep empty_queue = [].
   Proof. reflexivity. Qed.
 
@@ -133,6 +144,22 @@ Section Queue.
     intros. destruct que as [|front mid rear]; simpl; auto.
     rewrite app_length. simpl. rewrite rev'_eq, rev_length. lia.
   Qed.
+
+  Lemma qlength_enque: forall a que, qlength (enque a que) = S (qlength que).
+  Proof.
+    intros. rewrite !qlength_eq, enque_eq, app_length. simpl. apply PeanoNat.Nat.add_1_r.
+  Qed.
+
+  Lemma concat_queue_eq: forall q1 q2, list_rep (concat_queue q1 q2) = list_rep q1 ++ list_rep q2.
+  Proof.
+    intros. destruct q1 as [|f1 m1 r1]; destruct q2 as [|f2 m2 r2]; simpl; auto.
+    - rewrite app_nil_r. reflexivity.
+    - rewrite !rev'_eq, rev_app_distr. simpl. rewrite rev_app_distr, rev_involutive.
+      rewrite <- !app_assoc, <- !app_comm_cons. simpl. reflexivity.
+  Qed.
+
+  Lemma qlength_concat: forall q1 q2, qlength (concat_queue q1 q2) = qlength q1 + qlength q2.
+  Proof. intros. rewrite !qlength_eq, concat_queue_eq, app_length. reflexivity. Qed.
 
 End Queue.
 

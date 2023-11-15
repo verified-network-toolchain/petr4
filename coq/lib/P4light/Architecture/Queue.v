@@ -1,6 +1,10 @@
 Require Import Coq.Lists.List.
 Require Import Coq.micromega.Lia.
+Require Import Coq.ZArith.ZArith.
+Require Import VST.zlist.Zlist.
 Import ListNotations.
+
+Open Scope Z_scope.
 
 Section Queue.
 
@@ -55,10 +59,10 @@ Section Queue.
 
   Definition list_to_queue (l: list A): queue := list_enque l empty_queue.
 
-  Definition qlength (que: queue): nat :=
+  Definition qlength (que: queue): Z :=
     match que with
-    | empty_queue => O
-    | nonempty_queue front _ rear => S (length front + length rear)
+    | empty_queue => 0
+    | nonempty_queue front _ rear => Zlength front + Zlength rear + 1
     end.
 
   Definition concat_queue (q1 q2: queue): queue :=
@@ -139,15 +143,18 @@ Section Queue.
   Lemma list_to_queue_eq: forall l, list_rep (list_to_queue l) = l.
   Proof. intros. unfold list_to_queue. rewrite list_enque_eq. reflexivity. Qed.
 
-  Lemma qlength_eq: forall que, qlength que = length (list_rep que).
+  Lemma qlength_eq: forall que, qlength que = Zlength (list_rep que).
   Proof.
     intros. destruct que as [|front mid rear]; simpl; auto.
-    rewrite app_length. simpl. rewrite rev'_eq, rev_length. lia.
+    rewrite Zlength_app, Zlength_cons, rev'_eq, Zlength_rev. lia.
   Qed.
 
-  Lemma qlength_enque: forall a que, qlength (enque a que) = S (qlength que).
+  Lemma qlength_nonneg: forall que, 0 <= qlength que.
+  Proof. intros. rewrite qlength_eq. apply Zlength_nonneg. Qed.
+
+  Lemma qlength_enque: forall a que, qlength (enque a que) = qlength que + 1.
   Proof.
-    intros. rewrite !qlength_eq, enque_eq, app_length. simpl. apply PeanoNat.Nat.add_1_r.
+    intros. rewrite !qlength_eq, enque_eq, Zlength_app, Zlength_cons, Zlength_nil. lia.
   Qed.
 
   Lemma concat_queue_eq: forall q1 q2, list_rep (concat_queue q1 q2) = list_rep q1 ++ list_rep q2.
@@ -159,7 +166,15 @@ Section Queue.
   Qed.
 
   Lemma qlength_concat: forall q1 q2, qlength (concat_queue q1 q2) = qlength q1 + qlength q2.
-  Proof. intros. rewrite !qlength_eq, concat_queue_eq, app_length. reflexivity. Qed.
+  Proof. intros. rewrite !qlength_eq, concat_queue_eq, Zlength_app. reflexivity. Qed.
+
+  Lemma qlength_0_iff: forall que, qlength que = 0 <-> que = empty_queue.
+  Proof.
+    intros. split; intros.
+    - destruct que; auto. rewrite qlength_eq in H. simpl in H.
+      rewrite rev'_eq in H. list_solve.
+    - subst. simpl. reflexivity.
+  Qed.
 
 End Queue.
 

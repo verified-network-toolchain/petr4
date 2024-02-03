@@ -3,11 +3,11 @@
   (name main)
   (package petr4)
   (modules main)
-  (libraries ANSITerminal core core_unix core_unix.command_unix petr4 alcotest poulet4 poulet4_Ccomp str)
+  (libraries ANSITerminal core core_unix core_unix.command_unix petr4 alcotest poulet4 str)
   (preprocess (pps ppx_jane ppx_let)))
 
 (executable
   (name test)
   (modules test)
-  (libraries ANSITerminal core core_unix core_unix.command_unix petr4 alcotest poulet4 poulet4_Ccomp p4stf str)
+  (libraries ANSITerminal core core_unix core_unix.command_unix petr4 alcotest poulet4 p4stf str)
   (preprocess (pps ppx_jane)))

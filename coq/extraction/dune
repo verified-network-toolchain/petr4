@@ -9,7 +9,6 @@
   countable
   fin_maps
   gmap
-  pmap
   stringmap
   option1
   AList

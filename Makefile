@@ -49,7 +49,6 @@ test: build
 
 clean:
 	dune clean
-	rm -f petr4.opam poulet4.opam poulet4_Ccomp.opam
 
 web:
 	dune build _build/default/web/web.bc.js --profile release && cp _build/default/web/web.bc.js web/html_build/

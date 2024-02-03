@@ -48,7 +48,7 @@ Alternatively, follow theses steps:
    ```
    If this doesn't work, install the dependencies manually.
    ```
-   opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriving_yojson yojson js_of_ocaml js_of_ocaml-lwt js_of_ocaml-ppx
+   opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_import ppx_deriving_yojson yojson js_of_ocaml js_of_ocaml-lwt js_of_ocaml-ppx
    ```
 
 1. Build bundled dependencies.

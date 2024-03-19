@@ -894,16 +894,12 @@ and type_expression
     (exp: Expression.t)
   : P4light.coq_Expression =
   match exp with
-  (* e, c |- True ~~> {True; Bool; Directionless} *)
   | True {tags} ->
     MkExpression (tags, ExpBool true, TypBool, Directionless)
-  (* e, c |- False ~~> {False; Bool; Directionless} *)
   | False {tags} ->
     MkExpression (tags, ExpBool false, TypBool, Directionless)
-  (* e, c |- str ~~> {str; String; Directionless} *)
   | String {tags; str} ->
     MkExpression (tags, ExpString str, TypString, Directionless)
-  (* P4Int = { value : bigint; width_signed: (int * bool) option}*)
   | Int {tags; x}->
     type_int x
   | Name {tags; name} ->
@@ -911,17 +907,6 @@ and type_expression
     MkExpression (tags, ExpName (name, P4light.noLocator), typ, dir)
   | ArrayAccess { array; index; tags } ->
     type_array_access env ctx tags array index
-    (*
-     Note: ctx determines the nature of the scope we're working in.
-       ctx :: Typed. ExprContext.t
-       ExprContext = ParserState
-                   | ApplyBlock
-                   | DeclLocals
-                   | TableAction
-                   | Action
-                   | Function
-                   | Constant
-    *)
   | BitStringAccess { bits; lo; hi ; tags} ->
     type_bit_string_access env ctx tags bits lo hi
   | List { values; tags } ->
@@ -1558,47 +1543,6 @@ and validate_param env ctx (typ: coq_P4Type) dir info opt_value =
   then failwith "Type cannot be passed as a parameter."; (* ~typ:(typ:coq_P4Type) ~info:(info:P4info.t)];*)
   if opt_value <> None && not (eq_dir dir Directionless) && not (eq_dir dir In)
   then failwith "Only directionless and in parameters may have default arguments" (*~info:(info:P4info.t)]*)
-
-  (** copied this ease of access and read for formalization doc. *)
-  (* and is_valid_param_type env (ctx: Typed.ParamContext.t) (typ: Typed.Type.t) = *)
-  (* let typ = reduce_to_underlying_type env typ in *)
-  (* match ctx with *)
-  (* | Constructor decl -> *)
-  (*    begin match typ, decl with *)
-  (*    | Package _, Package -> true *)
-  (*    | Package _, _ -> false *)
-  (*    | Parser _, Package *)
-  (*    | Parser _, Parser -> true *)
-  (*    | Parser _, _ -> false *)
-  (*    | Control _, Package *)
-  (*    | Control _, Control -> true *)
-  (*    | Control _, _ -> false *)
-  (*    | Extern _, Package *)
-  (*    | Extern _, Parser *)
-  (*    | Extern _, Control *)
-  (*    | Extern _, Method -> true *)
-  (*    | Extern _, _ -> false *)
-  (*    | Function _, _ -> false *)
-  (*    | Action _, _ -> false *)
-  (*    | Table _, _ -> false *)
-  (*    | Set _, _ -> false *)
-  (*    | _ -> true *)
-  (*    end *)
-  (* | Runtime decl -> *)
-  (*    begin match typ, decl with *)
-  (*    | Package _, _ -> false *)
-  (*    | Parser _, _ -> false *)
-  (*    | Control _, _ -> false *)
-  (*    | Extern _, Parser *)
-  (*    | Extern _, Control *)
-  (*    | Extern _, Method -> true *)
-  (*    | Extern _, _ -> false *)
-  (*    | Table _, _ -> false *)
-  (*    | Set _, _ -> false *)
-  (*    | Action _, _ -> false *)
-  (*    | Function _, _ -> false *)
-  (*    | _ -> true *)
-  (*    end *)
 
 and type_param ?(gen_wildcards=false) env (ctx: P4light.coq_ParamContext) (param : Surface.Parameter.t) : coq_P4Parameter * P4string.t list =
   let typ, wildcards = translate_type' ~gen_wildcards env param.typ in
@@ -2342,26 +2286,6 @@ and casts_ok ?(explicit = false) env original_types new_types =
      false
 
 (* Section 8.9 *)
-(*
-   NOTE: trans(t)_e,[vars] translate Surface.type.t to Typed.type.t.
-         I haven't decided if we want to mention that these are
-         even different. [CAN ASK NATE IN REPORT!]
-         e |- typ is type_well_formed judgement.
-         e |- typ1, typ2 is judgment form for explicit cast ok.
-
-   DISCUSS: saturating types twice. once in this function and another
-            time in the cast_ok but this function doesn't reaLLY need them
-            to be sat except for cast_ok. TODO after doc. 
-
-   e, c | exp ~~> exp', t', d
-   t'' = saturate(t')_e
-   t''' = trans(t'')_e,[]
-   t'''' = saturate(t''')_e
-   e |- t'''
-   e |- t', t'''
-   ------------------------------------------------------
-   e, c | (t) exp ~~>  (t''') exp', t''', directionless
-*)
 and type_cast env ctx tags typ expr : coq_Expression =
   let expr_typed = type_expression env ctx expr in
   let expr_type = saturate_type env (type_of_expr expr_typed) in
@@ -2489,9 +2413,8 @@ and type_expression_member_function_builtin env info typ (name: P4string.t) : co
   | _ -> None
 
 (* Sections 6.6, 8.14 *)
-(* look at spec. *)
 (* In cases where the field is being looked up and it is not found (i.e., None)
-   the builtin helper is called for ease maintanance of the code in case we
+   the builtin helper is called for easy maintanance of the code in case we
    need to extend builtin fields. *)
 and type_expression_member env ctx tags expr name : coq_Expression =
   let typed_expr = type_expression env ctx expr in
@@ -2974,9 +2897,6 @@ and type_constructor_invocation env ctx info decl_name type_args args : P4light.
   args_typed, List.map ~f:snd type_params_args, ret
 
 (* Section 14.1 *)
-(*
-   look at spec
-*)
 and type_nameless_instantiation env ctx tags typ args : coq_Expression =
   match typ with
   | Type.SpecializedType { base; args = type_args; tags } ->
@@ -3099,8 +3019,6 @@ and type_method_call env ctx call_info func type_args args =
     env
   | _ -> failwith "function call not typed as FunctionCall?"
 
-(* Question: Can Assignment statement update env? *)
-(* Typecheck LHS and RHS respectively and check if they have the same type. *)
 (* Section 11.1
  *
  *          Δ, T, Γ |- e1 : t1
@@ -3142,7 +3060,6 @@ and type_direct_application env ctx stmt_tags typ args =
     env
   | _ -> failwith "function call not typed as FunctionCall?"
 
-(* Question: Can Conditional statement update env? *)
 (* Section 11.6 The condition is required to be a Boolean
  *
  *          Δ, T, Γ |- e1 : bool

@@ -1,6 +1,9 @@
 \newcommand{\VVal}[1]{#1'}
 \newcommand{\VVVal}[1]{#1''}
+\newcommand{\VVVVal}[1]{#1'''}
 
+\newcommand{\A}{A}
+\newcommand{\synCat}{\mathit{symbol}}
 
 %rule names:
 \newcommand{\rn}[1]{\TirName{#1}}
@@ -22,9 +25,16 @@
 
 \newcommand*{\enumWellT}{\rn{Enum}\rT}
 \newcommand*{\serenumWellT}{\rn{SerializableEnum}\rT}
+\newcommand*{\serenumWellAltT}{\rn{SerEnum}\rSep\rn{Alt}\rT}
 \newcommand*{\serenumTypedefWellT}{\rn{SerializableEnum}\rSep\rn{Typedef}\rT}
+\newcommand*{\serenumTypedefWellAltT}{\rn{SerEnum}\rSep\rn{Typedef}\rSep\rn{Alt}\rT}
 \newcommand*{\headerTypWellT}{\rn{Header}\rT}
+\newcommand*{\headerGenericTypWellT}{\rn{Generic}\rSep\rn{Header}\rT}
 \newcommand*{\headerUnionTypWellT}{\rn{HeaderUnion}\rT}
+\newcommand*{\structTypWellT}{\rn{Struct}\rT}
+\newcommand*{\parserTypWellT}{\rn{Parser}\rT}
+\newcommand*{\controlTypWellT}{\rn{Control}\rT}
+\newcommand*{\packageTypWellT}{\rn{Package}\rT}
 
 \newcommand*{\boolT}{\rn{Bool}\rT}
 \newcommand*{\stringT}{\rn{String}\rT}
@@ -33,13 +43,16 @@
 \newcommand*{\varbitExpT}{\rn{Varbit}\rSep\rn{Exp}\rT}
 \newcommand*{\errT}{\rn{Error}\rT}
 \newcommand*{\voidT}{\rn{Void}\rT}
-\newcommand*{\matchKindT}{\rn{MatchKind}\rT}
+\newcommand*{\dontcareT}{\rn{Dontcare}\rT}
+\newcommand*{\notInstantiatedT}{\rn{NotInstantiated}\rT}
+\newcommand*{\matchkindT}{\rn{MatchKind}\rT}
 \newcommand*{\enumOneT}{\rn{Enum}\rT}
 \newcommand*{\intWidthExpT}{\rn{SignedInt}\rSep\rn{Exp}\rT}
 \newcommand*{\bitWidthExpT}{\rn{BitString}\rSep\rn{Exp}\rT}
 \newcommand*{\intWidthT}{\rn{SignedInt}\rT}
 \newcommand*{\bitWidthT}{\rn{BitString}\rT}
 \newcommand*{\arrayT}{\rn{Array}\rT}
+\newcommand*{\arraySpecT}{\rn{Array}\rSep\rn{Specialized}\rT}
 \newcommand*{\tupleT}{\rn{Tuple}\rT}
 \newcommand*{\setT}{\rn{Set}\rT}
 \newcommand*{\enumTwoT}{\rn{SerializableEnum}\rT}
@@ -48,8 +61,8 @@
 \newcommand*{\headerT}{\rn{Header}\rT}
 \newcommand*{\structT}{\rn{Struct}\rT}
 \newcommand*{\newTypeT}{\rn{NewType}\rT}
-\newcommand*{\specializedExternT}{\rn{SpecializedType}\rSep\rn{ExternBase}\rT}
-\newcommand*{\specializedRestT}{\rn{SpecializedType}\rSep\rn{Rest}\rT}
+%% \newcommand*{\specializedExternT}{\rn{SpecializedType}\rSep\rn{ExternBase}\rT}
+\newcommand*{\specializedT}{\rn{SpecializedType}\rT}
 \newcommand*{\packageT}{\rn{Package}\rT}
 \newcommand*{\controlT}{\rn{Control}\rT}
 \newcommand*{\parserT}{\rn{Parser}\rT}
@@ -59,14 +72,26 @@
 \newcommand*{\constructorT}{\rn{Constructor}\rT}
 \newcommand*{\tableT}{\rn{Table}\rT}
 \newcommand*{\typeNameT}{\rn{Reference}\rT}
+\newcommand*{\listTeq}{\rn{Lists}\rT}
+\newcommand*{\tupleTeq}{\rn{Tuples}\rT}
+\newcommand*{\headerTeq}{\rn{Headers}\rT}
+\newcommand*{\headerUnionTeq}{\rn{HeaderUnions}\rT}
+\newcommand*{\structTeq}{\rn{Structs}\rT}
+\newcommand*{\enumTeq}{\rn{Enums}\rT}
+\newcommand*{\serEnumTeq}{\rn{SerializableEnums}\rT}
+\newcommand*{\setTeq}{\rn{Sets}\rT}
 
 \newcommand*{\boolE}{\rn{Bool}\rE}
 \newcommand*{\stringE}{\rn{String}\rE}
 \newcommand*{\integerE}{\rn{Integer}\rE}
 \newcommand*{\bitStringE}{\rn{FixedLengthInt}\rE}
 \newcommand*{\signedIntE}{\rn{SignedInt}\rE}
-\newcommand*{\nameE}{\rn{Name}\rE}
+\newcommand*{\variableE}{\rn{Variable}\rE}
 \newcommand*{\arrayAccessE}{\rn{ArrayAccess}\rE}
+\newcommand{\headerStackIndexE}{\rn{HeaderStackIndex}\rE}
+%% \newcommand{\headerStackIndexE}{\rn{HeaderStackIndex}\rSep\rn{bit}\rE}
+%% \newcommand{\headerStackIndexE}{\rn{HeaderStackIndex}\rSep\rn{int}\rE}
+%% \newcommand{\headerStackIndexE}{\rn{HeaderStackIndex}\\rE}
 \newcommand*{\tupleAccessE}{\rn{TupleAccess}\rE}
 \newcommand*{\bitSliceE}{\rn{UnsignedIntSlice}\rE}
 \newcommand*{\intSliceE}{\rn{SignedIntSlice}\rE}
@@ -78,13 +103,25 @@
 \newcommand*{\bitwiseComplementE}{\rn{BitwiseComplement}\rE}
 \newcommand*{\unaryMinusE}{\rn{UnaryMinus}\rE}
 \newcommand*{\binaryOpsE}{\rn{BinaryOps}\rE}
-\newcommand*{\castE}{\rn{cast}\rE}
-\newcommand*{\castTypNameE}{\rn{cast}\rSep\rn{TypeID}\rE}
+\newcommand*{\castE}{\rn{Cast}\rE}
+\newcommand*{\castTypNameE}{\rn{Cast}\rSep\rn{TypeName}\rE}
 \newcommand*{\typeMemE}{\rn{TypeMember}\rE}
 \newcommand*{\errMemE}{\rn{ErrorMember}\rE}
-\newcommand*{\expMemE}{\rn{ExpressionMember}\rE}
-\newcommand*{\ternaryE}{\rn{Ternary}\rE} 
-\newcommand*{\ternaryIntE}{\rn{Ternary}\rSep\rn{Int}\rE}
+%% \newcommand*{\expMemE}{\rn{ExpressionMember}\rE}
+\newcommand*{\structMemE}{\rn{StructMember}\rE}
+\newcommand*{\externMemE}{\rn{ExternMember}\rE}
+\newcommand*{\sizesMemStructLikeE}{\rn{StructLike}\rSep\rn{SizeMember}\rE}
+\newcommand*{\sizesMemSerTypesE}{\rn{SerializableTypes}\rSep\rn{SizeMember}\rE}
+\newcommand*{\isValidMemE}{\rn{IsValidMember}\rE}
+\newcommand*{\setValidMemE}{\rn{SetValidMember}\rE}
+\newcommand*{\sizeMemHeaderStackE}{\rn{HeaderStack}\rSep\rn{SizeMember}\rE}
+\newcommand*{\nextIndexMemHeaderStackE}{\rn{NextIndexMember}\rE}
+\newcommand*{\nextMemHeaderStackE}{\rn{NextMember}\rE}
+\newcommand*{\lastMemHeaderStackE}{\rn{LastMember}\rE}
+\newcommand*{\lastIndexMemHeaderStackE}{\rn{LastIndexMember}\rE}
+\newcommand*{\pushPopMemHeaderStackE}{\rn{PushOrPopMember}\rE}
+\newcommand*{\ternaryE}{\rn{Conditional}\rE} 
+%% \newcommand*{\ternaryIntE}{\rn{Conditional}\rSep\rn{Int}\rE}
 \newcommand*{\funcCallE}{\rn{FunctionCall}\rE\rSep\rn{1}}
 \newcommand*{\funcCallNoTypeArgE}{\rn{FunctionCall}\rE\rSep\rn{2}}
 \newcommand*{\instE}{\rn{Instantiation}\rE}
@@ -110,17 +147,25 @@
 
 \newcommand*{\inferTypeArgAE}{\rn{InferTypeArg}\rAE}
 
+\newcommand*{\methodCallS}{\rn{MethodCall}\rS}
 \newcommand*{\assignmentS}{\rn{Assignment}\rS}
+\newcommand*{\dirAppS}{\rn{DirectApplication}\rS}
 \newcommand*{\emptyS}{\rn{Empty}\rS}
 \newcommand*{\blockS}{\rn{Block}\rS}
-\newcommand*{\returnS}{\rn{Return(inApplyBlockOrAction)}\rS}
-\newcommand*{\returnEmpS}{\rn{ReturnEmpty}\rS}
-\newcommand*{\returnFuncS}{\rn{Return(inFunction)}\rS}
+\newcommand*{\returnS}{\rn{ReturnExpression}\rS}
+\newcommand*{\returnEmpS}{\rn{Return}\rS}
+%% \newcommand*{\returnFuncS}{\rn{Return(inFunction)}\rS}
 \newcommand*{\exitS}{\rn{Exit}\rS}
 \newcommand*{\ifthenS}{\rn{IfThen}\rS}
 \newcommand*{\ifthenelseS}{\rn{IfThenElse}\rS}
-\newcommand*{\switchS}{\rn{Switch}\rS}
-\newcommand*{\declS}{\rn{Declaration}\rS}
+\newcommand*{\switchS}{\rn{Switch}\rSep\rn{EnumOrInteger}\rS}
+\newcommand*{\switchActionS}{\rn{Switch}\rSep\rn{ActionRun}\rS}
+\newcommand*{\constantS}{\rn{Constant}\rS}
+\newcommand*{\instantiationS}{\rn{Instantiation}\rSep\rn{1}\rS}
+\newcommand*{\instantiationNoBlockS}{\rn{Instantiation}\rSep\rn{2}\rS}
+\newcommand*{\varS}{\rn{Variable}\rS}
+\newcommand*{\varInitS}{\rn{VariableInit}\rS}
+%% \newcommand*{\declS}{\rn{Declaration}\rS}
 
 \newcommand*{\constantD}{\rn{Constant}\rD}
 \newcommand*{\instantD}{\rn{Instantiation}\rD}
@@ -142,13 +187,14 @@
 \newcommand*{\serEnumD}{\rn{SerializableEnum}\rD}
 \newcommand*{\serEnumTypdefD}{\rn{SerializableEnum}\rSep\rn{Typedef}\rD}
 \newcommand*{\externObjD}{\rn{ExternObject}\rD}
-\newcommand*{\typDefD}{\rn{TypeDefinition}\rD}
+\newcommand*{\typdefD}{\rn{Typedef}\rD}
+\newcommand*{\typdefDclD}{\rn{Typedef}\rSep\rn{Declared}\rD}
 \newcommand*{\newtypeD}{\rn{NewType}\rD}
+\newcommand*{\newtypeDclD}{\rn{NewType}\rSep\rn{Declared}\rD}
 \newcommand*{\controlTypD}{\rn{ControlType}\rD}
 \newcommand*{\parserTypD}{\rn{ParserType}\rD}
 \newcommand*{\packageTypD}{\rn{PackageType}\rD}
 \newcommand*{\externD}{\rn{Extern}\rD}
-\newcommand*{\typespD}{\rn{TypeSpecialization}\rD}
 
 %stuff here and there:
 %TODO: fix mathit in the followings:
@@ -164,19 +210,27 @@
 \newcommand{\pprim}[1]{{#1}^{\prime\prime}}
 \newcommand{\ppprim}[1]{{#1}^{\prime\prime\prime}}
 \newcommand{\so}[2]{{#1} \Rightarrow {#2}}
-\newcommand{\lookupEnv}[1]{\env({#1})}
+\newcommand{\lookupVarEnv}[1]{\varEnv({#1})}
 \newcommand{\lookupExternEnv}[1]{\externEnv({#1})}
 \newcommand{\lookupTypEnv}[1]{\typEnv({#1})}
 \newcommand{\lookupTypSynEnv}[1]{\typSynEnv({#1})}
+\newcommand{\lookupEnv}[3]{{#1}.{#2}({#3})}
 \newcommand{\emp}{[\ ]}
+\newcommand{\updateEnv}[1]{\env \ \mathsf{with}\ {#1}}
+\newcommand{\updateEnvWithEnv}[2]{{#1} \ \mathsf{with}\ {#2}}
 \newcommand{\insertToVarEnv}[3]{\varEnv[{#1} : ({#2}, {#3}) ]}
 \newcommand{\insertsToVarEnv}[3]{\varEnv[\overline{{#1} : ({#2}, {#3}) }]}
 \newcommand{\insertToTypEnv}[2]{\typEnv[{#1} = {#2}]}
+\newcommand{\insertToTypSynEnv}[2]{\typSynEnv[{#1} = {#2}]}
 \newcommand{\insertToTypParEnv}[1]{\typParEnv[{#1}]}
 \newcommand{\insertsToTypEnv}[2]{\typEnv[\overline{{#1} = {#2}}]}
 \newcommand{\insertsToConstEnv}[2]{\constEnv[\overline{{#1} = {#2}}]}
+\newcommand{\insertToConstEnv}[2]{\constEnv[{{#1} = {#2}}]}
+\newcommand{\envWhere}[1]{\env \ \mathsf{where}\ {#1}}
+\newcommand{\envWhereCtxt}[1]{\envWhere {\ctxt = {#1}}}
 %% \newcommand{\insertToTypEnv}[1]{\typEnv[{#1} \ \mathsf{var}]}
 %% \newcommand{\insertToTypsEnv}[1]{\typEnv[\overline{{#1} \ \mathsf{var}}]}
+\newcommand{\insertToEnv}[3]{{#1}.{#2}[{#3}]}
 \newcommand{\suchThat}[2]{{#1}\ . \ {#2}}
 \newcommand{\tr}{\mathsf{true}}
 \newcommand{\fl}{\mathsf{false}}
@@ -201,27 +255,39 @@
 %% \newcommand{\forallcond}[3]{\forall {#1} \in {#2}\ . \ {#3}}
 
 %typing judgments:
+%checker
+\newcommand{\expCheck}[2]{\env \vdash {#1} : {#2}}
+\newcommand{\expCheckEnv}[3]{{#1} \vdash {#2} : {#3}}
+\newcommand{\expCheckCtxt}[3]{\envWhereCtxt {#1} \vdash {#2} : {#3}}
+\newcommand{\prmCheck}[2]{{#1} \vdash {#2}}
+\newcommand{\dclCheck}[2]{\env \vdash {#1} \dashv {#2}}
+\newcommand{\stmtCheck}[4]{{#1} \vdash {#2} : {#3} \dashv {#4}}
+\newcommand{\allcastenv}[2]{\env \vdash {#1} \rightarrow {#2}}
+%inference
 \newcommand{\envOne}[2]{\Delta, T, \Gamma \vdash {#1} : {#2}}
 \newcommand{\expenv}[4]{\constEnv, \varEnv, \typEnv, \ctxt \vdash {#1} \leadsto {#2}, {#3}, {#4}}
 \newcommand{\expenvv}[5]{\constEnv_{#5}, \varEnv_{#5}, \typEnv_{#5}, \ctxt_{#5} \vdash {#1} \leadsto {#2}, {#3}, {#4}}
 \newcommand{\expenvvv}[3]{{#1}, \ctxt \vdash {#2} \leadsto {#3}} %%TODO: check where you've used this and correct the envs
 \newcommand{\expenvWithCtxt}[5]{\constEnv, \varEnv, \typEnv, {#1} \vdash {#2} \leadsto {#3}, {#4}, {#5}}
 \newcommand{\coerceBinArgsEnv}[3]{\env, \ctxt \vdash {#1} \twoheadrightarrow ({#2}), ({#3})}
-\newcommand{\binOpEnv}[7]{\env \vdash {#1}, ({#4}, {#5}), ({#6}, {#7}) : {#2}, {#3}}
-\newcommand{\typWellFormed}[1]{\typEnv, \typParEnv, \externEnv, \typSynEnv \vdash {#1}}
-\newcommand{\typNotWellFormed}[1]{\typEnv, \externEnv \nvdash {#1}}
-\newcommand{\typWellFormedWithEnv}[3]{{#1}, {#2}, \externEnv \vdash {#3}}
+%% \newcommand{\binOpEnv}[7]{\env \vdash {#1}, ({#4}, {#5}), ({#6}, {#7}) : {#2}, {#3}}
+\newcommand{\typWellFormed}[1]{\env \vdash {#1}}
+\newcommand{\typWellFormedNoEnv}[1]{\vdash {#1}}
+\newcommand{\typNotWellFormed}[1]{\env \nvdash {#1}}
+\newcommand{\typWellFormedUpdatedEnv}[2]{{#1}\vdash {#2}}
+%% \newcommand{\typWellFormedWithEnv}[3]{{#1}, {#2}, \externEnv \vdash {#3}} %delete after fixing harim's inference rules.
 \newcommand{\typEqEnv}[3]{ {#2} ==_{\env,{#1}} {#3}} %%todo: fix env
+\newcommand{\typEq}[2]{{#1} ==_\env {#2}}
 %context. type of expression. type of returned name.exp
 \newcommand{\fieldAccessEnv}[4]{\env, {#1} \vdash {#2}, {#3} : {#4}}
 \newcommand{\stmtenv}[3]{\env, \ctxt \vdash {#1} \leadsto {#2}, {#3} \dashv \env}
 \newcommand{\stmtenvv}[5]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3}, {#4} \dashv \env_{#5}}
 %% \newcommand{\dclenv}[2]{\env, \ctxt \vdash {#1} \leadsto {#2} \dashv \env}
 \newcommand{\dclenv}[6]{\varEnv, \constEnv, \typEnv, \typSynEnv \vdash {#1} \leadsto {#2} \dashv {#3}, {#4}, {#5}, {#6}}
-%% \newcommand{\dclenvv}[4]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3} \dashv \env_{#4}}
+\newcommand{\dclenvv}[4]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3} \dashv \env_{#4}}
 %% \newcommand{\dclenvvv}[4]{\constEnv, \typEnv \vdash {#1} \leadsto {#2} \dashv {#3}, {#4}}
 \newcommand{\explCast}[2]{\castenv {e} {#1} {#2}}
-\newcommand{\castenv}[3]{\typEnv, \typSynEnv \vdash {#2} \rightarrow_{#1} {#3}}
+\newcommand{\castenv}[3]{\env \vdash {#2} \rightarrow_{#1} {#3}}
 \newcommand{\implCast}[2]{\castenv {i} {#1} {#2}}
 %exp, args. exp', type pars, pars, kind, return type.
 %check if you need the dir to be returned as well. 
@@ -233,14 +299,41 @@
 \newcommand{\resolveConstOver}[6]{\env, \ctxt \vdash \mathit{dispatch} \left( {#1}, {#2} \constructorTyp {#3} {#4} {#5} {#6}\right)}
 
 %contexts:
-\newcommand{\cte}{\mathsf{constant}}
-\newcommand{\applyBlockCtxt}{\mathsf{applyBlock}}
-\newcommand{\actionCtxt}{\mathsf{action}}
-\newcommand{\tableActionCtxt}{\mathsf{tableAction}}
-\newcommand{\funcCtxt}[1]{\mathsf{function}\ {#1}}
-\newcommand{\parserCtxt}{\mathsf{parserState}}
-\newcommand{\toplevel}{\mathsf{topLevel}}
-\newcommand{\declLocalCtxt}{\mathsf{declLocal}}
+% statement context
+\newcommand{\expParserStateCtxt}{\mathsf{exp\_parser\_state}}
+\newcommand{\expApplyBlockCtxt}{\mathsf{exp\_apply\_block}}
+\newcommand{\expDclLocalCtxt}{\mathsf{exp\_dcl\_local}}
+\newcommand{\expTableActionCtxt}{\mathsf{exp\_table\_action}}
+\newcommand{\expActionCtxt}{\mathsf{exp\_action}}
+\newcommand{\expMethodCtxt}{\mathsf{exp\_method}}
+\newcommand{\expFuncCtxt}{\mathsf{exp\_function}}
+\newcommand{\expConstantCtxt}{\mathsf{exp\_constant}}
+% declaration context
+\newcommand{\dclTopLevelCtxt}{\mathsf{dcl\_top\_level}}
+\newcommand{\dclNestedCtxt}{\mathsf{dcl\_nested}}
+\newcommand{\dclStmtCtxt}[1]{\mathsf{dcl\_stmt}\ {#1}}
+%stmt context
+\newcommand{\stmtCtxt}{\mathit{stmt\_ctxt}}
+\newcommand{\stmtMethodCtxt}[1]{\mathsf{stmt\_method}\ {#1}}
+\newcommand{\stmtFuncCtxt}[1]{\mathsf{stmt\_function}\ {#1}}
+\newcommand{\stmtParserStateCtxt}{\mathsf{stmt\_parser\_state}}
+\newcommand{\stmtApplyBlockCtxt}{\mathsf{stmt\_apply\_lock}}
+\newcommand{\stmtActionCtxt}{\mathsf{stmt\_action}}
+\newcommand{\isntParserOrFunc}[1]{\mathit{isnt\_parser\_or\_function}({#1})}
+\newcommand{\isntParser}[1]{\mathit{isnt\_parser}({#1})}
+\newcommand{\validStmtCtxt}[1]{\mathit{valid\_statement\_context}({#1})}
+\newcommand{\typCtxt}[1]{\mathit{type\_of\_context}({#1})}
+% parameter context
+\newcommand{\runtimeCtxt}[1]{\mathsf{param\_runtime}\ \mathsf{#1}}
+\newcommand{\constructorCtxt}[1]{\mathsf{param\_constructor}\ \mathsf{#1}}
+%parser. control. method. action. function. package.
+\newcommand{\ctxtPrm}{\mathit{ctxt\_prm}}
+\newcommand{\parserCtxtPrm}{\mathsf{parser}}
+\newcommand{\controlCtxtPrm}{\mathsf{control}}
+\newcommand{\methodCtxtPrm}{\mathsf{method}}
+\newcommand{\actionCtxtPrm}{\mathsf{action}}
+\newcommand{\functionCtxtPrm}{\mathsf{function}}
+\newcommand{\packageCtxtPrm}{\mathsf{package}}
 
 %%keywords used in nontypename
 \newcommand{\identifierkw}{\mathsf{identifier}}
@@ -263,7 +356,7 @@
 \newcommand{\geqOp}{>=}
 \newcommand{\concat}{+\!+}
 \newcommand{\restOps}{\odot}
-\newcommand{\ops}{\odot}
+\newcommand{\ops}{$\odot$}
 \newcommand{\unaryOp}{\ominus}
 \newcommand{\binOp}{\oplus}
 \newcommand{\cast}[2]{({#1})\,{#2}}
@@ -276,7 +369,7 @@
 \newcommand{\bitComplement}{\string~}
 \renewcommand{\div}{/}
 \renewcommand{\mod}{\%}
-\newcommand{\funcCall}[3]{{#1}\,\langle{#2}\rangle\,({#3})}
+\newcommand{\funcCall}[3]{{#1}\, \langle{#2}\rangle\,({#3})}
 \newcommand{\funcCallNoTypArgs}[2]{{#1}({#2})}
 \newcommand{\expMem}[2]{{#1}.{#2}}
 \newcommand{\instantiation}[2]{{#1}\, ({#2})} %%anonymous instantiation
@@ -293,32 +386,36 @@
 \newcommand{\intoOp}[1]{\texttt{#1}}
 
 %metavariables:
-\newcommand{\prmDef}[1]{\mathit{prm}_{#1}}
-\newcommand{\prmDefs}[1]{\overline {\prmDef {#1}}}
+\newcommand{\prmDef}{\mathit{prm}}
+\newcommand{\prmDefs}{\overline {\prmDef}}
 \newcommand{\constraint}{C}
 \newcommand{\optConstraint}{B}
 \newcommand{\nonoptConstraint}{N}
 \newcommand{\typeEqs}{\Delta}
 \newcommand{\anyTyp}{a}
-\newcommand{\typEnv}{\Delta}
-\newcommand{\typParEnv}{\Upsilon}
-\newcommand{\typSynEnv}{\Theta}
-\newcommand{\varEnv}{\Gamma}
-\newcommand{\constEnv}{\Sigma}
-\newcommand{\externEnv}{\Xi}
-\newcommand{\env}{\Gamma}
+\newcommand{\typEnv}{\mathit{typeEnv}}%{\Delta}
+\newcommand{\typParEnv}{\mathit{typeParEnv}}%{\Upsilon}
+\newcommand{\typSynEnv}{\mathit{typeSynEnv}}%{\Theta}
+\newcommand{\varEnv}{\mathit{varEnv}}%{\Gamma}
+\newcommand{\constEnv}{\mathit{constantEnv}}%{\Sigma}
+\newcommand{\externEnv}{\mathit{externEnv}}%{\Xi}
+\newcommand{\env}{\mathit{env}}%{\Omega}
+\newcommand{\envDotEnv}[2]{{#1}.{#2}}
 %% \newcommand{\typEnv}{\Gamma}
 %% \newcommand{\constEnv}{\Sigma}
 \newcommand{\typ}{\tau}
 \newcommand{\typs}{\overline \typ}
-\newcommand{\surfaceTyp}[1]{\rho_{#1}}
-\newcommand{\surfaceTyps}[1]{\overline {\surfaceTyp {#1}}}
-\newcommand{\argTyp}{\eta}
-\newcommand{\funcProTyp}{\mu}
+\newcommand{\surfaceTyp}{\rho}
+%% \newcommand{\surfaceTypOrVoidOrVar}{\rho_{+\voidTyp+\typVar}}
+\newcommand{\surfaceTyps}{\overline {\surfaceTyp}}
+\newcommand{\typArg}{\eta}
+%% \newcommand{\funcProTyp}{\mu}
+%% \newcommand{\funcProTyp}{\surfaceTypOrVoidOrVar}
 \newcommand{\declaredTyp}{\nu}
 \newcommand{\synTyp}{\sigma}
 \newcommand{\typKind}{t}
-\newcommand{\ctxt}{c}
+\newcommand{\ctxt}{ctxt}
+\newcommand{\ctxtTyp}{c}
 \newcommand{\bool}{b}
 \newcommand{\tru}{\mathsf{true}}
 \newcommand{\fls}{\mathsf{false}}
@@ -353,13 +450,13 @@
 \newcommand{\fields}{\overline \field}
 \newcommand{\param}{x}
 \newcommand{\params}{\overline x}
-\newcommand{\prm}[1]{\dir_{#1}\  \param_{#1}:\typ_{#1}}
-\newcommand{\singleprm}{\dir \ \param: \typ }
+\newcommand{\prm}[1]{\dir_{#1}\,  \typ_{#1}\, \param_{#1}}
+\newcommand{\singleprm}{\dir \, \typ \, \param }
 \newcommand{\prms}{\overline {\singleprm}}
-\newcommand{\prmss}{\overline {\VVal \dir \ \VVal \param: \VVal \typ}}
+\newcommand{\singleprmm}{ {\VVal \dir \,  \VVal \typ \, \VVal \param}}
 \newcommand{\typParam}{\typVar}
 \newcommand{\typParams}{\overline \typParam}
-\newcommand{\pari}[1]{\dir_{#1}\ \param_{#1}: \typ_{#1}}
+\newcommand{\pari}[1]{\dir_{#1}\, \typ_{#1}\, \param_{#1} }
 \newcommand{\paris}[1]{\overline {\pari {#1}}}
 \newcommand{\pars}[2]{\pari {#1}, \ldots, \pari {#2}}
 % wildcard param for wild card type vars.
@@ -386,21 +483,28 @@
 % statements
 \newcommand{\stmt}{\mathit{stmt}}
 \newcommand{\stmts}{\overline \stmt}
-\newcommand{\block}[1]{\{ {#1} \}}
+\newcommand{\block}[1]{\{\overline {#1} \}}
+\newcommand{\blockOpened}[1]{\{{#1}\}}
 \newcommand{\ifthen}[2]{\mathsf{if}\ {#1}\ \mathsf{then}\ {#2}}
 \newcommand{\ifthenelse}[3]{\mathsf{if}\ {#1}\ \mathsf{then}\ {#2}\ \mathsf{else}\ {#3}}
-\newcommand{\methodCall}[3]{{#1}\,\langle{#2}\rangle\, \left({#3}\right)}
+\newcommand{\methodCall}[3]{{#1}\, \langle\overline {#2}\rangle\, \left(\overline {#3}\right)}
 \newcommand{\assign}[2]{{#1}:={#2}}
 \newcommand{\noop}{;}
 \newcommand{\return}[1]{\mathsf{return}\ {#1}}
 \newcommand{\retNothing}{\mathsf{return ;}}
 \newcommand{\exit}{\mathsf{exit}}
-\newcommand{\switch}[2]{\mathsf{switch}\ ({#1})\, \{{#2}\}}
+\newcommand{\actionRun}[1]{{#1}.\mathit{apply}().\mathsf{action\_run}}
+\newcommand{\isTableAction}[2]{\mathit{is\_table\_action}({#1}, {#2})}
+\newcommand{\defaultLast}[1]{\mathit{default\_is\_last}({#1})}
+\newcommand{\labels}[1]{\mathit{labels}({#1})}
+\newcommand{\labelMatchTyp}[2]{\mathit{label\_match\_type}({#1},{#2})}
+\newcommand{\blockSwitch}[1]{\mathit{block}({#1})}
+\newcommand{\switch}[2]{\mathsf{switch}\ ({#1})\, \{\overline{#2}\}}
 \newcommand{\lbl}{l}
 \newcommand{\actionCase}[1]{\lbl : \block {#1}}
 \newcommand{\switchCase}{\mathit{switch\_case}}
 \newcommand{\switchCases}{\overline \switchCase}
-\newcommand{\dirApp}[2]{{#1} \left({#2}\right)}
+\newcommand{\dirApp}[2]{{#1} \left(\overline{#2}\right)}
 \newcommand{\defLbl}{\mathsf{default}}
 
 %% parser states
@@ -417,7 +521,7 @@
 \newcommand{\pcases}{\overline \case}
 \newcommand{\parserTran}{trans}
 \newcommand{\parserTrans}{\overline \parserTran}
-\newcommand{\stateDef}[3]{{#1}\ \{{#2}\} \ {#3}}
+\newcommand{\stateDef}[3]{{#1}\ \{\overline{#2}\} \ {#3}}
 \newcommand{\state}{\mathit{st}}
 \newcommand{\states}{\overline \state}
 
@@ -434,7 +538,7 @@
 \newcommand{\props}{\overline \prop}
 
 %% field type pairs
-\newcommand{\fieldTyp}{\field:\surfaceTyp \exp}
+\newcommand{\fieldTyp}{\field:\surfaceTyp}
 \newcommand{\fieldTyps}{\overline \fieldTyp}
 
 %% methods
@@ -448,46 +552,50 @@
 \newcommand{\dcl}{\mathit{dcl}}
 \newcommand{\dcls}{\overline \dcl}
 \newcommand{\constDcl}[3]{\mathsf{const}\ {#1}\ {#2} := {#3}}
-\newcommand{\inst}[4]{{#1}\, ({#2})\, {#3}\, \{{#4}\}}
-\newcommand{\instNoBlock}[3]{{#1}\, ({#2})\, {#3}}
-\newcommand{\parserDcl}[6]{\mathsf{parser}\ {#1}\, \langle {#2}\rangle\, ({#3})\, ({#4})\, \{{#5}\ {#6} \}}
-\newcommand{\controlDcl}[6]{\mathsf{control}\ {#1}\, \langle {#2}\rangle\, ({#3})\, ({#4})\, \{ {#5}\ {#6} \}}
-\newcommand{\funcDcl}[5]{\mathsf{function}\ {#1}\, {#2}\, \langle {#3}\rangle\, ({#4})\, \{ {#5}\}}
-\newcommand{\externFuncDcl}[4]{\mathsf{extern\_function}\ {#1}\, {#2}\, \langle {#3}\rangle\, ({#4})}
+\newcommand{\inst}[4]{{#1}\, (\overline{#2})\, {#3}\, \{\overline{#4}\}}
+\newcommand{\instNoBlock}[3]{{#1}\, (\overline{#2})\, {#3}}
+\newcommand{\parserDcl}[6]{\mathsf{parser}\ {#1}\, \langle \overline {#2}\rangle\, (\overline{#3})\, (\overline{#4})\, \{\overline {#5}\ \overline{#6} \}}
+\newcommand{\controlDcl}[6]{\mathsf{control}\ {#1}\, \langle \overline {#2}\rangle\, (\overline{#3})\, (\overline{#4})\, \{ \overline{#5}\ \overline{#6} \}}
+\newcommand{\funcDcl}[5]{\mathsf{function}\ {#1}\, {#2}\, \langle \overline {#3}\rangle\, (\overline{#4})\, \{ \overline{#5}\}}
+\newcommand{\externFuncDcl}[4]{\mathsf{extern\_function}\ {#1}\, {#2}\, \langle \overline {#3}\rangle\, (\overline{#4})}
 \newcommand{\varDclInit}[3]{{#1}\ {#2} := {#3}}
 \newcommand{\varDcl}[2]{{#1}\, {#2}}
 %type. expression. name.
 \newcommand{\valSetDcl}[3]{{#1}\, {#3}:{#2}}
-\newcommand{\actionDcl}[3]{\mathsf{action}\ {#1}\, ({#2})\, \{{#3}\}}
-\newcommand{\tableDcl}[2]{\mathsf{table}\ {#1}\, \{{#2}\}}
-\newcommand{\headerDcl}[4]{\mathsf{header}\ {#1} \langle {\overline{#2}} \rangle\, \{\overline{{#3} : {#4}}\}}
-\newcommand{\headerUnionDcl}[4]{\mathsf{header\_union}\ {#1}\, \langle {\overline{#2}} \rangle\, \{\overline{{#3} : {#4}}\}}
-\newcommand{\structDcl}[4]{\mathsf{struct}\ {#1}\,  \langle {\overline{#2}} \rangle\, \{\overline {{#3}:{#4}}\}}
-\newcommand{\errDcl}[1]{\mathsf{error}\ \{ {#1} \}}
-\newcommand{\matchkindDcl}[1]{\mathsf{match\_kind}\ \{{#1}\}}
-\newcommand{\enumDcl}[2]{\mathsf{enum}\ {#1}\, \{{#2} \}}
-\newcommand{\serEnumDcl}[4]{\mathsf{enum}\ {#1} {#2}\, \{\overline {{#3}={#4}} \}}
-\newcommand{\externObjDcl}[3]{\mathsf{extern}\ {#1}\, \langle{#2}\rangle\, \{{#3} \}}
-%type \rho \typename
+\newcommand{\actionDcl}[3]{\mathsf{action}\ {#1}\, (\overline{#2})\, \{\overline{#3}\}}
+\newcommand{\tableDcl}[2]{\mathsf{table}\ {#1}\, \{\overline{#2}\}}
+\newcommand{\headerDcl}[4]{\mathsf{header}\ {#1}\, \langle {\overline{#2}} \rangle\, \recordTypStructureClose{#3}{#4}}
+\newcommand{\headerUnionDcl}[4]{\mathsf{header\_union}\ {#1}\, \langle {\overline{#2}} \rangle\, \recordTypStructureClose{#3}{#4}}
+\newcommand{\structDcl}[4]{\mathsf{struct}\ {#1}\,  \langle {\overline{#2}} \rangle\, \recordTypStructureClose{#3}{#4}}
+\newcommand{\errDcl}[1]{\mathsf{error}\ \{ \overline {#1} \}}
+\newcommand{\matchkindDcl}[1]{\mathsf{match\_kind}\ \{\overline{#1}\}}
+\newcommand{\enumDcl}[2]{\mathsf{enum}\ {#1}\, \{\overline{#2} \}}
+\newcommand{\serEnumDcl}[4]{\mathsf{enum}\ {#1}\ {#2}\, \{\overline {{#3}={#4}} \}}
+\newcommand{\externObjDcl}[3]{\mathsf{extern}\ {#1}\, \langle \overline {#2}\rangle\, \{\overline {#3} \}}
+%type \typ \typename
 \newcommand{\newtypeDcl}[2]{\mathsf{type} \ {#1}\ {#2}}
-\newcommand{\typdefDcl}[2]{\mathsf{typedef}\ {#2}\, {#1}}
-\newcommand{\controlTypDcl}[3]{\mathsf{control}\ {#1}\, \langle{#2}\rangle\, ({#3})}
-\newcommand{\parserTypDcl}[3]{\mathsf{parser}\ {#1}\, \langle{#2}\rangle\, ({#3})}
-\newcommand{\packageTypDcl}[3]{\mathsf{package}\ {#1}\, \langle{#2}\rangle\, ({#3})}
+\newcommand{\typdefDcl}[2]{\mathsf{typedef}\ {#1}\ {#2}}
+\newcommand{\controlTypDcl}[3]{\mathsf{control}\ {#1}\, \langle\overline{#2}\rangle\, (\overline{#3})}
+\newcommand{\parserTypDcl}[3]{\mathsf{parser}\ {#1}\, \langle\overline{#2}\rangle\, (\overline{#3})}
+\newcommand{\packageTypDcl}[3]{\mathsf{package}\ {#1}\, \langle\overline{#2}\rangle\, (\overline{#3})}
 
 \newcommand{\prog}{\mathit{prog}}
 
 %function helpers
+\newcommand{\dclName}[1]{\mathit{name\_from\_dcl}({#1})}
 \newcommand{\distinct}[1]{\mathit{are\_distinct}({#1})}
+\newcommand{\noFreeTypVar}[1]{\mathit{no\_free\_type\_var}({#1})}
 \newcommand{\types}[1]{\mathit{types\_of}({#1})}
 \newcommand{\mergeConst}[1]{\mathit{merge\_types}({#1})}
 \newcommand{\toVoid}[1]{\mathit{voidify}({#1})}
 \newcommand{\breakMaybes}[3]{\mathit{break\_option}({#1})=\left({#2},{#3}\right)}
 \newcommand{\isExtern}[1]{\mathit{is\_extern}({#1})}
+\newcommand{\fullyInstantiated}[1]{\mathit{fully\_instantiated}({#1})}
 \newcommand{\nothing}{\bot}
-\newcommand{\maskTypeIs}[2]{\mathit{mask\_type}({#1},{#2})}
+%% \newcommand{\maskTypeIs}[2]{\mathit{mask\_type}({#1},{#2})}
 % \typ = \intWidthTyp \width \textOr \bitWidthTyp \width
 \newcommand{\widthInt}[1]{\mathit{width\_int}({#1})}
+\newcommand{\isWidthInt}[1]{\mathit{is\_width\_int}({#1})}
 %% - $\bothWidthInt {\typ_1} {\typ_2}$ is a helper function that checks if both types are fixed-length signed or unsigned integers. That is, it checks the conditions below and returns $\tr$ if one of them holds:
 %% + $\typ_1 = \typ_2 = \bitWidthTyp \width$
 %% + $\typ_1 = \typ_2 = \intWidthTyp \width$
@@ -500,7 +608,7 @@
 \newcommand{\bothInt}[2]{\mathit{both\_int}({#1},{#2})}
 \newcommand{\concatCond}[2]{\mathit{concat\_type}({#1},{#2})}
 \newcommand{\divCond}[2]{\mathit{div\_type}({#1},{#2})}
-\newcommand{\shiftCond}[2]{\mathit{shift\_condition}({#1},{#2})_{\constEnv, \typEnv}}
+\newcommand{\shiftCond}[2]{\mathit{shift\_condition}({#1},{#2})_{\env}}
 \newcommand{\addTypeEnv}[2]{\typEnv[{#1}:{#2}]}
 \newcommand{\addTypEnvv}[1]{\typEnv[{#1}]}
 \newcommand{\unionEnv}[2]{{#1}\cup{#2}}
@@ -508,13 +616,14 @@
 \newcommand{\isNumeric}[2]{\mathit{is\_numeric}({#1}, {#2})}
 \newcommand{\ifIntComp}[2]{\mathit{if\_int\_is\_compile\_time\_known}({#1}, {#2})}
 \newcommand{\isNumOrEnum}[1]{\mathit{is\_num\_or\_enum}({#1})}
+\newcommand{\isEnumOrIntOrErr}[1]{\mathit{is\_enum\_or\_int\_or\_err}({#1})}
 %% \newcommand{\isArray}[1]{\mathit{is\_array}({#1})}
 \newcommand{\getEnum}[1]{\mathit{get\_enum}({#1})}
-%% \newcommand{\isConstant}[1]{\mathit{is\_constant} ({#1})}
+\newcommand{\isConstant}[1]{\mathit{is\_constant} ({#1})}
 %% - $\isConstant \exp$ checks whether the expression $\exp$ is a constant or not.  
 \newcommand{\isInstantiation}[1]{\mathit{is\_instantiation} ({#1})}
 \newcommand{\isVariable}[1]{\mathit{is\_variable} ({#1})}
-\newcommand{\compileTimeEval}[1]{\llbracket{#1}\rrbracket_{\constEnv, \typEnv}}
+\newcommand{\compileTimeEval}[1]{\llbracket{#1}\rrbracket_{\env}}
 \newcommand{\implicitCast}[2]{\mathit{implicit\_cast}({#1},{#2})}
 \newcommand{\insertImplCast}[2]{\mathit{insert\_implicit\_cast}({#1},{#2})}
 \newcommand{\insertEnumImplCast}[2]{\mathit{insert\_enum\_implicit\_cast}({#1},{#2})}
@@ -524,16 +633,17 @@
 \newcommand{\typHasEq}[1]{\mathit{has\_equality}({#1})_\env}
 \newcommand{\nonNeg}[1]{\mathit{is\_nonneg\_numeric}({#1})_\env}
 \newcommand{\pos}[1]{\mathit{is\_pos\_numeric}({#1})_\env}
-\newcommand{\compTimeKnown}[1]{\mathit{compile\_time\_known}({#1})_{\constEnv, \typEnv}}
+\newcommand{\compTimeKnown}[1]{\mathit{compile\_time\_known}({#1})_{\env}}
 \newcommand{\sat}[1]{\mathit{saturate}({#1})_\typEnv}
 \newcommand{\trans}[2]{\mathit{translate}({#1})_{\env,{#2}}}
 \newcommand{\transMaybe}[1]{\mathit{optional\_translate}({#1})_{\env}}
-\newcommand{\isValidNestedTyp}[1]{\mathit{is\_valid\_nested}({#1})_\typEnv}
+\newcommand{\isValidNestedTyp}[1]{\mathit{is\_valid\_nested}({#1})_\env}
 %{#1} is outer, 2 is inner
 \newcommand{\noDup}[1]{\mathit{no\_duplicate}({#1})}
 %% \newcommand{\explicitCastOK}[2]{\explCast {#1} {#2}}
 \newcommand{\insertTypVars}[1]{\mathit{insert\_type\_vars}({#1}, \env)}
-\newcommand{\getTypeParams}[1]{\mathit{get\_type\_params}({#1})}
+\newcommand{\getTypParams}[1]{\mathit{get\_type\_params}({#1})}
+\newcommand{\getLength}[1]{|{#1}|}
 \newcommand{\reduce}[1]{\mathit{reduce}({#1})_\typEnv}
 \newcommand{\reduceWithEnv}[2]{\mathit{reduce}({#2})_{#1}} %%TODO: adjust env where it's used. 
 %% \newcommand{\fieldOrMethodTyp}[1]{\mathit{field\_or\_method\_type}({#1})}
@@ -543,33 +653,48 @@
 \newcommand{\ifVoidTyp}[1]{\mathit{if\_void\_type}({#1})}
 \newcommand{\allowedTypeForVar}[1]{\mathit{is\_allowed\_type\_for\_variable}({#1})}
 \newcommand{\checkParamShadow}[2]{\mathit{check\_parameter\_shadowing}({#1}, {#2})}
-\newcommand{\match}[2]{\mathit{match}({#1},{#2})}
+%% \newcommand{\match}[2]{\mathit{match}({#1},{#2})}
 %% \newcommand{\zip}[2]{\mathit{zip} ({#1},{#2})}
-\newcommand{\matchParArg}[2]{\mathit{macth\_parameter\_argument}({#1},{#2})}
-\newcommand{\validatePars}[3]{\mathit{validate\_parameter}({#1})_{{#2},{#3}}}
-\newcommand{\validateParArg}[1]{\mathit{validate\_parmeter\_argument}({#1})}
-\newcommand{\maybe}[1]{{#1}_{\bot}}
-\newcommand{\castParArg}[1]{\mathit{cast\_parameter\_argument}({#1})}
-\newcommand{\callOK}[2]{\mathit{call\_ok}({#1},{#2})}
-\newcommand{\removeOptionalPars}[1]{\mathit{remove\_optional\_parameteres}({#1})}
+\newcommand{\matchParamsArgs}[2]{\mathit{macth\_parameters\_arguments}(\overline {#1}, \overline{#2})}
+\newcommand{\resolveOverload}[2]{\mathit{resolve\_overload}(\overline {#1}, \overline {#2})}
+\newcommand{\validParamsArgs}[2]{\mathit{valid\_parameters\_arguments}(\overline{#1})_{#2}}
+%% \newcommand{\validatePars}[3]{\mathit{validate\_parameter}({#1})_{{#2},{#3}}}
+%% \newcommand{\validateParArg}[1]{\mathit{validate\_parmeter\_argument}({#1})}
+%% \newcommand{\maybe}[1]{{#1}_{\bot}}
+%% \newcommand{\castParArg}[1]{\mathit{cast\_parameter\_argument}({#1})}
+%% \newcommand{\callOK}[2]{\mathit{call\_ok}({#1},{#2})}
+%% \newcommand{\removeOptionalPars}[1]{\mathit{remove\_optional\_parameteres}({#1})}
 \newcommand{\concatList}[2]{{#1}\ +\!+\ {#2}}
 \newcommand{\isDirectionless}[1]{\mathit{is\_directionless}({#1})}
 \newcommand{\whatevs}{\_\!\_}
-\newcommand{\valMatchTyp}[1]{\mathit{value\_matches\_type}({#1})}
+\newcommand{\valMatchTyp}[2]{\mathit{value\_matches\_type}( {#1}, {#2})}
+\newcommand{\parTypEqInitTyp}[1]{\mathit{param\_type\_eq\_init\_type}({#1})}
+\newcommand{\isSerializableTyp}[1]{\mathit{is\_serializable\_type}({#1})}
+\newcommand{\getFieldTyp}[1]{\mathit{get\_field\_type}({#1})}
 %fields 
-\newcommand{\isValid}{\mathsf{isValid}}
+\newcommand{\isValid}{\mathsf{isValid}()}
 \newcommand{\apply}{\mathsf{apply}}
-\newcommand{\minSizeBits}{\mathsf{minSizeInBits}}
-\newcommand{\minSizeBytes}{\mathsf{minSizeInBytes}}
-\newcommand{\setValid}{\mathsf{setValid}}
-\newcommand{\setInvalid}{\mathsf{setInvalid}}
-\newcommand{\pushFront}{\mathsf{push\_front}}
-\newcommand{\popFront}{\mathsf{pop\_front}}
+\newcommand{\sizingMem}{\mathit{sizeIn}}
+\newcommand{\minSizeBits}{\mathsf{minSizeInBits}()}
+\newcommand{\minSizeBytes}{\mathsf{minSizeInBytes}()}
+\newcommand{\maxSizeBits}{\mathsf{maxSizeInBits}()}
+\newcommand{\maxSizeBytes}{\mathsf{maxSizeInBytes}()}
+\newcommand{\setValidity}{\mathit{setValidity}}
+\newcommand{\setValid}{\mathsf{setValid}()}
+\newcommand{\setInvalid}{\mathsf{setInvalid}()}
+\newcommand{\pushFront}[1]{\mathsf{push\_front}({#1})}
+\newcommand{\popFront}[1]{\mathsf{pop\_front}({#1})}
+\newcommand{\pushOrPop}[1]{\mathit{push\_or\_pop}({#1})}
 \newcommand{\sizeMem}{\mathsf{size}}
+\newcommand{\nextIndex}{\mathsf{nextIndex}}
 \newcommand{\lastIndex}{\mathsf{lastIndex}}
+\newcommand{\nextOrLast}{\mathit{next\_or\_last}}
 \renewcommand{\next}{\mathsf{next}}
 \newcommand{\last}{\mathsf{last}}
 \newcommand{\isHeader}[1]{\mathit{is\_header}({#1})}
+\newcommand{\isHeaderOrUnion}[1]{\mathit{is\_header\_or\_union}({#1})}
+\newcommand{\binOpExp}[3]{{#2}\, {#1}\, {#3}}
+
 
 %kinds
 \newcommand{\builtin}{\mathsf{builtin}}
@@ -586,9 +711,12 @@
 
 %values
 \newcommand{\enumVal}[2]{\typMem {#1} {#2}}
+\newcommand{\errVal}[1]{\errMem {#1}}
+\newcommand{\matchkindVal}[1]{\mathsf{match\_kind}.{#1}}
 
 %types:
 \newcommand{\dontcareTyp}{\mathsf{dontcare}}
+\newcommand{\notInstantiatedTyp}{\mathsf{not\_instantiated}}
 \newcommand{\bitWidthTyp}[1]{\mathsf{bit}\langle{#1}\rangle}
 \newcommand{\intWidthTyp}[1]{\mathsf{int}\langle{#1}\rangle}
 \newcommand{\boolTyp}{\mathsf{bool}}
@@ -598,33 +726,36 @@
 \newcommand{\setTyp}[1]{\mathsf{set}\langle{#1}\rangle}
 \newcommand{\errTyp}{\mathsf{error}}
 \newcommand{\varbitTyp}[1]{\mathsf{varbit}\langle{#1}\rangle}
-\newcommand{\matchKindTyp}{\mathsf{match\_kind}}
+\newcommand{\matchkindTyp}{\mathsf{match\_kind}}
 \newcommand{\voidTyp}{\mathsf{void}}
-\newcommand{\arrayTyp}[2]{{#1}[{#2}]}
+\newcommand{\headerStackTyp}[2]{{#1}[{#2}]}
 \newcommand{\tupleTyp}[2]{\mathsf{tuple}\langle{#1},\ldots,{#2}\rangle}
 \newcommand{\tupleTyps}[1]{\mathsf{tuple}\langle\overline{#1}\rangle}
 \newcommand{\listTyp}[2]{\tupleTyp {#1} {#2}}
 \newcommand{\listTyps}[1]{\tupleTyps {#1}}
-\newcommand{\enumTypDef}{\mathsf{enum}\ {\surfaceTyp \exp}\ {\typName}\ \{\fields\}}
+\newcommand{\listTypss}[1]{\{ {#1}\}}%for p4 workshop
+\newcommand{\enumTypDef}{\mathsf{enum}\ {\typ}\ {\typName}\ \{\fields\}}%%TODO: add is surface typ to well-formed of this. 
 \newcommand{\enumTyp}[3]{\mathsf{enum}\ {#1}\ {#2}\ \{{#3}\}}
 \newcommand{\enumTypNoTypDef}{\mathsf{enum} \ {\typName}\ \{\fields\}}
 \newcommand{\enumTypNoTyp}[2]{\mathsf{enum} \ {#1}\ \{{#2}\}}
-\newcommand{\recordTypDef}{\recordTyp 1 n}
+%% \newcommand{\recordTypDef}{\recordTyp 1 n}
 \newcommand{\recordTypStructureOpen}[2]{\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
 \newcommand{\recordTypStructureClose}[2]{\{\overline {{#1} : {#2}}\}}
-\newcommand{\recordTyp}[2]{\mathsf{record} \{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
-\newcommand{\recordTypp}[2]{\mathsf{record} \{\VVal {\field_{#1}}:\VVal {\typ_{#1}};\ldots;\VVal {\field_{#2}}:\VVal {\typ_{#2}}\}}
+%% \newcommand{\recordTyp}[2]{\mathsf{record} \{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
+%% \newcommand{\recordTypp}[2]{\mathsf{record} \{\VVal {\field_{#1}}:\VVal {\typ_{#1}};\ldots;\VVal {\field_{#2}}:\VVal {\typ_{#2}}\}}
 %% \newcommand{\recordTyps}{\mathsf{record} \recordTypStructureClose \field \typ}
-\newcommand{\recordTyps}[2]{\mathsf{record} \recordTypStructureClose {#1} {#2}}
+%% \newcommand{\recordTyps}[2]{\mathsf{record} \recordTypStructureClose {#1} {#2}}
 \newcommand{\headerUnionTyp}[2]{\mathsf{header\_union} \recordTypStructureOpen {#1} {#2}}
-\newcommand{\headerUnionTyps}[3]{\mathsf{header\_union}\langle{\overline{#1}}\rangle \recordTypStructureClose {#2} {#3}}
-\newcommand{\headerTyp}[3]{\mathsf{header} \langle{\overline{#1}}\rangle\recordTypStructureOpen {#2} {#3}}
-\newcommand{\structTyp}[3]{\mathsf{struct} \langle{\overline{#1}}\rangle \recordTypStructureOpen {#2} {#3}}
-\newcommand{\headerTyps}[3]{\mathsf{header} \langle{\overline{#1}}\rangle\recordTypStructureClose {#2} {#3}}
+\newcommand{\headerUnionTyps}[3]{\mathsf{header\_union} \, \langle{\overline{#1}}\rangle \recordTypStructureClose {#2} {#3}}
+\newcommand{\headerTyp}[3]{\mathsf{header}\, \langle{\overline{#1}}\rangle\recordTypStructureOpen {#2} {#3}}
+\newcommand{\structTyp}[3]{\mathsf{struct}\, \langle{\overline{#1}}\rangle \recordTypStructureOpen {#2} {#3}}
+\newcommand{\headerTyps}[3]{\mathsf{header}\, \langle{\overline{#1}}\rangle\recordTypStructureClose {#2} {#3}}
+%% \newcommand{\headerTypsNoGen}[2]{\mathsf{header} \recordTypStructureClose {#1} {#2}}
 %% \newcommand{\headerTypp}[2]{\mathsf{header} \recordTypp {#1} {#2}}
 %% \newcommand{\structTypp}[2]{\mathsf{struct} \recordTypp {#1} {#2}}
 \newcommand{\structTypDef}{\mathsf{struct} \recordTypStructureOpen 1 n}
-\newcommand{\structTyps}[3]{\mathsf{struct} \langle{\overline{#1}}\rangle \recordTypStructureClose {#2} {#3}}
+\newcommand{\structTyps}[3]{\mathsf{struct}\, \langle{\overline{#1}}\rangle \recordTypStructureClose {#2} {#3}}
+%% \newcommand{\structTypsNoGen}[2]{\mathsf{struct} \recordTypStructureClose {#1} {#2}}
 %% \newcommand{\headerUnionTyp}{\mathit{header\_union}\{\field_1:\typ_1;\ldots;\field_n:\typ_n \}}
 %% \newcommand{\headerTypDef}{\headerTyp 1 n}
 %% \newcommand{\headerTyp}[2]{\mathit{header}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
@@ -633,26 +764,26 @@
 %% \newcommand{\structTyp}[2]{\mathit{struct}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
 %% \newcommand{\structTypp}[2]{\mathit{struct}\{\VVal {\field_{#1}}:\VVal {\typ_{#1}};\ldots;\VVal {\field_{#2}}:\VVal {\typ_{#2}}\}}
 \newcommand{\newTypeTyp}[2]{\newtypKey \ {#1}\ {#2}}
-\newcommand{\funcTyp}[3]{\mathsf{function}\ {#1}\ \langle{#2}\rangle ({#3})}
+%% \newcommand{\funcTyp}[3]{\mathsf{function}\ {#1}\ \langle{#2}\rangle ({#3})}
 \newcommand{\simpFuncTyp}[2]{{#1} \rightarrow {#2}}
 %kind.type param. param. return type. 
-\newcommand{\funcType}[4]{\mathsf{function}\ {#1}\ \langle{#2}\rangle ({#3})\rightarrow {#4}}
+\newcommand{\funcType}[4]{\mathsf{function}\ {#1}\ \langle\overline{#2}\rangle (\overline{#3})\rightarrow {#4}}
 % type params: list of name. wildcard param: list of name. params: list of type dir name. return: typed.
 %% second arg is wildcard which is omitted for now. 
 %% \newcommand{\constructorTyp}[4]{\mathsf{constructor}\langle{#1},{#2}\rangle\ ({#3}) \rightarrow {#4}}
-\newcommand{\constructorTyp}[3]{\mathsf{constructor}\langle{#1},{#2}\rangle \rightarrow {#3}}
+\newcommand{\constructorTyp}[3]{\mathsf{constructor}\, \langle\overline{#1}\rangle (\overline{#2}) \rightarrow {#3}}
 \newcommand{\externTyp}[1]{\mathsf{extern} \  {#1}}
 \newcommand{\spcTyp}[2]{{#1}\langle\overline{#2}\rangle}
-\newcommand{\parserTyp}[2]{\mathsf{parser}\langle{#1}\rangle({#2})}
-\newcommand{\controlTyp}[2]{\mathsf{control}\langle{#1}\rangle({#2})}
-\newcommand{\packageTyp}[2]{\mathsf{package}\langle{#1}\rangle({#2})}
+\newcommand{\parserTyp}[2]{\mathsf{parser}\, \langle\overline{#1}\rangle(\overline{#2})}
+\newcommand{\controlTyp}[2]{\mathsf{control}\, \langle\overline{#1}\rangle(\overline{#2})}
+\newcommand{\packageTyp}[2]{\mathsf{package}\, \langle\overline{#1}\rangle(\overline{#2})}
 %% the third arg is wildcard which is omitted for now.
 %% \newcommand{\packageTyp}[3]{\mathsf{package}\langle{#1}\rangle({#2},{#3})}
-\newcommand{\actionTyp}[2]{\mathsf{action}(\mathsf{data:}\ {#1},\mathsf{control:}\ {#2})}
+\newcommand{\actionTyp}[2]{\mathsf{action}(\mathsf{data:}\ \overline{#1},\mathsf{control:}\ \overline{#2})}
 \newcommand{\tableTyp}[1]{\mathsf{table}\ {#1}}
 %% \newcommand{\typNameTyp}[1]{\mathsf{type\_name}\ {#1}}
-\newcommand{\unitTyp}{()}
-\newcommand{\stackTyp}[2]{{#1}[{#2}]}
+%% \newcommand{\unitTyp}{()}
+%% \newcommand{\stackTyp}[2]{{#1}[{#2}]}
 
 %directions:
 \newcommand{\less}{\mathsf{directionless}}
@@ -662,3 +793,27 @@
 \newcommand{\inDir}{\mathsf{in}}
 \newcommand{\out}{\mathsf{out}}
 \newcommand{\inout}{\mathsf{in\_out}}
+
+
+%externs:
+\newcommand{\externMethod}{\name:\typ}
+\newcommand{\externMethodGeneral}[2]{{#1}:{#2}}
+\newcommand{\externMethods}{\overline \externMethod}
+\newcommand{\externMethodsGeneral}[2]{\overline {{#1}:{#2}}}
+\newcommand{\externLookupRes}{(\overline \externMethod, \typVars)}
+\newcommand{\externLookupResGeneral}[3]{(\externMethodsGeneral {#1} {#2}, {#3})}
+
+\newcommand{\with}[2]{{#1}\ \mathsf{with} \ {#2}}
+
+%helpers for types
+\newcommand{\isSurface}[1]{\mathit{is\_surface}({#1})}
+
+%helpers for packet types
+\newcommand{\hasPacketIn}[1]{\mathit{has\_packet\_in}({#1})}
+\newcommand{\ifTypeExternDirLess}[2]{\mathit{if\_type\_extern\_dir\_less}(\overline {{#1}\ {#2}})}
+\newcommand{\packetIn}{\mathsf{packet\_in}}
+\newcommand{\dropInit}[1]{\mathit{drop\_initializer}({#1})}
+\newcommand{\validParam}[3]{\mathit{valid\_param}({#1}, {#2})_{#3}}
+
+% type helpers
+\newcommand{\subTypVars}[2]{\mathit{sub\_type\_vars}({#1})_{#2}}
